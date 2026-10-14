@@ -199,7 +199,7 @@ h1 span{background-size:200% 100%;animation:shimmer 5s linear infinite}
   <h2>How to Buy</h2>
   <p class="sub">Always verify the contract address above before you buy. Only use the official CA from this page.</p>
   <div class="steps">
-    <div class="card"><div class="num">1</div><h3>Get a wallet</h3><p>Install Phantom (or your Solana wallet of choice) and fund it with SOL.</p></div>
+    <div class="card"><div class="num">1</div><h3>Get a wallet</h3><p>Install your Solana wallet of choice and fund it with SOL.</p></div>
     <div class="card"><div class="num">2</div><h3>Copy the CA</h3><p>Tap COPY above to grab the exact $QI contract address.</p></div>
     <div class="card"><div class="num">3</div><h3>Swap SOL → $QI</h3><p>Paste the CA into Jupiter, Raydium, PumpSwap, or your trading app and swap.</p></div>
     <div class="card"><div class="num">4</div><h3>Join the pack</h3><p>Make your PFP below, follow @QuantumInu4L, and jump into the Telegram.</p></div>
@@ -406,12 +406,13 @@ function fmtUsd(n){if(n==null||isNaN(n))return '…';if(n>=1e9)return '$'+(n/1e9
 function fmtPrice(p){if(p==null||isNaN(p))return '…';return '$'+parseFloat(Number(p).toPrecision(3)).toString()}
 function animateNum(el,to){const from=holdersShown;const t0=performance.now();const dur=900;function step(t){const k=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-k,3);el.textContent=fmtInt(Math.round(from+(to-from)*e));if(k<1)requestAnimationFrame(step);else holdersShown=to}requestAnimationFrame(step)}
 async function loadStats(){try{const r=await fetch('https://api.dexscreener.com/latest/dex/tokens/'+QI_MINT);if(!r.ok)return;const d=await r.json();const pairs=(d.pairs||[]).filter(p=>p.baseToken&&p.baseToken.address===QI_MINT&&p.priceUsd);if(!pairs.length)return;pairs.sort((a,b)=>((b.liquidity&&b.liquidity.usd)||0)-((a.liquidity&&a.liquidity.usd)||0));const p=pairs[0];document.getElementById('statPrice').textContent=fmtPrice(p.priceUsd);const ch=p.priceChange&&p.priceChange.h24;const chEl=document.getElementById('statChange');if(ch!=null){chEl.textContent='('+(ch>=0?'+':'')+ch+'% 24h)';chEl.className=ch>=0?'up':'down'}document.getElementById('statMcap').textContent=fmtUsd(p.marketCap);document.getElementById('statVol').textContent=fmtUsd(p.volume&&p.volume.h24);document.getElementById('statLiq').textContent=fmtUsd(p.liquidity&&p.liquidity.usd)}catch(e){}}
-async function loadHolders(){const body=JSON.stringify({jsonrpc:'2.0',id:1,method:'getProgramAccounts',params:['TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',{encoding:'base64',dataSlice:{offset:32,length:40},filters:[{memcmp:{offset:0,bytes:QI_MINT}}]}]});for(const url of RPCS){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body});if(!r.ok)continue;const d=await r.json();if(!d.result)continue;const owners=new Set();for(const a of d.result){try{const raw=atob(a.account.data[0]);let nz=false;for(let i=32;i<40;i++){if(raw.charCodeAt(i)!==0){nz=true;break}}if(nz)owners.add(raw.slice(0,32))}catch(e){}}if(owners.size>0){animateNum(document.getElementById('holdersNum'),owners.size);return}}catch(e){}}}
-loadStats();loadHolders();setInterval(loadStats,60000);setInterval(loadHolders,120000);
+async function fetchHoldersOnce(url,body){const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),30000);try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body,signal:ctl.signal});if(!r.ok)return 0;const d=await r.json();if(!d.result)return 0;const owners=new Set();for(const a of d.result){try{const raw=atob(a.account.data[0]);let nz=false;for(let i=32;i<40;i++){if(raw.charCodeAt(i)!==0){nz=true;break}}if(nz)owners.add(raw.slice(0,32))}catch(e){}}return owners.size}catch(e){return 0}finally{clearTimeout(to)}}
+async function loadHolders(){const body=JSON.stringify({jsonrpc:'2.0',id:1,method:'getProgramAccounts',params:['TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',{encoding:'base64',dataSlice:{offset:32,length:40},filters:[{memcmp:{offset:0,bytes:QI_MINT}}]}]});for(const url of RPCS){const n=await fetchHoldersOnce(url,body);if(n>0){animateNum(document.getElementById('holdersNum'),n);return true}}return false}
+loadStats();(async()=>{let ok=await loadHolders();let tries=0;while(!ok&&tries<10){await new Promise(r=>setTimeout(r,20000));ok=await loadHolders();tries++}})();setInterval(loadStats,60000);setInterval(loadHolders,120000);
 renderCreations();
 // scroll reveals
 const revealIO=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');revealIO.unobserve(e.target)}})},{threshold:.1});
-document.querySelectorAll('section,.stat').forEach(el=>{el.classList.add('reveal');revealIO.observe(el)});
+document.querySelectorAll('section,.stat,.reveal').forEach(el=>{el.classList.add('reveal');revealIO.observe(el)});
 </script>
 </body>
 </html>
