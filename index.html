@@ -388,6 +388,11 @@ h1 span{background-size:200% 100%;animation:shimmer 5s linear infinite}
     <figure><img loading="lazy" src="assets/gallery/qi-meme-ghost.jpg" alt="Quantum Inu meme"><figcaption>👻 Spooky QI</figcaption></figure>
     <figure><img loading="lazy" src="assets/gallery/qi-meme-cupid.jpg" alt="Quantum Inu meme"><figcaption>💘 Cupid QI</figcaption></figure>
   </div>
+  <div class="pager" style="display:flex;gap:14px;align-items:center;justify-content:center;margin-top:20px">
+    <button class="btn" id="galPrev" type="button">&larr; Prev</button>
+    <span id="galPageInfo" style="font-weight:800"></span>
+    <button class="btn" id="galNext" type="button">Next &rarr;</button>
+  </div>
 </section>
 
 <footer>
@@ -515,6 +520,28 @@ renderCreations();
 // scroll reveals
 const revealIO=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');revealIO.unobserve(e.target)}})},{threshold:.1});
 document.querySelectorAll('section,.stat,.reveal').forEach(el=>{el.classList.add('reveal');revealIO.observe(el)});
+</script>
+<script>
+// Meme gallery: paginated (20 per page) and forced visible — the section is far
+// too tall for the scroll-reveal observer's 10% threshold ever to trigger.
+(function(){
+  var sec=document.getElementById('gallery'); if(!sec) return;
+  sec.classList.add('in'); sec.style.opacity='1'; sec.style.transform='none';
+  var grid=sec.querySelector('.gallery'); if(!grid) return;
+  var figs=[].slice.call(grid.querySelectorAll('figure'));
+  var PER=20, page=0, pages=Math.max(1,Math.ceil(figs.length/PER));
+  var info=document.getElementById('galPageInfo'), prev=document.getElementById('galPrev'), next=document.getElementById('galNext');
+  function show(){
+    figs.forEach(function(f,i){ f.style.display=(i>=page*PER&&i<(page+1)*PER)?'':'none'; });
+    if(info) info.textContent='Page '+(page+1)+' of '+pages;
+    if(prev) prev.disabled=(page===0);
+    if(next) next.disabled=(page>=pages-1);
+  }
+  function flip(d){ var n=page+d; if(n<0||n>=pages) return; page=n; show(); sec.scrollIntoView({behavior:'smooth'}); }
+  if(prev) prev.addEventListener('click',function(){flip(-1)});
+  if(next) next.addEventListener('click',function(){flip(1)});
+  show();
+})();
 </script>
 </body>
 </html>
