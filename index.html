@@ -337,12 +337,16 @@ function drawBG(){
 }
 function filterCSS(){return state.filter==='cosmic'?'saturate(1.45) contrast(1.1) brightness(1.05)':state.filter==='moon'?'hue-rotate(18deg) saturate(1.25) brightness(1.02)':state.filter==='warm'?'sepia(.35) saturate(1.45) brightness(1.03)':state.filter==='mono'?'grayscale(.55) contrast(1.15)':'none'}
 let coverInfo=null;
+function coverRectFor(x,y,w,h){
+  if(!baseImg.complete||!baseImg.naturalWidth)return{dx:x,dy:y,dw:w,dh:h};
+  const sc=Math.max(w/baseImg.naturalWidth,h/baseImg.naturalHeight)*state.zoom;
+  const dw=baseImg.naturalWidth*sc,dh=baseImg.naturalHeight*sc;
+  return{dx:x+(w-dw)/2,dy:y+(h-dh)/2,dw:dw,dh:dh};
+}
 function drawImageCover(x,y,w,h){
   if(!baseImg.complete||!baseImg.naturalWidth)return;
-  const scale=Math.max(w/baseImg.naturalWidth,h/baseImg.naturalHeight)*state.zoom;
-  const dw=baseImg.naturalWidth*scale,dh=baseImg.naturalHeight*scale;
-  coverInfo={dx:x+(w-dw)/2,dy:y+(h-dh)/2,dw:dw,dh:dh,boxW:w};
-  ctx.filter=filterCSS();ctx.drawImage(baseImg,coverInfo.dx,coverInfo.dy,dw,dh);ctx.filter='none';
+  const r=coverRectFor(x,y,w,h);coverInfo={dx:r.dx,dy:r.dy,dw:r.dw,dh:r.dh,boxW:w};
+  ctx.filter=filterCSS();ctx.drawImage(baseImg,r.dx,r.dy,r.dw,r.dh);ctx.filter='none';
 }
 function draw(){
   ctx.clearRect(0,0,W,H);drawBG();
@@ -358,7 +362,7 @@ function draw(){
   for(let i=0;i<state.spark;i++){const x=rnd()*W,y=rnd()*H,s=rnd()*9+3;ctx.globalAlpha=.5+rnd()*.5;plus(x,y,s)}ctx.globalAlpha=1;
   // overlay
   if(state.overlay==='atom'||state.overlay==='both')drawAtom();
-  if(state.overlay==='ring'||state.overlay==='both'){ctx.lineWidth=22;const rg=ctx.createLinearGradient(0,0,W,H);rg.addColorStop(0,'#38e1ff');rg.addColorStop(.5,'#a855f7');rg.addColorStop(1,'#38e1ff');ctx.strokeStyle=rg;ctx.shadowColor='#38bdf8';ctx.shadowBlur=30;ctx.beginPath();ctx.arc(512,462,432,0,6.29);ctx.stroke();ctx.shadowBlur=0}
+  if(state.overlay==='ring'||state.overlay==='both'){const fr=coverRectFor(0,0,W,H);const ci=coverInfo||fr;const sx=ci.dw/fr.dw,sy=ci.dh/fr.dh;const cx=ci.dx+(512-fr.dx)*sx,cy=ci.dy+(462-fr.dy)*sy,rr=432*sx;ctx.lineWidth=Math.max(6,22*sx);const rg=ctx.createLinearGradient(0,0,W,H);rg.addColorStop(0,'#38e1ff');rg.addColorStop(.5,'#a855f7');rg.addColorStop(1,'#38e1ff');ctx.strokeStyle=rg;ctx.shadowColor='#38bdf8';ctx.shadowBlur=30;ctx.beginPath();ctx.arc(cx,cy,rr,0,6.29);ctx.stroke();ctx.shadowBlur=0}
   // badge
   if(state.badge!=='none'){const y=state.badge==='top'?44:H-118;ctx.fillStyle='#020617dd';roundRect(262,y,500,74,37);ctx.fill();ctx.lineWidth=3;ctx.strokeStyle='#38e1ff';roundRect(262,y,500,74,37);ctx.stroke();
     ctx.fillStyle='#fff';ctx.font='900 42px system-ui,Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('$QI  •  QUANTUM INU',512,y+39)}
