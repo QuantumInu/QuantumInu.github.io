@@ -336,11 +336,13 @@ function drawBG(){
   if(state.bg==='nebula'){const rg=ctx.createRadialGradient(760,220,20,760,220,480);rg.addColorStop(0,'#a855f755');rg.addColorStop(1,'transparent');ctx.fillStyle=rg;ctx.fillRect(0,0,W,H)}
 }
 function filterCSS(){return state.filter==='cosmic'?'saturate(1.45) contrast(1.1) brightness(1.05)':state.filter==='moon'?'hue-rotate(18deg) saturate(1.25) brightness(1.02)':state.filter==='warm'?'sepia(.35) saturate(1.45) brightness(1.03)':state.filter==='mono'?'grayscale(.55) contrast(1.15)':'none'}
+let coverInfo=null;
 function drawImageCover(x,y,w,h){
   if(!baseImg.complete||!baseImg.naturalWidth)return;
   const scale=Math.max(w/baseImg.naturalWidth,h/baseImg.naturalHeight)*state.zoom;
   const dw=baseImg.naturalWidth*scale,dh=baseImg.naturalHeight*scale;
-  ctx.filter=filterCSS();ctx.drawImage(baseImg,x+(w-dw)/2,y+(h-dh)/2,dw,dh);ctx.filter='none';
+  coverInfo={dx:x+(w-dw)/2,dy:y+(h-dh)/2,dw:dw,dh:dh,boxW:w};
+  ctx.filter=filterCSS();ctx.drawImage(baseImg,coverInfo.dx,coverInfo.dy,dw,dh);ctx.filter='none';
 }
 function draw(){
   ctx.clearRect(0,0,W,H);drawBG();
@@ -364,7 +366,7 @@ function draw(){
 function plus(x,y,s){ctx.beginPath();ctx.moveTo(x-s,y);ctx.lineTo(x+s,y);ctx.moveTo(x,y-s);ctx.lineTo(x,y+s);ctx.lineWidth=2.4;ctx.strokeStyle='#dff6ff';ctx.stroke()}
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
 let animAngle=0;
-function drawAtom(){ctx.save();ctx.translate(512,336);ctx.rotate(animAngle*.35);ctx.strokeStyle='#a5f3ff';ctx.lineWidth=13;ctx.shadowColor='#38e1ff';ctx.shadowBlur=26;
+function drawAtom(){const ci=coverInfo||{dx:0,dy:0,dw:W,dh:H,boxW:W};const cx=ci.dx+ci.dw*.506,cy=ci.dy+ci.dh*.327,s=ci.boxW/W;ctx.save();ctx.translate(cx,cy);ctx.scale(s,s);ctx.rotate(animAngle*.35);ctx.strokeStyle='#a5f3ff';ctx.lineWidth=13;ctx.shadowColor='#38e1ff';ctx.shadowBlur=26;
   for(const a of [0,1.047,2.094]){ctx.save();ctx.rotate(a);ctx.beginPath();ctx.ellipse(0,0,430,142,0,0,6.29);ctx.stroke();ctx.restore()}
   const rg=ctx.createRadialGradient(0,0,4,0,0,90);rg.addColorStop(0,'#fff7cc');rg.addColorStop(.35,'#fbbf24cc');rg.addColorStop(1,'transparent');ctx.fillStyle=rg;ctx.beginPath();ctx.arc(0,0,90,0,6.29);ctx.fill();ctx.restore()}
 function setGroup(name,val){state[name]=val;document.querySelectorAll(`.opts[data-group="${name}"] .opt`).forEach(o=>o.classList.toggle('active',o.dataset.val===val))}
