@@ -132,6 +132,50 @@
         box-shadow: 0 0 22px rgba(56, 189, 248, 0.45);
       }
       .btn:active { transform: translateY(1px); }
+      .btn.secondary {
+        background: transparent;
+        color: #7dd3fc;
+        border: 1px solid #38bdf8;
+        box-shadow: none;
+        padding: 10px 22px;
+        font-size: 14px;
+      }
+      .btn:disabled { opacity: 0.55; cursor: default; }
+      .overlay { overflow-y: auto; }
+      .lb-form { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+      .lb-input {
+        font-family: "Rajdhani", sans-serif;
+        font-weight: 700;
+        font-size: 16px;
+        padding: 11px 12px;
+        width: 168px;
+        border-radius: 10px;
+        border: 1px solid #38bdf8;
+        background: rgba(5, 8, 25, 0.85);
+        color: #eef1ff;
+        text-align: center;
+      }
+      .lb-input::placeholder { color: #7d89b8; }
+      .lb-msg { font-size: 15px !important; min-height: 1.2em; margin: 0; }
+      .lb-msg.err { color: #fda4af !important; }
+      .lb-msg.ok { color: #4ade80 !important; }
+      .lb-board { width: 100%; max-width: 320px; }
+      .lb-row {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        padding: 5px 10px;
+        border-radius: 7px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #dbe2ff;
+      }
+      .lb-row:nth-child(odd) { background: rgba(56, 189, 248, 0.08); }
+      .lb-row .rk { width: 28px; text-align: right; color: #7dd3fc; font-family: "Orbitron", sans-serif; font-size: 13px; }
+      .lb-row .nm { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .lb-row .sc { font-family: "Orbitron", sans-serif; font-size: 14px; }
+      .lb-row.me { background: rgba(56, 189, 248, 0.3); color: #ffffff; }
+      .lb-empty { font-size: 15px !important; }
       .controls-row {
         width: min(100%, 480px);
         display: flex;
@@ -165,7 +209,7 @@
     </style>
   </head>
   <body>
-<a href="../index.html" style="position:relative;z-index:2;display:inline-block;margin-bottom:12px;color:#cdbcf5;text-decoration:none;font-size:14px;font-weight:600">← quantuminuofficial.com</a>
+<a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
     <header>
       <h1><span class="qi">QI</span> SPACE SHOOTER</h1>
       <div class="tag">Q-Bot vs. the<br />sticker swarm</div>
@@ -178,6 +222,7 @@
         <h2>STICKER SWARM<br />INCOMING</h2>
         <p>The Quantum Inu stickers have gone rogue in deep space. Pilot the Q-Bot, blast the formation, and watch for dive-bombers.</p>
         <button class="btn" id="startBtn" type="button">▶&ensp;LAUNCH</button>
+        <button class="btn secondary" id="lbBtn" type="button">🏆&ensp;LEADERBOARD</button>
         <p>Drag to steer — the bot fires on its own.<br />Catch falling atoms for upgrades: twin blasters, a shield, a piercing red laser, or duplicate bots on both wings. They drop one at a time as you clear stickers.</p>
       </div>
 
@@ -185,12 +230,24 @@
         <h2>GAME OVER</h2>
         <p class="big-score" id="finalScore">SCORE 0</p>
         <p id="finalWave">You reached Wave 1</p>
+        <div class="lb-form">
+          <input class="lb-input" id="lbName" type="text" maxlength="16" placeholder="Your name" autocomplete="off" />
+          <button class="btn" id="lbSubmit" type="button" style="padding: 11px 18px; font-size: 14px;">SUBMIT SCORE</button>
+        </div>
+        <p class="lb-msg" id="lbMsg"></p>
+        <div class="lb-board" id="lbBoardOver" hidden></div>
         <button class="btn" id="againBtn" type="button">↻&ensp;FLY AGAIN</button>
       </div>
 
       <div class="overlay" id="pauseScreen" hidden>
         <h2>PAUSED</h2>
         <button class="btn" id="resumeBtn" type="button">▶&ensp;RESUME</button>
+      </div>
+
+      <div class="overlay" id="lbScreen" hidden>
+        <h2>🏆 LEADERBOARD</h2>
+        <div class="lb-board" id="lbBoardMenu"></div>
+        <button class="btn" id="lbClose" type="button">CLOSE</button>
       </div>
     </div>
 
@@ -383,6 +440,7 @@
             if (lives > 0 || MODE !== "play") return; // run was restarted meanwhile
             document.getElementById("finalScore").textContent = "SCORE " + score + (score >= hiScore && score > 0 ? "  ★ BEST" : "");
             document.getElementById("finalWave").textContent = "You reached Wave " + wave + (hiScore > score ? " · Best " + hiScore : "");
+            lbResetSubmit();
             show("overScreen"); MODE = "over";
           }, 900);
         }
@@ -784,6 +842,7 @@
 
       var KEYMAP = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down" };
       window.addEventListener("keydown", function (ev) {
+        if (ev.target && ev.target.id === "lbName") return; // typing a leaderboard name
         if (KEYMAP[ev.code]) { keys[KEYMAP[ev.code]] = true; ev.preventDefault(); }
         if (ev.code === "Space") {
           ev.preventDefault();
@@ -796,11 +855,11 @@
 
       // ============ UI flow ============
       function show(id) {
-        ["titleScreen", "overScreen", "pauseScreen"].forEach(function (s) {
+        ["titleScreen", "overScreen", "pauseScreen", "lbScreen"].forEach(function (s) {
           document.getElementById(s).hidden = s !== id;
         });
       }
-      function hideAll() { ["titleScreen", "overScreen", "pauseScreen"].forEach(function (s) { document.getElementById(s).hidden = true; }); }
+      function hideAll() { ["titleScreen", "overScreen", "pauseScreen", "lbScreen"].forEach(function (s) { document.getElementById(s).hidden = true; }); }
       function startGame() {
         beep(440, 0.1, "sine", 0.08, 660); // unlock audio on gesture
         resetRun();
@@ -823,6 +882,148 @@
       document.addEventListener("visibilitychange", function () {
         if (document.hidden && MODE === "play") togglePause();
       });
+
+      // ============ Leaderboard (Firebase Firestore, lazy-loaded) ============
+      var LB_GAME = "shooter";
+      var FB_CONFIG = {
+        apiKey: "AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0",
+        authDomain: "quantum-inu-games.firebaseapp.com",
+        projectId: "quantum-inu-games",
+        storageBucket: "quantum-inu-games.firebasestorage.app",
+        messagingSenderId: "996089422788",
+        appId: "1:996089422788:web:3c0917eeb3d1fdd1acba91"
+      };
+      var LB_BLOCKED = ["fuck", "shit", "bitch", "cunt", "dick", "cock", "pussy", "porn", "sex", "nude", "naked", "boob", "tits", "cum", "anal", "whore", "slut", "fag", "nigger", "nigga", "vagina", "penis", "dildo", "horny", "hentai", "onlyfans", "wank", "jizz", "boner", "rape", "pedo", "incest", "blowjob", "asshole", "twat"];
+      function lbNameBad(name) {
+        try {
+          var leet = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "!": "i" };
+          var n = String(name == null ? "" : name).toLowerCase().split("").map(function (c) { return leet[c] || c; }).join("").replace(/[^a-z]/g, "");
+          for (var i = 0; i < LB_BLOCKED.length; i++) if (n.indexOf(LB_BLOCKED[i]) !== -1) return true;
+          return false;
+        } catch (e) { return false; }
+      }
+      function lbGetSavedName() { try { return localStorage.getItem("qi-lb-name") || ""; } catch (e) { return ""; } }
+      function lbSaveName(n) { try { localStorage.setItem("qi-lb-name", n); } catch (e) { /* private mode: name just won't persist */ } }
+
+      var lbFs = null, lbDb = null, lbLoadPromise = null;
+      function lbLoad() {
+        if (lbLoadPromise) return lbLoadPromise;
+        lbLoadPromise = (async function () {
+          try {
+            var appMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+            var fsMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+            var app = appMod.initializeApp(FB_CONFIG);
+            lbDb = fsMod.getFirestore(app);
+            lbFs = fsMod;
+            return true;
+          } catch (e) {
+            lbDb = null; lbFs = null;
+            return false;
+          }
+        })();
+        return lbLoadPromise;
+      }
+      function lbFetchBoard() {
+        return lbLoad().then(function (ok) {
+          if (!ok || !lbDb || !lbFs) return null;
+          var q = lbFs.query(lbFs.collection(lbDb, "scores"), lbFs.orderBy("score", "desc"), lbFs.limit(50));
+          return lbFs.getDocs(q).then(function (snap) {
+            var rows = [];
+            snap.forEach(function (d) {
+              var v = d.data() || {};
+              if (v.game !== LB_GAME) return;
+              if (typeof v.score !== "number") return;
+              var nm = String(v.name == null ? "Player" : v.name);
+              if (lbNameBad(nm)) return; // display-side filter: bad names never render
+              rows.push({ name: nm, score: v.score });
+            });
+            return rows.slice(0, 10);
+          }).catch(function () { return null; });
+        }).catch(function () { return null; });
+      }
+      function lbRenderBoard(el, rows, hiName, hiScore) {
+        el.innerHTML = "";
+        if (!rows) {
+          var p0 = document.createElement("p"); p0.className = "lb-empty";
+          p0.textContent = "Leaderboard unavailable right now";
+          el.appendChild(p0); return;
+        }
+        if (!rows.length) {
+          var p1 = document.createElement("p"); p1.className = "lb-empty";
+          p1.textContent = "No scores yet — be the first!";
+          el.appendChild(p1); return;
+        }
+        var hiUsed = false;
+        rows.forEach(function (r, i) {
+          var row = document.createElement("div");
+          var isMe = !hiUsed && hiName != null && r.name === hiName && r.score === hiScore;
+          if (isMe) hiUsed = true;
+          row.className = "lb-row" + (isMe ? " me" : "");
+          var rk = document.createElement("span"); rk.className = "rk"; rk.textContent = (i + 1) + ".";
+          var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = r.name;
+          var sc = document.createElement("span"); sc.className = "sc"; sc.textContent = r.score;
+          row.appendChild(rk); row.appendChild(nm); row.appendChild(sc);
+          el.appendChild(row);
+        });
+      }
+      function lbSetMsg(text, cls) {
+        var m = document.getElementById("lbMsg");
+        m.textContent = text;
+        m.className = "lb-msg" + (cls ? " " + cls : "");
+      }
+      function lbResetSubmit() {
+        var btn = document.getElementById("lbSubmit");
+        btn.disabled = false;
+        btn.textContent = "SUBMIT SCORE";
+        document.getElementById("lbName").value = lbGetSavedName();
+        lbSetMsg("", "");
+        var b = document.getElementById("lbBoardOver");
+        b.hidden = true; b.innerHTML = "";
+      }
+      document.getElementById("lbSubmit").addEventListener("click", function () {
+        var btn = this;
+        if (btn.disabled) return;
+        var name = (document.getElementById("lbName").value || "").trim();
+        if (!name) name = "Player";
+        if (lbNameBad(name)) { lbSetMsg("That name isn't allowed — pick another", "err"); return; }
+        var finalScoreVal = score;
+        btn.disabled = true;
+        btn.textContent = "SENDING…";
+        lbSetMsg("", "");
+        lbLoad().then(function (ok) {
+          if (!ok || !lbDb || !lbFs) {
+            btn.disabled = false; btn.textContent = "SUBMIT SCORE";
+            lbSetMsg("Leaderboard unavailable right now", "err");
+            return;
+          }
+          lbFs.addDoc(lbFs.collection(lbDb, "scores"), {
+            name: name, score: finalScoreVal, game: LB_GAME, ts: lbFs.serverTimestamp()
+          }).then(function () {
+            lbSaveName(name);
+            btn.textContent = "SUBMITTED ✓";
+            lbSetMsg("Score submitted!", "ok");
+            var boardEl = document.getElementById("lbBoardOver");
+            boardEl.hidden = false;
+            boardEl.innerHTML = "";
+            var lp = document.createElement("p"); lp.className = "lb-empty"; lp.textContent = "Loading…";
+            boardEl.appendChild(lp);
+            lbFetchBoard().then(function (rows) { lbRenderBoard(boardEl, rows, name, finalScoreVal); });
+          }).catch(function () {
+            btn.disabled = false; btn.textContent = "SUBMIT SCORE";
+            lbSetMsg("Leaderboard unavailable right now", "err");
+          });
+        });
+      });
+      document.getElementById("lbBtn").addEventListener("click", function () {
+        show("lbScreen");
+        var boardEl = document.getElementById("lbBoardMenu");
+        boardEl.innerHTML = "";
+        var p = document.createElement("p"); p.className = "lb-empty"; p.textContent = "Loading…";
+        boardEl.appendChild(p);
+        lbFetchBoard().then(function (rows) { lbRenderBoard(boardEl, rows, null, null); });
+      });
+      document.getElementById("lbClose").addEventListener("click", function () { show("titleScreen"); });
+      document.getElementById("lbName").value = lbGetSavedName();
 
       // ============ Boot (menu backdrop: idle formation drifting) ============
       makeStars();
