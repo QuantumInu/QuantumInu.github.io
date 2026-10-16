@@ -117,7 +117,7 @@
   .overlay {
     position: absolute; inset: -4px; background: var(--overlay); border-radius: 22px; z-index: 10;
     display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-    padding: 28px 22px; color: var(--overlay-ink);
+    padding: 28px 22px; color: var(--overlay-ink); overflow-y: auto;
   }
   .overlay h2 { font-size: 27px; margin: 0 0 10px; }
   .overlay p { font-size: 15.5px; line-height: 1.55; color: var(--overlay-soft); margin: 0 0 8px; max-width: 340px; }
@@ -132,6 +132,36 @@
   }
   .btn:active { transform: scale(.97); }
   .btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .btn2 {
+    background: transparent; color: var(--overlay-ink); border: 2px solid var(--overlay-soft);
+    font-size: 15px; font-weight: 800; padding: 11px 26px; border-radius: 999px; cursor: pointer;
+    margin-top: 12px; touch-action: manipulation; min-height: 48px;
+  }
+  .btn2:active { transform: scale(.97); }
+  .btn2:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .lb-form { display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 4px; }
+  .lb-input {
+    width: 100%; max-width: 260px; padding: 12px 16px; font-size: 16px; font-weight: 700; text-align: center;
+    border-radius: 999px; border: 2px solid var(--overlay-soft); background: rgba(255, 255, 255, .96); color: #241a45;
+  }
+  .lb-input:focus-visible { outline: 3px solid var(--gold-bright); outline-offset: 2px; }
+  .lb-submit { font-size: 16px; padding: 12px 28px; min-height: 48px; }
+  .lb-submit:disabled { opacity: .55; cursor: default; box-shadow: none; }
+  .lb-msg { min-height: 20px; font-size: 13.5px; font-weight: 700; color: var(--overlay-soft); margin: 6px 0 0; }
+  .lb-msg.err { color: #ff8f9d; }
+  .lb-msg.ok { color: #7be495; }
+  .lb-board { width: 100%; max-width: 330px; margin-top: 10px; }
+  .lb-board h3 { margin: 0 0 8px; font-size: 16px; color: var(--overlay-ink); }
+  .lb-list { list-style: none; margin: 0; padding: 0; }
+  .lb-list li {
+    display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 10px;
+    background: rgba(255, 255, 255, .07); margin-bottom: 5px; font-size: 15px; color: var(--overlay-ink);
+  }
+  .lb-list li.me { background: rgba(240, 169, 46, .28); box-shadow: inset 0 0 0 2px var(--gold-bright); }
+  .lb-rank { font-weight: 900; color: var(--gold-bright); min-width: 26px; text-align: left; font-variant-numeric: tabular-nums; }
+  .lb-name { flex: 1; text-align: left; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-score { font-weight: 900; font-variant-numeric: tabular-nums; }
+  .lb-note { font-size: 14px; color: var(--overlay-soft); margin: 4px 0; }
   .hidden { display: none !important; }
   @media (prefers-reduced-motion: reduce) {
     .ecard, .ecard.pop, .ecard.attack, .ecard.defeat, .shake, .card.lunge, .card.deal, .card.fadeout, .float, .healflash, .hurtflash { animation: none; }
@@ -141,7 +171,7 @@
 </style>
 </head>
 <body>
-<a href="../index.html" style="position:relative;z-index:2;display:inline-block;margin-bottom:12px;color:#cdbcf5;text-decoration:none;font-size:14px;font-weight:600">← quantuminuofficial.com</a>
+<a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
 <div class="wrap">
   <div class="chips" role="status" aria-label="Game status">
     <div class="chip">Wave <b id="wave">1</b></div>
@@ -179,6 +209,7 @@
     <p>You hold <b>3 cards</b>. Every card shows simple numbers: <span class="hitw">HIT</span> deals damage to the rogue, <span class="healw">HEAL</span> gives you HP back.</p>
     <p>You have <b>30 HP</b>. The rogue hits back after every card, and each new wave is stronger. How far can the pack go?</p>
     <button class="btn" id="startBtn" type="button">Start Battle</button>
+    <button class="btn2" id="lbOpenBtn" type="button">🏆 Leaderboard</button>
   </div>
 
   <div class="overlay hidden" id="overOv">
@@ -186,7 +217,19 @@
     <p class="big" id="finalLine">You cleared 0 waves</p>
     <p id="finalScore">Score: 0</p>
     <p id="bestLine"></p>
+    <div class="lb-form">
+      <input class="lb-input" id="lbName" type="text" maxlength="16" placeholder="Your name" autocomplete="off" aria-label="Leaderboard name" />
+      <button class="btn lb-submit" id="lbSubmit" type="button">Submit Score</button>
+      <p class="lb-msg" id="lbMsg" aria-live="polite"></p>
+    </div>
+    <div class="lb-board hidden" id="lbOverBoard"></div>
     <button class="btn" id="againBtn" type="button">Play Again</button>
+  </div>
+
+  <div class="overlay hidden" id="lbOv">
+    <h2>🏆 Leaderboard</h2>
+    <div class="lb-board" id="lbStartBoard"><p class="lb-note">Loading…</p></div>
+    <button class="btn2" id="lbCloseBtn" type="button">Close</button>
   </div>
 </div>
 
@@ -476,6 +519,7 @@ function gameOver() {
   $("finalScore").textContent = "Score: " + score;
   $("bestLine").textContent = "Best score this session: " + best;
   renderBars();
+  lbReset();
   $("overOv").classList.remove("hidden");
 }
 function startGame() {
@@ -490,6 +534,174 @@ function startGame() {
 }
 $("startBtn").addEventListener("click", startGame);
 $("againBtn").addEventListener("click", startGame);
+
+/* ---- leaderboard (Firebase Firestore, lazy-loaded; game plays fine without it) ---- */
+var LB_GAME = "battle";
+var LB_CFG = {
+  apiKey: "AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0",
+  authDomain: "quantum-inu-games.firebaseapp.com",
+  projectId: "quantum-inu-games",
+  storageBucket: "quantum-inu-games.firebasestorage.app",
+  messagingSenderId: "996089422788",
+  appId: "1:996089422788:web:3c0917eeb3d1fdd1acba91"
+};
+var LB_LEET = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "!": "i" };
+var LB_BLOCKED = ["fuck", "shit", "bitch", "cunt", "dick", "cock", "pussy", "porn", "sex", "nude", "naked", "boob", "tits", "cum", "anal", "whore", "slut", "fag", "nigger", "nigga", "vagina", "penis", "dildo", "horny", "hentai", "onlyfans", "wank", "jizz", "boner", "rape", "pedo", "incest", "blowjob", "asshole", "twat"];
+function lbNameBad(name) {
+  try {
+    var s = String(name).toLowerCase().split("").map(function (ch) {
+      return LB_LEET[ch] !== undefined ? LB_LEET[ch] : ch;
+    }).join("").replace(/[^a-z]/g, "");
+    for (var i = 0; i < LB_BLOCKED.length; i++) {
+      if (s.indexOf(LB_BLOCKED[i]) !== -1) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+var lbFbPromise = null;
+function lbLoad() {
+  if (lbFbPromise) return lbFbPromise;
+  lbFbPromise = (async function () {
+    try {
+      var appMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+      var fsMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      var app = appMod.initializeApp(LB_CFG);
+      return { db: fsMod.getFirestore(app), fs: fsMod };
+    } catch (e) { return null; }
+  })();
+  return lbFbPromise;
+}
+function lbFetch(cb) {
+  lbLoad().then(function (fb) {
+    if (!fb) { cb(null); return; }
+    try {
+      var q = fb.fs.query(
+        fb.fs.collection(fb.db, "scores"),
+        fb.fs.orderBy("score", "desc"),
+        fb.fs.limit(50)
+      );
+      fb.fs.getDocs(q).then(function (snap) {
+        var rows = [];
+        snap.forEach(function (doc) {
+          var d = doc.data() || {};
+          if (d.game !== LB_GAME) return;
+          if (typeof d.score !== "number") return;
+          var nm = d.name == null ? "Player" : String(d.name);
+          if (lbNameBad(nm)) return;
+          rows.push({ id: doc.id, name: nm, score: d.score });
+        });
+        cb(rows.slice(0, 10));
+      }).catch(function () { cb(null); });
+    } catch (e) { cb(null); }
+  });
+}
+function lbRender(el, rows, highlightId) {
+  el.innerHTML = "";
+  var h = document.createElement("h3");
+  h.textContent = "Top 10";
+  el.appendChild(h);
+  if (!rows.length) {
+    var p = document.createElement("p");
+    p.className = "lb-note";
+    p.textContent = "No scores yet — be the first!";
+    el.appendChild(p);
+    return;
+  }
+  var ol = document.createElement("ol");
+  ol.className = "lb-list";
+  rows.forEach(function (r, i) {
+    var li = document.createElement("li");
+    if (highlightId && r.id === highlightId) li.className = "me";
+    var rank = document.createElement("span");
+    rank.className = "lb-rank";
+    rank.textContent = (i + 1) + ".";
+    var nm = document.createElement("span");
+    nm.className = "lb-name";
+    nm.textContent = r.name;
+    var sc = document.createElement("span");
+    sc.className = "lb-score";
+    sc.textContent = r.score;
+    li.appendChild(rank); li.appendChild(nm); li.appendChild(sc);
+    ol.appendChild(li);
+  });
+  el.appendChild(ol);
+}
+function lbShowInto(el, highlightId) {
+  el.innerHTML = "";
+  var p = document.createElement("p");
+  p.className = "lb-note";
+  p.textContent = "Loading…";
+  el.appendChild(p);
+  lbFetch(function (rows) {
+    if (!rows) {
+      el.innerHTML = "";
+      var q = document.createElement("p");
+      q.className = "lb-note";
+      q.textContent = "Leaderboard unavailable right now";
+      el.appendChild(q);
+      return;
+    }
+    lbRender(el, rows, highlightId);
+  });
+}
+function lbSavedName() {
+  try { return localStorage.getItem("qi-lb-name") || ""; } catch (e) { return ""; }
+}
+function lbMsg(text, kind) {
+  var m = $("lbMsg");
+  m.textContent = text;
+  m.className = "lb-msg" + (kind ? " " + kind : "");
+}
+var lbSubmitted = false, lbMyId = null;
+function lbReset() {
+  lbSubmitted = false; lbMyId = null;
+  $("lbName").value = lbSavedName();
+  $("lbSubmit").disabled = false;
+  lbMsg("");
+  var b = $("lbOverBoard");
+  b.classList.add("hidden");
+  b.innerHTML = "";
+}
+$("lbSubmit").addEventListener("click", function () {
+  if (lbSubmitted) return;
+  var name = $("lbName").value.trim();
+  if (!name) name = "Player";
+  if (lbNameBad(name)) { lbMsg("That name isn't allowed — pick another", "err"); return; }
+  var btn = $("lbSubmit");
+  btn.disabled = true;
+  lbMsg("Submitting…");
+  lbLoad().then(function (fb) {
+    if (!fb) { btn.disabled = false; lbMsg("Leaderboard unavailable right now", "err"); return; }
+    try {
+      fb.fs.addDoc(fb.fs.collection(fb.db, "scores"), {
+        name: name,
+        score: score,
+        game: LB_GAME,
+        ts: fb.fs.serverTimestamp()
+      }).then(function (ref) {
+        lbSubmitted = true; lbMyId = ref.id;
+        try { localStorage.setItem("qi-lb-name", name); } catch (e) {}
+        lbMsg("Score submitted!", "ok");
+        var b = $("lbOverBoard");
+        b.classList.remove("hidden");
+        lbShowInto(b, lbMyId);
+      }).catch(function () {
+        btn.disabled = false;
+        lbMsg("Leaderboard unavailable right now", "err");
+      });
+    } catch (e) {
+      btn.disabled = false;
+      lbMsg("Leaderboard unavailable right now", "err");
+    }
+  });
+});
+$("lbOpenBtn").addEventListener("click", function () {
+  $("lbOv").classList.remove("hidden");
+  lbShowInto($("lbStartBoard"), null);
+});
+$("lbCloseBtn").addEventListener("click", function () {
+  $("lbOv").classList.add("hidden");
+});
 
 /* preload rogue art so wave swaps are instant */
 ROSTER.forEach(function (c) { var i = new Image(); i.src = "assets/" + c.key + "-enemy.webp"; });
