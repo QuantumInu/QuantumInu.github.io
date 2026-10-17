@@ -1633,13 +1633,33 @@ document.querySelectorAll('section,.stat,.reveal').forEach(el=>{el.classList.add
       cp.setAttribute('aria-label','Copy this image');
       cp.addEventListener('click',function(){
         var url=new URL(dl.getAttribute('href'),location.href).href;
-        function done(){ var t=cp.textContent; cp.textContent='Copied ✓'; setTimeout(function(){ cp.textContent=t; },1200); }
-        function textFallback(){ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done).catch(function(){}); } }
+        function flash(msg){ cp.textContent=msg; setTimeout(function(){ cp.textContent='\u29c9 Copy'; },1400); }
+        function done(){ flash('Copied \u2713'); }
+        function textFallback(){ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(function(){ flash('Link copied \u2713'); }).catch(function(){}); } }
+        function pngBlob(){
+          return fetch(url).then(function(r){ return r.blob(); }).then(function(b){
+            return new Promise(function(res,rej){
+              var img=new Image();
+              var ou=URL.createObjectURL(b);
+              img.onload=function(){
+                try{
+                  var c=document.createElement('canvas');
+                  c.width=img.naturalWidth; c.height=img.naturalHeight;
+                  c.getContext('2d').drawImage(img,0,0);
+                  URL.revokeObjectURL(ou);
+                  c.toBlob(function(pb){ if(pb){ res(pb); } else { rej(new Error('png failed')); } },'image/png');
+                }catch(e){ rej(e); }
+              };
+              img.onerror=function(){ URL.revokeObjectURL(ou); rej(new Error('img load failed')); };
+              img.src=ou;
+            });
+          });
+        }
         if(navigator.clipboard&&window.ClipboardItem){
-          fetch(url).then(function(r){ return r.blob(); }).then(function(b){
-            var item={}; item[b.type||'image/png']=b;
+          try{
+            var item={}; item['image/png']=pngBlob();
             navigator.clipboard.write([new ClipboardItem(item)]).then(done).catch(function(){ textFallback(); });
-          }).catch(function(){ textFallback(); });
+          }catch(e){ textFallback(); }
         } else textFallback();
       });
       fig.appendChild(cp);
