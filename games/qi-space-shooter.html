@@ -253,7 +253,7 @@
       <button class="ctl" id="restartBtn" type="button">↻ Restart</button>
     </div>
 
-    <p class="howto"><b>Move:</b> drag on the field, mouse, or ← → ↑ ↓ / WASD. <b>Fire:</b> automatic. Divers are worth double — and some stickers take two hits. Upgrades fall one at a time: red <b>LASER</b> pierces the swarm, green <b>DUPLICATE</b> flies a bot on each side of you.</p>
+    <p class="howto"><b>Move:</b> drag on the field (on touch, the bot floats just above your fingertip), mouse, or ← → ↑ ↓ / WASD. <b>Fire:</b> automatic. Divers are worth double — and some stickers take two hits. Upgrades fall one at a time: red <b>LASER</b> pierces the swarm, green <b>DUPLICATE</b> flies a bot on each side of you.</p>
 
     <script>
       "use strict";
@@ -320,7 +320,10 @@
       var MODE = "title"; // title | play | pause | over
       var score = 0, hiScore = 0, wave = 1, lives = 3;
       var player, bullets, ebullets, enemies, particles, texts, powerups, stars;
-      var keys = {}, pointer = { active: false, x: 0, y: 0 };
+      var keys = {}, pointer = { active: false, x: 0, y: 0, lift: 0 };
+      // Touch steering: the bot rides this many units ABOVE the fingertip so
+      // the finger never covers it. Mouse drag keeps a 1:1 grip (no lift).
+      var TOUCH_LIFT = 56;
       var fireTimer = 0, diveTimer = 0, formTime = 0, shake = 0;
       var bannerText = "", bannerT = 0;
       // Upgrade drops: steady cadence (one every DROP_EVERY kills), the kind is
@@ -464,7 +467,7 @@
             player.x += mvx / m * player.speed * dt;
             player.y += mvy / m * player.speed * dt;
           } else if (pointer.active) {
-            var dx = pointer.x - player.x, dy = pointer.y - player.y;
+            var dx = pointer.x - player.x, dy = (pointer.y - pointer.lift) - player.y;
             var d = Math.hypot(dx, dy);
             if (d > 3) { var step = Math.min(d, player.speed * 1.35 * dt); player.x += dx / d * step; player.y += dy / d * step; }
           }
@@ -847,11 +850,13 @@
       canvas.addEventListener("pointerdown", function (ev) {
         ev.preventDefault();
         var p = canvasPos(ev); pointer.active = true; pointer.x = p.x; pointer.y = p.y;
+        pointer.lift = ev.pointerType === "touch" ? TOUCH_LIFT : 0;
         canvas.setPointerCapture(ev.pointerId);
       });
       canvas.addEventListener("pointermove", function (ev) {
         if (!pointer.active) return;
         var p = canvasPos(ev); pointer.x = p.x; pointer.y = p.y;
+        if (ev.pointerType === "touch") pointer.lift = TOUCH_LIFT;
       });
       ["pointerup", "pointercancel"].forEach(function (n) { canvas.addEventListener(n, function () { pointer.active = false; }); });
 
