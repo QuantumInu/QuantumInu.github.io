@@ -823,6 +823,23 @@
       // ============ Input ============
       // Older iOS Safari: block pinch-gesture zoom at the document level.
       document.addEventListener("gesturestart", function (ev) { ev.preventDefault(); });
+      // JS-level zoom lock (iOS ignores the viewport cap on double-tap/pinch):
+      // (1) pinch guard — a second finger down is never a game input, so
+      //     cancel it before the browser turns it into a zoom gesture.
+      document.addEventListener("touchstart", function (ev) {
+        if (ev.touches.length > 1) ev.preventDefault();
+      }, { passive: false });
+      // (2) double-tap guard — a touchend landing within 350ms of the
+      //     previous one is a double-tap; cancel it so iOS can't zoom.
+      //     Single taps and drag steering are untouched.
+      var lastTouchEnd = 0;
+      document.addEventListener("touchend", function (ev) {
+        var now = Date.now();
+        if (now - lastTouchEnd <= 350) ev.preventDefault();
+        lastTouchEnd = now;
+      }, { passive: false });
+      // (3) belt-and-braces: swallow the dblclick zoom as well.
+      document.addEventListener("dblclick", function (ev) { ev.preventDefault(); }, { passive: false });
       function canvasPos(ev) {
         var r = canvas.getBoundingClientRect();
         return { x: (ev.clientX - r.left) * (W / r.width), y: (ev.clientY - r.top) * (H / r.height) };
