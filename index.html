@@ -63,6 +63,8 @@ input[type=file]{width:100%;color:var(--muted)}
 .gif-toggle.on{background:#38bdf8;color:#02111f}
 .media-download{position:absolute;left:50%;bottom:50px;transform:translateX(-50%);z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;text-decoration:none;backdrop-filter:blur(3px);white-space:nowrap}
 .media-download:hover{background:#38bdf8;color:#02111f}
+.media-share{position:absolute;right:8px;bottom:50px;z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;backdrop-filter:blur(3px);white-space:nowrap;font-family:inherit}
+.media-share:hover{background:#38bdf8;color:#02111f}
 .gallery img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
 .gallery figcaption{padding:11px 12px;font-weight:800;font-size:14px;background:var(--card)}
 .f-cosmic{filter:saturate(1.35) contrast(1.08)} .f-moon{filter:hue-rotate(18deg) saturate(1.2)} .f-gold{filter:sepia(.45) saturate(1.5)} .f-void{filter:grayscale(.35) contrast(1.15)}
@@ -1212,6 +1214,38 @@ document.querySelectorAll('section,.stat,.reveal').forEach(el=>{el.classList.add
   if(prev) prev.addEventListener('click',function(){flip(-1)});
   if(next) next.addEventListener('click',function(){flip(1)});
   show();
+})();
+</script>
+<script>
+// Share button (bottom-right corner of every Gallery/Gifs image, Jonathan
+// 2026-10-17): shares the media currently shown — it reads the download
+// anchor's live href, which the GIF toggle keeps in sync. Tries a native
+// file share first, then a URL share, then an X post intent.
+(function(){
+  ['gallery','gifs'].forEach(function(id){
+    var sec=document.getElementById(id); if(!sec) return;
+    sec.querySelectorAll('figure').forEach(function(fig){
+      var dl=fig.querySelector('.media-download'); if(!dl) return;
+      var btn=document.createElement('button');
+      btn.className='media-share'; btn.type='button'; btn.textContent='\u2197 Share';
+      btn.setAttribute('aria-label','Share this image');
+      btn.addEventListener('click',function(){
+        var url=new URL(dl.getAttribute('href'),location.href).href;
+        var name=url.split('/').pop();
+        var text='Quantum Inu \uD83D\uDC15\u269B\uFE0F';
+        function xFallback(){ window.open('https://twitter.com/intent/tweet?text='+encodeURIComponent(text)+'&url='+encodeURIComponent(url),'_blank'); }
+        function urlShare(){ if(navigator.share){ navigator.share({title:'Quantum Inu',text:text,url:url}).catch(function(){}); } else xFallback(); }
+        if(navigator.share||navigator.canShare){
+          fetch(url).then(function(r){ return r.blob(); }).then(function(b){
+            var file=new File([b],name,{type:b.type||'image/jpeg'});
+            if(navigator.canShare&&navigator.canShare({files:[file]})){ navigator.share({files:[file],text:text}).catch(function(){}); }
+            else urlShare();
+          }).catch(urlShare);
+        } else xFallback();
+      });
+      fig.appendChild(btn);
+    });
+  });
 })();
 </script>
 </body>
