@@ -236,6 +236,22 @@
 <script>
 // Block pinch-zoom gestures on older iOS Safari (viewport lock covers the rest).
 document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+// iOS still zooms on double-tap despite the viewport lock, so block it at the
+// event level: a touchend landing within 350ms of the previous one is the
+// second tap of a double-tap — cancel it. Single taps are never cancelled,
+// so cards, buttons and inputs still respond instantly.
+var lastTouchEnd = 0;
+document.addEventListener("touchend", function (e) {
+  var now = Date.now();
+  if (now - lastTouchEnd <= 350) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
+// Pinch guard: a second finger going down is a pinch, never gameplay — cancel it.
+document.addEventListener("touchstart", function (e) {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+// Desktop/other browsers: no double-click zoom either.
+document.addEventListener("dblclick", function (e) { e.preventDefault(); }, { passive: false });
 var ROSTER = [
   { key: "wave", label: "WAVING", hit: 0, heal: 5 },
   { key: "gm", label: "GM", hit: 4, heal: 0 },
