@@ -481,8 +481,24 @@
     "use strict";
     /* Zoom lock: pinch zoom is disabled by the viewport meta, double-tap
        zoom by touch-action: manipulation in the CSS, and older iOS
-       Safari's gesture zoom by cancelling gesturestart here. */
+       Safari's gesture zoom by cancelling gesturestart here. iOS still
+       double-tap zooms past those three in some webviews, so the zoom is
+       also blocked at the JavaScript level below: a second touchend
+       landing within 350ms of the previous one is cancelled (a genuine
+       single tap is never within that window, so buttons still respond
+       instantly), any touchstart with more than one touch point down is
+       cancelled (pinch), and the dblclick event is swallowed. */
     document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, { passive: false });
+    var lastTouchEnd = 0;
+    document.addEventListener("touchend", function (e) {
+      var now = Date.now();
+      if (now - lastTouchEnd <= 350) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+    document.addEventListener("touchstart", function (e) {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+    document.addEventListener("dblclick", function (e) { e.preventDefault(); }, { passive: false });
     /* ================= data ================= */
     /* Full 72-sticker roster — the canonical f045 frame stills (same pack
        Spellmatch uses). At load, and again after every completed spin, 10
