@@ -65,7 +65,7 @@
         opacity: .35;
       }
       @media (prefers-color-scheme: light) { body::before { opacity: .12; } }
-      .wrap { position: relative; z-index: 1; max-width: 560px; margin: 0 auto; padding: 14px 14px 30px; }
+      .wrap { position: relative; z-index: 1; max-width: 560px; margin: 0 auto; padding: 52px 14px 30px; }
       h1.title {
         font-family: "Cinzel", serif; font-weight: 800; letter-spacing: .05em;
         font-size: clamp(21px, 5.6vw, 30px); text-align: center; margin: 2px 0 12px;
@@ -149,6 +149,11 @@
         font-size: 17px; letter-spacing: .05em; padding: 13px 10px;
       }
       .big-btn:active { transform: translateY(1px); }
+      .big-btn:disabled { opacity: .45; cursor: default; }
+      .load-status {
+        text-align: center; font-weight: 800; font-size: 13px; letter-spacing: .1em;
+        text-transform: uppercase; color: var(--card-dim); margin: 0 0 12px;
+      }
       .ghost-btn {
         display: block; width: 100%; border: 1.5px solid var(--tile-border); cursor: pointer; border-radius: 14px;
         background: var(--btn-bg); color: var(--btn-ink); font-family: "Nunito", sans-serif; font-weight: 800;
@@ -234,7 +239,8 @@
           <li><span class="mk">✦</span><span>Every 5 atoms, a <span class="bad"><b>rogue sticker</b></span> drops in as a wall. <span class="bad"><b>Don't touch the rogues</b></span> — or the walls, or your own tail.</span></li>
           <li><span class="mk">✦</span><span>The longer the tail, the faster you slither. How long can you grow?</span></li>
         </ul>
-        <button class="big-btn" id="startBtn" type="button">▶ START SLITHERING</button>
+        <p class="load-status" id="loadStatus">LOADING STICKERS… 0/106</p>
+        <button class="big-btn" id="startBtn" type="button" disabled>▶ START SLITHERING</button>
       </div>
     </div>
 
@@ -341,14 +347,116 @@
     var ROGUE_IDS = ["pirate", "ninja", "wizard", "thumbsdown", "stop"];
 
     var IMG = {};
+    var FACE = {}; /* id -> offscreen canvas baked from the loaded face */
+    /* Preload gate: the game cannot start until every face has actually
+       loaded AND been baked to its own canvas. Counting load events
+       alone proved too weak on the phone webview, where all 106 faces go
+       out at once: a request can hang forever firing NEITHER load nor
+       error, and an error-retry that also failed was still counted as
+       "loaded" — either way that face's tile painted the dark fallback
+       for the whole run, with nothing ever retrying it again. So now
+       each face gets a stall watchdog (no load within 3s = failed
+       attempt), retries use a cache-busted URL so a poisoned cache
+       entry can't fail a face twice, and a face only counts toward the
+       gate once its pixels are baked. A face that exhausts its attempts
+       settles the gate so one cursed face can never lock the game, but
+       keeps retrying in the background until it lands — a dark tile
+       heals itself mid-game. The renderer draws from the baked canvases,
+       never from a live Image. An 8-second failsafe unlocks the start
+       control no matter what. */
+    var facesTotal = STICKER_ROSTER.length;
+    var facesSettled = 0;
+    var facesBaked = 0;
+    var facesReady = false;
+    function updateLoadStatus(done) {
+      var el = $("loadStatus");
+      if (!el) return;
+      /* the label only claims LOADED for faces actually baked — a face
+         that settled the gate by exhausting its retries keeps the label
+         honest at LOADING until its background heal lands */
+      el.textContent = facesBaked >= facesTotal
+        ? "STICKERS LOADED ✦ " + facesBaked + "/" + facesTotal
+        : "LOADING STICKERS… " + facesBaked + "/" + facesTotal;
+    }
+    function finishLoading() {
+      if (facesReady) return;
+      facesReady = true;
+      updateLoadStatus(true);
+      var btn = $("startBtn");
+      if (btn) btn.disabled = false;
+    }
+    function settleFace() {
+      facesSettled++;
+      if (facesReady) return;
+      if (facesSettled >= facesTotal) finishLoading();
+      else updateLoadStatus(false);
+    }
+    function bakeFace(id, im) {
+      try {
+        var w = 168;
+        var h = Math.max(1, Math.round(w * im.naturalHeight / im.naturalWidth));
+        var c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(im, 0, 0, w, h);
+        FACE[id] = c;
+      } catch (e) { /* the raw Image stays in IMG[id] as the draw source */ }
+    }
+    var faceSt = {}; /* id -> { gate: counted toward the gate, ok: baked } */
+    function stFor(id) { return faceSt[id] || (faceSt[id] = { gate: false, ok: false }); }
+    function markFaceOk(id, im) {
+      var st = stFor(id);
+      if (st.ok) return;
+      st.ok = true;
+      IMG[id] = im;
+      bakeFace(id, im);
+      if (FACE[id]) facesBaked++;
+      if (!st.gate) { st.gate = true; settleFace(); }
+      updateLoadStatus(facesReady);
+    }
+    function loadFace(id, attempt) {
+      var st = stFor(id);
+      if (st.ok) return;
+      var im = new Image();
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        retryFace(id, attempt);
+      }, 3000);
+      im.onload = function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        markFaceOk(id, im);
+      };
+      im.onerror = function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        retryFace(id, attempt);
+      };
+      im.src = FACES[id]; /* single-file build: faces are inlined data URIs — a retry is a fresh Image on the same URI */
+      if (im.complete && im.naturalWidth) {
+        settled = true;
+        clearTimeout(timer);
+        markFaceOk(id, im);
+      }
+    }
+    function retryFace(id, attempt) {
+      var st = stFor(id);
+      if (st.ok) return;
+      if (attempt >= 5) {
+        if (!st.gate) { st.gate = true; settleFace(); }
+        /* keep healing in the background until the face actually lands */
+        setTimeout(function () { loadFace(id, attempt + 1); }, 5000);
+        return;
+      }
+      setTimeout(function () { loadFace(id, attempt + 1); }, 300);
+    }
     function loadImages() {
-      var ids = {};
-      STICKER_ROSTER.forEach(function (s) { ids[s.id] = true; });
-      Object.keys(ids).forEach(function (id) {
-        var im = new Image();
-        im.src = FACES[id];
-        IMG[id] = im;
-      });
+      STICKER_ROSTER.forEach(function (s) { loadFace(s.id, 0); });
+      setTimeout(finishLoading, 8000);
+      updateLoadStatus(false);
     }
 
     function shuffledDeck() {
@@ -559,6 +667,7 @@
     }
 
     function startGame() {
+      if (!facesReady) return; /* preload gate: no start until faces load (or the 8s failsafe fires) */
       ac();
       resetGame();
       state = "playing";
@@ -674,14 +783,24 @@
       ctx.arcTo(x, y, x + w, y, r);
       ctx.closePath();
     }
-    function drawSticker(id, cx, cy, size, ring) {
-      var im = IMG[id];
+    function drawSticker(id, cx, cy, size, ring, ringW) {
+      /* Draw from the face's baked canvas when it exists — canvas pixels
+         can't be evicted or left pending the way a live Image can. Fall
+         back to the raw Image only if baking failed, and to the dark
+         tile only while the loader is still healing that face. */
+      var src = FACE[id] || null;
+      var sw = 0, sh = 0;
+      if (src) { sw = src.width; sh = src.height; }
+      else {
+        var im = IMG[id];
+        if (im && im.complete && im.naturalWidth) { src = im; sw = im.naturalWidth; sh = im.naturalHeight; }
+      }
       /* The faces are 300x336 cards with the gold frame baked in. Fit the
          WHOLE card inside the tile at its natural aspect — never crop it —
          so the frame shows complete and even on all four sides. */
       var dw = size, dh = size;
-      if (im && im.naturalWidth && im.naturalHeight) {
-        var ar = im.naturalWidth / im.naturalHeight;
+      if (sw && sh) {
+        var ar = sw / sh;
         if (ar < 1) dw = size * ar; else dh = size / ar;
       }
       var x = cx - dw / 2, y = cy - dh / 2;
@@ -689,8 +808,8 @@
       ctx.save();
       rrPath(x, y, dw, dh, r);
       ctx.clip();
-      if (im && im.complete && im.naturalWidth) {
-        ctx.drawImage(im, 0, 0, im.naturalWidth, im.naturalHeight, x, y, dw, dh);
+      if (src) {
+        ctx.drawImage(src, 0, 0, sw, sh, x, y, dw, dh);
       } else {
         ctx.fillStyle = "#23234d";
         ctx.fillRect(x, y, dw, dh);
@@ -699,7 +818,7 @@
       if (ring) {
         ctx.save();
         ctx.strokeStyle = ring;
-        ctx.lineWidth = Math.max(2, size * 0.07);
+        ctx.lineWidth = ringW || Math.max(2, size * 0.07);
         rrPath(x, y, dw, dh, r);
         ctx.stroke();
         ctx.restore();
@@ -764,9 +883,13 @@
       rogues.forEach(function (r) {
         drawSticker(r.id, (r.x + 0.5) * cellPx, (r.y + 0.5) * cellPx, cellPx * 0.94, "#ff5d73");
       });
-      /* tail first, head last so the pup sits on top */
+      /* tail first, head last so the pup sits on top. Every segment gets
+         a code-drawn gold border: the frame baked into the card art is
+         only a few source pixels wide and washes out to nothing when the
+         card is scaled down to one board cell on a phone, so the border
+         has to come from the renderer, not the image. */
       for (var i = snake.length - 1; i >= 1; i--) {
-        drawSticker(snake[i].id, (snake[i].x + 0.5) * cellPx, (snake[i].y + 0.5) * cellPx, cellPx * 0.92, null);
+        drawSticker(snake[i].id, (snake[i].x + 0.5) * cellPx, (snake[i].y + 0.5) * cellPx, cellPx * 0.92, "#d9a92c", Math.max(1.6, cellPx * 0.05));
       }
       if (snake.length) {
         var h = snake[0];
