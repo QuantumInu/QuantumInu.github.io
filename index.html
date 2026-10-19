@@ -206,6 +206,22 @@ section.searching .pager{display:none!important}
   .navtoggle{position:fixed;top:12px;right:14px;z-index:80;background:#0b173af2;box-shadow:0 8px 26px #000a}
   .mobilemenu.open{position:fixed;top:64px;left:14px;right:14px;z-index:79;background:#050a24f5;border:1px solid var(--line);border-radius:16px;padding:10px;box-shadow:0 18px 50px #000c;max-height:calc(100vh - 84px);overflow-y:auto}
 }
+
+/* MUSIC (2026-10-18) — track cards with a custom player: artwork on top,
+   title/artist under it, controls below. No volume slider on purpose:
+   iOS Safari ignores programmatic volume, hardware buttons rule. */
+.tracks{display:grid;grid-template-columns:1fr;gap:22px;margin-top:26px}
+.track{max-width:430px;width:100%;margin:0 auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px}
+.track-art{width:100%;height:auto;display:block;border-radius:12px}
+.track-title{margin:14px 0 2px;font-size:22px}
+.track-artist{color:var(--muted);font-weight:700;margin-bottom:16px}
+.track audio{display:none}
+.track-controls{display:flex;align-items:center;gap:12px}
+.track-play{flex:0 0 auto;width:56px;height:56px;border-radius:50%;border:none;background:linear-gradient(90deg,#2563eb,#7c3aed,#06b6d4);color:var(--text);font-size:20px;line-height:1;cursor:pointer;box-shadow:0 8px 30px #2563eb66;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
+.track-play:active{transform:scale(.94)}
+.track-seek{flex:1;min-width:0;width:auto;accent-color:#38bdf8;height:36px;cursor:pointer}
+.track-time{font-weight:800;font-size:14px;white-space:nowrap;color:var(--muted)}
+.track-time .track-cur{color:var(--text)}
 </style>
 </head>
 <body>
@@ -215,12 +231,12 @@ section.searching .pager{display:none!important}
 <nav>
   <a class="brand" href="#top"><img src="assets/qi-logo.png" alt="Quantum Inu logo"> QUANTUM INU <span style="color:var(--cyan)">$QI</span></a>
   <div class="navlinks">
-    <a class="pill" href="#about">About</a><a class="pill" href="#buy">How to Buy</a><a class="pill" href="#pfp">PFP Generator</a><a class="pill" href="#templates">PFP Templates</a><a class="pill" href="#gallery">Gallery</a><a class="pill" href="#gifs">Gifs</a><a class="pill" href="#generate">Generate</a><a class="pill" href="#games">Games</a><a class="pill" href="#leaderboards">Leaderboards</a>
+    <a class="pill" href="#about">About</a><a class="pill" href="#buy">How to Buy</a><a class="pill" href="#pfp">PFP Generator</a><a class="pill" href="#templates">PFP Templates</a><a class="pill" href="#gallery">Gallery</a><a class="pill" href="#gifs">Gifs</a><a class="pill" href="#generate">Generate</a><a class="pill" href="#games">Games</a><a class="pill" href="#music">Music</a><a class="pill" href="#leaderboards">Leaderboards</a>
   </div>
   <button class="navtoggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
 </nav>
 <div class="mobilemenu" id="mobileMenu">
-  <a href="#about">About</a><a href="#buy">How to Buy</a><a href="#pfp">PFP Generator</a><a href="#templates">PFP Templates</a><a href="#gallery">Gallery</a><a href="#gifs">Gifs</a><a href="#generate">Generate</a><a href="#games">Games</a><a href="#leaderboards">Leaderboards</a>
+  <a href="#about">About</a><a href="#buy">How to Buy</a><a href="#pfp">PFP Generator</a><a href="#templates">PFP Templates</a><a href="#gallery">Gallery</a><a href="#gifs">Gifs</a><a href="#generate">Generate</a><a href="#games">Games</a><a href="#music">Music</a><a href="#leaderboards">Leaderboards</a>
 </div>
 <script>
 (function(){var t=document.getElementById('navToggle'),m=document.getElementById('mobileMenu');if(!t||!m)return;t.addEventListener('click',function(){var open=m.classList.toggle('open');t.classList.toggle('open',open);t.setAttribute('aria-expanded',open?'true':'false');});m.addEventListener('click',function(e){if(e.target.closest('a')){m.classList.remove('open');t.classList.remove('open');t.setAttribute('aria-expanded','false');}});})();
@@ -1229,6 +1245,57 @@ section.searching .pager{display:none!important}
   </div>
   </div>
 </section>
+
+<section id="music">
+  <h2>🎵 Music</h2>
+  <p class="sub">Sounds from the quantum realm — original QI tracks right in your browser. No downloads, no sign-ups.</p>
+  <!-- MUSIC TRACKS: to add a song, drop its mp3 + artwork into assets/music/
+       and copy a .track card below, pointing the img/audio at the new files.
+       The player script wires every .track on the page automatically, and
+       starting one track pauses the others. -->
+  <div class="tracks">
+  <div class="track">
+    <img class="track-art" src="assets/music/quantum-wave.jpg" alt="Quantum Wave artwork — Quantum Inu DJing a cosmic rave">
+    <h3 class="track-title">Quantum Wave</h3>
+    <p class="track-artist">Phat Boi J</p>
+    <audio preload="metadata" src="assets/music/quantum-wave.mp3"></audio>
+    <div class="track-controls">
+      <button class="track-play" type="button" aria-label="Play Quantum Wave">▶</button>
+      <input class="track-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek in Quantum Wave">
+      <span class="track-time"><span class="track-cur">0:00</span> / <span class="track-dur">0:00</span></span>
+    </div>
+  </div>
+  </div>
+</section>
+<script>
+(function(){
+  function fmt(s){if(!isFinite(s)||s<0)s=0;s=Math.floor(s);return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2);}
+  document.querySelectorAll('.track').forEach(function(card){
+    var audio=card.querySelector('audio'),btn=card.querySelector('.track-play'),
+        seek=card.querySelector('.track-seek'),cur=card.querySelector('.track-cur'),
+        dur=card.querySelector('.track-dur'),seeking=false;
+    if(!audio||!btn||!seek)return;
+    btn.addEventListener('click',function(){
+      if(audio.paused){
+        document.querySelectorAll('.track audio').forEach(function(a){if(a!==audio&&!a.paused)a.pause();});
+        audio.play();
+      }else{audio.pause();}
+    });
+    audio.addEventListener('play',function(){btn.textContent='❚❚';btn.setAttribute('aria-label','Pause');});
+    audio.addEventListener('pause',function(){btn.textContent='▶';btn.setAttribute('aria-label','Play');});
+    audio.addEventListener('loadedmetadata',function(){dur.textContent=fmt(audio.duration);});
+    audio.addEventListener('timeupdate',function(){
+      cur.textContent=fmt(audio.currentTime);
+      if(!seeking&&audio.duration)seek.value=Math.round(audio.currentTime/audio.duration*1000);
+    });
+    seek.addEventListener('input',function(){
+      if(audio.duration){seeking=true;var t=seek.value/1000*audio.duration;audio.currentTime=t;cur.textContent=fmt(t);}
+    });
+    seek.addEventListener('change',function(){seeking=false;});
+    audio.addEventListener('ended',function(){audio.currentTime=0;seek.value=0;cur.textContent='0:00';});
+  });
+})();
+</script>
 
 <section id="leaderboards">
   <h2>🏆 Leaderboards</h2>
