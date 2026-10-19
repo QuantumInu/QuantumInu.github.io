@@ -1430,13 +1430,25 @@ document.querySelectorAll('.like-btn').forEach(btn => {
     const delta = liked ? -1 : 1;
     btn.dataset.busy = '1';
     try {
-      await lbFs.updateDoc(lbFs.doc(lbDb, 'likes', g), { count: lbFs.increment(delta) });
+      const ref = lbFs.doc(lbDb, 'likes', g);
+      try {
+        await lbFs.updateDoc(ref, { count: lbFs.increment(delta) });
+      } catch (e) {
+        // updateDoc rejects when the likes doc doesn't exist yet (a button
+        // whose counter was never seeded). If it's really missing, create it
+        // in the exact shape the Firestore rules allow ({game: id, count: 0})
+        // and retry the ±1 step once. Anything else: rethrow.
+        const snap = await lbFs.getDoc(ref);
+        if (snap.exists() || delta < 0) throw e;
+        await lbFs.setDoc(ref, { game: g, count: 0 });
+        await lbFs.updateDoc(ref, { count: lbFs.increment(delta) });
+      }
       const c = Math.max(0, (parseInt(btn.dataset.count || '0', 10) + delta));
       btn.dataset.count = c;
       btn.querySelector('.like-count').textContent = c;
       if (liked) { localStorage.removeItem('qi-liked-' + g); btn.classList.remove('liked'); btn.querySelector('.heart').textContent = '🤍'; }
       else { localStorage.setItem('qi-liked-' + g, '1'); btn.classList.add('liked'); btn.querySelector('.heart').textContent = '❤️'; }
-    } catch (e) { /* leave UI unchanged */ }
+    } catch (e) { /* leave UI unchanged */ console.error('QI like failed (' + g + '):', e); }
     delete btn.dataset.busy;
   });
 });
