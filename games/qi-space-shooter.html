@@ -383,13 +383,14 @@
       // forever — the counter then never finished, the gate's bookkeeping
       // and the draw-time check disagreed, and sprites that had in fact
       // arrived never drew. Now: load events do the counting (decode is a
-      // fire-and-forget warm-up only), every sprite settles EXACTLY once,
-      // and a failure is retried once with a fresh Image swapped into the
-      // same roster slot (no src="" blanking — that fires a phantom error
-      // event of its own). The button shows the live count, and an 8s
-      // failsafe unlocks LAUNCH no matter what so the title screen can
-      // never trap the player; stragglers still pop in mid-run because
-      // drawing re-checks each sprite on every frame.
+      // fire-and-forget warm-up only), every sprite counts EXACTLY once
+      // toward the gate, and a failed sprite keeps retrying in the
+      // background until it heals (see the self-healing note below) — a
+      // failure never again means an invisible enemy for the whole run.
+      // The button shows the live count, and an 8s failsafe unlocks
+      // LAUNCH no matter what so the title screen can never trap the
+      // player; stragglers still pop in mid-run because drawing
+      // re-checks each sprite on every frame.
       var spritesReady = false;
       var spritesLoaded = 0, spritesTotal = 0;
       (function preloadSprites() {
@@ -417,39 +418,56 @@
           if (!spritesReady) { spritesLoaded = spritesTotal; refreshBtn(); }
         }, 8000);
         entries.forEach(function (entry) {
-          var settledFlag = false, retried = false;
-          function settle() {
-            if (settledFlag) return;
-            settledFlag = true;
-            var im = entry.get();
-            im.onload = null; im.onerror = null;
+          // Self-healing loader: a sprite counts toward the LAUNCH gate the
+          // first time it settles OR fails, so one bad sticker can never
+          // trap the player on the title screen — but a failure is NOT the
+          // end. Failed sprites keep retrying quietly in the background
+          // (backoff 0.9s -> 20s cap, forever) until one attempt lands with
+          // real pixels; the fresh element is swapped into the same roster
+          // slot, and because drawing re-reads the roster's current image
+          // every frame, the healed sticker pops in even on enemies that
+          // are already flying. iOS Safari drops image decodes under
+          // memory pressure; that pressure is temporary, so a later retry
+          // usually succeeds where the first attempts were refused.
+          var counted = false, retryDelay = 900;
+          function countOnce() {
+            if (counted) return;
+            counted = true;
             spritesLoaded++;
-            // Warm the decoder off the critical path; never gate on it.
-            if (im.complete && im.naturalWidth && im.decode) {
-              try { im.decode().then(function () {}, function () {}); } catch (e) { /* warm-up only */ }
-            }
             refreshBtn();
           }
-          function fail() {
-            if (settledFlag) return;
-            if (!retried) {
-              retried = true;
-              var old = entry.get();
-              old.onload = null; old.onerror = null;
-              var fresh = new Image();
-              fresh.onload = settle;
-              fresh.onerror = settle; // second failure: count it and move on
-              entry.set(fresh);
-              fresh.src = old.src.split("?")[0] + "?r=1"; // bypass a poisoned cache entry
-              return;
+          function healed(im) {
+            im.onload = null; im.onerror = null;
+            countOnce();
+            // Warm the decoder off the critical path; never gate on it.
+            if (im.decode) {
+              try { im.decode().then(function () {}, function () {}); } catch (e) { /* warm-up only */ }
             }
-            settle();
+          }
+          function attempt() {
+            var cur = entry.get();
+            var fresh = new Image();
+            fresh.onload = function () {
+              if (fresh.naturalWidth) { entry.set(fresh); healed(fresh); }
+              else schedule();
+            };
+            fresh.onerror = schedule;
+            // data: URIs retry byte-for-byte (a "?r=1" suffix would corrupt
+            // the payload); only remote files get the cache-buster.
+            fresh.src = cur.src.indexOf("data:") === 0 ? cur.src : cur.src.split("?")[0] + "?r=1";
+          }
+          function schedule() {
+            countOnce(); // the gate moves on; healing continues behind it
+            setTimeout(attempt, retryDelay);
+            retryDelay = Math.min(retryDelay * 2, 20000);
           }
           var im0 = entry.get();
-          if (im0.complete && im0.naturalWidth) { settle(); return; }
-          if (im0.complete) { fail(); return; } // already errored before handlers attached
-          im0.onload = settle;
-          im0.onerror = fail;
+          if (im0.complete && im0.naturalWidth) { healed(im0); return; }
+          if (im0.complete) { schedule(); return; } // already errored before handlers attached
+          im0.onload = function () {
+            if (im0.naturalWidth) healed(im0); else schedule();
+          };
+          im0.onerror = schedule;
         });
         refreshBtn();
       })();
