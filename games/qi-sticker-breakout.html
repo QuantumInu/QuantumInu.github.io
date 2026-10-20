@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Empty inline icon: stops the browser fetching /favicon.ico, which
+         lives outside the artifact's routes and 404s. -->
+    <link rel="icon" href="data:," />
+    <title>QI Sticker Breakout</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page-bg: #04040f;
+        --page-ink: #f4f2ff;
+        --page-ink-dim: #a9abd0;
+        --gold: #f5c542;
+        --gold-hi: #ffe89a;
+        --gold-deep: #b8860b;
+        --atom: #6fd3ff;
+        --panel: #0b0b22;
+        --tile-border: #3d3d75;
+        --btn-bg: #26265c;
+        --btn-ink: #f2f0ff;
+        --danger: #ff5d73;
+        --good: #7dffb0;
+        --overlay-bg: rgba(5, 5, 20, 0.78);
+        --card-bg: #17173a;
+        --card-ink: #f4f2ff;
+        --card-dim: #a9abd0;
+        --chip-bg: #141433;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --chip-bg: #10102c;
+        }
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body { overscroll-behavior: none; }
+      body {
+        margin: 0;
+        font-family: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+        /* the galaxy: nebula clouds in deep-space blue and violet
+           over a near-black sky, fixed so it holds still as the
+           page scrolls */
+        background:
+          radial-gradient(ellipse 85% 55% at 15% 6%, rgba(96, 64, 196, .42), rgba(96, 64, 196, 0) 62%),
+          radial-gradient(ellipse 75% 50% at 88% 22%, rgba(28, 92, 168, .38), rgba(28, 92, 168, 0) 62%),
+          radial-gradient(ellipse 65% 45% at 80% 80%, rgba(150, 44, 128, .25), rgba(150, 44, 128, 0) 65%),
+          radial-gradient(ellipse 55% 40% at 20% 90%, rgba(18, 128, 152, .20), rgba(18, 128, 152, 0) 62%),
+          linear-gradient(180deg, #08082a 0%, #04040f 100%);
+        background-attachment: fixed;
+        color: var(--page-ink);
+        touch-action: manipulation;
+        min-height: 100dvh;
+      }
+      body::before {
+        content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+        background:
+          radial-gradient(1.5px 1.5px at 12% 22%, rgba(255,255,255,.95) 50%, transparent 51%),
+          radial-gradient(1px 1px at 68% 12%, rgba(255,255,255,.75) 50%, transparent 51%),
+          radial-gradient(1.2px 1.2px at 84% 38%, rgba(255,255,255,.85) 50%, transparent 51%),
+          radial-gradient(1px 1px at 32% 64%, rgba(255,255,255,.65) 50%, transparent 51%),
+          radial-gradient(1.4px 1.4px at 52% 84%, rgba(255,255,255,.8) 50%, transparent 51%),
+          radial-gradient(1px 1px at 92% 78%, rgba(255,255,255,.65) 50%, transparent 51%),
+          radial-gradient(1px 1px at 6% 88%, rgba(255,255,255,.6) 50%, transparent 51%),
+          radial-gradient(1.2px 1.2px at 44% 40%, rgba(255,255,255,.55) 50%, transparent 51%),
+          radial-gradient(1px 1px at 24% 8%, rgba(207,210,255,.8) 50%, transparent 51%),
+          radial-gradient(1.6px 1.6px at 58% 30%, rgba(255,232,154,.85) 50%, transparent 51%),
+          radial-gradient(1px 1px at 76% 58%, rgba(255,255,255,.7) 50%, transparent 51%),
+          radial-gradient(1.3px 1.3px at 38% 92%, rgba(207,210,255,.7) 50%, transparent 51%),
+          radial-gradient(1px 1px at 95% 8%, rgba(255,255,255,.75) 50%, transparent 51%),
+          radial-gradient(1px 1px at 4% 46%, rgba(255,255,255,.6) 50%, transparent 51%),
+          radial-gradient(1.5px 1.5px at 63% 72%, rgba(167,216,255,.8) 50%, transparent 51%),
+          radial-gradient(1px 1px at 88% 94%, rgba(255,255,255,.6) 50%, transparent 51%),
+          radial-gradient(1.2px 1.2px at 16% 70%, rgba(255,255,255,.55) 50%, transparent 51%),
+          radial-gradient(1px 1px at 48% 16%, rgba(255,255,255,.65) 50%, transparent 51%);
+        opacity: .9;
+      }
+      /* extra top room so the "Back to Quantum Official" badge on the
+         site never sits on top of the title */
+      .wrap { position: relative; z-index: 1; max-width: 620px; margin: 0 auto; padding: 52px 12px 16px; }
+      h1.title {
+        font-family: "Cinzel", serif; font-weight: 800; letter-spacing: .05em;
+        font-size: clamp(21px, 5.6vw, 30px); text-align: center; margin: 2px 0 12px;
+      }
+      h1.title .star { color: var(--gold); }
+
+      .hud { display: flex; gap: 8px; align-items: stretch; margin: 0 auto 10px; max-width: 460px; }
+      .stat {
+        flex: 1; background: var(--chip-bg); border: 1.5px solid var(--tile-border);
+        border-radius: 12px; padding: 6px 4px 7px; text-align: center; min-width: 0;
+      }
+      .stat .lab { display: block; font-size: 10px; font-weight: 800; letter-spacing: .14em; color: var(--page-ink-dim); text-transform: uppercase; }
+      .stat .val { display: block; font-family: "Cinzel", serif; font-weight: 800; font-size: 21px; line-height: 1.15; color: var(--page-ink); }
+      .stat .val.balls { color: var(--gold); letter-spacing: .18em; font-size: 17px; line-height: 1.45; }
+      @media (prefers-color-scheme: light) { .stat .val { color: #f4f2ff; } .stat .lab { color: #a9abd0; } }
+      .hud-btns { display: flex; flex-direction: column; gap: 6px; }
+      .mini-btn {
+        flex: 1; border: 1.5px solid var(--tile-border); background: var(--btn-bg); color: var(--btn-ink);
+        border-radius: 12px; font-family: "Nunito", sans-serif; font-weight: 800; font-size: 11.5px;
+        letter-spacing: .04em; padding: 0 11px; cursor: pointer; white-space: nowrap;
+      }
+      .mini-btn:active { transform: translateY(1px); }
+
+      .board-frame {
+        position: relative; margin: 0 auto;
+        /* pre-JS fallback: leave room for the title, HUD and buttons so
+           the whole game fits the viewport height; fitBoard() in the
+           script then sizes the frame exactly to the space left */
+        width: min(420px, 94vw, calc((100dvh - 280px) * 420 / 640));
+        aspect-ratio: 420 / 640;
+        background: var(--panel); border: 2px solid var(--tile-border);
+        border-radius: 16px; overflow: hidden;
+        box-shadow: 0 12px 32px rgba(3, 3, 18, .35);
+      }
+      canvas#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+      .flash {
+        position: absolute; left: 0; right: 0; top: 40%; text-align: center; pointer-events: none;
+        font-family: "Cinzel", serif; font-weight: 800; letter-spacing: .06em;
+        font-size: clamp(20px, 6vw, 30px); color: var(--gold-hi);
+        text-shadow: 0 2px 14px rgba(0,0,0,.65); opacity: 0;
+      }
+      .flash.show { animation: flashPop 1.15s ease-out forwards; }
+      @keyframes flashPop {
+        0% { opacity: 0; transform: scale(.8); }
+        14% { opacity: 1; transform: scale(1.06); }
+        26% { transform: scale(1); }
+        78% { opacity: 1; }
+        100% { opacity: 0; transform: scale(1); }
+      }
+      @media (prefers-reduced-motion: reduce) { .flash.show { animation-duration: .01s; } }
+      .veil {
+        position: absolute; inset: 0; display: none; flex-direction: column; gap: 6px;
+        align-items: center; justify-content: center; text-align: center; padding: 20px;
+        background: rgba(5, 5, 22, .58); color: #f4f2ff; cursor: pointer;
+      }
+      .veil.show { display: flex; }
+      .veil .vt { font-family: "Cinzel", serif; font-weight: 800; font-size: clamp(22px, 6vw, 30px); letter-spacing: .05em; }
+      .veil .vs { font-weight: 700; color: #c9cbf0; font-size: 14px; }
+
+      .under { display: flex; gap: 8px; margin: 12px auto 0; max-width: 460px; }
+      .new-btn {
+        flex: 1; border: 1.5px solid var(--gold-deep); background: var(--btn-bg); color: var(--gold-hi);
+        border-radius: 12px; font-family: "Nunito", sans-serif; font-weight: 900; font-size: 12.5px;
+        letter-spacing: .05em; padding: 11px 4px; cursor: pointer; white-space: nowrap;
+      }
+      .new-btn:active { transform: translateY(1px); background: var(--gold); color: #241a00; }
+      .like-btn {
+        border: 1.5px solid var(--tile-border); background: var(--btn-bg); color: var(--btn-ink);
+        border-radius: 12px; font-family: "Nunito", sans-serif; font-weight: 900; font-size: 14px;
+        padding: 10px 16px; cursor: pointer; white-space: nowrap;
+      }
+      .like-btn:active { transform: translateY(1px); }
+      .like-btn .like-count { margin-left: 5px; color: var(--gold-hi); }
+      .hint { font-size: 12.5px; font-weight: 700; color: var(--page-ink-dim); text-align: center; margin: 12px 0 0; }
+      @media (hover: none), (max-width: 760px) { .hint { display: none; } }
+
+      /* overlays */
+      .overlay { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: var(--overlay-bg); padding: 16px; }
+      .overlay.open { display: flex; }
+      .card {
+        background: var(--card-bg); color: var(--card-ink); border: 1.5px solid var(--tile-border);
+        border-radius: 18px; padding: 22px 20px; width: 100%; max-width: 430px;
+        max-height: 92dvh; overflow-y: auto; box-shadow: 0 18px 50px rgba(0,0,0,.5);
+      }
+      .card h2 { font-family: "Cinzel", serif; font-weight: 800; letter-spacing: .05em; margin: 0 0 4px; font-size: 24px; text-align: center; }
+      .card .sub { text-align: center; color: var(--card-dim); font-weight: 700; font-size: 13.5px; margin: 0 0 14px; }
+      .howto { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 9px; }
+      .howto li { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; font-size: 14.5px; line-height: 1.35; }
+      .howto .mk { color: var(--gold); font-size: 13px; line-height: 1.5; flex: none; }
+      .legend { display: flex; justify-content: space-between; gap: 4px; margin: 0 0 16px; }
+      .legend .lg { flex: 1; text-align: center; }
+      .legend img {
+        width: 100%; max-width: 52px; aspect-ratio: 300 / 336; object-fit: cover; display: block; margin: 0 auto;
+        border-radius: 7px; border: 3px solid var(--gold-deep); background: #23234d;
+      }
+      .big-btn {
+        display: block; width: 100%; border: none; cursor: pointer; border-radius: 14px;
+        background: var(--gold); color: #241a00; font-family: "Cinzel", serif; font-weight: 800;
+        font-size: 17px; letter-spacing: .05em; padding: 13px 10px;
+      }
+      .big-btn:active { transform: translateY(1px); }
+      .ghost-btn {
+        display: block; width: 100%; border: 1.5px solid var(--tile-border); cursor: pointer; border-radius: 14px;
+        background: var(--btn-bg); color: var(--btn-ink); font-family: "Nunito", sans-serif; font-weight: 800;
+        font-size: 14px; padding: 11px 10px; margin-top: 9px;
+      }
+      .final-score { text-align: center; margin: 2px 0 12px; }
+      .final-score .fs-num { font-family: "Cinzel", serif; font-weight: 800; font-size: 44px; line-height: 1; color: var(--gold-hi); }
+      .final-score .fs-lab { font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--card-dim); }
+      .final-stats { display: flex; justify-content: center; gap: 16px; font-weight: 800; font-size: 13.5px; color: var(--card-dim); margin-bottom: 14px; flex-wrap: wrap; }
+      .final-stats b { color: var(--card-ink); }
+      .new-best { text-align: center; color: var(--good); font-weight: 900; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: -6px 0 12px; display: none; }
+      .lb-form { display: flex; gap: 8px; margin-bottom: 6px; }
+      .lb-form input {
+        flex: 1; min-width: 0; border: 1.5px solid var(--tile-border); border-radius: 12px;
+        background: #0d0d28; color: #f4f2ff; font-family: "Nunito", sans-serif; font-weight: 700;
+        font-size: 15px; padding: 10px 12px;
+      }
+      .lb-form input::placeholder { color: #6d6f9a; }
+      .lb-form button {
+        border: none; border-radius: 12px; background: var(--gold); color: #241a00; cursor: pointer;
+        font-family: "Nunito", sans-serif; font-weight: 900; font-size: 14px; padding: 10px 14px; white-space: nowrap;
+      }
+      .lb-form button:disabled { opacity: .55; cursor: default; }
+      .lb-msg { min-height: 18px; font-size: 13px; font-weight: 800; margin: 2px 0 8px; }
+      .lb-msg.err { color: var(--danger); } .lb-msg.ok { color: var(--good); }
+      table.board { width: 100%; border-collapse: collapse; font-size: 14.5px; margin-top: 4px; }
+      table.board th { text-align: left; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--card-dim); padding: 4px 6px; border-bottom: 1px solid var(--tile-border); }
+      table.board th.r, table.board td.r { text-align: right; }
+      table.board td { padding: 6px; border-bottom: 1px solid rgba(61,61,117,.45); font-weight: 700; }
+      table.board tr.me td { color: var(--gold-hi); background: rgba(245,197,66,.08); }
+      .board-note { text-align: center; color: var(--card-dim); font-weight: 700; padding: 12px 0; font-size: 14px; }
+      button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1 class="title"><span class="star">✦</span> QI STICKER BREAKOUT <span class="star">✦</span></h1>
+
+      <div class="hud">
+        <div class="stat"><span class="lab">Score</span><span class="val" id="scoreVal">0</span></div>
+        <div class="stat"><span class="lab">Level</span><span class="val" id="levelVal">1</span></div>
+        <div class="stat"><span class="lab">Balls</span><span class="val balls" id="livesVal">●●●</span></div>
+        <div class="stat"><span class="lab">Best</span><span class="val" id="bestVal">0</span></div>
+        <div class="hud-btns">
+          <button class="mini-btn" id="soundBtn" type="button">SOUND ON</button>
+          <button class="mini-btn" id="boardBtn" type="button">TOP 10</button>
+          <button class="mini-btn" id="pauseBtn" type="button">PAUSE</button>
+        </div>
+      </div>
+
+      <div class="board-frame" id="boardFrame">
+        <canvas id="game"></canvas>
+        <div class="flash" id="flashMsg"></div>
+        <div class="veil" id="pauseVeil">
+          <div class="vt">PAUSED</div>
+          <div class="vs">Tap here to keep breaking</div>
+        </div>
+      </div>
+
+      <div class="under">
+        <button class="new-btn" id="newGameBtn" type="button">↻ NEW GAME</button>
+        <button class="like-btn" id="likeBtn" type="button" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count" id="likeCount">–</span></button>
+      </div>
+      <p class="hint">Move the mouse or ← → to aim &nbsp;·&nbsp; click or Space to launch &nbsp;·&nbsp; catch a falling ★ to widen the paddle</p>
+    </main>
+
+    <!-- start -->
+    <div class="overlay open" id="startOverlay">
+      <div class="card">
+        <h2>STICKER BREAKOUT</h2>
+        <p class="sub">One paddle. One ball. A wall of pups with your name on it.</p>
+        <ul class="howto">
+          <li><span class="mk">✦</span><span>Slide your finger (or mouse) to move the paddle. <b>Tap to launch</b> the ball, and bounce it into the wall — every brick is a <b>QI sticker</b>, and every wall is <b>30 fresh stickers</b> drawn at random from the full pack. No two walls alike.</span></li>
+          <li><span class="mk">✦</span><span>Each sticker smashed pays <b>50 points</b>, and clearing a wall banks a <b>+250 bonus</b>. From level 3, some stickers are <b>armored</b> — they take two hits, so crack them once and finish the job.</span></li>
+          <li><span class="mk">✦</span><span>About one brick in ten drops a <b>falling star</b> — catch it and your paddle runs <b>wide for 12 seconds</b>. You have <b>3 balls</b>: let one slip past and it's gone.</span></li>
+        </ul>
+        <div class="legend" id="legend"></div>
+        <button class="big-btn" id="startBtn" type="button">▶ START BREAKING</button>
+      </div>
+    </div>
+
+    <!-- game over -->
+    <div class="overlay" id="overOverlay">
+      <div class="card">
+        <h2>OUT OF BALLS!</h2>
+        <p class="sub" id="overSub">The wall wins this round.</p>
+        <div class="final-score"><div class="fs-num" id="finalScore">0</div><div class="fs-lab">Points</div></div>
+        <div class="new-best" id="newBest">✦ New personal best ✦</div>
+        <div class="final-stats"><span>Stickers <b id="finalBricks">0</b></span><span>Level <b id="finalLevel">1</b></span><span>Time <b id="finalTime">0:00</b></span></div>
+        <form class="lb-form" id="lbForm">
+          <input id="lbName" type="text" maxlength="16" placeholder="Your name for the board" autocomplete="off" />
+          <button id="lbSubmit" type="submit">Submit Score</button>
+        </form>
+        <div class="lb-msg" id="lbMsg"></div>
+        <div id="overBoard"></div>
+        <button class="big-btn" id="againBtn" type="button" style="margin-top:12px;">▶ BREAK AGAIN</button>
+      </div>
+    </div>
+
+    <!-- leaderboard -->
+    <div class="overlay" id="boardOverlay">
+      <div class="card">
+        <h2>TOP BREAKERS</h2>
+        <p class="sub">The sharpest shots of the Quantum Realm</p>
+        <div id="boardBody"><div class="board-note">Loading…</div></div>
+        <button class="ghost-btn" type="button" data-close="boardOverlay">Close</button>
+      </div>
+    </div>
+
+    <script>
+    "use strict";
+    /* Zoom lock: pinch zoom is disabled by the viewport meta, double-tap
+       zoom by touch-action: manipulation in the CSS, and older iOS
+       Safari's gesture zoom by cancelling gesturestart here. iOS still
+       double-tap zooms past those three in some webviews, so the zoom is
+       also blocked at the JavaScript level below: a second touchend
+       landing within 350ms of the previous one is cancelled (a genuine
+       single tap is never within that window, so buttons still respond
+       instantly), any touchstart with more than one touch point down is
+       cancelled (pinch), and the dblclick event is swallowed. */
+    document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, { passive: false });
+    var lastTouchEnd = 0;
+    document.addEventListener("touchend", function (e) {
+      var now = Date.now();
+      if (now - lastTouchEnd <= 350) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+    document.addEventListener("touchstart", function (e) {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+    document.addEventListener("dblclick", function (e) { e.preventDefault(); }, { passive: false });
+
+    function $(id) { return document.getElementById(id); }
+    var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    /* ================= the sticker pack ================= */
+    /* All 106 framed faces of the pack. Every wall is dealt fresh:
+       30 DISTINCT stickers pulled at random from this list, so no two
+       walls — and no two games — wear the same cast. */
+    var FACE_IDS = ["astronaut","bath","bike","birthday","bone","book","buff","chart","chef","chill","clap","coffee","cool","dance","detective","dizzy","dj","dreaming","facepalm","fine","fishing","flag","float","gamer","gift","gm","gn","guitar","hero","hodl","hug","icecream","idea","jackpot","jetpack","king","knight","laptop","laugh","lfg","love","mindblown","ninja","ok","party","phone","pirate","pizza","popcorn","pray","racecar","rain","ramen","rich","run","salute","shrug","sick","silly","sing","skateboard","snow","stop","swim","telescope","thinking","thumbsdown","thumbsup","trophy","wave","wizard","zen","firefighter","painter","construction","cowboy","viking","magician","director","robot","alien","ghost","santa","cupid","fortune","beekeeper","mail","boxer","soccer","basketball","baseball","surfer","scuba","parachute","balloon","train","climber","kayak","gardener","photographer","violin","drummer","pumpkin","camper","umbrella","bubbles"];
+    var FACE_IMG = {}, FACE_TRIES = {};
+    var FALLBACK_IMG = null; /* first face that lands: the stand-in a
+       brick wears while its own face is still on its way, so a brick
+       NEVER renders bare */
+    function loadFace(id) {
+      var im = new Image();
+      FACE_TRIES[id] = (FACE_TRIES[id] || 0) + 1;
+      im.onload = function () { if (!FALLBACK_IMG) FALLBACK_IMG = im; };
+      im.onerror = function () {
+        /* a sticker that fails to load is fetched again until it
+           lands — left alone, one dropped request would leave its
+           brick bare for the whole session */
+        var tries = FACE_TRIES[id];
+        if (tries <= 40) {
+          setTimeout(function () { loadFace(id); }, Math.min(350 * tries, 3000));
+        }
+      };
+      im.src = "assets/" + id + ".webp" + (FACE_TRIES[id] > 1 ? "?retry=" + FACE_TRIES[id] : "");
+      FACE_IMG[id] = im;
+    }
+    function loadImages() {
+      /* preload the whole 106-sticker pack so a fresh deal never
+         waits on the network mid-game */
+      FACE_IDS.forEach(loadFace);
+    }
+    function shuffledPack() {
+      var pool = FACE_IDS.slice();
+      for (var i = pool.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+      }
+      return pool;
+    }
+    /* start-overlay strip: six faces from the pack, reshuffled each
+       time the start card is shown */
+    function buildLegend() {
+      var picks = shuffledPack().slice(0, 6);
+      var html = "";
+      picks.forEach(function (id) {
+        html += "<div class='lg'><img src='assets/" + id + ".webp' alt='QI sticker' /></div>";
+      });
+      $("legend").innerHTML = html;
+      /* a legend sticker that fails to fetch retries until it shows */
+      $("legend").querySelectorAll("img").forEach(function (img) {
+        img.onerror = function () {
+          var n = parseInt(img.dataset.r || "0", 10) + 1;
+          if (n <= 6) {
+            img.dataset.r = n;
+            setTimeout(function () { img.src = img.src.split("?")[0] + "?retry=" + n; }, 300 * n);
+          }
+        };
+      });
+    }
+
+    /* ================= audio ================= */
+    /* Tiny WebAudio synth — the context is created/resumed on the first
+       user gesture so iOS never stays silent. */
+    var actx = null, muted = false;
+    function ac() {
+      if (!actx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) actx = new AC();
+      }
+      if (actx && actx.state === "suspended") actx.resume();
+      return actx;
+    }
+    function tone(freq, dur, type, vol, when, slideTo) {
+      if (muted) return;
+      var c = ac(); if (!c) return;
+      var t0 = c.currentTime + (when || 0);
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = type || "sine";
+      o.frequency.setValueAtTime(freq, t0);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol || 0.12, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(c.destination);
+      o.start(t0); o.stop(t0 + dur + 0.03);
+    }
+    var sfx = {
+      paddle: function () { tone(240, 0.05, "triangle", 0.11); },
+      wall:   function () { tone(170, 0.04, "triangle", 0.07); },
+      crack:  function () { tone(320, 0.07, "sawtooth", 0.08, 0, 190); },
+      smash:  function () { tone(660, 0.08, "triangle", 0.12); tone(990, 0.1, "triangle", 0.1, 0.04); },
+      star:   function () { tone(1175, 0.09, "sine", 0.1); tone(1568, 0.13, "sine", 0.09, 0.06); },
+      lose:   function () { tone(392, 0.35, "sawtooth", 0.09, 0, 110); },
+      launch: function () { tone(523, 0.07, "triangle", 0.1); tone(784, 0.09, "triangle", 0.09, 0.05); },
+      level:  function () { tone(659, 0.09, "triangle", 0.11); tone(880, 0.09, "triangle", 0.11, 0.07); tone(1175, 0.16, "triangle", 0.11, 0.14); },
+      over:   function () { tone(340, 0.5, "sawtooth", 0.09, 0, 65); tone(170, 0.55, "triangle", 0.09, 0.05, 48); }
+    };
+    $("soundBtn").addEventListener("click", function () {
+      muted = !muted;
+      this.textContent = muted ? "SOUND OFF" : "SOUND ON";
+      if (!muted) sfx.paddle();
+    });
+
+    /* ================= the stage ================= */
+    /* Logical playfield: 420 x 640. The canvas is sized to the frame
+       and every draw happens in these units via a scale transform, so
+       the game plays identically at any display size. */
+    var W = 420, H = 640;
+    var COLS = 6, ROWS = 5;
+    var WALL_X = 12, WALL_Y = 54, GAP = 5;
+    var BRICK_W = (W - WALL_X * 2 - GAP * (COLS - 1)) / COLS;   /* 61.83 */
+    var BRICK_H = BRICK_W * 336 / 300;                          /* framed-face aspect */
+    var PADDLE_Y = H - 42, PADDLE_H = 12;
+    var PADDLE_W = 86, PADDLE_WIDE_W = 128;
+    var BALL_R = 7;
+
+    var state = "ready"; /* ready | serve | playing | clear | paused | over */
+    var prePause = "serve";
+    var score = 0, level = 1, lives = 3, smashed = 0;
+    var best = 0, submitted = false, bestStored = false;
+    var bricks = [];          /* { x, y, face, hp, maxHp, shakeUntil } */
+    var paddleX = W / 2;      /* paddle CENTER, logical units */
+    var ball = { x: W / 2, y: PADDLE_Y - BALL_R, vx: 0, vy: 0 };
+    var stars = [];           /* falling power-up stars { x, y } */
+    var fx = [];              /* sparkle particles */
+    var wideT = 0;            /* seconds of wide paddle remaining */
+    var clearAt = 0;          /* timestamp the level-clear pause ends */
+    var elapsedMs = 0, playStamp = 0;
+    var flashTimer = null;
+    try {
+      best = parseInt(localStorage.getItem("qi-breakout-best") || "0", 10) || 0;
+      bestStored = true;
+    } catch (e) { best = 0; }
+
+    function ballSpeed() { return Math.min(330 + (level - 1) * 22, 640); }
+    function paddleW() { return wideT > 0 ? PADDLE_WIDE_W : PADDLE_W; }
+
+    function fmtTime(ms) {
+      var s = Math.floor(ms / 1000);
+      return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+    }
+    function updateHUD() {
+      $("scoreVal").textContent = score;
+      $("levelVal").textContent = level;
+      var balls = "";
+      for (var i = 0; i < 3; i++) balls += i < lives ? "●" : "○";
+      $("livesVal").textContent = balls;
+      $("bestVal").textContent = best;
+    }
+    function flashMsg(text) {
+      var el = $("flashMsg");
+      el.textContent = text;
+      el.classList.remove("show");
+      /* restart the animation even if a flash is already running */
+      void el.offsetWidth;
+      el.classList.add("show");
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(function () { el.classList.remove("show"); }, 1200);
+    }
+
+    /* deal a brand-new wall: 30 distinct stickers from the pack.
+       From level 3 on, a few of them are armored (2 hits). */
+    function dealWall() {
+      var picks = shuffledPack().slice(0, COLS * ROWS);
+      bricks = [];
+      var armor = [];
+      if (level >= 3) {
+        var n = Math.min(3 + level, 10);
+        var idx = [];
+        for (var i = 0; i < COLS * ROWS; i++) idx.push(i);
+        for (var a = idx.length - 1; a > 0; a--) {
+          var b = Math.floor(Math.random() * (a + 1));
+          var t = idx[a]; idx[a] = idx[b]; idx[b] = t;
+        }
+        armor = idx.slice(0, n);
+      }
+      for (var r = 0; r < ROWS; r++) {
+        for (var c = 0; c < COLS; c++) {
+          var k = r * COLS + c;
+          var hp = armor.indexOf(k) !== -1 ? 2 : 1;
+          bricks.push({
+            x: WALL_X + c * (BRICK_W + GAP),
+            y: WALL_Y + r * (BRICK_H + GAP),
+            face: picks[k], hp: hp, maxHp: hp, shakeUntil: 0
+          });
+        }
+      }
+    }
+    function toServe() {
+      state = "serve";
+      ball.vx = 0; ball.vy = 0;
+      ball.x = paddleX;
+      ball.y = PADDLE_Y - BALL_R - 1;
+      stars = [];
+    }
+    function launch() {
+      if (state !== "serve") return;
+      var sp = ballSpeed();
+      var ang = (Math.random() * 0.5 - 0.25); /* a touch of variety off the serve */
+      ball.vx = sp * Math.sin(ang);
+      ball.vy = -sp * Math.cos(ang);
+      state = "playing";
+      sfx.launch();
+    }
+    function resetGame() {
+      score = 0; level = 1; lives = 3; smashed = 0;
+      wideT = 0; fx = []; elapsedMs = 0;
+      submitted = false;
+      paddleX = W / 2;
+      dealWall();
+      toServe();
+    }
+    function startGame() {
+      ac();
+      resetGame();
+      playStamp = performance.now();
+      $("startOverlay").classList.remove("open");
+      $("overOverlay").classList.remove("open");
+      $("pauseVeil").classList.remove("show");
+      updateHUD();
+    }
+    function pauseGame() {
+      if (state !== "playing" && state !== "serve") return;
+      prePause = state;
+      state = "paused";
+      $("pauseVeil").classList.add("show");
+      $("pauseBtn").textContent = "RESUME";
+    }
+    function resumeGame() {
+      if (state !== "paused") return;
+      state = prePause;
+      $("pauseVeil").classList.remove("show");
+      $("pauseBtn").textContent = "PAUSE";
+    }
+    var OVER_LINES = [
+      "The wall wins this round.",
+      "The pups remain unbroken… for now.",
+      "So close. The wall felt that one.",
+      "The stickers salute your effort."
+    ];
+    function gameOver() {
+      state = "over";
+      elapsedMs += performance.now() - playStamp;
+      sfx.over();
+      var isBest = score > best;
+      if (isBest) {
+        best = score;
+        if (bestStored) { try { localStorage.setItem("qi-breakout-best", String(best)); } catch (e) {} }
+      }
+      updateHUD();
+      $("overSub").textContent = OVER_LINES[Math.floor(Math.random() * OVER_LINES.length)];
+      $("finalScore").textContent = score;
+      $("finalBricks").textContent = smashed;
+      $("finalLevel").textContent = level;
+      $("finalTime").textContent = fmtTime(elapsedMs);
+      $("newBest").style.display = isBest && score > 0 ? "block" : "none";
+      $("lbMsg").textContent = ""; $("lbMsg").className = "lb-msg";
+      var btn = $("lbSubmit"); btn.disabled = false; btn.textContent = "Submit Score";
+      try { $("lbName").value = localStorage.getItem("qi-lb-name") || ""; } catch (e) {}
+      $("overBoard").innerHTML = "";
+      setTimeout(function () { $("overOverlay").classList.add("open"); }, REDUCED ? 60 : 550);
+    }
+    function levelCleared() {
+      score += 250;
+      state = "clear";
+      clearAt = performance.now() + (REDUCED ? 200 : 1400);
+      flashMsg("LEVEL " + level + " CLEAR! +250");
+      sfx.level();
+      updateHUD();
+    }
+    function nextLevel() {
+      level++;
+      wideT = 0;
+      dealWall();
+      toServe();
+      flashMsg("LEVEL " + level);
+      updateHUD();
+    }
+    function loseBall() {
+      lives--;
+      wideT = 0;
+      sfx.lose();
+      updateHUD();
+      if (lives <= 0) gameOver();
+      else toServe();
+    }
+
+    /* burst of sparkles where a sticker broke */
+    function burst(x, y) {
+      if (REDUCED) return;
+      for (var i = 0; i < 10; i++) {
+        var a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 110;
+        fx.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: 0.45 + Math.random() * 0.25, t: 0 });
+      }
+    }
+
+    /* ================= physics ================= */
+    /* The ball moves in small substeps (never more than ~half its
+       radius at a time) so a fast ball can never tunnel through a
+       brick or the paddle, whatever the frame rate. */
+    function stepBall(dt) {
+      var dist = Math.hypot(ball.vx, ball.vy) * dt;
+      var steps = Math.max(1, Math.ceil(dist / (BALL_R * 0.5)));
+      var sdt = dt / steps;
+      for (var s = 0; s < steps; s++) {
+        ball.x += ball.vx * sdt;
+        ball.y += ball.vy * sdt;
+        /* side walls and ceiling */
+        if (ball.x < BALL_R) { ball.x = BALL_R; ball.vx = Math.abs(ball.vx); sfx.wall(); }
+        else if (ball.x > W - BALL_R) { ball.x = W - BALL_R; ball.vx = -Math.abs(ball.vx); sfx.wall(); }
+        if (ball.y < BALL_R) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); sfx.wall(); }
+        /* paddle: the bounce angle follows WHERE the ball lands —
+           dead center goes straight up, the edges cut hard angles */
+        var pw = paddleW();
+        if (ball.vy > 0 &&
+            ball.y + BALL_R >= PADDLE_Y && ball.y - BALL_R <= PADDLE_Y + PADDLE_H &&
+            ball.x >= paddleX - pw / 2 - BALL_R && ball.x <= paddleX + pw / 2 + BALL_R) {
+          var rel = Math.max(-1, Math.min(1, (ball.x - paddleX) / (pw / 2)));
+          var sp = Math.hypot(ball.vx, ball.vy);
+          var ang = rel * 1.15; /* up to ~66 degrees off vertical */
+          ball.vx = sp * Math.sin(ang);
+          ball.vy = -sp * Math.cos(ang);
+          ball.y = PADDLE_Y - BALL_R - 0.5;
+          sfx.paddle();
+        }
+        /* bricks: resolve on the side the ball penetrates least */
+        for (var i = 0; i < bricks.length; i++) {
+          var b = bricks[i];
+          if (ball.x + BALL_R <= b.x || ball.x - BALL_R >= b.x + BRICK_W ||
+              ball.y + BALL_R <= b.y || ball.y - BALL_R >= b.y + BRICK_H) continue;
+          var penL = (ball.x + BALL_R) - b.x;
+          var penR = (b.x + BRICK_W) - (ball.x - BALL_R);
+          var penT = (ball.y + BALL_R) - b.y;
+          var penB = (b.y + BRICK_H) - (ball.y - BALL_R);
+          var minPen = Math.min(penL, penR, penT, penB);
+          if (minPen === penT) { ball.vy = -Math.abs(ball.vy); ball.y = b.y - BALL_R - 0.5; }
+          else if (minPen === penB) { ball.vy = Math.abs(ball.vy); ball.y = b.y + BRICK_H + BALL_R + 0.5; }
+          else if (minPen === penL) { ball.vx = -Math.abs(ball.vx); ball.x = b.x - BALL_R - 0.5; }
+          else { ball.vx = Math.abs(ball.vx); ball.x = b.x + BRICK_W + BALL_R + 0.5; }
+          hitBrick(b);
+          break; /* one brick per substep keeps the bounce honest */
+        }
+        if (state !== "playing") return; /* a level clear / ball loss mid-step ends the motion */
+        if (ball.y - BALL_R > H) { loseBall(); return; }
+      }
+    }
+    function hitBrick(b) {
+      if (b.hp > 1) {
+        /* armored: first hit cracks it — shake + flash, no points yet */
+        b.hp = 1;
+        b.shakeUntil = performance.now() + 260;
+        sfx.crack();
+        burst(ball.x, ball.y);
+        return;
+      }
+      bricks.splice(bricks.indexOf(b), 1);
+      score += 50;
+      smashed++;
+      sfx.smash();
+      burst(b.x + BRICK_W / 2, b.y + BRICK_H / 2);
+      /* about one broken brick in ten drops a star */
+      if (Math.random() < 0.10) {
+        stars.push({ x: b.x + BRICK_W / 2, y: b.y + BRICK_H / 2 });
+      }
+      updateHUD();
+      if (!bricks.length) levelCleared();
+    }
+    function stepStars(dt) {
+      var pw = paddleW();
+      for (var i = stars.length - 1; i >= 0; i--) {
+        var st = stars[i];
+        st.y += 175 * dt;
+        if (st.y >= PADDLE_Y - 6 && st.y <= PADDLE_Y + PADDLE_H + 8 &&
+            st.x >= paddleX - pw / 2 - 8 && st.x <= paddleX + pw / 2 + 8) {
+          stars.splice(i, 1);
+          wideT = 12;
+          flashMsg("★ WIDE PADDLE! ★");
+          sfx.star();
+        } else if (st.y > H + 16) {
+          stars.splice(i, 1);
+        }
+      }
+    }
+    function update(dt) {
+      if (wideT > 0) wideT = Math.max(0, wideT - dt);
+      for (var i = fx.length - 1; i >= 0; i--) {
+        var p = fx[i];
+        p.t += dt;
+        if (p.t >= p.life) { fx.splice(i, 1); continue; }
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt;
+      }
+      if (state === "serve") {
+        ball.x = paddleX;
+        ball.y = PADDLE_Y - BALL_R - 1;
+      } else if (state === "playing") {
+        stepBall(dt);
+        stepStars(dt);
+      } else if (state === "clear") {
+        stepStars(dt);
+        if (performance.now() >= clearAt) nextLevel();
+      }
+    }
+
+    /* ================= rendering ================= */
+    var canvas = $("game");
+    var ctx = canvas.getContext("2d");
+    var scaleK = 1, bgStars = [];
+    /* Fit the whole game — title, HUD, board AND the buttons under it —
+       inside the viewport height, so the paddle is always on screen and
+       nobody has to scroll mid-game. Measure everything around the
+       board, hand the board the height that's left (converted back to a
+       width through the 420:640 stage ratio), then size the canvas. */
+    function fitBoard() {
+      var frame = $("boardFrame");
+      var wrap = frame.parentNode;
+      var used = 0;
+      var wcs = window.getComputedStyle(wrap);
+      used += (parseFloat(wcs.paddingTop) || 0) + (parseFloat(wcs.paddingBottom) || 0);
+      for (var i = 0; i < wrap.children.length; i++) {
+        var el = wrap.children[i];
+        if (el === frame) continue;
+        if (el.offsetHeight === 0) continue; /* display:none (the desktop-only hint on touch) */
+        var ecs = window.getComputedStyle(el);
+        used += el.offsetHeight + (parseFloat(ecs.marginTop) || 0) + (parseFloat(ecs.marginBottom) || 0);
+      }
+      var availH = window.innerHeight - used - 4;
+      var maxW = Math.min(420, wrap.clientWidth - 24);
+      var fitW = Math.max(150, Math.min(maxW, availH * (W / H)));
+      frame.style.width = fitW + "px";
+      sizeCanvas();
+    }
+    function sizeCanvas() {
+      var frame = $("boardFrame");
+      var w = frame.clientWidth - 4; /* frame border */
+      var dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(w * (H / W) * dpr);
+      scaleK = canvas.width / W;
+      bgStars = [];
+      for (var i = 0; i < 70; i++) {
+        bgStars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.3 + 0.4, p: Math.random() * Math.PI * 2 });
+      }
+    }
+    window.addEventListener("resize", fitBoard);
+    window.addEventListener("orientationchange", fitBoard);
+    window.addEventListener("load", fitBoard);
+    /* the webfonts swap in after first paint and shift the title/HUD
+       heights — refit once they're in so the fit stays exact */
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitBoard);
+    function rrPath(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.arcTo(x + w, y, x + w, y + h, r);
+      c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r);
+      c.arcTo(x, y, x + w, y, r);
+      c.closePath();
+    }
+    function drawStar(c, cx, cy, r, color) {
+      c.beginPath();
+      for (var i = 0; i < 10; i++) {
+        var rad = i % 2 === 0 ? r : r * 0.45;
+        var a = -Math.PI / 2 + i * Math.PI / 5;
+        var px = cx + Math.cos(a) * rad, py = cy + Math.sin(a) * rad;
+        if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+      }
+      c.closePath();
+      c.fillStyle = color;
+      c.fill();
+    }
+    function draw(t) {
+      ctx.setTransform(scaleK, 0, 0, scaleK, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      /* starfield */
+      for (var i = 0; i < bgStars.length; i++) {
+        var s = bgStars[i];
+        var tw = REDUCED ? 0.75 : 0.55 + 0.4 * Math.sin(t / 700 + s.p);
+        ctx.globalAlpha = tw;
+        ctx.fillStyle = "#dfe4ff";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      /* the wall */
+      var now = performance.now();
+      for (var j = 0; j < bricks.length; j++) {
+        var b = bricks[j];
+        var ox = 0, oy = 0;
+        if (b.shakeUntil > now && !REDUCED) {
+          ox = (Math.random() - 0.5) * 3;
+          oy = (Math.random() - 0.5) * 3;
+        }
+        var im = FACE_IMG[b.face];
+        if (!im || !im.complete || !im.naturalWidth) im = FALLBACK_IMG;
+        ctx.save();
+        rrPath(ctx, b.x + ox, b.y + oy, BRICK_W, BRICK_H, 6);
+        ctx.clip();
+        if (im && im.complete && im.naturalWidth) {
+          ctx.drawImage(im, b.x + ox, b.y + oy, BRICK_W, BRICK_H);
+        } else {
+          ctx.fillStyle = "#23234d";
+          ctx.fillRect(b.x + ox, b.y + oy, BRICK_W, BRICK_H);
+        }
+        if (b.maxHp === 2 && b.hp === 2) {
+          /* untouched armor: a gold sheen over the frame */
+          ctx.fillStyle = "rgba(245,197,66,0.16)";
+          ctx.fillRect(b.x + ox, b.y + oy, BRICK_W, BRICK_H);
+        }
+        if (b.maxHp === 2 && b.hp === 1) {
+          /* cracked: white flash fading out + crack lines */
+          var k = Math.max(0, (b.shakeUntil - now) / 260);
+          ctx.fillStyle = "rgba(255,255,255," + (0.45 * k).toFixed(3) + ")";
+          ctx.fillRect(b.x + ox, b.y + oy, BRICK_W, BRICK_H);
+          ctx.strokeStyle = "rgba(10,10,30,0.75)";
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(b.x + ox + BRICK_W * 0.2, b.y + oy + 4);
+          ctx.lineTo(b.x + ox + BRICK_W * 0.45, b.y + oy + BRICK_H * 0.4);
+          ctx.lineTo(b.x + ox + BRICK_W * 0.35, b.y + oy + BRICK_H * 0.7);
+          ctx.moveTo(b.x + ox + BRICK_W * 0.45, b.y + oy + BRICK_H * 0.4);
+          ctx.lineTo(b.x + ox + BRICK_W * 0.72, b.y + oy + BRICK_H * 0.55);
+          ctx.stroke();
+        }
+        ctx.restore();
+        /* frame edge: armored bricks wear a double gold rim */
+        rrPath(ctx, b.x + ox + 0.75, b.y + oy + 0.75, BRICK_W - 1.5, BRICK_H - 1.5, 5);
+        ctx.strokeStyle = b.maxHp === 2 ? "rgba(245,197,66,0.85)" : "rgba(120,120,190,0.5)";
+        ctx.lineWidth = b.maxHp === 2 ? 2 : 1.2;
+        ctx.stroke();
+      }
+      /* falling stars */
+      for (var q = 0; q < stars.length; q++) {
+        var st = stars[q];
+        var pulse = REDUCED ? 11 : 11 + Math.sin(t / 120 + st.x) * 1.6;
+        ctx.save();
+        ctx.shadowColor = "rgba(245,197,66,0.9)";
+        ctx.shadowBlur = 12;
+        drawStar(ctx, st.x, st.y, pulse, "#f5c542");
+        ctx.restore();
+      }
+      /* sparkles */
+      for (var f = 0; f < fx.length; f++) {
+        var p = fx[f];
+        ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
+        ctx.fillStyle = "#ffe89a";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      /* paddle */
+      var pw = paddleW();
+      var px = paddleX - pw / 2;
+      ctx.save();
+      if (wideT > 0) { ctx.shadowColor = "rgba(245,197,66,0.95)"; ctx.shadowBlur = 16; }
+      var grad = ctx.createLinearGradient(px, PADDLE_Y, px, PADDLE_Y + PADDLE_H);
+      grad.addColorStop(0, "#ffe89a");
+      grad.addColorStop(0.5, "#f5c542");
+      grad.addColorStop(1, "#b8860b");
+      rrPath(ctx, px, PADDLE_Y, pw, PADDLE_H, 6);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.restore();
+      if (wideT > 0) {
+        /* draining gold underline shows the wide time left */
+        ctx.fillStyle = "rgba(245,197,66,0.55)";
+        ctx.fillRect(px, PADDLE_Y + PADDLE_H + 4, pw * (wideT / 12), 3);
+      }
+      /* ball (hidden behind the start / game-over cards anyway) */
+      if (state !== "ready" && state !== "over") {
+        ctx.save();
+        ctx.shadowColor = "rgba(255,255,255,0.9)";
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+        ctx.restore();
+        ctx.beginPath();
+        ctx.arc(ball.x - 2, ball.y - 2, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(180,200,255,0.9)";
+        ctx.fill();
+      }
+      /* serve prompt */
+      if (state === "serve") {
+        var a = REDUCED ? 0.9 : 0.6 + 0.35 * Math.sin(t / 300);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = "#ffe89a";
+        ctx.font = "800 17px Nunito, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("TAP TO LAUNCH", W / 2, PADDLE_Y - 46);
+        ctx.globalAlpha = 1;
+      }
+    }
+    var lastT = 0;
+    function loop(t) {
+      requestAnimationFrame(loop);
+      if (!lastT) lastT = t;
+      var dt = Math.min((t - lastT) / 1000, 0.05);
+      lastT = t;
+      if (state === "playing" || state === "serve" || state === "clear") update(dt);
+      draw(t);
+    }
+
+    /* ================= input ================= */
+    /* the paddle follows the finger / mouse x; a tap or click
+       launches the ball (and resumes from pause). */
+    function pointerX(e) {
+      var rect = canvas.getBoundingClientRect();
+      var cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+      return Math.max(0, Math.min(W, (cx - rect.left) * (W / rect.width)));
+    }
+    function movePaddle(e) {
+      var x = pointerX(e);
+      var pw = paddleW();
+      paddleX = Math.max(pw / 2, Math.min(W - pw / 2, x));
+    }
+    canvas.addEventListener("touchstart", function (e) {
+      e.preventDefault();
+      ac();
+      if (state === "paused") { resumeGame(); return; }
+      movePaddle(e);
+      if (state === "serve") launch();
+    }, { passive: false });
+    canvas.addEventListener("touchmove", function (e) {
+      e.preventDefault();
+      if (state === "playing" || state === "serve" || state === "clear") movePaddle(e);
+    }, { passive: false });
+    canvas.addEventListener("mousemove", function (e) {
+      if (state === "playing" || state === "serve" || state === "clear") movePaddle(e);
+    });
+    canvas.addEventListener("mousedown", function () {
+      ac();
+      if (state === "paused") { resumeGame(); return; }
+      if (state === "serve") launch();
+    });
+    $("pauseVeil").addEventListener("click", function () { resumeGame(); });
+    document.addEventListener("keydown", function (e) {
+      if (state === "playing" || state === "serve") {
+        var pw = paddleW();
+        if (e.key === "ArrowLeft") { paddleX = Math.max(pw / 2, paddleX - 26); e.preventDefault(); }
+        else if (e.key === "ArrowRight") { paddleX = Math.min(W - pw / 2, paddleX + 26); e.preventDefault(); }
+        else if (e.key === " " || e.key === "Enter") {
+          ac();
+          if (state === "serve") launch();
+          e.preventDefault();
+        }
+      } else if (state === "paused" && (e.key === " " || e.key === "Enter")) {
+        resumeGame();
+        e.preventDefault();
+      }
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) pauseGame();
+    });
+    $("pauseBtn").addEventListener("click", function () {
+      if (state === "paused") resumeGame();
+      else pauseGame();
+    });
+    $("startBtn").addEventListener("click", function () { startGame(); });
+    $("againBtn").addEventListener("click", function () { startGame(); });
+    /* in-game New Game: instant restart with a fresh wall, same as
+       Break Again from the game-over screen */
+    $("newGameBtn").addEventListener("click", function () {
+      if (state === "playing" || state === "paused" || state === "serve" || state === "clear") {
+        if (state === "paused") resumeGame();
+        startGame();
+      }
+    });
+
+    /* ================= leaderboard (Firebase, lazy) ================= */
+    var FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+    var fbPromise = null;
+    function loadFirebase() {
+      if (!fbPromise) {
+        fbPromise = (async function () {
+          var appMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+          var fsMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+          var app = appMod.initializeApp(FB_CONFIG);
+          return { db: fsMod.getFirestore(app), fs: fsMod };
+        })();
+      }
+      return fbPromise;
+    }
+    var BLOCKED = ["fuck","shit","bitch","cunt","dick","cock","pussy","porn","sex","nude","naked","boob","tits","cum","anal","whore","slut","fag","nigger","nigga","vagina","penis","dildo","horny","hentai","onlyfans","wank","jizz","boner","rape","pedo","incest","blowjob","asshole","twat"];
+    var LEET = {"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s","!":"i"};
+    function nameBlocked(name) {
+      var n = String(name).toLowerCase().split("").map(function (ch) { return LEET[ch] || ch; }).join("").replace(/[^a-z]/g, "");
+      return BLOCKED.some(function (w) { return n.indexOf(w) !== -1; });
+    }
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, function (ch) {
+        return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+      });
+    }
+    function boardHTML(rows, myName, myScore) {
+      if (!rows.length) return "<div class='board-note'>No scores yet — be the first on the board!</div>";
+      var marked = false;
+      var html = "<table class='board'><tr><th>#</th><th>Name</th><th class='r'>Score</th></tr>";
+      rows.forEach(function (r, i) {
+        var me = !marked && myName != null && r.name === myName && r.score === myScore;
+        if (me) marked = true;
+        html += "<tr" + (me ? " class='me'" : "") + "><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td class='r'>" + r.score + "</td></tr>";
+      });
+      return html + "</table>";
+    }
+    async function fetchBoard() {
+      var fb = await loadFirebase();
+      var q = fb.fs.query(fb.fs.collection(fb.db, "scores"), fb.fs.orderBy("score", "desc"), fb.fs.limit(50));
+      var snap = await fb.fs.getDocs(q);
+      var rows = [];
+      snap.forEach(function (d) {
+        var v = d.data();
+        if (v && v.game === "breakout" && typeof v.score === "number" && typeof v.name === "string" && !nameBlocked(v.name)) {
+          rows.push({ name: v.name, score: v.score });
+        }
+      });
+      return rows.slice(0, 10);
+    }
+    $("boardBtn").addEventListener("click", async function () {
+      if (state === "playing" || state === "serve") pauseGame(); /* never let the ball fly while reading the board */
+      $("boardOverlay").classList.add("open");
+      var body = $("boardBody");
+      body.innerHTML = "<div class='board-note'>Loading…</div>";
+      try { body.innerHTML = boardHTML(await fetchBoard(), null, null); }
+      catch (e) { body.innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+    });
+    document.querySelectorAll("[data-close]").forEach(function (btn) {
+      btn.addEventListener("click", function () { $(btn.dataset.close).classList.remove("open"); });
+    });
+    document.querySelectorAll(".overlay").forEach(function (ov) {
+      ov.addEventListener("click", function (e) { if (e.target === ov && ov.id === "boardOverlay") ov.classList.remove("open"); });
+    });
+    $("lbForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      if (submitted) return;
+      var name = $("lbName").value.trim();
+      var msg = $("lbMsg");
+      if (!name) { msg.textContent = "Type a name first"; msg.className = "lb-msg err"; return; }
+      if (nameBlocked(name)) {
+        msg.textContent = "That name isn't allowed — pick another";
+        msg.className = "lb-msg err"; tone(160, 0.15, "sawtooth", 0.08); return;
+      }
+      var btn = $("lbSubmit"); btn.disabled = true; btn.textContent = "Submitting…";
+      try {
+        try { localStorage.setItem("qi-lb-name", name); } catch (err) {}
+        var fb = await loadFirebase();
+        await fb.fs.addDoc(fb.fs.collection(fb.db, "scores"), {
+          name: name, score: score, game: "breakout", ts: fb.fs.serverTimestamp()
+        });
+        submitted = true;
+        msg.textContent = "Score submitted!"; msg.className = "lb-msg ok";
+        btn.textContent = "Submitted ✓";
+        sfx.level();
+        try { $("overBoard").innerHTML = boardHTML(await fetchBoard(), name, score); }
+        catch (err) { $("overBoard").innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+      } catch (err) {
+        msg.textContent = "Leaderboard unavailable right now"; msg.className = "lb-msg err";
+        btn.disabled = false; btn.textContent = "Submit Score";
+      }
+    });
+
+    /* ================= like button ================= */
+    /* Same heart as the site game cards: one doc per game in the
+       `likes` collection, count moved in ±1 steps only, and the
+       player's own like remembered in localStorage. */
+    var likeBusy = false;
+    function likedBefore() {
+      try { return localStorage.getItem("qi-liked-breakout") === "1"; } catch (e) { return false; }
+    }
+    function paintLike(count) {
+      var heart = $("likeBtn").querySelector(".heart");
+      heart.textContent = likedBefore() ? "❤️" : "🤍";
+      if (typeof count === "number") $("likeCount").textContent = count;
+    }
+    async function loadLike() {
+      paintLike();
+      try {
+        var fb = await loadFirebase();
+        var snap = await fb.fs.getDoc(fb.fs.doc(fb.db, "likes", "breakout"));
+        paintLike(snap.exists() ? (snap.data().count || 0) : 0);
+      } catch (e) { $("likeCount").textContent = "–"; }
+    }
+    $("likeBtn").addEventListener("click", async function () {
+      if (likeBusy) return;
+      likeBusy = true;
+      var was = likedBefore();
+      var delta = was ? -1 : 1;
+      try {
+        var fb = await loadFirebase();
+        var ref = fb.fs.doc(fb.db, "likes", "breakout");
+        try {
+          await fb.fs.updateDoc(ref, { count: fb.fs.increment(delta) });
+        } catch (e1) {
+          /* first-ever like: the doc doesn't exist yet, create it */
+          await fb.fs.setDoc(ref, { count: Math.max(0, delta) }, { merge: true });
+        }
+        var snap = await fb.fs.getDoc(ref);
+        var c = snap.exists() ? (snap.data().count || 0) : 0;
+        try {
+          if (was) localStorage.removeItem("qi-liked-breakout");
+          else localStorage.setItem("qi-liked-breakout", "1");
+        } catch (e2) {}
+        paintLike(Math.max(0, c));
+        if (!was) sfx.star();
+      } catch (e) { /* leave the heart as it was */ }
+      likeBusy = false;
+    });
+
+    /* ================= init ================= */
+    loadImages();
+    buildLegend();
+    resetGame();
+    state = "ready"; /* the start card owns the stage until START */
+    fitBoard();
+    updateHUD();
+    loadLike();
+    requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>
