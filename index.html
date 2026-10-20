@@ -1368,6 +1368,11 @@ section.searching .pager{display:none!important}
     </div>
   </div>
   </div>
+  <div class="pager" id="gamesPager" style="display:none;gap:14px;align-items:center;justify-content:center;margin-top:20px">
+    <button class="btn" id="gamePrev" type="button">&larr; Prev</button>
+    <span id="gamePageInfo" style="font-weight:800"></span>
+    <button class="btn" id="gameNext" type="button">Next &rarr;</button>
+  </div>
 </section>
 
 <section id="leaderboards">
@@ -1520,6 +1525,11 @@ section.searching .pager{display:none!important}
       <span class="track-time"><span class="track-cur">0:00</span> / <span class="track-dur">0:00</span></span>
     </div>
   </div>
+  </div>
+  <div class="pager" id="musicPager" style="display:none;gap:14px;align-items:center;justify-content:center;margin-top:20px">
+    <button class="btn" id="musPrev" type="button">&larr; Prev</button>
+    <span id="musPageInfo" style="font-weight:800"></span>
+    <button class="btn" id="musNext" type="button">Next &rarr;</button>
   </div>
 </section>
 <section id="submit">
@@ -2298,6 +2308,35 @@ async function subSubmit() {
 }
 const subGoBtn = document.getElementById('subGo');
 if (subGoBtn) subGoBtn.addEventListener('click', subSubmit);
+</script>
+
+<script>
+// Games + Music: 9 per page, Gallery-style pager (appears only past one page).
+(function(){
+  function wire(secId, gridSel, cardSel, wrapId, prevId, infoId, nextId){
+    var sec=document.getElementById(secId); if(!sec) return;
+    var grid=sec.querySelector(gridSel); if(!grid) return;
+    var cards=[].slice.call(grid.querySelectorAll(cardSel));
+    var PER=9, page=0, pages=Math.ceil(cards.length/PER);
+    if(pages<=1) return;
+    var wrap=document.getElementById(wrapId), info=document.getElementById(infoId),
+        prev=document.getElementById(prevId), next=document.getElementById(nextId);
+    if(!wrap||!prev||!next) return;
+    wrap.style.display='flex';
+    function show(){
+      cards.forEach(function(c,i){ c.style.display=(i>=page*PER&&i<(page+1)*PER)?'':'none'; });
+      if(info) info.textContent='Page '+(page+1)+' of '+pages;
+      prev.disabled=(page===0);
+      next.disabled=(page>=pages-1);
+    }
+    function flip(d){ var n=page+d; if(n<0||n>=pages) return; page=n; show(); sec.scrollIntoView({behavior:'smooth'}); }
+    prev.addEventListener('click',function(){flip(-1)});
+    next.addEventListener('click',function(){flip(1)});
+    show();
+  }
+  wire('games','.games-grid','.gamecard','gamesPager','gamePrev','gamePageInfo','gameNext');
+  wire('music','.tracks','.track','musicPager','musPrev','musPageInfo','musNext');
+})();
 </script>
 </body>
 </html>
