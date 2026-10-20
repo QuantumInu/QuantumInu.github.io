@@ -1408,7 +1408,7 @@ section.searching .pager{display:none!important}
 </section>
 
 <section id="music">
-  <h2>🎵 Music</h2>
+  <div class="sechead"><h2>🎵 Music</h2><input class="searchbox" id="musSearch" type="search" placeholder="Search songs — try salsa, country, Quantum…" aria-label="Search the music"></div>
   <p class="sub">Sounds from the quantum realm — original QI tracks right in your browser.</p>
   <!-- MUSIC TRACKS: to add a song, drop its mp3 + artwork into assets/music/
        and copy a .track card below, pointing the img/audio at the new files.
@@ -1626,6 +1626,7 @@ section.searching .pager{display:none!important}
     </div>
   </div>
   </div>
+  <p class="searchmsg" id="musSearchMsg" hidden></p>
   <div class="pager" id="musicPager" style="display:none;gap:14px;align-items:center;justify-content:center;margin-top:20px">
     <button class="btn" id="musPrev" type="button">&larr; Prev</button>
     <span id="musPageInfo" style="font-weight:800"></span>
@@ -2438,6 +2439,51 @@ if (subGoBtn) subGoBtn.addEventListener('click', subSubmit);
   }
   wire('games','.games-grid','.gamecard','gamesPager','gamePrev','gamePageInfo','gameNext');
   wire('music','.tracks','.track','musicPager','musPrev','musPageInfo','musNext');
+})();
+</script>
+<script>
+// Music search (2026-10-20) — mirrors the Gallery search: pill box in the
+// section head, live filtering, pager hidden while searching (CSS rule
+// section.searching .pager), count / no-results message under the grid.
+// Matches song name + artist + genre (the card's title and artist line).
+(function(){
+  var sec=document.getElementById('music'); if(!sec) return;
+  var input=document.getElementById('musSearch'); if(!input) return;
+  var msg=document.getElementById('musSearchMsg');
+  var info=document.getElementById('musPageInfo');
+  var cards=[].slice.call(sec.querySelectorAll('.tracks .track'));
+  var PER=9;
+  function cardText(c){
+    var t=c.querySelector('.track-title'), a=c.querySelector('.track-artist');
+    return ((t?t.textContent:'')+' '+(a?a.textContent:'')).toLowerCase();
+  }
+  function words(q){ return q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
+  function restore(){
+    sec.classList.remove('searching');
+    if(msg){ msg.hidden=true; msg.textContent=''; }
+    var page=1;
+    if(info){ var m=/Page\s+(\d+)\s+of\s+(\d+)/.exec(info.textContent||''); if(m) page=parseInt(m[1],10); }
+    var first=cards[(page-1)*PER] || cards[0];
+    if(first && window.QI_SHOW_CARD && window.QI_SHOW_CARD['music']){ window.QI_SHOW_CARD['music'](first); }
+    else { cards.forEach(function(c){ c.style.display=''; }); }
+  }
+  input.addEventListener('input', function(){
+    var qw=words(input.value);
+    if(!qw.length){ restore(); return; }
+    sec.classList.add('searching');
+    var hits=0;
+    cards.forEach(function(c){
+      var txt=cardText(c);
+      var ok=qw.every(function(w){ return txt.indexOf(w)>-1; });
+      c.style.display=ok?'':'none';
+      if(ok) hits++;
+    });
+    if(msg){
+      msg.hidden=false;
+      msg.textContent = hits ? (hits+(hits===1?' result':' results')+' for \u201C'+input.value.trim()+'\u201D')
+        : ('No results for \u201C'+input.value.trim()+'\u201D \u2014 try a song name or a genre like salsa, country, rap\u2026');
+    }
+  });
 })();
 </script>
 <script>
