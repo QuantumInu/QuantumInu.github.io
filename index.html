@@ -70,13 +70,14 @@ input[type=file]{width:100%;color:var(--muted)}
 .dlrow{display:flex;gap:10px;flex-wrap:wrap}
 .gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}
 .gallery figure{border-radius:18px;overflow:hidden;border:1px solid #38bdf833;background:#000;position:relative}
+.gallery .imgwrap{position:relative;display:block}
 .gif-toggle{position:absolute;top:8px;right:8px;z-index:3;background:rgba(2,10,24,.72);color:#7dd3fc;border:1px solid #38bdf8aa;font-weight:900;font-size:11px;letter-spacing:.06em;border-radius:999px;padding:5px 10px;cursor:pointer;backdrop-filter:blur(3px)}
 .gif-toggle.on{background:#38bdf8;color:#02111f}
-.media-download{position:absolute;left:50%;bottom:50px;transform:translateX(-50%);z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;text-decoration:none;backdrop-filter:blur(3px);white-space:nowrap}
+.media-download{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;text-decoration:none;backdrop-filter:blur(3px);white-space:nowrap}
 .media-download:hover{background:#38bdf8;color:#02111f}
-.media-share{-webkit-appearance:none;appearance:none;position:absolute;right:8px;bottom:50px;z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;backdrop-filter:blur(3px);white-space:nowrap;font-family:inherit}
+.media-share{-webkit-appearance:none;appearance:none;position:absolute;right:8px;bottom:8px;z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;backdrop-filter:blur(3px);white-space:nowrap;font-family:inherit}
 .media-share:hover{background:#38bdf8;color:#02111f}
-.media-copy{-webkit-appearance:none;appearance:none;position:absolute;left:8px;bottom:50px;z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;backdrop-filter:blur(3px);white-space:nowrap;font-family:inherit}
+.media-copy{-webkit-appearance:none;appearance:none;position:absolute;left:8px;bottom:8px;z-index:3;background:rgba(2,10,24,.78);color:#e0f2fe;border:1px solid #38bdf8aa;font-weight:900;font-size:12px;letter-spacing:.04em;border-radius:999px;padding:7px 13px;cursor:pointer;backdrop-filter:blur(3px);white-space:nowrap;font-family:inherit}
 .media-copy:hover{background:#38bdf8;color:#02111f}
 @media (min-width:900px){.media-download,.media-share,.media-copy{font-size:10.5px;padding:0 10px;height:24px;line-height:24px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}}
 .gallery img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
@@ -2339,6 +2340,21 @@ document.querySelectorAll('section,.stat,.reveal').forEach(el=>{el.classList.add
     var sec=document.getElementById(id); if(!sec) return;
     sec.querySelectorAll('figure').forEach(function(fig){
       var dl=fig.querySelector('.media-download'); if(!dl) return;
+      // Wrap the image so Copy/Download/Share anchor to the IMAGE box itself
+      // (bottom:8px inside the picture), never to the figure — the caption
+      // under the picture varies in height and pushed the buttons off the
+      // image when they were figure-anchored (Jonathan 2026-10-20).
+      var host=fig;
+      var img=fig.querySelector('img');
+      if(img){
+        var wrap=document.createElement('span');
+        wrap.className='imgwrap';
+        img.parentNode.insertBefore(wrap,img);
+        wrap.appendChild(img);
+        var tg=fig.querySelector('.gif-toggle'); if(tg) wrap.appendChild(tg);
+        wrap.appendChild(dl);
+        host=wrap;
+      }
       var btn=document.createElement('button');
       btn.className='media-share'; btn.type='button'; btn.textContent='↗ Share';
       btn.setAttribute('aria-label','Share this image');
@@ -2356,7 +2372,7 @@ document.querySelectorAll('section,.stat,.reveal').forEach(el=>{el.classList.add
           }).catch(urlShare);
         } else xFallback();
       });
-      fig.appendChild(btn);
+      host.appendChild(btn);
       var cp=document.createElement('button');
       cp.className='media-copy'; cp.type='button'; cp.textContent='⧉ Copy';
       cp.setAttribute('aria-label','Copy this image');
@@ -2391,7 +2407,7 @@ document.querySelectorAll('section,.stat,.reveal').forEach(el=>{el.classList.add
           }catch(e){ textFallback(); }
         } else textFallback();
       });
-      fig.appendChild(cp);
+      host.appendChild(cp);
     });
   });
 })();
