@@ -158,8 +158,7 @@ h1 span{background-size:200% 100%;animation:shimmer 5s linear infinite}
   .like-btn { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); color:var(--text); border-radius:999px; padding:9px 14px; font-weight:700; font-size:15px; font-family:inherit; cursor:pointer; }
   .like-btn:active { transform:scale(.94); }
   .lb-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
-  .lb-tab { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); color:var(--text); border-radius:999px; padding:8px 15px; font-weight:700; font-size:14px; font-family:inherit; cursor:pointer; }
-  .lb-tab.active { background:rgba(255,215,106,.18); border-color:rgba(255,215,106,.6); color:#ffd76a; }
+  .lb-select { background:rgba(255,215,106,.18); border:1px solid rgba(255,215,106,.6); color:#ffd76a; border-radius:999px; padding:9px 16px; font-weight:700; font-size:16px; font-family:inherit; cursor:pointer; max-width:100%; }
   .lb-list { margin-top:16px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:18px; padding:8px 18px; }
   .lb-row { display:flex; align-items:center; gap:12px; padding:11px 2px; border-bottom:1px solid rgba(255,255,255,.08); }
   .lb-row:last-child { border-bottom:none; }
@@ -1400,6 +1399,15 @@ section.searching .pager{display:none!important}
   <h2>Games</h2>
   <p class="sub">Play with the pack — QI games right in your browser. No downloads, no sign-ups.</p>
   <div class="games-grid">
+  <div class="gamecard" id="game-crush">
+    <a href="games/qi-quantum-crush.html"><img src="assets/games/qi-quantum-crush.jpg" alt="QI Quantum Crush — Quantum Inu match-3 puzzle game"></a>
+    <div class="game-head"><h3>💎 QI Quantum Crush</h3><button class="dl-btn copy-link" type="button" data-link="#game-crush">Copy link</button></div>
+    <p>Match-3 with the QI sticker pack. Swap pups to line up three or more — every game deals six faces from the full 106 pack, cascades chain for bonus points, and you have 30 moves to run up the score.</p>
+    <div class="card-actions">
+    <a class="btn primary" href="games/qi-quantum-crush.html">▶ Play Quantum Crush</a>
+    <button class="like-btn" type="button" data-game="crush" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count">…</span></button>
+    </div>
+  </div>
   <div class="gamecard" id="game-runner">
     <a href="games/qi-quantum-runner.html"><img src="assets/games/qi-quantum-runner.jpg" alt="QI Quantum Runner — Quantum Inu endless runner game"></a>
     <div class="game-head"><h3>🤖 QI Quantum Runner</h3><button class="dl-btn copy-link" type="button" data-link="#game-runner">Copy link</button></div>
@@ -1511,17 +1519,20 @@ section.searching .pager{display:none!important}
   <h2>🏆 Leaderboards</h2>
   <p class="sub">Top scores from the pack — posted from the games themselves.</p>
   <div class="lb-tabs">
-    <button class="lb-tab active" type="button" data-filter="spellmatch">Spellmatch</button>
-    <button class="lb-tab" type="button" data-filter="battle">Sticker Battle</button>
-    <button class="lb-tab" type="button" data-filter="shooter">Space Shooter</button>
-    <button class="lb-tab" type="button" data-filter="slots">QI Slots</button>
-    <button class="lb-tab" type="button" data-filter="tetris">Sticker Tetris</button>
-    <button class="lb-tab" type="button" data-filter="snake">Sticker Snake</button>
-    <button class="lb-tab" type="button" data-filter="chase">Rogue Chase</button>
-    <button class="lb-tab" type="button" data-filter="echo">Quantum Echo</button>
-    <button class="lb-tab" type="button" data-filter="breakout">Breakout</button>
-    <button class="lb-tab" type="button" data-filter="flap">Quantum Flap</button>
-    <button class="lb-tab" type="button" data-filter="runner">Quantum Runner</button>
+    <select class="lb-select" id="lb-select" aria-label="Choose a game leaderboard">
+      <option value="spellmatch" selected>Spellmatch</option>
+      <option value="battle">Sticker Battle</option>
+      <option value="shooter">Space Shooter</option>
+      <option value="slots">QI Slots</option>
+      <option value="tetris">Sticker Tetris</option>
+      <option value="snake">Sticker Snake</option>
+      <option value="chase">Rogue Chase</option>
+      <option value="echo">Quantum Echo</option>
+      <option value="breakout">Breakout</option>
+      <option value="flap">Quantum Flap</option>
+      <option value="runner">Quantum Runner</option>
+      <option value="crush">Quantum Crush</option>
+    </select>
   </div>
   <div class="lb-list" id="lb-list"><p class="lb-msg">Loading scores…</p></div>
 </section>
@@ -1931,14 +1942,13 @@ async function lbLoadBoard() {
     lbRender();
   } catch (e) { list.innerHTML = '<p class="lb-msg">Leaderboard unavailable right now.</p>'; }
 }
-document.querySelectorAll('.lb-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    lbFilter = tab.dataset.filter;
+const lbSelect = document.getElementById('lb-select');
+if (lbSelect) {
+  lbSelect.addEventListener('change', () => {
+    lbFilter = lbSelect.value;
     lbRender();
   });
-});
+}
 async function lbLoadLikes() {
   const btns = document.querySelectorAll('.like-btn');
   if (!(await lbEnsure())) { btns.forEach(b => { b.querySelector('.like-count').textContent = '–'; }); return; }
