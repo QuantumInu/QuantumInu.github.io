@@ -1492,7 +1492,7 @@ section.searching .pager{display:none!important}
 </section>
 
 <section id="games">
-  <h2>Games</h2>
+  <div class="sechead"><h2>Games</h2><input class="searchbox" id="gameSearch" type="search" placeholder="Search games — try puzzle, runner, match…" aria-label="Search the games"></div>
   <p class="sub">Play with the pack — QI games right in your browser. No downloads, no sign-ups.</p>
   <div class="games-grid">
   <div class="gamecard" id="game-mines">
@@ -1613,6 +1613,7 @@ section.searching .pager{display:none!important}
     </div>
   </div>
   </div>
+  <p class="searchmsg" id="gameSearchMsg" hidden></p>
   <div class="pager" id="gamesPager" style="display:none;gap:14px;align-items:center;justify-content:center;margin-top:20px">
     <button class="btn" id="gamePrev" type="button">&larr; Prev</button>
     <span id="gamePageInfo" style="font-weight:800"></span>
@@ -2787,6 +2788,53 @@ if (subGoBtn) subGoBtn.addEventListener('click', subSubmit);
   }
   wire('games','.games-grid','.gamecard','gamesPager','gamePrev','gamePageInfo','gameNext');
   wire('music','.tracks','.track','musicPager','musPrev','musPageInfo','musNext');
+})();
+</script>
+<script>
+// Games search (2026-10-21) — mirrors the Music search: pill box in the
+// section head, live filtering, pager hidden while searching (CSS rule
+// section.searching .pager), count / no-results message under the grid.
+// Matches any word in the game title or description (genres live in the
+// descriptions: match-3, runner, minesweeper, puzzle...). Every query
+// word must appear in the card text.
+(function(){
+  var sec=document.getElementById('games'); if(!sec) return;
+  var input=document.getElementById('gameSearch'); if(!input) return;
+  var msg=document.getElementById('gameSearchMsg');
+  var info=document.getElementById('gamePageInfo');
+  var cards=[].slice.call(sec.querySelectorAll('.games-grid .gamecard'));
+  var PER=9;
+  function cardText(c){
+    var t=c.querySelector('h3'), d=c.querySelector('p');
+    return ((t?t.textContent:'')+' '+(d?d.textContent:'')).toLowerCase();
+  }
+  function words(q){ return q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
+  function restore(){
+    sec.classList.remove('searching');
+    if(msg){ msg.hidden=true; msg.textContent=''; }
+    var page=1;
+    if(info){ var m=/Page ([0-9]+) of ([0-9]+)/.exec(info.textContent||''); if(m) page=parseInt(m[1],10); }
+    var first=cards[(page-1)*PER] || cards[0];
+    if(first && window.QI_SHOW_CARD && window.QI_SHOW_CARD['games']){ window.QI_SHOW_CARD['games'](first); }
+    else { cards.forEach(function(c){ c.style.display=''; }); }
+  }
+  input.addEventListener('input', function(){
+    var qw=words(input.value);
+    if(!qw.length){ restore(); return; }
+    sec.classList.add('searching');
+    var hits=0;
+    cards.forEach(function(c){
+      var txt=cardText(c);
+      var ok=qw.every(function(w){ return txt.indexOf(w)>-1; });
+      c.style.display=ok?'':'none';
+      if(ok) hits++;
+    });
+    if(msg){
+      msg.hidden=false;
+      msg.textContent = hits ? (hits+(hits===1?' result':' results')+' for “'+input.value.trim()+'”')
+        : ('No results for “'+input.value.trim()+'” — try a game name or a word like puzzle, runner, shooter…');
+    }
+  });
 })();
 </script>
 <script>
