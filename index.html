@@ -255,6 +255,14 @@ section.searching .pager{display:none!important}
 #videos .vid-play{position:absolute;inset:0;margin:auto;width:84px;height:84px;border-radius:50%;border:none;background:linear-gradient(90deg,#2563eb,#7c3aed,#06b6d4);color:var(--text);font-size:34px;line-height:1;cursor:pointer;box-shadow:0 8px 30px #2563eb66;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
 #videos .vid-play:active{transform:scale(.94)}
 #videos .track-title{font-size:18px}
+#dailylife .vid-media{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:1/1;background:#000}
+#dailylife .vid-poster{width:100%;height:100%;display:block;object-fit:cover}
+#dailylife .vid-media video{width:100%;height:100%;display:none;object-fit:cover}
+#dailylife .vid-media.on video{display:block}
+#dailylife .vid-media.on .vid-poster,#dailylife .vid-media.on .vid-play{display:none}
+#dailylife .vid-play{position:absolute;inset:0;margin:auto;width:84px;height:84px;border-radius:50%;border:none;background:linear-gradient(90deg,#2563eb,#7c3aed,#06b6d4);color:var(--text);font-size:34px;line-height:1;cursor:pointer;box-shadow:0 8px 30px #2563eb66;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
+#dailylife .vid-play:active{transform:scale(.94)}
+#dailylife .track-title{font-size:18px}
 .game-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 6px}
 .game-head h3{flex:1;margin:0}
 .card-flash{box-shadow:0 0 0 3px rgba(34,211,238,.95),0 0 28px rgba(34,211,238,.55)!important;transition:box-shadow .3s}
@@ -276,7 +284,7 @@ section.searching .pager{display:none!important}
 <nav>
   <a class="brand" href="#top"><img src="assets/qi-logo.png" alt="Quantum Inu logo"><span class="brand-name"><span>QUANTUM <span class="brand-qi">$QI</span></span><span>INU</span></span></a>
   <div class="navlinks">
-    <a class="pill" href="#about">About</a><a class="pill" href="#buy">How to Buy</a><a class="pill" href="#pfp">PFP Generator</a><a class="pill" href="#templates">PFP Templates</a><a class="pill" href="#gallery">Gallery</a><a class="pill" href="#gifs">Gifs</a><a class="pill" href="#generate">Generate</a><a class="pill" href="#games">Games</a><a class="pill" href="#leaderboards">Leaderboards</a><a class="pill" href="#music">Music</a><a class="pill" href="#videos">Videos</a>
+    <a class="pill" href="#about">About</a><a class="pill" href="#buy">How to Buy</a><a class="pill" href="#pfp">PFP Generator</a><a class="pill" href="#templates">PFP Templates</a><a class="pill" href="#gallery">Gallery</a><a class="pill" href="#gifs">Gifs</a><a class="pill" href="#generate">Generate</a><a class="pill" href="#games">Games</a><a class="pill" href="#leaderboards">Leaderboards</a><a class="pill" href="#music">Music</a><a class="pill" href="#videos">Videos</a><a class="pill" href="#dailylife">Daily Life QI</a>
   </div>
   <button class="navtoggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
 </nav>
@@ -2186,6 +2194,21 @@ section.searching .pager{display:none!important}
   </div>
 </section>
 
+<section id="dailylife">
+  <div class="sechead"><h2>🎬 Daily Life QI</h2><input class="searchbox" id="dlSearch" type="search" placeholder="Search daily life — try pirate, jazz, chef…" aria-label="Search Daily Life QI"></div>
+  <p class="sub">Humanoid QI living every life — a new video every hour.</p>
+  <!-- DAILY LIFE QI: cards are built by the Daily Life script below from the
+       Firestore `dailylife` collection (newest first, 9 per page) — nothing
+       is hardcoded here. -->
+  <div class="tracks" id="dailylife-grid"><p class="lb-msg">Loading videos… 🐾</p></div>
+  <p class="searchmsg" id="dlSearchMsg" hidden></p>
+  <div class="pager" id="dailylife-pager" style="display:none;gap:14px;align-items:center;justify-content:center;margin-top:20px">
+    <button class="btn" id="dlPrev" type="button">&larr; Prev</button>
+    <span id="dlPageInfo" style="font-weight:800"></span>
+    <button class="btn" id="dlNext" type="button">Next &rarr;</button>
+  </div>
+</section>
+
 <script>
 (function(){
   function fmt(s){if(!isFinite(s)||s<0)s=0;s=Math.floor(s);return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2);}
@@ -2469,6 +2492,152 @@ if (vidNextBtn) vidNextBtn.addEventListener('click', () => vidFlip(1));
 const vidSearchInput = document.getElementById('vidSearch');
 if (vidSearchInput) vidSearchInput.addEventListener('input', () => { vidQuery = vidSearchInput.value; vidShowPage(); });
 vidLoad();
+</script>
+<script type="module">
+// Daily Life QI — reads the Firestore `dailylife` collection the same way the
+// leaderboard loader above reads Firestore (same config values, same SDK).
+// Docs carry name, label, url, poster, created_ms; shuffled on every load
+// (like the meme Gallery and the Gifs section), 9 per page
+// with a Music-style pager. Cards are built from the docs — no hardcoded
+// entries. A failed load only affects this section.
+const DL_CFG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+let dlDb = null, dlFs = null, dlItems = [], dlCards = [], dlPage = 0, dlQuery = '';
+const DL_PER = 9;
+async function dlEnsure() {
+  if (dlDb) return true;
+  try {
+    const appMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    dlFs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    let app;
+    try { app = appMod.initializeApp(DL_CFG); } catch (e) { app = appMod.getApp(); }
+    dlDb = dlFs.getFirestore(app);
+    return true;
+  } catch (e) { return false; }
+}
+function dlShowPage() {
+  const wrap = document.getElementById('dailylife-pager');
+  // Search (mirrors Music/Games): while a query is active, every query
+  // word must match the card's label, the pager hides (the section's
+  // .searching class + its CSS rule), and a count / no-results note
+  // shows under the grid. Clearing the query restores the pager view.
+  const sec = document.getElementById('dailylife');
+  const msg = document.getElementById('dlSearchMsg');
+  const qw = dlQuery.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (qw.length) {
+    sec.classList.add('searching');
+    let hits = 0;
+    dlCards.forEach((c, i) => {
+      const txt = (dlItems[i] ? dlItems[i].label : '').toLowerCase();
+      const ok = qw.every(w => txt.indexOf(w) > -1);
+      c.style.display = ok ? '' : 'none';
+      if (ok) hits++;
+    });
+    if (msg) {
+      msg.hidden = false;
+      msg.textContent = hits ? (hits + (hits === 1 ? ' result' : ' results') + ' for “' + dlQuery.trim() + '”')
+        : ('No results for “' + dlQuery.trim() + '” — try a word from a title, like pirate, jazz, chef…');
+    }
+    return;
+  }
+  sec.classList.remove('searching');
+  if (msg) { msg.hidden = true; msg.textContent = ''; }
+  const pages = Math.ceil(dlItems.length / DL_PER);
+  if (pages <= 1) {
+    wrap.style.display = 'none';
+    dlCards.forEach(c => { c.style.display = ''; });
+    return;
+  }
+  wrap.style.display = 'flex';
+  dlCards.forEach((c, i) => { c.style.display = (i >= dlPage * DL_PER && i < (dlPage + 1) * DL_PER) ? '' : 'none'; });
+  document.getElementById('dlPageInfo').textContent = 'Page ' + (dlPage + 1) + ' of ' + pages;
+  document.getElementById('dlPrev').disabled = (dlPage === 0);
+  document.getElementById('dlNext').disabled = (dlPage >= pages - 1);
+}
+function dlFlip(d) {
+  const pages = Math.ceil(dlItems.length / DL_PER);
+  const n = dlPage + d;
+  if (n < 0 || n >= pages) return;
+  dlPage = n;
+  dlShowPage();
+  document.getElementById('dailylife').scrollIntoView({ behavior: 'smooth' });
+}
+function dlRender() {
+  const grid = document.getElementById('dailylife-grid');
+  grid.textContent = '';
+  dlCards = dlItems.map(v => {
+    const card = document.createElement('div'); card.className = 'track';
+    const media = document.createElement('div'); media.className = 'vid-media';
+    const vid = document.createElement('video');
+    vid.preload = 'none'; vid.controls = true; vid.src = v.url;
+    vid.setAttribute('playsinline', '');
+    if (v.poster) {
+      const img = document.createElement('img');
+      img.className = 'vid-poster'; img.src = v.poster; img.alt = v.label + ' video still'; img.loading = 'lazy';
+      media.appendChild(img);
+      vid.poster = v.poster;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'vid-play'; btn.type = 'button';
+    btn.setAttribute('aria-label', 'Play ' + v.label); btn.textContent = '▶';
+    btn.addEventListener('click', () => { media.classList.add('on'); vid.play(); });
+    vid.addEventListener('play', () => {
+      document.querySelectorAll('#dailylife video').forEach(o => { if (o !== vid && !o.paused) o.pause(); });
+    });
+    media.appendChild(vid); media.appendChild(btn);
+    const head = document.createElement('div'); head.className = 'track-head';
+    const dl = document.createElement('a');
+    dl.className = 'dl-btn'; dl.href = v.url;
+    const dlName = 'qi-daily-' + (v.name || v.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')).replace(/^-+|-+$/g, '') + '.mp4';
+    dl.setAttribute('download', dlName);
+    dl.setAttribute('aria-label', 'Download ' + v.label);
+    dl.textContent = '\u2b07 Download';
+    dl.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        const r = await fetch(v.url);
+        if (!r.ok) throw new Error('dl');
+        const b = await r.blob();
+        const u = URL.createObjectURL(b);
+        const a = document.createElement('a');
+        a.href = u; a.download = dlName;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(u), 4000);
+      } catch (err) { window.open(v.url, '_blank'); }
+    });
+    const h3 = document.createElement('h3'); h3.className = 'track-title'; h3.textContent = v.label;
+    head.appendChild(h3);
+    head.appendChild(dl);
+    card.appendChild(media); card.appendChild(head);
+    grid.appendChild(card);
+    return card;
+  });
+  dlShowPage();
+}
+function dlFail() {
+  const grid = document.getElementById('dailylife-grid');
+  grid.innerHTML = '<p class="lb-msg">Daily Life QI is cooking — check back soon 🐾</p>';
+  document.getElementById('dailylife-pager').style.display = 'none';
+}
+async function dlLoad() {
+  if (!(await dlEnsure())) { dlFail(); return; }
+  try {
+    const q = dlFs.query(dlFs.collection(dlDb, 'dailylife'), dlFs.orderBy('created_ms', 'desc'));
+    const snap = await dlFs.getDocs(q);
+    dlItems = snap.docs.map(d => d.data()).filter(v => v && v.url)
+      .map(v => ({ name: v.name || '', label: v.label || v.name || 'Daily Life QI', url: v.url, poster: v.poster || '', created_ms: Number(v.created_ms) || 0 }));
+    // Random order on every load, like the meme Gallery and the Gifs section (Fisher-Yates).
+    for (let i = dlItems.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = dlItems[i]; dlItems[i] = dlItems[j]; dlItems[j] = t; }
+    if (!dlItems.length) { dlFail(); return; }
+    dlRender();
+  } catch (e) { dlFail(); }
+}
+const dlPrevBtn = document.getElementById('dlPrev');
+const dlNextBtn = document.getElementById('dlNext');
+if (dlPrevBtn) dlPrevBtn.addEventListener('click', () => dlFlip(-1));
+if (dlNextBtn) dlNextBtn.addEventListener('click', () => dlFlip(1));
+const dlSearchInput = document.getElementById('dlSearch');
+if (dlSearchInput) dlSearchInput.addEventListener('input', () => { dlQuery = dlSearchInput.value; dlShowPage(); });
+dlLoad();
 </script>
 <script type="module">
 // Generate Your Own — same queue as the Telegram bot's /generate.
