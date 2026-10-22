@@ -567,7 +567,7 @@ function spawnBall() {
      touching its edge */
   var tailS = balls.length ? balls[balls.length - 1].s : D;
   var color = feedSeq.shift();
-  balls.push({ color: color, face: randomFace(), s: tailS - D, rollUp: false, pendingCombo: 1 });
+  balls.push({ color: color, face: randomFace(), s: tailS - D, rollBack: false, pendingCombo: 1 });
   pusher = tailS - D * 2;
   fedCount++;
   sinceSpawn = 0;
@@ -599,12 +599,15 @@ function popRun(a, b, combo, cx, cy) {
   if (combo >= 2 || n >= 5) shake = Math.min(9, 3 + combo * 1.5 + n * 0.4);
   else shake = Math.max(shake, 2);
   balls.splice(a, n);
-  /* the segment behind the gap rolls up to close it (only when there
-     is a segment ahead to close on — a flag on the head ball could
-     never be processed and would go stale) */
+  /* A pop only ever shrinks the line backward from the front: the
+     segment AHEAD of the gap (between the gap and the pit) rolls
+     BACK to close it. Balls behind the gap never move forward
+     because of a pop — they only advance at the normal chain speed
+     under the pusher. The flag rides on the front segment's last
+     ball (only when there is a ball behind the gap to close on). */
   if (a > 0 && a < balls.length) {
-    balls[a].rollUp = true;
-    balls[a].pendingCombo = combo + 1;
+    balls[a - 1].rollBack = true;
+    balls[a - 1].pendingCombo = combo + 1;
   }
   updateHUD();
   checkLevelDone();
@@ -643,7 +646,7 @@ function insertProjectile() {
   var hit = balls[bestI], hp = posAt(hit.s);
   var side = (proj.x - hp.x) * hp.tx + (proj.y - hp.y) * hp.ty;
   var idx = side > 0 ? bestI : bestI + 1; /* head side inserts before the hit ball */
-  var nb = { color: proj.color, face: proj.face, s: hit.s + (side > 0 ? D : -D), rollUp: false, pendingCombo: 1, vis: 0, born: 0 };
+  var nb = { color: proj.color, face: proj.face, s: hit.s + (side > 0 ? D : -D), rollBack: false, pendingCombo: 1, vis: 0, born: 0 };
   balls.splice(idx, 0, nb);
   /* make room: push head-side balls toward the pit. Logic snaps to the
      new spacing instantly, but each shoved ball keeps a visual offset
@@ -763,12 +766,11 @@ function update(dt) {
     if (balls.length) {
       var tail = balls[balls.length - 1];
       /* the pusher stays glued one spacing behind the tail. When a
-         pop removes the tail run, or a gap-closing roll jumps the
-         tail forward, the tail used to land far ahead of the pusher
-         and the whole line sat stopped while the pusher crawled
-         back at chain speed — worst once the feed ran out, when no
-         spawn reset it. Snapping the pusher up with the tail keeps
-         the chain driven every frame, feed or no feed. */
+         pop removes the tail run, the tail used to land far ahead of
+         the pusher and the whole line sat stopped while the pusher
+         crawled back at chain speed — worst once the feed ran out,
+         when no spawn reset it. Snapping the pusher up with the tail
+         keeps the chain driven every frame, feed or no feed. */
       if (pusher < tail.s - D) pusher = tail.s - D;
       if (tail.s < pusher + D) tail.s = pusher + D;
       /* bead constraint, tail -> head: no overlaps, pushes travel forward */
@@ -787,43 +789,43 @@ function update(dt) {
     }
   }
 
-  /* gap closing: rollUp segments roll toward the pit until they snap shut */
+  /* gap closing: after a pop, the segment AHEAD of the gap rolls
+     BACKWARD (away from the pit) until it snaps shut against the
+     segment behind the gap. Popping never moves a ball toward the
+     pit — the line only ever shrinks backward from the front. */
   if (state === "playing") {
     var guard = 0;
     var moved = true;
     while (moved && guard++ < 8) {
       moved = false;
-      for (i = 1; i < balls.length; i++) {
-        var b = balls[i], ahead = balls[i - 1];
-        if (!b.rollUp) continue;
-        var gap = ahead.s - b.s;
+      for (i = 0; i < balls.length; i++) {
+        var f = balls[i];
+        if (!f.rollBack) continue;
+        var behind = balls[i + 1];
+        if (!behind) { f.rollBack = false; continue; }
+        var gap = f.s - behind.s;
         if (gap <= D + 0.01) {
-          b.rollUp = false;
+          f.rollBack = false;
           sfxSnap();
-          var combo = b.pendingCombo || 2;
+          var combo = f.pendingCombo || 2;
+          /* a combo pops only when the run that closes across the
+             seam (front end + back end) reaches 3 of a color */
           var r = runAt(i);
-          if (balls[r[0]].color === b.color && r[1] - r[0] + 1 >= 3 && r[0] < i && r[1] >= i) {
+          if (r[1] - r[0] + 1 >= 3 && r[0] <= i && r[1] >= i + 1) {
             var pa = posAt(balls[r[0]].s), pb = posAt(balls[r[1]].s);
             popRun(r[0], r[1], combo, (pa.x + pb.x) / 2, (pa.y + pb.y) / 2);
           }
           moved = true;
           break; /* array may have changed */
         }
-        /* roll this ball's whole contiguous segment forward: find the
-           segment's end from the spacing BEFORE anything moves (testing
-           after the move can never pass — the moved ball is already a
-           step ahead of its followers), then shift the segment as one */
+        /* roll the front segment backward as one piece: find its
+           head-most ball from the spacing BEFORE anything moves
+           (testing after the move can never pass — the moved balls
+           are already a step behind their neighbours), then shift */
         var step = Math.min(CLOSE_SPEED * dt, gap - D);
-        var end = i;
-        while (end + 1 < balls.length && balls[end].s - balls[end + 1].s <= D + 0.01) end++;
-        for (var m = i; m <= end; m++) balls[m].s += step;
-        /* keep the pusher glued behind a rolling tail: never ahead
-           of it, and never left behind it either */
-        if (balls.length) {
-          var t2 = balls[balls.length - 1];
-          if (pusher > t2.s - D) pusher = t2.s - D;
-          if (pusher < t2.s - D) pusher = t2.s - D;
-        }
+        var segStart = i;
+        while (segStart - 1 >= 0 && balls[segStart - 1].s - balls[segStart].s <= D + 0.01) segStart--;
+        for (var m = segStart; m <= i; m++) balls[m].s -= step;
         moved = true;
         break;
       }
@@ -1343,7 +1345,7 @@ window.QZ = {
   ballColors: function () { return balls.map(function (b) { return b.color; }); },
   setChain: function (colors, headS) {
     balls = colors.map(function (c, i) {
-      return { color: c, face: randomFace(), s: headS - i * D, rollUp: false, pendingCombo: 1 };
+      return { color: c, face: randomFace(), s: headS - i * D, rollBack: false, pendingCombo: 1 };
     });
     feedSeq = [];
     pusher = balls.length ? balls[balls.length - 1].s - D : -D;
