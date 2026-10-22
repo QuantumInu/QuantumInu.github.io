@@ -236,6 +236,13 @@ section.searching .pager{display:none!important}
 .track-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
 .dl-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:var(--text);border-radius:999px;padding:6px 12px;font-weight:700;font-size:13px;font-family:inherit;text-decoration:none;cursor:pointer}
 .dl-btn:active{transform:scale(.94)}
+#videos .vid-media{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:1/1;background:#000}
+#videos .vid-poster{width:100%;height:100%;display:block;object-fit:cover}
+#videos .vid-media video{width:100%;height:100%;display:none;object-fit:cover}
+#videos .vid-media.on video{display:block}
+#videos .vid-media.on .vid-poster,#videos .vid-media.on .vid-play{display:none}
+#videos .vid-play{position:absolute;inset:0;margin:auto;width:84px;height:84px;border-radius:50%;border:none;background:linear-gradient(90deg,#2563eb,#7c3aed,#06b6d4);color:var(--text);font-size:34px;line-height:1;cursor:pointer;box-shadow:0 8px 30px #2563eb66;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
+#videos .vid-play:active{transform:scale(.94)}
 .game-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 6px}
 .game-head h3{flex:1;margin:0}
 .card-flash{box-shadow:0 0 0 3px rgba(34,211,238,.95),0 0 28px rgba(34,211,238,.55)!important;transition:box-shadow .3s}
@@ -1996,6 +2003,19 @@ section.searching .pager{display:none!important}
     <button class="btn" id="musNext" type="button">Next &rarr;</button>
   </div>
 </section>
+<section id="videos">
+  <h2>🎬 Videos</h2>
+  <p class="sub">QI clips from the pack — tap one and press play.</p>
+  <!-- VIDEOS: cards are built by the Videos script below from the Firestore
+       `videopool` collection (newest first, 9 per page) — nothing is
+       hardcoded here. -->
+  <div class="tracks" id="videos-grid"><p class="lb-msg">Loading videos… 🐾</p></div>
+  <div class="pager" id="videos-pager" style="display:none;gap:14px;align-items:center;justify-content:center;margin-top:20px">
+    <button class="btn" id="vidPrev" type="button">&larr; Prev</button>
+    <span id="vidPageInfo" style="font-weight:800"></span>
+    <button class="btn" id="vidNext" type="button">Next &rarr;</button>
+  </div>
+</section>
 <section id="submit">
   <h2>🎤 Submit Your Own</h2>
   <p class="sub">Got a QI track of your own? Send it in — every submission is reviewed before anything goes live.</p>
@@ -2147,6 +2167,105 @@ document.querySelectorAll('.like-btn').forEach(btn => {
 });
 lbLoadBoard();
 lbLoadLikes();
+</script>
+<script type="module">
+// Videos — reads the Firestore `videopool` collection the same way the
+// leaderboard loader above reads Firestore (same config values, same SDK).
+// Docs carry name, label, url, poster, created_ms; shuffled on every load
+// (like the meme Gallery and the Gifs section), 9 per page
+// with a Music-style pager. Cards are built from the docs — no hardcoded
+// entries. A failed load only affects this section.
+const VID_CFG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+let vidDb = null, vidFs = null, vidItems = [], vidCards = [], vidPage = 0;
+const VID_PER = 9;
+async function vidEnsure() {
+  if (vidDb) return true;
+  try {
+    const appMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    vidFs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    let app;
+    try { app = appMod.initializeApp(VID_CFG); } catch (e) { app = appMod.getApp(); }
+    vidDb = vidFs.getFirestore(app);
+    return true;
+  } catch (e) { return false; }
+}
+function vidShowPage() {
+  const wrap = document.getElementById('videos-pager');
+  const pages = Math.ceil(vidItems.length / VID_PER);
+  if (pages <= 1) {
+    wrap.style.display = 'none';
+    vidCards.forEach(c => { c.style.display = ''; });
+    return;
+  }
+  wrap.style.display = 'flex';
+  vidCards.forEach((c, i) => { c.style.display = (i >= vidPage * VID_PER && i < (vidPage + 1) * VID_PER) ? '' : 'none'; });
+  document.getElementById('vidPageInfo').textContent = 'Page ' + (vidPage + 1) + ' of ' + pages;
+  document.getElementById('vidPrev').disabled = (vidPage === 0);
+  document.getElementById('vidNext').disabled = (vidPage >= pages - 1);
+}
+function vidFlip(d) {
+  const pages = Math.ceil(vidItems.length / VID_PER);
+  const n = vidPage + d;
+  if (n < 0 || n >= pages) return;
+  vidPage = n;
+  vidShowPage();
+  document.getElementById('videos').scrollIntoView({ behavior: 'smooth' });
+}
+function vidRender() {
+  const grid = document.getElementById('videos-grid');
+  grid.textContent = '';
+  vidCards = vidItems.map(v => {
+    const card = document.createElement('div'); card.className = 'track';
+    const media = document.createElement('div'); media.className = 'vid-media';
+    const vid = document.createElement('video');
+    vid.preload = 'none'; vid.controls = true; vid.src = v.url;
+    vid.setAttribute('playsinline', '');
+    if (v.poster) {
+      const img = document.createElement('img');
+      img.className = 'vid-poster'; img.src = v.poster; img.alt = v.label + ' video still'; img.loading = 'lazy';
+      media.appendChild(img);
+      vid.poster = v.poster;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'vid-play'; btn.type = 'button';
+    btn.setAttribute('aria-label', 'Play ' + v.label); btn.textContent = '▶';
+    btn.addEventListener('click', () => { media.classList.add('on'); vid.play(); });
+    vid.addEventListener('play', () => {
+      document.querySelectorAll('#videos video').forEach(o => { if (o !== vid && !o.paused) o.pause(); });
+    });
+    media.appendChild(vid); media.appendChild(btn);
+    const head = document.createElement('div'); head.className = 'track-head';
+    const h3 = document.createElement('h3'); h3.className = 'track-title'; h3.textContent = v.label;
+    head.appendChild(h3);
+    card.appendChild(media); card.appendChild(head);
+    grid.appendChild(card);
+    return card;
+  });
+  vidShowPage();
+}
+function vidFail() {
+  const grid = document.getElementById('videos-grid');
+  grid.innerHTML = '<p class="lb-msg">Videos are cooking — check back soon 🐾</p>';
+  document.getElementById('videos-pager').style.display = 'none';
+}
+async function vidLoad() {
+  if (!(await vidEnsure())) { vidFail(); return; }
+  try {
+    const q = vidFs.query(vidFs.collection(vidDb, 'videopool'), vidFs.orderBy('created_ms', 'desc'));
+    const snap = await vidFs.getDocs(q);
+    vidItems = snap.docs.map(d => d.data()).filter(v => v && v.url)
+      .map(v => ({ name: v.name || '', label: v.label || v.name || 'QI Video', url: v.url, poster: v.poster || '', created_ms: Number(v.created_ms) || 0 }));
+    // Random order on every load, like the meme Gallery and the Gifs section (Fisher-Yates).
+    for (let i = vidItems.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = vidItems[i]; vidItems[i] = vidItems[j]; vidItems[j] = t; }
+    if (!vidItems.length) { vidFail(); return; }
+    vidRender();
+  } catch (e) { vidFail(); }
+}
+const vidPrevBtn = document.getElementById('vidPrev');
+const vidNextBtn = document.getElementById('vidNext');
+if (vidPrevBtn) vidPrevBtn.addEventListener('click', () => vidFlip(-1));
+if (vidNextBtn) vidNextBtn.addEventListener('click', () => vidFlip(1));
+vidLoad();
 </script>
 <script type="module">
 // Generate Your Own — same queue as the Telegram bot's /generate.
