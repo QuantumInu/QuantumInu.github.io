@@ -1474,6 +1474,7 @@ section.searching .pager{display:none!important}
       <button class="gen-type active" type="button" data-type="meme">🖼️ Meme</button>
       <button class="gen-type" type="button" data-type="gif">🎞️ GIF</button>
       <button class="gen-type" type="button" data-type="sticker">✨ Sticker</button>
+      <button class="gen-type" type="button" data-type="video">🎬 Video</button>
     </div>
     <div class="gen-inputrow" id="genInputRow">
       <input class="gen-input" id="genScene" type="text" maxlength="90" placeholder="Describe your scene — a wizard casting a moon spell" autocomplete="off">
@@ -2274,8 +2275,8 @@ vidLoad();
 // and only initializes as a fallback (GEN_CFG mirrors LB_CFG's public values,
 // which are module-scoped inside the leaderboard script and not reachable here).
 const GEN_CFG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
-const GEN_NAMES = { meme: { label: 'Meme', cook: 'meme' }, gif: { label: 'GIF', cook: 'GIF' }, sticker: { label: 'Sticker', cook: 'sticker' } };
-const GEN_COOLDOWNS = { meme: 300, sticker: 300, gif: 600 };
+const GEN_NAMES = { meme: { label: 'Meme', cook: 'meme' }, gif: { label: 'GIF', cook: 'GIF' }, sticker: { label: 'Sticker', cook: 'sticker' }, video: { label: 'Video', cook: 'video' } };
+const GEN_COOLDOWNS = { meme: 300, sticker: 300, gif: 600, video: 600 };
 const GEN_POLL_MS = 5000, GEN_POLL_MAX_MS = 12 * 60 * 1000;
 let genDb = null, genFs = null;
 let genType = 'meme';
@@ -2367,6 +2368,10 @@ function genShowResult(url, kind) {
     const v = genEl('genResultVideo');
     v.src = url;
     v.hidden = false;
+    const isClip = /\.mp4(\?|#|$)/i.test(url);
+    v.controls = isClip;
+    v.loop = !isClip;
+    v.muted = !isClip;
     v.play().catch(() => {});
   } else {
     const v = genEl('genResultVideo');
@@ -2395,7 +2400,7 @@ function genPoll(id) {
     if (data) {
       if (data.status === 'done' && data.resultUrl) {
         genClearJob();
-        genShowResult(data.resultUrl, data.resultKind === 'video' ? 'video' : 'image');
+        genShowResult(data.resultUrl, (data.resultKind === 'video' || /\.mp4(\?|#|$)/i.test(data.resultUrl)) ? 'video' : 'image');
         genUpdateUI();
         return;
       }
@@ -2457,7 +2462,7 @@ genEl('genScene').addEventListener('keydown', e => { if (e.key === 'Enter') genS
 genEl('genGo').addEventListener('click', genSubmit);
 genEl('genDownload').addEventListener('click', async () => {
   if (!genResultUrl) return;
-  const ext = genResultKind === 'video' ? 'webm' : ((genResultUrl.match(/\.(gif|png|jpe?g|webp)(\?|#|$)/i) || [])[1] || (genType === 'gif' ? 'gif' : 'png'));
+  const ext = (genResultUrl.match(/\.(mp4|webm|gif|png|jpe?g|webp)(\?|#|$)/i) || [])[1] || (genResultKind === 'video' ? 'webm' : (genType === 'gif' ? 'gif' : 'png'));
   const name = 'qi-' + (genJobType || genType) + '-creation.' + ext.toLowerCase();
   try {
     const resp = await fetch(genResultUrl);
