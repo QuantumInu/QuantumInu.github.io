@@ -264,12 +264,12 @@ section.searching .pager{display:none!important}
 <nav>
   <a class="brand" href="#top"><img src="assets/qi-logo.png" alt="Quantum Inu logo"><span class="brand-name"><span>QUANTUM <span class="brand-qi">$QI</span></span><span>INU</span></span></a>
   <div class="navlinks">
-    <a class="pill" href="#about">About</a><a class="pill" href="#buy">How to Buy</a><a class="pill" href="#pfp">PFP Generator</a><a class="pill" href="#templates">PFP Templates</a><a class="pill" href="#gallery">Gallery</a><a class="pill" href="#gifs">Gifs</a><a class="pill" href="#generate">Generate</a><a class="pill" href="#games">Games</a><a class="pill" href="#leaderboards">Leaderboards</a><a class="pill" href="#music">Music</a>
+    <a class="pill" href="#about">About</a><a class="pill" href="#buy">How to Buy</a><a class="pill" href="#pfp">PFP Generator</a><a class="pill" href="#templates">PFP Templates</a><a class="pill" href="#gallery">Gallery</a><a class="pill" href="#gifs">Gifs</a><a class="pill" href="#generate">Generate</a><a class="pill" href="#games">Games</a><a class="pill" href="#leaderboards">Leaderboards</a><a class="pill" href="#music">Music</a><a class="pill" href="#videos">Videos</a>
   </div>
   <button class="navtoggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
 </nav>
 <div class="mobilemenu" id="mobileMenu">
-  <a href="#about">About</a><a href="#buy">How to Buy</a><a href="#pfp">PFP Generator</a><a href="#templates">PFP Templates</a><a href="#gallery">Gallery</a><a href="#gifs">Gifs</a><a href="#generate">Generate</a><a href="#games">Games</a><a href="#leaderboards">Leaderboards</a><a href="#music">Music</a>
+  <a href="#about">About</a><a href="#buy">How to Buy</a><a href="#pfp">PFP Generator</a><a href="#templates">PFP Templates</a><a href="#gallery">Gallery</a><a href="#gifs">Gifs</a><a href="#generate">Generate</a><a href="#games">Games</a><a href="#leaderboards">Leaderboards</a><a href="#music">Music</a><a href="#videos">Videos</a>
 </div>
 <script>
 (function(){var t=document.getElementById('navToggle'),m=document.getElementById('mobileMenu');if(!t||!m)return;t.addEventListener('click',function(){var open=m.classList.toggle('open');t.classList.toggle('open',open);t.setAttribute('aria-expanded',open?'true':'false');});m.addEventListener('click',function(e){if(e.target.closest('a')){m.classList.remove('open');t.classList.remove('open');t.setAttribute('aria-expanded','false');}});})();
@@ -286,6 +286,7 @@ section.searching .pager{display:none!important}
       <a class="btn" href="https://x.com/qisolcto" target="_blank" rel="noopener">X @qisolcto</a>
       <a class="btn" href="#games">🎮 Games</a>
       <a class="btn" href="#music">🎵 Music</a>
+      <a class="btn" href="#videos">🎬 Videos</a>
       <a class="btn gold" href="https://dexscreener.com/solana/8TiMkgvsrat9tM2esko8zVTt99LZLpefUM4SnZaziXaQ" target="_blank" rel="noopener">Live Chart ↗</a>
     </div>
     <div class="contract">
@@ -2005,12 +2006,13 @@ section.searching .pager{display:none!important}
   </div>
 </section>
 <section id="videos">
-  <h2>🎬 Videos</h2>
+  <div class="sechead"><h2>🎬 Videos</h2><input class="searchbox" id="vidSearch" type="search" placeholder="Search videos — try rocket, ramen, moon…" aria-label="Search the videos"></div>
   <p class="sub">QI clips from the pack — tap one and press play.</p>
   <!-- VIDEOS: cards are built by the Videos script below from the Firestore
        `videopool` collection (newest first, 9 per page) — nothing is
        hardcoded here. -->
   <div class="tracks" id="videos-grid"><p class="lb-msg">Loading videos… 🐾</p></div>
+  <p class="searchmsg" id="vidSearchMsg" hidden></p>
   <div class="pager" id="videos-pager" style="display:none;gap:14px;align-items:center;justify-content:center;margin-top:20px">
     <button class="btn" id="vidPrev" type="button">&larr; Prev</button>
     <span id="vidPageInfo" style="font-weight:800"></span>
@@ -2177,7 +2179,7 @@ lbLoadLikes();
 // with a Music-style pager. Cards are built from the docs — no hardcoded
 // entries. A failed load only affects this section.
 const VID_CFG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
-let vidDb = null, vidFs = null, vidItems = [], vidCards = [], vidPage = 0;
+let vidDb = null, vidFs = null, vidItems = [], vidCards = [], vidPage = 0, vidQuery = '';
 const VID_PER = 9;
 async function vidEnsure() {
   if (vidDb) return true;
@@ -2192,6 +2194,31 @@ async function vidEnsure() {
 }
 function vidShowPage() {
   const wrap = document.getElementById('videos-pager');
+  // Search (mirrors Music/Games): while a query is active, every query
+  // word must match the card's label, the pager hides (the section's
+  // .searching class + its CSS rule), and a count / no-results note
+  // shows under the grid. Clearing the query restores the pager view.
+  const sec = document.getElementById('videos');
+  const msg = document.getElementById('vidSearchMsg');
+  const qw = vidQuery.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (qw.length) {
+    sec.classList.add('searching');
+    let hits = 0;
+    vidCards.forEach((c, i) => {
+      const txt = (vidItems[i] ? vidItems[i].label : '').toLowerCase();
+      const ok = qw.every(w => txt.indexOf(w) > -1);
+      c.style.display = ok ? '' : 'none';
+      if (ok) hits++;
+    });
+    if (msg) {
+      msg.hidden = false;
+      msg.textContent = hits ? (hits + (hits === 1 ? ' result' : ' results') + ' for “' + vidQuery.trim() + '”')
+        : ('No results for “' + vidQuery.trim() + '” — try a word from a video title, like rocket, ramen, moon…');
+    }
+    return;
+  }
+  sec.classList.remove('searching');
+  if (msg) { msg.hidden = true; msg.textContent = ''; }
   const pages = Math.ceil(vidItems.length / VID_PER);
   if (pages <= 1) {
     wrap.style.display = 'none';
@@ -2266,6 +2293,8 @@ const vidPrevBtn = document.getElementById('vidPrev');
 const vidNextBtn = document.getElementById('vidNext');
 if (vidPrevBtn) vidPrevBtn.addEventListener('click', () => vidFlip(-1));
 if (vidNextBtn) vidNextBtn.addEventListener('click', () => vidFlip(1));
+const vidSearchInput = document.getElementById('vidSearch');
+if (vidSearchInput) vidSearchInput.addEventListener('input', () => { vidQuery = vidSearchInput.value; vidShowPage(); });
 vidLoad();
 </script>
 <script type="module">
