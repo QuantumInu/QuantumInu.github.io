@@ -11,10 +11,11 @@
   html,body { height:100%; touch-action:manipulation; }
   body {
     font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:#e8f4ff;
-    background: radial-gradient(1100px 750px at 50% -12%, #0d2b4d 0%, #061426 46%, #010409 100%);
+    background: radial-gradient(1100px 750px at 50% -12%, #0a1e3a 0%, #050d1f 46%, #010208 100%);
     height:100vh; height:100dvh; overflow:hidden; padding:52px 12px calc(10px + env(safe-area-inset-bottom));
     text-align:center; position:relative; display:flex; flex-direction:column;
   }
+  #spaceBg { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
   .wrap { position:relative; z-index:1; max-width:540px; width:100%; margin:0 auto; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
   h1 { font-size:clamp(22px,5.8vw,34px); letter-spacing:2px; font-weight:900; color:#7fdcff;
        text-shadow:0 0 14px rgba(41,182,255,.85), 0 0 42px rgba(41,182,255,.45); }
@@ -89,6 +90,7 @@
 </head>
 <body>
 <a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
+<canvas id="spaceBg" aria-hidden="true"></canvas>
 <div class="wrap">
   <h1><span class="q">QI</span> QUANTUM TRON</h1>
   <div class="sub">Q-Bot rides the blue cycle. Last light trail standing wins.</div>
@@ -523,6 +525,36 @@ function paintBG() {
   grad.addColorStop(1, "rgba(0,0,0,0)");
   g.fillStyle = grad;
   g.fillRect(0, 0, viewPx, viewPx);
+  /* nebula washes — the arena floats in deep space */
+  var nebs = [
+    [0.22, 0.30, 0.55, "rgba(64,40,160,0.20)"],
+    [0.82, 0.68, 0.50, "rgba(10,90,130,0.18)"],
+    [0.62, 0.12, 0.38, "rgba(120,30,110,0.12)"]
+  ];
+  nebs.forEach(function (n) {
+    var ng = g.createRadialGradient(viewPx*n[0], viewPx*n[1], 0, viewPx*n[0], viewPx*n[1], viewPx*n[2]);
+    ng.addColorStop(0, n[3]);
+    ng.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = ng;
+    g.fillRect(0, 0, viewPx, viewPx);
+  });
+  /* starfield (seeded, so resizes repaint the same sky) */
+  var seed = 1337;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  for (var s = 0; s < 150; s++) {
+    var sx = rnd() * viewPx, sy = rnd() * viewPx;
+    var sr = rnd() < 0.12 ? 1.6 : (rnd() < 0.4 ? 1.1 : 0.7);
+    var sa = 0.25 + rnd() * 0.65;
+    g.globalAlpha = sa;
+    g.fillStyle = rnd() < 0.18 ? "#aee6ff" : "#ffffff";
+    g.beginPath(); g.arc(sx, sy, sr, 0, Math.PI * 2); g.fill();
+    if (sr > 1.4) { /* sparkle cross on the brightest stars */
+      g.globalAlpha = sa * 0.55;
+      g.fillRect(sx - sr * 3, sy - 0.5, sr * 6, 1);
+      g.fillRect(sx - 0.5, sy - sr * 3, 1, sr * 6);
+    }
+  }
+  g.globalAlpha = 1;
   g.strokeStyle = "rgba(96,165,250,0.055)";
   g.lineWidth = 1;
   g.beginPath();
@@ -951,6 +983,78 @@ function loop(ts) {
   }
   draw(ts);
 }
+</script>
+<script>
+/* ================= page space background =================
+   A fixed starfield canvas behind the whole page: deep-space
+   nebula washes, a few hundred stars that gently twinkle, and a
+   slow parallax drift. Static (no twinkle/drift) when the player
+   prefers reduced motion. */
+(function () {
+  var cv = document.getElementById("spaceBg");
+  if (!cv) return;
+  var g = cv.getContext("2d");
+  var W = 0, H = 0, stars = [];
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var seed = 4242;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  function build() {
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seed = 4242;
+    stars = [];
+    var n = Math.round((W * H) / 5500);
+    for (var i = 0; i < n; i++) {
+      stars.push({
+        x: rnd() * W, y: rnd() * H,
+        r: rnd() < 0.1 ? 1.7 : (rnd() < 0.38 ? 1.1 : 0.65),
+        a: 0.3 + rnd() * 0.7,
+        ph: rnd() * Math.PI * 2,
+        sp: 0.4 + rnd() * 1.1,
+        tint: rnd()
+      });
+    }
+  }
+  function paint(now) {
+    g.clearRect(0, 0, W, H);
+    var t = now / 1000;
+    /* slow-drifting nebula clouds */
+    var nebs = [
+      [0.16 + 0.02 * Math.sin(t * 0.05), 0.20, 0.62, "rgba(52,32,140,0.26)"],
+      [0.88, 0.72 + 0.02 * Math.cos(t * 0.04), 0.55, "rgba(8,80,120,0.22)"],
+      [0.55, 0.95, 0.48, "rgba(110,26,100,0.14)"],
+      [0.72, 0.08, 0.40, "rgba(20,60,150,0.18)"]
+    ];
+    nebs.forEach(function (nb) {
+      var gx = nb[0] * W, gy = nb[1] * H, gr = nb[2] * Math.max(W, H);
+      var grad = g.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      grad.addColorStop(0, nb[3]);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+    });
+    stars.forEach(function (s) {
+      var tw = reduced ? 1 : 0.72 + 0.28 * Math.sin(s.ph + t * s.sp);
+      g.globalAlpha = s.a * tw;
+      g.fillStyle = s.tint < 0.16 ? "#aee6ff" : (s.tint < 0.26 ? "#ffe9b8" : "#ffffff");
+      g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
+      if (s.r > 1.5) {
+        g.globalAlpha = s.a * tw * 0.5;
+        g.fillRect(s.x - s.r * 3.2, s.y - 0.5, s.r * 6.4, 1);
+        g.fillRect(s.x - 0.5, s.y - s.r * 3.2, 1, s.r * 6.4);
+      }
+    });
+    g.globalAlpha = 1;
+  }
+  build();
+  paint(0);
+  window.addEventListener("resize", function () { build(); paint(0); });
+  if (!reduced) {
+    (function tick(now) { paint(now || 0); requestAnimationFrame(tick); })(0);
+  }
+})();
 </script>
 <script>
 /* ================= leaderboard + likes (Firebase, lazy) ================= */
