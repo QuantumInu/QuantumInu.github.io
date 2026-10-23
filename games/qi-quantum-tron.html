@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>QI Quantum Tron</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; touch-action:manipulation; }
+  body {
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:#e8f4ff;
+    background: radial-gradient(1100px 750px at 50% -12%, #0d2b4d 0%, #061426 46%, #010409 100%);
+    height:100vh; height:100dvh; overflow:hidden; padding:52px 12px calc(10px + env(safe-area-inset-bottom));
+    text-align:center; position:relative; display:flex; flex-direction:column;
+  }
+  .wrap { position:relative; z-index:1; max-width:540px; width:100%; margin:0 auto; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  h1 { font-size:clamp(22px,5.8vw,34px); letter-spacing:2px; font-weight:900; color:#7fdcff;
+       text-shadow:0 0 14px rgba(41,182,255,.85), 0 0 42px rgba(41,182,255,.45); }
+  h1 .q { color:#ffd964; text-shadow:0 0 14px rgba(245,197,66,.8), 0 0 42px rgba(245,197,66,.4); }
+  .sub { opacity:.85; margin-top:2px; font-size:13.5px; }
+  .stats { display:flex; gap:8px; justify-content:center; margin:8px 0; flex-wrap:wrap; }
+  .stat { background:rgba(120,200,255,.06); border:1px solid rgba(120,200,255,.18); border-radius:12px; padding:4px 12px; min-width:70px; }
+  .stat b { display:block; font-size:17px; color:#7fdcff; }
+  .stat span { font-size:11px; text-transform:uppercase; letter-spacing:1px; opacity:.75; }
+  .racers { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:0 0 8px; }
+  .racer { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; letter-spacing:.4px;
+           background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:3px 10px 3px 4px; }
+  .racer .dot { width:18px; height:18px; border-radius:50%; border:2px solid; overflow:hidden; flex:none; background:#0a1420; }
+  .racer .dot img { width:100%; height:100%; object-fit:cover; transform:scale(1.22); }
+  .racer.dead { opacity:.38; filter:grayscale(.7); }
+  .racer.dead .nm { text-decoration:line-through; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; width:100%; margin:0 auto;
+           display:flex; align-items:center; justify-content:center; }
+  canvas#game { display:block; touch-action:none; background:#020409; border-radius:14px;
+           box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 1px rgba(41,182,255,.35), 0 0 26px rgba(41,182,255,.18); }
+  body.playing h1, body.playing .sub, body.playing .howto { display:none; }
+  .card-overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+                  gap:7px; background:rgba(2,6,16,.88); padding:12px 14px; overflow-y:auto; z-index:5; border-radius:14px; }
+  .card-overlay > * { flex:none; }
+  .card-overlay.show { display:flex; }
+  @supports (justify-content: safe center) { .card-overlay { justify-content:safe center; } }
+  .card-overlay .big { font-size:clamp(20px,5.6vw,29px); font-weight:900; letter-spacing:1px; color:#7fdcff;
+                       text-shadow:0 0 16px rgba(41,182,255,.7); }
+  .card-overlay .big.gold { color:#ffd964; text-shadow:0 0 16px rgba(245,197,66,.65); }
+  .card-overlay .detail { font-size:14px; line-height:1.5; }
+  .card-overlay .detail b { color:#ffd964; }
+  .newbest { font-size:13px; font-weight:800; letter-spacing:1.5px; color:#7dfcd4; text-transform:uppercase; }
+  #loadStatus { font-size:12.5px; letter-spacing:1px; opacity:.85; min-height:16px; }
+  .controls { margin-top:9px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; align-items:stretch; }
+  button.ctl { font:inherit; font-weight:700; color:#03101f; background:linear-gradient(180deg,#8fe3ff,#29b6ff);
+    border:none; border-radius:999px; padding:11px 22px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+  button.ctl.ghost { background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25); box-shadow:none; }
+  button.ctl:active { transform:scale(.96); }
+  button.ctl:disabled { opacity:.55; cursor:default; }
+  .like-btn { font:inherit; font-weight:700; background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25);
+    border-radius:999px; padding:11px 18px; cursor:pointer; }
+  .like-btn:active { transform:scale(.96); }
+  .like-btn .like-count { margin-left:5px; color:#ffd964; }
+  .howto { margin:9px auto 0; max-width:480px; font-size:12.5px; line-height:1.45; opacity:.78; }
+  @media (max-height:880px) { .howto { display:none; } }
+  @media (max-height:520px) { .sub { display:none; } }
+  .lb-form { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; width:100%; }
+  .lb-form input { font:inherit; font-size:15px; color:#e8f4ff; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.3); border-radius:999px; padding:10px 16px; width:210px; max-width:72vw; text-align:center; }
+  .lb-form input::placeholder { color:rgba(232,244,255,.5); }
+  .lb-form input:focus-visible { outline:2px solid #7fdcff; outline-offset:1px; }
+  .lb-msg { min-height:20px; font-size:14px; color:#ffd964; }
+  .lb-msg.err { color:#ff9db0; } .lb-msg.ok { color:#7dfcd4; }
+  #overBoard, #lbPanelBody { width:100%; }
+  #overBoard { flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+  table.board { width:100%; max-width:340px; margin:4px auto 0; border-collapse:collapse; font-size:14.5px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:12px; }
+  table.board th { text-align:left; font-size:11px; letter-spacing:.12em; text-transform:uppercase; opacity:.7; padding:7px 10px; }
+  table.board th.r, table.board td.r { text-align:right; }
+  table.board td { padding:6px 10px; border-top:1px solid rgba(255,255,255,.09); font-weight:700; text-align:left; }
+  table.board tr.me td { color:#ffd964; background:rgba(245,197,66,.1); }
+  .board-note { text-align:center; font-size:14px; opacity:.85; padding:8px 4px; }
+  #lbPanel { position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(2,4,12,.85); z-index:60; padding:16px; }
+  #lbPanel.show { display:flex; }
+  .lb-card { background:#071426; border:1px solid rgba(127,220,255,.3); border-radius:16px; padding:22px 18px;
+    width:100%; max-width:380px; max-height:88vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; align-items:center;
+    box-shadow:0 12px 40px rgba(0,0,0,.6); }
+  .lb-card .lb-title { font-size:20px; font-weight:800; color:#7fdcff; }
+  .lb-card table.board { max-width:none; }
+</style>
+</head>
+<body>
+<a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
+<div class="wrap">
+  <h1><span class="q">QI</span> QUANTUM TRON</h1>
+  <div class="sub">Q-Bot rides the blue cycle. Last light trail standing wins.</div>
+  <div class="stats">
+    <div class="stat"><b id="hudScore">0</b><span>Score</span></div>
+    <div class="stat"><b id="hudRound">1</b><span>Round</span></div>
+    <div class="stat"><b id="hudAlive">4</b><span>Riders</span></div>
+    <div class="stat"><b id="hudBest">0</b><span>Best</span></div>
+  </div>
+  <div class="racers" id="racers"></div>
+
+  <div id="stage">
+    <canvas id="game" width="440" height="440"></canvas>
+
+    <div class="card-overlay show" id="startCard">
+      <div class="big">🏍️ QI QUANTUM TRON</div>
+      <div class="detail">You are <b>Q-Bot</b> — the robot from Space Shooter — riding the <b style="color:#29b6ff">blue</b> cycle.<br>
+      Your cycle never stops and its light trail is a solid wall. So is everyone else's.<br>
+      Crash into any trail or the arena edge and you're derezzed.<br>
+      <b>Tap the left or right half of the arena</b> to turn 90°. Swipe works too.<br>
+      Outlast the <b style="color:#ff4655">red</b>, <b style="color:#ffd21f">yellow</b> and <b style="color:#2eff7a">green</b> riders to win the round — every round is faster.</div>
+      <button class="ctl" id="startBtn" disabled>▶ Enter the Grid</button>
+      <div id="loadStatus">LOADING STICKERS…</div>
+    </div>
+
+    <div class="card-overlay" id="overCard">
+      <div class="big gold" id="overTitle">💥 Derezzed!</div>
+      <div class="detail">Score <b id="finalScore">0</b> · Rounds won <b id="finalRounds">0</b> · Best <b id="finalBest">0</b></div>
+      <div class="newbest" id="newBest" style="display:none">✦ New Best! ✦</div>
+      <form class="lb-form" id="lbForm">
+        <input id="lbName" type="text" maxlength="16" placeholder="Name for the leaderboard" autocomplete="off">
+        <button class="ctl" id="lbSubmit" type="submit">Submit Score</button>
+      </form>
+      <div class="lb-msg" id="lbMsg"></div>
+      <div id="overBoard"></div>
+      <button class="ctl" id="againBtn" type="button">▶ Ride Again</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl ghost" id="lbBtn" type="button">🏆 Leaderboard</button>
+    <button class="ctl ghost" id="soundBtn" type="button" aria-label="Toggle sound">🔊 Sound On</button>
+    <button class="like-btn" id="likeBtn" type="button" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count" id="likeCount">–</span></button>
+  </div>
+
+  <p class="howto">How to play: your light cycle moves on its own and can only turn 90° at a time — no stopping, no reversing.
+  Tap the left half of the arena to turn left, the right half to turn right (or swipe, or use ← → / A D on a keyboard).
+  Every trail is a wall, including your own. Score ticks up while you survive, with bonuses when a rival crashes — the biggest when one slams into YOUR trail.
+  Win a round and the next one runs faster. Every rider's face comes from the full 106-sticker Quantum Inu pack.</p>
+</div>
+
+<div id="lbPanel">
+  <div class="lb-card">
+    <div class="lb-title">🏆 QI Quantum Tron Leaderboard</div>
+    <div id="lbPanelBody"><div class="board-note">Loading…</div></div>
+    <button class="ctl" id="lbClose" type="button">Close</button>
+  </div>
+</div>
+
+<script>
+/* stop double-tap zoom + pinch gestures hijacking the game */
+var lastTouchEnd = 0;
+document.addEventListener('touchend', function(e){
+  var now = Date.now();
+  if (now - lastTouchEnd <= 350) { e.preventDefault(); }
+  lastTouchEnd = now;
+}, { passive: false });
+document.addEventListener('touchstart', function(e){
+  if (e.touches.length > 1) { e.preventDefault(); }
+}, { passive: false });
+document.addEventListener('dblclick', function(e){ e.preventDefault(); }, { passive: false });
+
+function $(id){ return document.getElementById(id); }
+
+/* ================= sticker roster (full 106 pack) ================= */
+var STICKER_IDS = ["wave","gm","gn","lfg","hodl","cool","laugh","love","thumbsup","salute","knight","wizard","astronaut","ramen","coffee","rich","chart","dance","buff","chill","detective","party","king","pirate","ninja","hero","zen","gamer","dj","chef","float","bone","jetpack","rain","hug","mindblown","ok","stop","facepalm","shrug","thinking","silly","dreaming","thumbsdown","clap","pray","fine","run","swim","bath","snow","guitar","sing","book","phone","laptop","jackpot","telescope","fishing","skateboard","bike","racecar","popcorn","pizza","icecream","birthday","gift","trophy","flag","idea","dizzy","sick","firefighter","painter","construction","cowboy","viking","magician","director","robot","alien","ghost","santa","cupid","fortune","beekeeper","mail","boxer","soccer","basketball","baseball","surfer","scuba","parachute","balloon","train","climber","kayak","gardener","photographer","violin","drummer","pumpkin","camper","umbrella","bubbles"];
+
+/* ================= sticker loader =================
+   Family loader: gate on the load event (never decode()), a stall
+   watchdog per attempt, retries with backoff until the face lands,
+   faces baked to offscreen canvases, live loaded count while loading,
+   and an 8-second failsafe that unlocks Start no matter what. */
+var FACE = {}; /* id -> baked canvas */
+var IMG = {};  /* id -> loaded Image (fallback draw source) */
+var facesTotal = STICKER_IDS.length;
+var facesSettled = 0;
+var facesBaked = 0;
+var facesReady = false;
+function updateLoadStatus() {
+  var el = $("loadStatus");
+  if (!el) return;
+  el.textContent = facesBaked >= facesTotal
+    ? "STICKERS LOADED ✦ " + facesBaked + "/" + facesTotal
+    : "LOADING STICKERS… " + facesBaked + "/" + facesTotal;
+}
+function finishLoading() {
+  if (facesReady) return;
+  facesReady = true;
+  updateLoadStatus();
+  var btn = $("startBtn");
+  if (btn) btn.disabled = false;
+}
+function settleFace() {
+  facesSettled++;
+  if (facesReady) return;
+  if (facesSettled >= facesTotal) finishLoading();
+  else updateLoadStatus();
+}
+function bakeFace(id, im) {
+  try {
+    var w = 168;
+    var h = Math.max(1, Math.round(w * im.naturalHeight / im.naturalWidth));
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    c.getContext("2d").drawImage(im, 0, 0, w, h);
+    FACE[id] = c;
+  } catch (e) { /* the raw Image stays in IMG[id] as the draw source */ }
+}
+var faceSt = {};
+function stFor(id) { return faceSt[id] || (faceSt[id] = { gate: false, ok: false }); }
+function markFaceOk(id, im) {
+  var st = stFor(id);
+  if (st.ok) return;
+  st.ok = true;
+  IMG[id] = im;
+  bakeFace(id, im);
+  if (FACE[id]) facesBaked++;
+  if (!st.gate) { st.gate = true; settleFace(); }
+  updateLoadStatus();
+}
+function loadFace(id, attempt) {
+  var st = stFor(id);
+  if (st.ok) return;
+  var im = new Image();
+  var settled = false;
+  var timer = setTimeout(function () {
+    if (settled) return;
+    settled = true;
+    retryFace(id, attempt);
+  }, 3000);
+  im.onload = function () {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    markFaceOk(id, im);
+  };
+  im.onerror = function () {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    retryFace(id, attempt);
+  };
+  im.src = "assets/faces/" + id + ".webp";
+  if (im.complete && im.naturalWidth) {
+    settled = true;
+    clearTimeout(timer);
+    markFaceOk(id, im);
+  }
+}
+function retryFace(id, attempt) {
+  var st = stFor(id);
+  if (st.ok) return;
+  if (attempt >= 5) {
+    if (!st.gate) { st.gate = true; settleFace(); }
+    setTimeout(function () { loadFace(id, attempt + 1); }, 5000);
+    return;
+  }
+  setTimeout(function () { loadFace(id, attempt + 1); }, 300);
+}
+function loadImages() {
+  STICKER_IDS.forEach(function (id) { loadFace(id, 0); });
+  setTimeout(finishLoading, 8000);
+  updateLoadStatus();
+}
+function faceLabel(id) { return id.charAt(0).toUpperCase() + id.slice(1); }
+function pickRivalFaces() {
+  var pool = STICKER_IDS.filter(function (id) { return id !== "robot"; });
+  for (var i = pool.length - 1; i > 0; i--) {
+    var j = (Math.random() * (i + 1)) | 0;
+    var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  return pool.slice(0, 3);
+}
+
+/* ================= sound effects (WebAudio, generated — no files) ================= */
+var AC = null, soundOn = true;
+function audio() {
+  if (!soundOn) return null;
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  }
+  if (AC.state === "suspended") { AC.resume(); }
+  return AC;
+}
+function tone(freq, dur, type, vol, delay, slideTo) {
+  var ac = audio(); if (!ac) return;
+  var t0 = ac.currentTime + (delay || 0);
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square";
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+  g.gain.setValueAtTime(vol || 0.06, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function noiseBurst(dur, vol) {
+  var ac = audio(); if (!ac) return;
+  var n = Math.floor(ac.sampleRate * dur);
+  var buf = ac.createBuffer(1, n, ac.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  var src = ac.createBufferSource(); src.buffer = buf;
+  var f = ac.createBiquadFilter(); f.type = "lowpass";
+  f.frequency.setValueAtTime(2600, ac.currentTime);
+  f.frequency.exponentialRampToValueAtTime(120, ac.currentTime + dur);
+  var g = ac.createGain();
+  g.gain.setValueAtTime(vol || 0.16, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start();
+}
+function sfxTurn()  { tone(660, 0.045, "square", 0.035); }
+function sfxCount(final) { tone(final ? 990 : 440, final ? 0.28 : 0.13, "square", 0.07); }
+function sfxCrash(player) {
+  noiseBurst(0.4, player ? 0.22 : 0.15);
+  tone(220, 0.38, "sawtooth", 0.09, 0, 40);
+  if (player) tone(110, 0.55, "triangle", 0.12, 0.02, 30);
+}
+function sfxWin() {
+  [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.16, "square", 0.06, i * 0.09); });
+  tone(1319, 0.3, "square", 0.05, 0.38);
+}
+$("soundBtn").addEventListener("click", function () {
+  soundOn = !soundOn;
+  this.textContent = soundOn ? "🔊 Sound On" : "🔇 Sound Off";
+  if (soundOn) sfxTurn();
+});
+</script>
+<script>
+/* ================= the grid =================
+   Classic Tron: every cycle moves one cell per step, turns only in
+   90° steps, and leaves a solid trail. The occupancy grid (0 = empty,
+   otherwise rider index + 1) is the single source of truth for
+   collisions AND for knowing whose trail a crash hit. */
+var COLS = 46, ROWS = 46;
+var DIRS = [ {x:0,y:-1}, {x:1,y:0}, {x:0,y:1}, {x:-1,y:0} ]; /* up right down left */
+var canvas = $("game"), ctx = canvas.getContext("2d");
+var stage = $("stage");
+var cellPx = 10, viewPx = 440, dpr = 1;
+
+var bgLayer = document.createElement("canvas");
+var trailLayer = document.createElement("canvas");
+
+var RIDER_DEFS = [
+  { name: "Q-Bot",  face: "robot", color: "#29b6ff", core: "#bdeaff", glow: "rgba(41,182,255," },
+  { name: "Red",    face: null,    color: "#ff4655", core: "#ffc2c7", glow: "rgba(255,70,85," },
+  { name: "Yellow", face: null,    color: "#ffd21f", core: "#fff3a6", glow: "rgba(255,210,31," },
+  { name: "Green",  face: null,    color: "#2eff7a", core: "#c2ffda", glow: "rgba(46,255,122," }
+];
+
+var state = "menu"; /* menu | countdown | play | roundover | gameover */
+var riders = [];
+var grid = new Uint8Array(COLS * ROWS);
+var score = 0, best = 0, round = 1, roundsWon = 0, submitted = false;
+var stepMs = 118, stepAcc = 0, lastT = 0;
+var playElapsed = 0; /* ms spent in 'play' this round — drives the speed ramp */
+var countStage = -1, countAcc = 0;      /* countdown: 3,2,1,GO */
+var overAcc = 0;                        /* pause after a crash / round win */
+var pendingWin = false;
+var particles = [], popups = [], flashes = [];
+var bannerText = "", bannerColor = "#7fdcff", bannerUntil = 0;
+
+function stepInterval() { return Math.max(52, 118 - (round - 1) * 9); }
+/* In-round ramp, like the original arcade Tron: while a round runs,
+   every cycle shares one speed that climbs smoothly from the round's
+   base toward 2x across RAMP_MS, then holds at that cap. The ramp
+   resets to the round's base speed at every round start. */
+var RAMP_MS = 40000;
+function effStepMs() {
+  var f = 1 + Math.min(1, playElapsed / RAMP_MS);
+  return stepMs / f;
+}
+
+function makeRiders() {
+  var faces = pickRivalFaces();
+  var defs = RIDER_DEFS.map(function (d, i) {
+    var c = { name: d.name, color: d.color, core: d.core, glow: d.glow };
+    if (i === 0) c.face = "robot";
+    else { c.face = faces[i - 1]; c.name = faceLabel(faces[i - 1]); }
+    return c;
+  });
+  var midY = ROWS >> 1, midX = COLS >> 1;
+  var spawns = [
+    { x: 3,        y: midY,     dir: 1 },  /* player: left side, heading right  */
+    { x: COLS - 4, y: midY,     dir: 3 },  /* red:    right side, heading left  */
+    { x: midX,     y: 3,        dir: 2 },  /* yellow: top, heading down         */
+    { x: midX,     y: ROWS - 4, dir: 0 }   /* green:  bottom, heading up        */
+  ];
+  riders = spawns.map(function (s, i) {
+    return {
+      idx: i, def: defs[i], player: i === 0,
+      x: s.x, y: s.y, px: s.x, py: s.y, dir: s.dir,
+      alive: true, pendingTurn: 0, commit: 0,
+      skill: [0, 0.86, 0.8, 0.9][i], aggro: [0, 0.75, 0.5, 1.0][i]
+    };
+  });
+  buildRacerChips();
+}
+function buildRacerChips() {
+  var html = "";
+  riders.forEach(function (r) {
+    html += "<div class='racer' id='chip" + r.idx + "'><span class='dot' style='border-color:" + r.def.color + "'>" +
+            "<img src='assets/faces/" + r.def.face + ".webp' alt=''>" + "</span>" +
+            "<span class='nm'>" + esc(r.def.name) + "</span></div>";
+  });
+  $("racers").innerHTML = html;
+  $("racers").querySelectorAll("img").forEach(function (img) {
+    img.onerror = function () {
+      var n = parseInt(img.dataset.r || "0", 10) + 1;
+      if (n <= 6) {
+        img.dataset.r = n;
+        setTimeout(function () { img.src = img.src.split("?")[0] + "?retry=" + n; }, 300 * n);
+      }
+    };
+  });
+}
+function paintChips() {
+  riders.forEach(function (r) {
+    var chip = $("chip" + r.idx);
+    if (chip) chip.classList.toggle("dead", !r.alive);
+  });
+  $("hudAlive").textContent = riders.filter(function (r) { return r.alive; }).length;
+}
+function updateHUD() {
+  $("hudScore").textContent = score;
+  $("hudRound").textContent = round;
+  $("hudBest").textContent = best;
+}
+
+/* ---------- trails ---------- */
+function cellCenter(x, y) { return { x: (x + 0.5) * cellPx, y: (y + 0.5) * cellPx }; }
+function paintSegment(r, x0, y0, x1, y1) {
+  var t = trailLayer.getContext("2d");
+  var a = cellCenter(x0, y0), b = cellCenter(x1, y1);
+  t.save();
+  t.scale(dpr, dpr);
+  t.lineCap = "round";
+  t.strokeStyle = r.def.glow + "0.30)";
+  t.lineWidth = cellPx * 0.98;
+  t.shadowColor = r.def.color;
+  t.shadowBlur = cellPx * 1.1;
+  t.beginPath(); t.moveTo(a.x, a.y); t.lineTo(b.x, b.y); t.stroke();
+  t.shadowBlur = 0;
+  t.strokeStyle = r.def.color;
+  t.lineWidth = cellPx * 0.52;
+  t.beginPath(); t.moveTo(a.x, a.y); t.lineTo(b.x, b.y); t.stroke();
+  t.strokeStyle = r.def.core;
+  t.lineWidth = cellPx * 0.2;
+  t.beginPath(); t.moveTo(a.x, a.y); t.lineTo(b.x, b.y); t.stroke();
+  t.restore();
+}
+function clearTrails() {
+  var t = trailLayer.getContext("2d");
+  t.setTransform(1, 0, 0, 1, 0, 0);
+  t.clearRect(0, 0, trailLayer.width, trailLayer.height);
+}
+
+/* ---------- arena background ---------- */
+function paintBG() {
+  bgLayer.width = viewPx * dpr; bgLayer.height = viewPx * dpr;
+  var g = bgLayer.getContext("2d");
+  g.scale(dpr, dpr);
+  g.fillStyle = "#020409";
+  g.fillRect(0, 0, viewPx, viewPx);
+  var grad = g.createRadialGradient(viewPx/2, viewPx/2, viewPx*0.1, viewPx/2, viewPx/2, viewPx*0.75);
+  grad.addColorStop(0, "rgba(24,60,110,0.20)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, viewPx, viewPx);
+  g.strokeStyle = "rgba(96,165,250,0.055)";
+  g.lineWidth = 1;
+  g.beginPath();
+  for (var i = 1; i < COLS; i++) { g.moveTo(i * cellPx, 0); g.lineTo(i * cellPx, viewPx); }
+  for (var j = 1; j < ROWS; j++) { g.moveTo(0, j * cellPx); g.lineTo(viewPx, j * cellPx); }
+  g.stroke();
+  g.strokeStyle = "rgba(41,182,255,0.55)";
+  g.lineWidth = 2;
+  g.strokeRect(1, 1, viewPx - 2, viewPx - 2);
+}
+
+/* ---------- sizing: square arena fitted to the stage, no scrolling ---------- */
+function sizeCanvas() {
+  var r = stage.getBoundingClientRect();
+  var side = Math.max(220, Math.floor(Math.min(r.width, r.height)));
+  viewPx = side;
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  cellPx = viewPx / COLS;
+  canvas.style.width = side + "px";
+  canvas.style.height = side + "px";
+  canvas.width = side * dpr;
+  canvas.height = side * dpr;
+  paintBG();
+  /* re-lay the trails at the new scale from the riders' live cells */
+  trailLayer.width = side * dpr; trailLayer.height = side * dpr;
+  clearTrails();
+  riders.forEach(function (rd) {
+    if (rd.trailPath) for (var k = 1; k < rd.trailPath.length; k++) {
+      var p0 = rd.trailPath[k - 1], p1 = rd.trailPath[k];
+      paintSegment(rd, p0[0], p0[1], p1[0], p1[1]);
+    }
+  });
+}
+window.addEventListener("resize", sizeCanvas);
+
+/* ---------- round / game flow ---------- */
+function resetRound() {
+  grid = new Uint8Array(COLS * ROWS);
+  particles = []; popups = []; flashes = [];
+  makeRiders();
+  riders.forEach(function (r) {
+    grid[r.y * COLS + r.x] = r.idx + 1;
+    r.trailPath = [[r.x, r.y]];
+  });
+  sizeCanvas();
+  stepMs = stepInterval();
+  stepAcc = 0;
+  playElapsed = 0; /* in-round speed ramp restarts from the round's base speed */
+  countStage = 3; countAcc = 0;
+  state = "countdown";
+  paintChips(); updateHUD();
+  sfxCount(false);
+}
+function startGame() {
+  score = 0; round = 1; roundsWon = 0; submitted = false;
+  $("startCard").classList.remove("show");
+  $("overCard").classList.remove("show");
+  document.body.classList.add("playing");
+  audio(); /* unlock audio on the tap */
+  resetRound();
+}
+function endGame() {
+  state = "gameover";
+  if (score > best) { best = score; $("newBest").style.display = ""; }
+  else $("newBest").style.display = "none";
+  $("finalScore").textContent = score;
+  $("finalRounds").textContent = roundsWon;
+  $("finalBest").textContent = best;
+  var btn = $("lbSubmit");
+  btn.disabled = false; btn.textContent = "Submit Score";
+  $("lbMsg").textContent = "";
+  $("overBoard").innerHTML = "";
+  $("overCard").classList.add("show");
+  updateHUD();
+}
+$("startBtn").addEventListener("click", startGame);
+$("againBtn").addEventListener("click", startGame);
+
+/* ---------- input: tap halves, swipe, keys ----------
+   At most ONE turn is ever queued per movement step, and turns are
+   relative (−1/+1), so a 180° reversal is impossible by construction. */
+function queueTurn(side) {
+  if (state !== "play" && state !== "countdown") return;
+  var p = riders[0];
+  if (!p || !p.alive) return;
+  if (p.pendingTurn !== 0) return; /* one turn per step — extras are dropped, never a suicide double-turn */
+  p.pendingTurn = side;
+  sfxTurn();
+}
+function turnFromPoint(clientX) {
+  var r = canvas.getBoundingClientRect();
+  queueTurn(clientX - r.left < r.width / 2 ? -1 : 1);
+}
+var swipeX = null, swipeY = null;
+canvas.addEventListener("pointerdown", function (e) {
+  e.preventDefault();
+  swipeX = e.clientX; swipeY = e.clientY;
+  turnFromPoint(e.clientX);
+});
+canvas.addEventListener("pointerup", function (e) {
+  if (swipeX == null) return;
+  var dx = e.clientX - swipeX, dy = e.clientY - swipeY;
+  if (Math.abs(dx) > 34 && Math.abs(dx) > Math.abs(dy)) queueTurn(dx < 0 ? -1 : 1);
+  swipeX = swipeY = null;
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") { queueTurn(-1); e.preventDefault(); }
+  else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") { queueTurn(1); e.preventDefault(); }
+});
+
+/* ---------- rival AI ----------
+   Survive first: score each legal heading by the open space a flood
+   fill finds through it plus how clear the straight run ahead is.
+   Then the quantum twist — a pull toward cutting across the player's
+   projected path. Skill < 1 means sometimes it just picks a safe
+   heading at random, so it stays beatable. */
+function floodSpace(sx, sy, cap) {
+  var seen = new Uint8Array(COLS * ROWS);
+  var stack = [sy * COLS + sx];
+  seen[sy * COLS + sx] = 1;
+  var count = 0;
+  while (stack.length && count < cap) {
+    var cur = stack.pop();
+    count++;
+    var cx = cur % COLS, cy = (cur / COLS) | 0;
+    for (var d = 0; d < 4; d++) {
+      var nx = cx + DIRS[d].x, ny = cy + DIRS[d].y;
+      if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
+      var ni = ny * COLS + nx;
+      if (seen[ni] || grid[ni]) continue;
+      seen[ni] = 1;
+      stack.push(ni);
+    }
+  }
+  return count;
+}
+function rayClear(x, y, dir, cap) {
+  var n = 0, cx = x, cy = y;
+  while (n < cap) {
+    cx += DIRS[dir].x; cy += DIRS[dir].y;
+    if (cx < 0 || cy < 0 || cx >= COLS || cy >= ROWS || grid[cy * COLS + cx]) break;
+    n++;
+  }
+  return n;
+}
+function aiDecide(r) {
+  var player = riders[0];
+  /* Long-line driving: once a rival settles on a heading it commits to
+     that line for several steps before thinking again, so its trail
+     runs in long straight stretches instead of tight zig-zags. The
+     commitment is dropped the moment the line ahead gets dangerous,
+     so wall/trail avoidance stays sharp. */
+  if (r.commit > 0) {
+    var ax0 = r.x + DIRS[r.dir].x, ay0 = r.y + DIRS[r.dir].y;
+    var aheadFree = ax0 >= 0 && ay0 >= 0 && ax0 < COLS && ay0 < ROWS && !grid[ay0 * COLS + ax0];
+    if (aheadFree && rayClear(r.x, r.y, r.dir, 4) >= 3) {
+      r.commit--;
+      return;
+    }
+    r.commit = 0;
+  }
+  var opts = [];
+  [-1, 0, 1].forEach(function (rel) {
+    var dir = (r.dir + rel + 4) % 4;
+    var nx = r.x + DIRS[dir].x, ny = r.y + DIRS[dir].y;
+    if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS || grid[ny * COLS + nx]) return; /* certain death */
+    var s = floodSpace(nx, ny, 320) + rayClear(nx, ny, dir, 26) * 7 + Math.random() * 14;
+    if (rel === 0) s += 22; /* strong preference for holding a line — long straight runs */
+    if (player.alive && r.aggro > 0) {
+      /* the cell the player is driving toward — cut across it */
+      var ax = player.x + DIRS[player.dir].x * 7, ay = player.y + DIRS[player.dir].y * 7;
+      var dist = Math.abs(nx - ax) + Math.abs(ny - ay);
+      s += Math.max(0, 26 - dist) * r.aggro * 1.6;
+    }
+    opts.push({ dir: dir, s: s });
+  });
+  if (!opts.length) return; /* boxed in — nowhere safe, ride it out */
+  opts.sort(function (a, b) { return b.s - a.s; });
+  var pick = (Math.random() < r.skill) ? opts[0] : opts[(Math.random() * opts.length) | 0];
+  var turned = pick.dir !== r.dir;
+  r.dir = pick.dir;
+  /* hold the chosen line: longer after a turn, so trails stretch out */
+  r.commit = turned ? 6 + ((Math.random() * 6) | 0) : 3 + ((Math.random() * 4) | 0);
+}
+
+/* ---------- one movement step (all riders move simultaneously) ---------- */
+function step() {
+  var alive = riders.filter(function (r) { return r.alive; });
+  /* decisions first: player applies the queued turn, rivals think */
+  alive.forEach(function (r) {
+    if (r.player) {
+      if (r.pendingTurn !== 0) {
+        r.dir = (r.dir + r.pendingTurn + 4) % 4;
+        r.pendingTurn = 0;
+      }
+    } else aiDecide(r);
+  });
+  /* intended next cells */
+  var next = alive.map(function (r) {
+    return { r: r, x: r.x + DIRS[r.dir].x, y: r.y + DIRS[r.dir].y, dead: false, hitOwner: -1 };
+  });
+  /* deaths: wall, any trail, two heads claiming one cell, head-on swap */
+  next.forEach(function (n, i) {
+    if (n.x < 0 || n.y < 0 || n.x >= COLS || n.y >= ROWS) { n.dead = true; return; }
+    var occ = grid[n.y * COLS + n.x];
+    if (occ) { n.dead = true; n.hitOwner = occ - 1; return; }
+    next.forEach(function (m, j) {
+      if (j === i || m.dead) return;
+      if (m.x === n.x && m.y === n.y) { n.dead = true; m.dead = true; }
+      if (m.r.x === n.x && m.r.y === n.y && n.r.x === m.x && n.r.y === m.y) { n.dead = true; m.dead = true; }
+    });
+  });
+  var playerDied = false;
+  next.forEach(function (n) {
+    var r = n.r;
+    r.px = r.x; r.py = r.y;
+    if (n.dead) {
+      r.alive = false;
+      spawnCrash(r, n.x, n.y);
+      sfxCrash(r.player);
+      if (r.player) playerDied = true;
+      else {
+        score += 150;
+        popups.push({ x: n.x, y: n.y, text: "+150", color: r.def.core, life: 1 });
+        if (n.hitOwner === 0) {
+          score += 250;
+          popups.push({ x: n.x, y: n.y - 1.4, text: "YOUR TRAIL +250", color: "#bdeaff", life: 1 });
+        }
+      }
+      return;
+    }
+    /* move: the cell left behind becomes trail */
+    grid[r.y * COLS + r.x] = r.idx + 1;
+    paintSegment(r, r.x, r.y, n.x, n.y);
+    r.trailPath.push([n.x, n.y]);
+    r.x = n.x; r.y = n.y;
+    grid[r.y * COLS + r.x] = r.idx + 1;
+  });
+  if (riders[0].alive) score += 2; /* survival tick */
+  paintChips(); updateHUD();
+  var rivalsLeft = riders.slice(1).filter(function (r) { return r.alive; }).length;
+  if (playerDied) {
+    pendingWin = false;
+    state = "roundover"; overAcc = 0;
+  } else if (rivalsLeft === 0) {
+    score += 400;
+    roundsWon++;
+    pendingWin = true;
+    bannerText = "🏆 ROUND " + round + " WON! +400";
+    bannerColor = "#ffd964";
+    bannerUntil = performance.now() + 1500;
+    sfxWin();
+    state = "roundover"; overAcc = 0;
+    updateHUD();
+  }
+}
+
+/* ---------- crash effects ---------- */
+function spawnCrash(r, cx, cy) {
+  var c = cellCenter(Math.max(0, Math.min(COLS - 1, cx)), Math.max(0, Math.min(ROWS - 1, cy)));
+  for (var i = 0; i < 30; i++) {
+    var a = Math.random() * Math.PI * 2, sp = 0.4 + Math.random() * 2.4;
+    particles.push({
+      x: c.x, y: c.y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 1, decay: 0.014 + Math.random() * 0.02,
+      size: 1.4 + Math.random() * 2.6,
+      color: Math.random() < 0.35 ? r.def.core : r.def.color
+    });
+  }
+  flashes.push({ x: c.x, y: c.y, r: cellPx * 0.6, color: r.def.color, life: 1 });
+}
+
+/* ---------- rendering ---------- */
+function drawHead(r, t) {
+  var fx = r.px + (r.x - r.px) * t, fy = r.py + (r.y - r.py) * t;
+  var c = cellCenter(fx, fy);
+  var R = cellPx * 0.98;
+  ctx.save();
+  if (r.player) {
+    /* Q-Bot halo: a big, bright blue glow so the player pops at a
+       glance among the red/yellow/green rivals. Gently pulsing. */
+    var pulse = 0.85 + 0.15 * Math.sin(performance.now() / 240);
+    ctx.shadowColor = "#29b6ff";
+    ctx.shadowBlur = cellPx * 2.8 * pulse;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, R * 1.08, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(41,182,255,0.34)";
+    ctx.fill();
+    ctx.shadowBlur = cellPx * 1.9 * pulse;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, R * 1.02, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(160,228,255,0.95)";
+    ctx.lineWidth = Math.max(2, cellPx * 0.2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  ctx.shadowColor = r.def.color;
+  ctx.shadowBlur = r.player ? cellPx * 1.9 : cellPx * 1.15;
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, R, 0, Math.PI * 2);
+  ctx.fillStyle = "#04101e";
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = Math.max(2, cellPx * 0.17);
+  ctx.strokeStyle = r.player ? "#aee6ff" : r.def.color;
+  ctx.stroke();
+  /* the rider's face, zoomed 1.22x inside the circle crop so the
+     sticker's baked-in gold frame stays hidden — and only once the
+     face has actually loaded (never a placeholder shape) */
+  var src = FACE[r.def.face] || IMG[r.def.face];
+  if (src) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, R * 0.86, 0, Math.PI * 2);
+    ctx.clip();
+    var s = R * 2 * 0.86 * 1.22;
+    ctx.drawImage(src, c.x - s / 2, c.y - s / 2, s, s);
+    ctx.restore();
+  }
+  /* nose tick so the heading reads at a glance */
+  var d = DIRS[r.dir];
+  ctx.beginPath();
+  ctx.arc(c.x + d.x * R * 0.92, c.y + d.y * R * 0.92, Math.max(1.6, cellPx * 0.13), 0, Math.PI * 2);
+  ctx.fillStyle = r.def.core;
+  ctx.fill();
+  ctx.restore();
+}
+function draw(now) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, viewPx, viewPx);
+  ctx.drawImage(bgLayer, 0, 0, viewPx, viewPx);
+  ctx.drawImage(trailLayer, 0, 0, viewPx, viewPx);
+  var t = (state === "play") ? Math.min(1, stepAcc / effStepMs()) : 1;
+  riders.forEach(function (r) { if (r.alive) drawHead(r, t); });
+  /* particles */
+  particles = particles.filter(function (p) { return p.life > 0; });
+  particles.forEach(function (p) {
+    p.x += p.vx; p.y += p.vy; p.vx *= 0.96; p.vy *= 0.96; p.life -= p.decay;
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  /* crash flash rings */
+  flashes = flashes.filter(function (f) { return f.life > 0; });
+  flashes.forEach(function (f) {
+    f.r += cellPx * 0.55; f.life -= 0.045;
+    ctx.globalAlpha = Math.max(0, f.life) * 0.8;
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+  /* floating score popups */
+  popups = popups.filter(function (p) { return p.life > 0; });
+  popups.forEach(function (p) {
+    p.life -= 0.012; p.y -= 0.03;
+    var c = cellCenter(p.x, p.y);
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.6));
+    ctx.font = "800 " + Math.max(12, cellPx * 0.95) + "px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = "rgba(0,0,0,.8)"; ctx.shadowBlur = 6;
+    ctx.fillText(p.text, c.x, c.y);
+    ctx.shadowBlur = 0;
+  });
+  ctx.globalAlpha = 1;
+  /* banner */
+  if (bannerText && now < bannerUntil) {
+    ctx.font = "900 " + Math.round(viewPx * 0.052) + "px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = bannerColor;
+    ctx.shadowColor = bannerColor; ctx.shadowBlur = 18;
+    ctx.fillText(bannerText, viewPx / 2, viewPx * 0.16);
+    ctx.shadowBlur = 0;
+  }
+  /* countdown */
+  if (state === "countdown") {
+    var label = countStage > 0 ? String(countStage) : "GO!";
+    ctx.font = "900 " + Math.round(viewPx * 0.19) + "px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = countStage > 0 ? "#7fdcff" : "#2eff7a";
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 30;
+    ctx.fillText(label, viewPx / 2, viewPx * 0.56);
+    ctx.shadowBlur = 0;
+    ctx.font = "700 " + Math.round(viewPx * 0.032) + "px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = "rgba(232,244,255,.85)";
+    ctx.fillText("ROUND " + round + " — get ready…", viewPx / 2, viewPx * 0.66);
+  }
+}
+
+/* ---------- main loop ---------- */
+function loop(ts) {
+  requestAnimationFrame(loop);
+  if (!lastT) lastT = ts;
+  var dt = Math.min(100, ts - lastT);
+  lastT = ts;
+  if (state === "countdown") {
+    countAcc += dt;
+    if (countAcc >= 720) {
+      countAcc = 0;
+      countStage--;
+      if (countStage < 0) { state = "play"; stepAcc = 0; }
+      else sfxCount(countStage === 0);
+    }
+  } else if (state === "play") {
+    playElapsed += dt;
+    var eff = effStepMs();
+    stepAcc += dt;
+    while (stepAcc >= eff && state === "play") {
+      stepAcc -= eff;
+      step();
+    }
+  } else if (state === "roundover") {
+    overAcc += dt;
+    if (overAcc >= (pendingWin ? 1500 : 1050)) {
+      if (pendingWin) { round++; resetRound(); }
+      else endGame();
+    }
+  }
+  draw(ts);
+}
+</script>
+<script>
+/* ================= leaderboard + likes (Firebase, lazy) ================= */
+var FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+var fbPromise = null;
+function loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+function loadFirebase() {
+  if (!fbPromise) {
+    fbPromise = loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js")
+      .then(function () { return loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"); })
+      .then(function () {
+        var app = firebase.initializeApp(FB_CONFIG);
+        return firebase.firestore(app);
+      });
+  }
+  return fbPromise;
+}
+var BLOCKED = ["fuck","shit","bitch","cunt","dick","cock","pussy","porn","sex","nude","naked","boob","tits","cum","anal","whore","slut","fag","nigger","nigga","vagina","penis","dildo","horny","hentai","onlyfans","wank","jizz","boner","rape","pedo","incest","blowjob","asshole","twat"];
+var LEET = {"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s","!":"i"};
+function nameBlocked(name) {
+  var n = String(name).toLowerCase().split("").map(function (ch) { return LEET[ch] || ch; }).join("").replace(/[^a-z]/g, "");
+  return BLOCKED.some(function (w) { return n.indexOf(w) !== -1; });
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (ch) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+  });
+}
+function boardHTML(rows, myName, myScore) {
+  if (!rows.length) return "<div class='board-note'>No scores yet — be the first on the board!</div>";
+  var marked = false;
+  var html = "<table class='board'><tr><th>#</th><th>Name</th><th class='r'>Score</th></tr>";
+  rows.forEach(function (r, i) {
+    var me = !marked && myName != null && r.name === myName && r.score === myScore;
+    if (me) marked = true;
+    html += "<tr" + (me ? " class='me'" : "") + "><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td class='r'>" + r.score + "</td></tr>";
+  });
+  return html + "</table>";
+}
+async function fetchBoard() {
+  var db = await loadFirebase();
+  var snap = await db.collection("scores").orderBy("score", "desc").limit(50).get();
+  var rows = [];
+  snap.forEach(function (d) {
+    var v = d.data();
+    if (v && v.game === "tron" && typeof v.score === "number" && typeof v.name === "string" && !nameBlocked(v.name)) {
+      rows.push({ name: v.name, score: v.score });
+    }
+  });
+  return rows.slice(0, 10);
+}
+$("lbForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  if (submitted) return;
+  var name = $("lbName").value.trim();
+  var msg = $("lbMsg");
+  if (!name) { msg.textContent = "Type a name first"; msg.className = "lb-msg err"; return; }
+  if (nameBlocked(name)) {
+    msg.textContent = "That name isn't allowed — pick another";
+    msg.className = "lb-msg err"; tone(160, 0.15, "sawtooth", 0.08); return;
+  }
+  var btn = $("lbSubmit"); btn.disabled = true; btn.textContent = "Submitting…";
+  try {
+    var db = await loadFirebase();
+    await db.collection("scores").add({
+      name: name, score: score, game: "tron", ts: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    submitted = true;
+    msg.textContent = "Score submitted!"; msg.className = "lb-msg ok";
+    btn.textContent = "Submitted ✓";
+    sfxWin();
+    try { $("overBoard").innerHTML = boardHTML(await fetchBoard(), name, score); }
+    catch (err) { $("overBoard").innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+  } catch (err) {
+    msg.textContent = "Leaderboard unavailable right now"; msg.className = "lb-msg err";
+    btn.disabled = false; btn.textContent = "Submit Score";
+  }
+});
+$("lbBtn").addEventListener("click", async function () {
+  $("lbPanel").classList.add("show");
+  var body = $("lbPanelBody");
+  body.innerHTML = "<div class='board-note'>Loading…</div>";
+  try { body.innerHTML = boardHTML(await fetchBoard(), null, null); }
+  catch (e) { body.innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+});
+$("lbClose").addEventListener("click", function () { $("lbPanel").classList.remove("show"); });
+$("lbPanel").addEventListener("click", function (e) { if (e.target === $("lbPanel")) $("lbPanel").classList.remove("show"); });
+
+/* ================= like button ================= */
+/* Same heart as the site game cards: one doc per game in the
+   `likes` collection, count moved in ±1 steps only. The player's
+   own like is held for this visit only. */
+var likeBusy = false;
+var liked = false;
+function paintLike(count) {
+  $("likeBtn").querySelector(".heart").textContent = liked ? "❤️" : "🤍";
+  if (typeof count === "number") $("likeCount").textContent = count;
+}
+async function loadLike() {
+  paintLike();
+  try {
+    var db = await loadFirebase();
+    var snap = await db.collection("likes").doc("tron").get();
+    paintLike(snap.exists ? (snap.data().count || 0) : 0);
+  } catch (e) { $("likeCount").textContent = "–"; }
+}
+$("likeBtn").addEventListener("click", async function () {
+  if (likeBusy) return;
+  likeBusy = true;
+  var was = liked;
+  var delta = was ? -1 : 1;
+  try {
+    var db = await loadFirebase();
+    var ref = db.collection("likes").doc("tron");
+    try {
+      await ref.update({ count: firebase.firestore.FieldValue.increment(delta) });
+    } catch (e1) {
+      await ref.set({ count: Math.max(0, delta) }, { merge: true });
+    }
+    var snap = await ref.get();
+    var c = snap.exists ? (snap.data().count || 0) : 0;
+    liked = !was;
+    paintLike(Math.max(0, c));
+  } catch (e) { /* leave the heart as it was */ }
+  likeBusy = false;
+});
+
+/* ================= init ================= */
+makeRiders();
+loadImages();
+loadLike();
+sizeCanvas();
+updateHUD();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
