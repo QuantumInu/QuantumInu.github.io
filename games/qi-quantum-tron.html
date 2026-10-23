@@ -322,10 +322,64 @@ function sfxWin() {
   [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.16, "square", 0.06, i * 0.09); });
   tone(1319, 0.3, "square", 0.05, 0.38);
 }
+/* ---------- engine hum (the player's light cycle) ----------
+   A sustained two-oscillator detuned sawtooth growl through a
+   lowpass filter — unlike the one-shot effects above it runs for
+   the whole round. Its pitch tracks the game's live speed via
+   effStepMs(): as the in-round ramp climbs (1x toward the 2x cap)
+   the note climbs with it, and each later round's faster base
+   speed starts the engine higher. Quiet on purpose: a background
+   presence sitting under the crash/turn effects. */
+var eng = null; /* { o1, o2, flt, g } while the engine is running */
+function engineFreq() { return 50 * (118 / effStepMs()); }
+function engineCutoff() { return 260 + 200 * (118 / effStepMs()); }
+function startEngine() {
+  if (eng) { updateEnginePitch(); return; }
+  var ac = audio(); if (!ac) return;
+  var o1 = ac.createOscillator(); o1.type = "sawtooth";
+  var o2 = ac.createOscillator(); o2.type = "sawtooth";
+  var flt = ac.createBiquadFilter(); flt.type = "lowpass"; flt.Q.value = 2;
+  var g = ac.createGain();
+  var t = ac.currentTime;
+  o1.frequency.setValueAtTime(engineFreq(), t);
+  o2.frequency.setValueAtTime(engineFreq(), t);
+  o1.detune.setValueAtTime(-6, t);
+  o2.detune.setValueAtTime(8, t);
+  flt.frequency.setValueAtTime(engineCutoff(), t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.03, t + 0.3);
+  o1.connect(flt); o2.connect(flt); flt.connect(g); g.connect(ac.destination);
+  o1.start(); o2.start();
+  eng = { o1: o1, o2: o2, flt: flt, g: g };
+}
+function updateEnginePitch() {
+  if (!eng || !AC) return;
+  var t = AC.currentTime;
+  eng.o1.frequency.setTargetAtTime(engineFreq(), t, 0.08);
+  eng.o2.frequency.setTargetAtTime(engineFreq(), t, 0.08);
+  eng.flt.frequency.setTargetAtTime(engineCutoff(), t, 0.1);
+}
+function stopEngine() {
+  if (!eng) return;
+  var e = eng; eng = null;
+  if (!AC) return;
+  var t = AC.currentTime;
+  try {
+    e.g.gain.cancelScheduledValues(t);
+    e.g.gain.setValueAtTime(Math.max(0.0001, e.g.gain.value), t);
+    e.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    e.o1.stop(t + 0.25); e.o2.stop(t + 0.25);
+  } catch (err) { /* nodes already gone — nothing to stop */ }
+}
 $("soundBtn").addEventListener("click", function () {
   soundOn = !soundOn;
   this.textContent = soundOn ? "🔊 Sound On" : "🔇 Sound Off";
-  if (soundOn) sfxTurn();
+  if (soundOn) {
+    sfxTurn();
+    if (state === "countdown" || state === "play") startEngine();
+  } else {
+    stopEngine();
+  }
 });
 </script>
 <script>
@@ -520,6 +574,7 @@ function resetRound() {
   countStage = 3; countAcc = 0;
   state = "countdown";
   paintChips(); updateHUD();
+  startEngine(); /* the engine note starts at this round's base speed */
   sfxCount(false);
 }
 function startGame() {
@@ -531,6 +586,7 @@ function startGame() {
   resetRound();
 }
 function endGame() {
+  stopEngine();
   state = "gameover";
   if (score > best) { best = score; $("newBest").style.display = ""; }
   else $("newBest").style.display = "none";
@@ -712,6 +768,7 @@ function step() {
   var rivalsLeft = riders.slice(1).filter(function (r) { return r.alive; }).length;
   if (playerDied) {
     pendingWin = false;
+    stopEngine(); /* the player's cycle is gone — the hum dies with it */
     state = "roundover"; overAcc = 0;
   } else if (rivalsLeft === 0) {
     score += 400;
@@ -721,6 +778,7 @@ function step() {
     bannerColor = "#ffd964";
     bannerUntil = performance.now() + 1500;
     sfxWin();
+    stopEngine(); /* round over — engine off until the next round starts */
     state = "roundover"; overAcc = 0;
     updateHUD();
   }
@@ -877,6 +935,7 @@ function loop(ts) {
     }
   } else if (state === "play") {
     playElapsed += dt;
+    updateEnginePitch(); /* the note climbs with the in-round speed ramp */
     var eff = effStepMs();
     stepAcc += dt;
     while (stepAcc >= eff && state === "play") {
