@@ -1626,6 +1626,15 @@ section.searching .pager{display:none!important}
   <div class="sechead"><h2>Games</h2><input class="searchbox" id="gameSearch" type="search" placeholder="Search games — try puzzle, runner, match…" aria-label="Search the games"></div>
   <p class="sub">Play with the pack — QI games right in your browser. No downloads, no sign-ups.</p>
   <div class="games-grid">
+  <div class="gamecard" id="game-tron">
+    <a href="games/qi-quantum-tron.html"><img src="assets/games/qi-quantum-tron.jpg" alt="QI Quantum Tron — Quantum Inu light cycle game"></a>
+    <div class="game-head"><h3>🏍️ QI Quantum Tron</h3><button class="dl-btn copy-link" type="button" data-link="#game-tron">Copy link</button></div>
+    <p>Classic light cycles, Quantum Inu style. You ride Q-Bot in the glowing blue cycle against three rival pups — red, yellow, and green. Trails are walls, the last cycle riding wins the round, and the grid keeps speeding up the longer you survive.</p>
+    <div class="card-actions">
+    <a class="btn primary" href="games/qi-quantum-tron.html">▶ Play Quantum Tron</a>
+    <button class="like-btn" type="button" data-game="tron" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count">…</span></button>
+    </div>
+  </div>
   <div class="gamecard" id="game-zuma">
     <a href="games/qi-quantum-zuma.html"><img src="assets/games/qi-quantum-zuma.jpg" alt="QI Quantum Zuma — Quantum Inu marble shooter game"></a>
     <div class="game-head"><h3>🔮 QI Quantum Zuma</h3><button class="dl-btn copy-link" type="button" data-link="#game-zuma">Copy link</button></div>
@@ -1761,6 +1770,18 @@ section.searching .pager{display:none!important}
   </div>
 </section>
 
+
+<section id="requestgame">
+  <h2>🎮 Request A Game</h2>
+  <p class="sub">Want a QI game we haven't built yet? Drop your idea here — every request is reviewed.</p>
+  <div class="sub-form">
+    <label for="reqGame">Game idea</label>
+    <input type="text" id="reqGame" maxlength="120" placeholder="e.g. QI Quantum Pinball">
+    <button class="sub-go" id="reqGo" type="button">Request game</button>
+    <div class="sub-status" id="reqStatus"></div>
+  </div>
+</section>
+
 <section id="leaderboards">
   <h2>🏆 Leaderboards</h2>
   <p class="sub">Top scores from the pack — posted from the games themselves.</p>
@@ -1780,6 +1801,7 @@ section.searching .pager{display:none!important}
       <option value="crush">Quantum Crush</option>
       <option value="mines">Quantum Mines</option>
       <option value="zuma">Quantum Zuma</option>
+      <option value="tron">Quantum Tron</option>
     </select>
   </div>
   <div class="lb-list" id="lb-list"><p class="lb-msg">Loading scores…</p></div>
@@ -3296,6 +3318,44 @@ async function subSubmit() {
 const subGoBtn = document.getElementById('subGo');
 if (subGoBtn) subGoBtn.addEventListener('click', subSubmit);
 </script>
+<script type="module">
+// ===== Game requests (Request A Game) =====
+// A visitor types one game idea. The request lands in the "gamerequests"
+// Firestore collection with status "pending". NOTHING is built or
+// published automatically — every request is reviewed first. Security
+// rules keep this lane create-only: nobody can read or list requests.
+const REQ_CFG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+let reqBusy = false;
+const reqEl = id => document.getElementById(id);
+function reqStatus(t) { const el = reqEl('reqStatus'); if (el) el.textContent = t; }
+async function reqSubmit() {
+  if (reqBusy) return;
+  const idea = (reqEl('reqGame').value || '').trim();
+  if (!idea) return reqStatus('Type your game idea first. \uD83C\uDFAE');
+  reqBusy = true; reqEl('reqGo').disabled = true;
+  reqStatus('Sending\u2026 \u23F3');
+  try {
+    const appMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    let app = appMod.getApps()[0];
+    if (!app) { try { app = appMod.initializeApp(REQ_CFG); } catch (e) { app = appMod.getApp(); } }
+    const db = fsMod.getFirestore(app);
+    const ref = fsMod.doc(fsMod.collection(db, 'gamerequests'));
+    await fsMod.setDoc(ref, { request: idea.slice(0, 120), status: 'pending', ts: Date.now() });
+    reqStatus('Request sent \u2014 thanks! \u2705');
+    reqEl('reqGame').value = '';
+  } catch (e) {
+    console.error('game request failed', e);
+    reqStatus('Sending failed \u2014 check your connection and try again.');
+  }
+  reqBusy = false; reqEl('reqGo').disabled = false;
+}
+const reqGoBtn = document.getElementById('reqGo');
+if (reqGoBtn) reqGoBtn.addEventListener('click', reqSubmit);
+const reqInput = document.getElementById('reqGame');
+if (reqInput) reqInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); reqSubmit(); } });
+</script>
+
 
 <script>
 // Games + Music: 9 per page, Gallery-style pager (appears only past one page).
