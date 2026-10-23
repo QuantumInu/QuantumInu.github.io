@@ -651,11 +651,16 @@ function insertProjectile() {
   /* make room: push head-side balls toward the pit. Logic snaps to the
      new spacing instantly, but each shoved ball keeps a visual offset
      (vis = where it was minus where it now is) that decays to zero in
-     update(), so on screen the balls slide apart instead of jumping. */
+     update(), so on screen the balls slide apart instead of jumping.
+     Every shove is recorded: if this shot pops, the shove is undone on
+     the survivors (below) — a pop must never leave the line pushed
+     toward the pit. */
+  var shoved = [];
   for (var j = idx - 1; j >= 0; j--) {
     var oldJ = balls[j].s;
     if (balls[j].s < balls[j + 1].s + D) balls[j].s = balls[j + 1].s + D; else break;
     balls[j].vis = (balls[j].vis || 0) + (oldJ - balls[j].s);
+    if (balls[j].s !== oldJ) shoved.push({ b: balls[j], amt: balls[j].s - oldJ });
   }
   for (var k = idx + 1; k < balls.length; k++) {
     var oldK = balls[k].s;
@@ -664,7 +669,17 @@ function insertProjectile() {
   }
   proj = null;
   updateHUD();
-  if (!checkMatchAt(idx, 1)) { sfxThud(); sfxBuzz(); }
+  if (checkMatchAt(idx, 1)) {
+    /* the shot popped: undo this shot's forward shove on every shoved
+       ball that survived the pop. It returns to exactly where it sat
+       before the shot (vis cleared, so no forward glide either), and
+       from there the pop's own rollback takes over — after a pop the
+       line only ever shrinks backward from the front. */
+    for (var q = 0; q < shoved.length; q++) {
+      var sb = shoved[q].b;
+      if (balls.indexOf(sb) !== -1) { sb.s -= shoved[q].amt; sb.vis = 0; }
+    }
+  } else { sfxThud(); sfxBuzz(); }
 }
 function fire() {
   if (state !== "playing" || proj || reload > 0 || !curBall) return;
@@ -762,8 +777,14 @@ function update(dt) {
     levelTime += dt;
     sinceSpawn += dt;
     if (feedBoostT > 0) feedBoostT -= dt;
-    pusher += v * dt;
-    if (balls.length) {
+    /* while a pop's gap is still closing, nothing advances toward the
+       pit: the pusher holds and the bead push is skipped, so the
+       line's only motion is the front segment rolling back to close
+       the gap (gap closing, below) */
+    var closing = false;
+    for (i = 0; i < balls.length; i++) if (balls[i].rollBack) { closing = true; break; }
+    if (!closing) pusher += v * dt;
+    if (!closing && balls.length) {
       var tail = balls[balls.length - 1];
       /* the pusher stays glued one spacing behind the tail. When a
          pop removes the tail run, the tail used to land far ahead of
