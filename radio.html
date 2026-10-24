@@ -932,6 +932,86 @@
       var totTimeEl = document.getElementById("totTime");
       var seeking = false;
 
+      /* ---------- Media Session: car controls, lock screen, swipe-down card ----------
+         Hands the playing track to the OS media layer so steering-wheel /
+         dash buttons, the lock screen, and the swipe-down Now Playing card
+         can drive playback and show the title, artist, and cover art.
+         Metadata always comes from the track actually loaded in the player
+         (set in loadTrack), never from a list position. Everything is
+         guarded: browsers without the API just skip all of this. */
+      var msSupported = "mediaSession" in navigator;
+      function msSetMetadata(t) {
+        if (!msSupported) return;
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: t.title,
+            artist: t.artist,
+            album: "Quantum Radio",
+            artwork: [
+              { src: t.art, sizes: "256x256", type: "image/jpeg" },
+              { src: t.art, sizes: "512x512", type: "image/jpeg" }
+            ]
+          });
+        } catch (e) { /* metadata is best-effort */ }
+      }
+      function msSetPlaybackState(s) {
+        if (!msSupported) return;
+        try { navigator.mediaSession.playbackState = s; } catch (e) { /* best-effort */ }
+      }
+      function msSetPositionState() {
+        if (!msSupported || !navigator.mediaSession.setPositionState) return;
+        if (!isFinite(audio.duration) || audio.duration <= 0) return;
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate || 1,
+            position: Math.min(Math.max(0, audio.currentTime || 0), audio.duration)
+          });
+        } catch (e) { /* some browsers throw while a new source is loading */ }
+      }
+      function msSeekBy(offset) {
+        if (!isFinite(audio.currentTime)) return;
+        var target = audio.currentTime + offset;
+        if (target < 0) target = 0;
+        if (isFinite(audio.duration) && audio.duration > 0 && target > audio.duration) target = audio.duration;
+        try { audio.currentTime = target; } catch (e) { /* ignore */ }
+        msSetPositionState();
+      }
+      if (msSupported) {
+        msSetPlaybackState("none");
+        var msHandlers = {
+          play: function () {
+            if (state.currentId === -1) { togglePlay(); return; }
+            audio.play().catch(function () {});
+          },
+          pause: function () { audio.pause(); },
+          previoustrack: function () { step(-1); },
+          nexttrack: function () { step(1); },
+          seekbackward: function (details) {
+            msSeekBy(-((details && details.seekOffset) || 10));
+          },
+          seekforward: function (details) {
+            msSeekBy((details && details.seekOffset) || 10);
+          },
+          seekto: function (details) {
+            if (!details || typeof details.seekTime !== "number" || !isFinite(details.seekTime)) return;
+            if (details.fastSeek && typeof audio.fastSeek === "function") {
+              try { audio.fastSeek(details.seekTime); } catch (e) { /* ignore */ }
+            } else {
+              var t = details.seekTime;
+              if (t < 0) t = 0;
+              if (isFinite(audio.duration) && audio.duration > 0 && t > audio.duration) t = audio.duration;
+              try { audio.currentTime = t; } catch (e) { /* ignore */ }
+            }
+            msSetPositionState();
+          }
+        };
+        Object.keys(msHandlers).forEach(function (action) {
+          try { navigator.mediaSession.setActionHandler(action, msHandlers[action]); }
+          catch (e) { /* this browser doesn't know that action — skip it */ }
+        });
+      }
+
       /* ---------- expandable now playing ---------- */
       var playerEl = document.querySelector(".player");
       var npExpand = document.getElementById("npExpand");
@@ -1017,6 +1097,7 @@
         npBigArtist.textContent = t.artist + " · " + t.genre;
         npFullTitle.textContent = t.title;
         npFullArtist.textContent = t.artist + " · " + t.genre;
+        msSetMetadata(t);
         fitNpFullSoon();
         playerEl.classList.add("has-track");
         npFull.setAttribute("aria-hidden", expanded ? "true" : "false");
@@ -1104,17 +1185,22 @@
 
       audio.addEventListener("play", function () {
         document.body.classList.add("playing");
+        msSetPlaybackState("playing");
+        msSetPositionState();
         playIcon.style.display = "none";
         pauseIcon.style.display = "block";
         playBtn.setAttribute("aria-label", "Pause");
       });
       audio.addEventListener("pause", function () {
         document.body.classList.remove("playing");
+        msSetPlaybackState("paused");
+        msSetPositionState();
         playIcon.style.display = "block";
         pauseIcon.style.display = "none";
         playBtn.setAttribute("aria-label", "Play");
       });
       audio.addEventListener("ended", function () {
+        msSetPlaybackState("paused");
         if (state.repeat === 2) { audio.currentTime = 0; audio.play().catch(function () {}); return; }
         var pos = state.orderPos + 1;
         if (pos >= state.order.length) {
@@ -1125,6 +1211,10 @@
       });
       audio.addEventListener("loadedmetadata", function () {
         if (isFinite(audio.duration)) totTimeEl.textContent = fmt(audio.duration);
+        msSetPositionState();
+      });
+      audio.addEventListener("durationchange", function () {
+        msSetPositionState();
       });
       audio.addEventListener("timeupdate", function () {
         if (seeking) return;
@@ -1134,6 +1224,7 @@
           seekEl.value = p;
           setFill(seekEl, (p / 1000) * 100);
         }
+        msSetPositionState();
       });
 
       function setFill(el, pct) { el.style.setProperty("--fill", pct + "%"); }
@@ -1145,6 +1236,7 @@
       seekEl.addEventListener("change", function () {
         if (isFinite(audio.duration)) audio.currentTime = (seekEl.value / 1000) * audio.duration;
         seeking = false;
+        msSetPositionState();
       });
 
       /* ---------- no pull-to-refresh, no zoom ---------- */
