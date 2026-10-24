@@ -451,9 +451,10 @@ var canvas = $("game"), ctx = canvas.getContext("2d");
 var stage = $("stage");
 var viewW = 440, viewH = 440, dpr = 1;
 
-var state = "menu"; /* menu | countdown | play | over */
-var fighters = [], bullets = [], lootItems = [], walls = [], particles = [], popups = [], feed = [], fx = [];
+var state = "menu"; /* menu | countdown | play | dying | over */
+var fighters = [], bullets = [], lootItems = [], walls = [], particles = [], popups = [], feed = [], fx = [], debris = [];
 var shake = 0;
+var deathTimer = 0, deathPlace = 0, deathFlash = 0;
 var cam = { x: 0, y: 0 };
 var player = null;
 var score = 0, best = 0, placement = 0, wonGame = false, submitted = false;
@@ -609,7 +610,8 @@ function banner(text, color, ms) {
 /* ---------- world generation ---------- */
 function genWorld() {
   rng = mulberry((Math.random() * 1e9) | 0);
-  bullets = []; particles = []; popups = []; feed = []; fx = []; shake = 0;
+  bullets = []; particles = []; popups = []; feed = []; fx = []; debris = []; shake = 0;
+  deathTimer = 0; deathPlace = 0; deathFlash = 0;
   /* spawn ring: the player plus 23 bots spread around the centre */
   var spawns = [];
   var baseA = rng() * Math.PI * 2;
@@ -811,6 +813,48 @@ function burst(x, y, color, n, spd) {
 function popup(x, y, text, color) {
   popups.push({ x: x, y: y - 24, text: text, color: color, life: 1 });
 }
+/* ---------- player destroy effect ----------
+   Q-Bot doesn't just vanish when he's eliminated: he blows apart.
+   A core flash, triple shockwave rings, a spray of sparks in his
+   blue/cyan colours (plus hot orange/gold explosion colours), and
+   spinning hull shards that tumble out under gravity and fade.
+   The arena holds on this for a beat (state "dying") before the
+   eliminated card appears — see startDeathSequence / the loop. */
+function spawnPlayerDestroy(x, y) {
+  burst(x, y, "#29b6ff", 36, 270);
+  burst(x, y, "#7fdcff", 28, 215);
+  burst(x, y, "#ffffff", 18, 175);
+  burst(x, y, "#ffd21f", 20, 305);
+  burst(x, y, "#ff8a3d", 22, 245);
+  fx.push({ x: x, y: y, r: 6, maxR: 118, life: 1, color: "#7fdcff" });
+  fx.push({ x: x, y: y, r: 4, maxR: 82, life: 0.9, color: "#ffd21f" });
+  fx.push({ x: x, y: y, r: 2, maxR: 155, life: 0.8, color: "#29b6ff" });
+  var shardCols = ["#29b6ff", "#7fdcff", "#dbeeff", "#ffd21f", "#ff8a3d"];
+  for (var i = 0; i < 22; i++) {
+    var a = Math.random() * Math.PI * 2, sp = 70 + Math.random() * 265;
+    debris.push({
+      x: x, y: y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 34,
+      rot: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * 14,
+      w: 4 + Math.random() * 8, h: 3 + Math.random() * 6,
+      life: 1, decay: 0.55 + Math.random() * 0.5,
+      color: shardCols[i % shardCols.length]
+    });
+  }
+  shake = Math.max(shake, 20);
+  deathFlash = 1;
+  sfxExplosion(1);
+  tone(220, 0.5, "sawtooth", 0.09, 0, 38);
+  tone(880, 0.22, "square", 0.05, 0.02, 110);
+}
+function startDeathSequence(place) {
+  if (state === "dying" || state === "over") return;
+  deathPlace = place;
+  deathTimer = 1.55; /* the slight pause: watch the wreck, then the card */
+  state = "dying";
+  resetSticks();
+  if (player) spawnPlayerDestroy(player.x, player.y);
+}
 function feedPush(text, color) {
   feed.push({ text: text, color: color || "#e8f4ff", until: performance.now() + 4200 });
   if (feed.length > 4) feed.shift();
@@ -891,7 +935,7 @@ function killFighter(v, attacker) {
   if (roll < 0.3) lootItems.push({ type: "heal", tier: -1, x: v.x - 14, y: v.y + 8, taken: false, bob: 0 });
   else if (roll < 0.55) lootItems.push({ type: "shield", tier: -1, x: v.x - 14, y: v.y + 8, taken: false, bob: 0 });
   var left = aliveCount();
-  if (v.player) endGame(false, left + 1);
+  if (v.player) startDeathSequence(left + 1);
   else if (left === 1 && player.alive) endGame(true, 1);
   updateHUD();
 }
@@ -1660,7 +1704,35 @@ function draw(now) {
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 0.7, 0, Math.PI * 2); ctx.fill();
   });
   ctx.globalAlpha = 1;
+  /* destroy debris: Q-Bot's hull shards tumble out, spin, fall and fade */
+  debris = debris.filter(function (p) { return p.life > 0; });
+  debris.forEach(function (p) {
+    p.x += p.vx * 0.016; p.y += p.vy * 0.016;
+    p.vx *= 0.96; p.vy = p.vy * 0.96 + 260 * 0.016;
+    p.rot += p.vr * 0.016; p.life -= p.decay * 0.016;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color; ctx.shadowBlur = 8;
+    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
   ctx.restore();
+
+  /* destroy flash: a bright blue-white pop that fades fast,
+     leaving the explosion and shards to play out in the pause */
+  if (deathFlash > 0.01) {
+    ctx.save();
+    ctx.globalAlpha = deathFlash * 0.5;
+    ctx.fillStyle = "#cfeeff";
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.restore();
+    deathFlash *= 0.88;
+    if (deathFlash < 0.02) deathFlash = 0;
+  }
 
   /* ---------- storm overlay ---------- */
   if (storm && state !== "menu") {
@@ -1815,6 +1887,21 @@ function loop(ts) {
     }
   } else if (state === "play") {
     update(dt);
+  } else if (state === "dying") {
+    /* slight pause on the wreck: the camera holds on the spot where
+       Q-Bot blew apart while particles, rings and shards play out
+       in draw(); only when the timer runs down does the
+       "Eliminated" card appear */
+    deathTimer -= dt;
+    if (player) {
+      cam.x = clamp(player.x - viewW / 2, 0, Math.max(0, WORLD - viewW));
+      cam.y = clamp(player.y - viewH / 2, 0, Math.max(0, WORLD - viewH));
+    }
+    if (deathTimer <= 0) {
+      var dp = deathPlace;
+      deathPlace = 0;
+      endGame(false, dp || TOTAL);
+    }
   }
   draw(ts);
 }
@@ -2043,7 +2130,11 @@ window.__royale = {
   givePlayer: function (t) { player.owned[t] = true; player.weapon = t; updateHUD(); },
   get owned() { return player ? player.owned : null; },
   switchWeapon: function () { cycleWeapon(); },
-  get fx() { return fx; }
+  get fx() { return fx; },
+  get debris() { return debris; },
+  get particles() { return particles; },
+  get deathTimer() { return deathTimer; },
+  get deathFlash() { return deathFlash; }
 };
 </script>
 </body>
