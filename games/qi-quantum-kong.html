@@ -86,13 +86,21 @@
     .card-overlay .detail { font-size:13px; line-height:1.45; }
     .card-overlay .big { font-size:21px; }
   }
-  /* touch pad */
-  .touchpad { display:none; margin-top:9px; justify-content:space-between; align-items:flex-end; gap:8px; }
+  /* touch pad — the live game's exact flex bar and button geometry
+     (arrows 58px, clusters gap 8px, JUMP 76px gold circle), with ONE
+     change: the JUMP cluster moves into the middle, so the row reads
+     ◀ ▶ · JUMP · ▲ ▼. No width-based resizing of the buttons at any
+     viewport — the only rule that ever changes their size is the
+     short-viewport one above, identical to the live game. The two
+     arrow clusters are equal width (124px), so space-between lands
+     JUMP dead center; spare width goes to the gaps between the three
+     groups, never to the buttons, and the groups cannot shrink. */
+  .touchpad { display:none; margin-top:9px; justify-content:space-between; align-items:flex-end; gap:4px; }
   @media (pointer:coarse) { .touchpad { display:flex; } }
-  .touchpad .cluster { display:flex; gap:8px; align-items:flex-end; }
+  .touchpad .cluster { display:flex; gap:8px; align-items:flex-end; flex:none; }
   .tbtn { font:inherit; font-size:20px; font-weight:900; color:#e8f4ff; background:rgba(127,220,255,.12);
     border:1px solid rgba(127,220,255,.45); border-radius:16px; width:58px; height:58px; cursor:pointer; touch-action:none; }
-  .tbtn.jump { width:76px; height:76px; border-radius:50%; font-size:14px; letter-spacing:1px; color:#03101f;
+  .tbtn.jump { width:76px; height:76px; border-radius:50%; font-size:14px; letter-spacing:1px; color:#03101f; flex:none;
     background:linear-gradient(180deg,#ffe98a,#ffc93c); border-color:rgba(255,217,100,.8); }
   .tbtn.on, .tbtn:active { background:rgba(127,220,255,.38); transform:scale(.95); }
   .tbtn.jump.on, .tbtn.jump:active { background:linear-gradient(180deg,#fff3b0,#ffd23c); }
@@ -123,7 +131,6 @@
 </style>
 </head>
 <body>
-<a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
 <canvas id="spaceBg" aria-hidden="true"></canvas>
 <div class="wrap">
   <h1><span class="q">QI</span> QUANTUM KONG</h1>
@@ -173,11 +180,11 @@
       <button class="tbtn" id="btnRight" type="button" aria-label="Move right">▶</button>
     </div>
     <div class="cluster">
-      <button class="tbtn" id="btnUp" type="button" aria-label="Climb up">▲</button>
-      <button class="tbtn" id="btnDown" type="button" aria-label="Climb down">▼</button>
+      <button class="tbtn jump" id="btnJump" type="button" aria-label="Jump">JUMP</button>
     </div>
     <div class="cluster">
-      <button class="tbtn jump" id="btnJump" type="button" aria-label="Jump">JUMP</button>
+      <button class="tbtn" id="btnUp" type="button" aria-label="Climb up">▲</button>
+      <button class="tbtn" id="btnDown" type="button" aria-label="Climb down">▼</button>
     </div>
   </div>
 
@@ -477,7 +484,7 @@ var LADDER_SEP = 110;
    alternating pattern — the free windows shrink to ~10px — killing
    the fresh random layout every level. 80px is still 4 full ladder
    widths: rows never overlap, never line up edge-to-edge, and the
-   ±14px climb grab can never mistake one row's ladder for the
+   ±26px climb grab can never mistake one row's ladder for the
    next, while random layouts stay genuinely random. */
 var CROSS_SEP = 80;
 function genLadders() {
@@ -596,15 +603,26 @@ var stateT = 0, throwT = 1.2, throwAnim = 0, timeNow = 0;
 var reached = {}; /* girder index -> true, per level */
 var player = null;
 
-function barrelSpeed() { return Math.min(192, 94 + (level - 1) * 13); }
-function throwInterval() { return Math.max(0.8, 1.8 - (level - 1) * 0.2); }
+function barrelSpeed() {
+  /* one gradual curve for the whole game: ~75 px/s on level 1,
+     +11 px/s every level after that, capped at the same ~192 px/s
+     as before. Orbs keep their 1.3x multiplier off this base. */
+  return Math.min(192, 75 + (level - 1) * 11);
+}
+function throwInterval() {
+  /* one gradual curve for the whole game: one throw every 2.4s on
+     level 1, tightening 0.2s per level (2.2s, 2.0s, 1.8s, …) down
+     to the same 0.8s floor as before — always on the even clock. */
+  return Math.max(0.8, 2.4 - (level - 1) * 0.2);
+}
 /* Safety valve only — deliberately far above anything real play can
    reach, so it can NEVER suppress or delay a scheduled throw (a cap
    that binds would bunch the next ball up against the one after it
    and break the level's even spawn pace). The physics bound: the
    longest possible barrel trip is the full 2,528px zigzag at the
-   level's roll speed — ~27s at level 1 (≈15 alive at the 1.8s pace),
-   ~16s at the 0.8s-pace levels (≈20 alive). 40 clears both. */
+   level's roll speed — ~34s at level 1 (≈14 alive at the 2.4s pace),
+   ~13s at the fastest levels (≈17 alive at the 0.8s pace). 40
+   clears both. */
 function barrelCap() { return 40; }
 
 function resetPlayer() {
@@ -758,10 +776,15 @@ function updateBarrel(b, dt) {
 
 /* ================= player ================= */
 var RUN = 168, GRAV = 1700, JUMP_V = 480, CLIMB = 124;
+/* climb grab leeway: the player's center only has to be within
+   GRAB px of the ladder's center to start a climb (about the
+   player's own width) — no need to stand dead under it. The climb
+   branch below then eases the player onto the ladder's center. */
+var GRAB = 26;
 function ladderAt(x, girderIdx, wantLow) {
   for (var i = 0; i < LADDERS.length; i++) {
     var L = LADDERS[i];
-    if (Math.abs(x - L.x) <= 14 && (wantLow ? L.low === girderIdx : L.high === girderIdx)) return L;
+    if (Math.abs(x - L.x) <= GRAB && (wantLow ? L.low === girderIdx : L.high === girderIdx)) return L;
   }
   return null;
 }
@@ -775,6 +798,13 @@ function updatePlayer(dt) {
 
   if (p.climb) {
     var L = p.climb;
+    /* smooth align: a climb grabbed off-center (within GRAB)
+       slides the player onto the ladder's center — a quick ease,
+       never a teleport cut; settled well before the climb ends */
+    if (p.x !== L.x) {
+      p.x += (L.x - p.x) * Math.min(1, dt * 14);
+      if (Math.abs(L.x - p.x) < 0.5) p.x = L.x;
+    }
     var yTop = GIRDERS[L.high].top, yBot = GIRDERS[L.low].top;
     var dirY = 0;
     if (keys.up) dirY = -1; else if (keys.down) dirY = 1;
@@ -806,11 +836,11 @@ function updatePlayer(dt) {
     /* start climbing? */
     if (keys.up) {
       var up = ladderAt(p.x, p.girder, true);
-      if (up) { p.climb = up; p.x = up.x; p.girder = -1; p.vy = 0; return; }
+      if (up) { p.climb = up; p.girder = -1; p.vy = 0; return; }
     }
     if (keys.down) {
       var dn = ladderAt(p.x, p.girder, false);
-      if (dn) { p.climb = dn; p.x = dn.x; p.girder = -1; p.vy = 0; return; }
+      if (dn) { p.climb = dn; p.girder = -1; p.vy = 0; return; }
     }
     /* jump */
     if (p.jumpBuf > 0) {
