@@ -352,9 +352,9 @@ function drawStars(camX, camY, S) {
   }
 }
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
-function drawPlayer(wx, wy, hero, name, flip, bobP, chat, chatAge, isMe, t) {
+function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving) {
   const img = heroImgs[hero]; if (!img) return;
-  const bob = Math.sin(t / 300 + bobP) * 3;
+  const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * 11 : Math.sin(t / 620 + phase) * 1.4;
   const H = 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8);
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy + 6, W * 0.36, 9, 0, 0, 7); ctx.fill();
@@ -470,7 +470,7 @@ function frame(now) {
   }
   publish(false);
   const roomW = me.scene === "plaza" ? WORLD.w : ROOM.w, roomH = me.scene === "plaza" ? WORLD.h : ROOM.h;
-  SCALE = Math.max(0.3, Math.min(VW / 1550, VH / 1150, 0.95));
+  SCALE = Math.max(0.36, Math.min(VW / 1280, VH / 980, 1.0));
   camX = Math.max(0, Math.min(roomW - VW / SCALE, me.x - VW / (2 * SCALE)));
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
   if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
@@ -490,8 +490,9 @@ function frame(now) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   for (const a of actors) {
     const isMe = a === me;
-    const bobP = isMe ? (me.moving ? now / 90 : now / 400) : a.bob + (now / 400);
-    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, bobP, a.chat, isMe ? now - me.chatAt : now - (a.chatAt || 0), isMe, now);
+    const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
+    const phase = isMe ? 0 : a.bob * 7;
+    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, isMe ? now - me.chatAt : now - (a.chatAt || 0), isMe, now, moving);
   }
   ctx.restore();
   const cab = nearestCabinet();
