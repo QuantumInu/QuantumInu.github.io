@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>Quantum Arcade</title>
+    <style>
+      :root {
+        --bg: #050914;
+        --panel: rgba(16, 32, 62, 0.72);
+        --panel-solid: #0d1c36;
+        --panel-hover: rgba(34, 211, 238, 0.08);
+        --line: rgba(125, 180, 255, 0.14);
+        --text: #eaf4ff;
+        --muted: #9db4d4;
+        --faint: #6d86ab;
+        --cyan: #22d3ee;
+        --cyan-deep: #0ea5c6;
+        --gold: #f5c451;
+        --radius: 14px;
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
+      body {
+        margin: 0;
+        overscroll-behavior: none;
+        touch-action: manipulation;
+        font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+        color: var(--text);
+        background: linear-gradient(180deg, #020617 0%, #050a24 100%);
+        background-color: #020617;
+        min-height: 100vh;
+      }
+      #bgCanvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 26px 18px 28px;
+      }
+      /* ---------- header (same as Quantum Radio) ---------- */
+      header.hero { display: flex; gap: 18px; align-items: center; margin-bottom: 18px; }
+      .arcade-badge {
+        flex: 0 0 auto;
+        width: 76px; height: 76px;
+        display: grid; place-items: center;
+        font-size: 38px;
+        border-radius: 20px;
+        background: linear-gradient(145deg, rgba(34,211,238,.25), rgba(14,60,120,.55));
+        border: 1px solid rgba(34,211,238,.45);
+        box-shadow: 0 0 26px rgba(34,211,238,.28), inset 0 0 18px rgba(34,211,238,.15);
+      }
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(28px, 5.4vw, 44px);
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        line-height: 1.05;
+      }
+      .hero h1 .accent { color: var(--cyan); }
+      .hero p { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
+      .hero p strong { color: var(--gold); font-weight: 700; }
+      /* ---------- toolbar ---------- */
+      .toolbar {
+        display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+        margin-bottom: 12px;
+      }
+      .searchbox {
+        flex: 1 1 240px;
+        display: flex; align-items: center; gap: 9px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0 16px;
+        backdrop-filter: blur(8px);
+      }
+      .searchbox svg { flex: 0 0 auto; opacity: .75; }
+      .searchbox input {
+        flex: 1; min-width: 0;
+        background: none; border: 0; outline: 0;
+        color: var(--text);
+        font: inherit; font-size: 16px;
+        padding: 12px 0;
+      }
+      .searchbox input::placeholder { color: var(--faint); }
+      .btn {
+        appearance: none; border: 0; cursor: pointer;
+        font: inherit; font-weight: 700; font-size: 15px;
+        border-radius: 999px;
+        padding: 12px 22px;
+        display: inline-flex; align-items: center; gap: 8px;
+        text-decoration: none;
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+      }
+      .btn:active { transform: scale(.97); }
+      .btn-play {
+        background: linear-gradient(135deg, #38e0f8, var(--cyan-deep));
+        color: #03222e;
+        box-shadow: 0 4px 22px rgba(34,211,238,.35);
+      }
+      .btn:focus-visible, .chip:focus-visible, .genre-toggle:focus-visible, .like-btn:focus-visible, .sort-btn:focus-visible, .game-cover:focus-visible {
+        outline: 2px solid var(--cyan); outline-offset: 2px;
+      }
+      .sort-btn {
+        appearance: none; cursor: pointer;
+        font: inherit; font-size: 14.5px; font-weight: 600;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 11px 16px;
+        display: inline-flex; align-items: center; gap: 8px;
+        backdrop-filter: blur(8px);
+        white-space: nowrap;
+      }
+      .sort-btn .s-label {
+        color: var(--faint); font-weight: 700; font-size: 12px;
+        letter-spacing: .06em; text-transform: uppercase;
+      }
+      .sort-btn .s-current { color: var(--cyan); }
+      /* ---------- category menu (collapsible, same as Radio's genre menu) ---------- */
+      .genre-menu { margin: 4px 0 16px; }
+      .genre-toggle {
+        appearance: none; cursor: pointer;
+        font: inherit; font-size: 14.5px; font-weight: 600;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 9px 16px;
+        display: inline-flex; align-items: center; gap: 9px;
+        backdrop-filter: blur(8px);
+      }
+      .genre-toggle .g-label {
+        color: var(--faint); font-weight: 700; font-size: 12px;
+        letter-spacing: .06em; text-transform: uppercase;
+      }
+      .genre-toggle .g-current { color: var(--cyan); }
+      .genre-toggle svg { transition: transform .4s cubic-bezier(.32,.72,.24,1); }
+      .genre-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+      .genre-panel {
+        display: grid; grid-template-rows: 0fr;
+        opacity: 0; visibility: hidden;
+        transition: grid-template-rows .45s cubic-bezier(.32,.72,.24,1), opacity .35s ease, visibility 0s linear .45s;
+      }
+      .genre-panel.open {
+        grid-template-rows: 1fr;
+        opacity: 1; visibility: visible;
+        transition: grid-template-rows .45s cubic-bezier(.32,.72,.24,1), opacity .35s ease, visibility 0s;
+      }
+      .genre-panel-in { overflow: hidden; min-height: 0; }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
+      .chip {
+        appearance: none; cursor: pointer;
+        font: inherit; font-size: 13.5px; font-weight: 600;
+        color: var(--muted);
+        background: rgba(13, 28, 54, .8);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 7px 14px;
+      }
+      .chip[aria-pressed="true"] {
+        color: #03222e;
+        background: var(--cyan);
+        border-color: var(--cyan);
+      }
+      /* ---------- game library: cards a little bigger than Radio's track rows ---------- */
+      .library {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .game-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        backdrop-filter: blur(10px);
+        overflow: hidden;
+        display: flex; flex-direction: column;
+        transition: border-color .15s ease, background .15s ease;
+      }
+      .game-card:hover { border-color: rgba(34,211,238,.4); background: rgba(20, 42, 78, 0.78); }
+      .game-cover { display: block; flex: 0 0 auto; }
+      .game-cover img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 628 / 352;
+        object-fit: cover;
+        background: #12294d;
+      }
+      .game-body {
+        padding: 16px 18px 18px;
+        display: flex; flex-direction: column; gap: 9px;
+        flex: 1 1 auto;
+      }
+      .game-head {
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+      }
+      .game-title {
+        margin: 0;
+        font-size: 19px; font-weight: 750; line-height: 1.25;
+        letter-spacing: -0.2px;
+      }
+      .cat-pill {
+        flex: 0 0 auto;
+        font-size: 11.5px; font-weight: 700;
+        letter-spacing: .05em; text-transform: uppercase;
+        color: var(--cyan);
+        border: 1px solid rgba(34,211,238,.4);
+        border-radius: 999px;
+        padding: 4px 10px;
+        margin-top: 2px;
+        white-space: nowrap;
+      }
+      .game-desc {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14.5px; line-height: 1.55;
+        flex: 1 1 auto;
+      }
+      .game-actions {
+        display: flex; align-items: center; gap: 10px;
+        margin-top: 4px;
+      }
+      .game-actions .btn-play { padding: 11px 20px; font-size: 14.5px; }
+      .game-actions .btn-play .ext { font-size: 12px; opacity: .75; }
+      /* per-game like — same Firestore docs as the homepage game cards */
+      .like-btn {
+        appearance: none; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 4px;
+        background: rgba(255,255,255,.05);
+        border: 1px solid rgba(125,180,255,.18);
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 7px 12px 7px 10px;
+        font: inherit; font-size: 13.5px; font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+        flex: 0 0 auto;
+        margin-left: auto;
+      }
+      .like-btn:active { transform: scale(.92); }
+      .like-btn .lheart { font-size: 13px; line-height: 1; }
+      .like-btn.liked { color: var(--text); border-color: rgba(244,114,182,.45); }
+      .empty {
+        padding: 44px 20px; text-align: center; color: var(--muted);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        backdrop-filter: blur(10px);
+        display: none;
+      }
+      .empty.show { display: block; }
+      .foot {
+        margin: 18px 4px 0;
+        color: var(--faint); font-size: 13px; text-align: center;
+      }
+      .foot a { color: var(--cyan); text-decoration: none; }
+      @media (prefers-reduced-motion: reduce) {
+        .btn, .game-card { transition: none; }
+        .genre-panel, .genre-toggle svg { transition: none; }
+      }
+      /* ---------- responsive ---------- */
+      @media (max-width: 1020px) {
+        .library { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      @media (max-width: 720px) {
+        .library { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+        .arcade-badge { width: 60px; height: 60px; font-size: 30px; border-radius: 16px; }
+        .game-title { font-size: 18px; }
+        .game-body { padding: 14px 15px 16px; }
+        .sort-btn { padding: 10px 14px; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bgCanvas" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <header class="hero">
+        <div class="arcade-badge" aria-hidden="true">🕹️</div>
+        <div>
+          <h1>Quantum <span class="accent">Arcade</span></h1>
+          <p>Every game from the quantum realm, in one arcade — <strong id="gameCount">20 games</strong></p>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <label class="searchbox">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9db4d4" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.8-3.8"/></svg>
+          <input id="search" type="search" placeholder="Search games…" aria-label="Search games" autocomplete="off" />
+        </label>
+        <button class="sort-btn" id="sortBtn" type="button" aria-label="Toggle sort order">
+          <span class="s-label">Sort</span>
+          <span class="s-current" id="sortCurrent">Newest</span>
+        </button>
+      </div>
+
+      <div class="genre-menu">
+        <button class="genre-toggle" id="genreToggle" type="button" aria-expanded="false" aria-controls="genrePanel">
+          <span class="g-label">Category</span>
+          <span class="g-current" id="genreCurrent">All categories</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="genre-panel" id="genrePanel">
+          <div class="genre-panel-in">
+            <div class="chips" id="chips" role="group" aria-label="Filter by category"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="library" id="library" aria-label="Quantum Arcade game library"></div>
+      <div class="empty" id="emptyState">No games match that search. Try another title or category.</div>
+
+      <p class="foot">All games play free in your browser at <a href="https://quantuminuofficial.com" target="_blank" rel="noopener">quantuminuofficial.com</a> — the home of Quantum Inu.</p>
+    </div>
+
+    <script>
+      "use strict";
+      var SITE = "https://quantuminuofficial.com/games/";
+      // Catalog in the site's newest-first order — same order as the Games
+      // section on quantuminuofficial.com. file = the game's page on the site;
+      // img = its key art, copied into this artifact's assets.
+      var GAMES = [
+        ["asteroids","☄️ QI Quantum Asteroids","Shooter","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg","Pilot the Q-Bot's ship through the belt and blast the boulders apart — larges split into mediums, mediums into smalls, and a golden atom is worth +250. Every wave brings more rocks, moving faster. Three ships — how deep can you get?","Play Quantum Asteroids"],
+        ["whack","🔨 QI Quantum Whack-a-Pup","Arcade","qi-quantum-whack.html","qi-quantum-whack.jpg","Sixty seconds, nine craters, and the whole 106-sticker pack popping up faster and faster. Bonk a pup for +10, a gold pup for +30 — just keep the mallet off the grumpy ones (−15).","Play Whack-a-Pup"],
+        ["kong","🦍 QI Quantum Kong","Arcade","qi-quantum-kong.html","qi-quantum-kong.jpg","Classic arcade climbing, Quantum Inu style. Play as Q-Bot and climb the girders and ladders to the golden goal while a random pup up top hurls barrels and glowing quantum orbs down at you.","Play Quantum Kong"],
+        ["merge","🧩 QI Quantum Merge","Puzzle","qi-quantum-merge.html","qi-quantum-merge.jpg","The 2048-style merge ladder, Quantum Inu style. Slide the board and merge two of the same pup to evolve them into the next tier — chain your merges, climb the ladder, and don't let the board fill up.","Play Quantum Merge"],
+        ["royale","👑 QI Quantum Royale","Action","qi-quantum-royale.html","qi-quantum-royale.jpg","Battle royale, Quantum Inu style. Drop into a galaxy arena as Q-Bot, grab the color blasters — blue regular, red rapid, green shotgun, yellow rocket — and outlast 23 sticker pups while the storm closes in.","Play Quantum Royale"],
+        ["tron","🏍️ QI Quantum Tron","Arcade","qi-quantum-tron.html","qi-quantum-tron.jpg","Classic light cycles, Quantum Inu style. Ride Q-Bot's glowing blue cycle against three rival pups — red, yellow, and green. Trails are walls, the last cycle riding wins, and the grid keeps speeding up.","Play Quantum Tron"],
+        ["zuma","🔮 QI Quantum Zuma","Puzzle","qi-quantum-zuma.html","qi-quantum-zuma.jpg","Marble shooter with the QI sticker pack. Shoot pup balls into the spiral chain and match 3 or more of a color to pop them — combos multiply. Clear the chain to level up before it reaches the pit.","Play Quantum Zuma"],
+        ["mines","💣 QI Quantum Mines","Puzzle","qi-quantum-mines.html","qi-quantum-mines.jpg","Minesweeper, Quantum Inu style. 16 grumpy bombs hide in a 9×12 field — the numbers tell you how many grumpies touch each tile. Clear every safe tile for +5 each and the whole field for a +200 bonus.","Play Quantum Mines"],
+        ["crush","💎 QI Quantum Crush","Puzzle","qi-quantum-crush.html","qi-quantum-crush.jpg","Match-3 with the QI sticker pack. Swap pups to line up three or more — every game deals six faces from the full 106 pack, cascades chain for bonus points, and you have 30 moves to run up the score.","Play Quantum Crush"],
+        ["runner","🤖 QI Quantum Runner","Arcade","qi-quantum-runner.html","qi-quantum-runner.jpg","The Robot pup runs on his own — you just jump. Tap to jump, tap again mid-air to double jump: clear the crystal spikes and grab blue diamonds for +10 points each. One hit ends the run.","Play Quantum Runner"],
+        ["flap","🪽 QI Quantum Flap","Arcade","qi-quantum-flap.html","qi-quantum-flap.jpg","One tap, one pup, infinite cosmos. Pick any pup from the full 106-sticker pack and thread the crystal gates — every gate is +1 and the cosmos speeds up with every point.","Play Quantum Flap"],
+        ["breakout","🧱 QI Sticker Breakout","Arcade","qi-sticker-breakout.html","qi-sticker-breakout.jpg","Classic breakout with the QI sticker pack. Bounce the ball off your paddle and smash through the sticker wall — clear the board and chase the high score.","Play Sticker Breakout"],
+        ["echo","🔊 QI Quantum Echo","Memory","qi-quantum-echo.html","qi-quantum-echo.jpg","Memory echo with the QI sticker pack. Watch the stickers light up in a pattern, then tap them back in the same order — every round adds one more, and one wrong tap breaks the echo.","Play Quantum Echo"],
+        ["chase","👾 QI Rogue Chase","Arcade","qi-rogue-chase.html","qi-rogue-chase.jpg","Maze chase with the QI sticker pack. Eat every atom and outrun four hunters dealt fresh from the pack each run — golden atoms turn them blue and edible for a few seconds.","Play Rogue Chase"],
+        ["snake","🐍 QI Sticker Snake","Arcade","qi-sticker-snake.html","qi-sticker-snake.jpg","Classic snake with the QI sticker pack. Eat atoms to grow — every catch deals the next sticker onto your tail, so a long run parades the whole pack. Golden atoms pay bonus points.","Play Sticker Snake"],
+        ["tetris","🧩 QI Sticker Tetris","Puzzle","qi-sticker-tetris.html","qi-sticker-tetris.jpg","Falling-block puzzle with the QI sticker pack. Every game deals seven fresh stickers — stack them, clear lines, and chase the high score as the speed climbs.","Play Sticker Tetris"],
+        ["slots","🎰 QI Slots","Casino","qi-slots.html","qi-slots.jpg","Magical slot machine with the QI sticker pack. Spin the enchanted reels, land pairs and triples, and cash out your credits for the high score.","Play QI Slots"],
+        ["shooter","🚀 QI Space Shooter","Shooter","qi-space-shooter.html","qi-space-shooter.jpg","Galaga-style space shooter. Pilot the Q-Bot, blast waves of rogue QI stickers, and catch the falling upgrades — laser, duplicates, twin blasters, and shields.","Play Space Shooter"],
+        ["battle","⚔️ QI Sticker Battle","Action","qi-sticker-battle.html","qi-sticker-battle.jpg","Card-battle RPG with the QI sticker pack. Play HIT and HEAL cards against rogue stickers, survive wave after wave, and chase the high score.","Play Sticker Battle"],
+        ["spellmatch","🃏 QI Sticker Spellmatch","Memory","qi-sticker-spellmatch.html","qi-sticker-spellmatch.jpg","Memory match with the QI sticker pack. Flip the face-down cards and match 2 to seal the pair — seal all 8 pairs, build streaks, and chase the high score.","Play Spellmatch"]
+      ].map(function (r, i) {
+        return { id: i, key: r[0], title: r[1], category: r[2],
+                 url: SITE + r[3], img: "assets/games/" + r[4], desc: r[5], play: r[6] };
+      });
+
+      var libraryEl = document.getElementById("library");
+      var emptyEl = document.getElementById("emptyState");
+      var searchEl = document.getElementById("search");
+      var chipsEl = document.getElementById("chips");
+
+      var state = { query: "", category: "All", sortAZ: false };
+
+      /* ---------- likes: same Firestore docs as the homepage game cards ----------
+         Project quantum-inu-games, collection "likes", doc = the game's key
+         (e.g. "asteroids") — the same counter the homepage card shows.
+         Liked state is held for this session; the count itself is shared.
+         Fails quietly (heart, no count) if Firestore can't be reached. */
+      var FB_CFG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+      var fsDb = null, fsMod = null, fsPromise = null;
+      var likeState = {};
+      var currentLikeBtns = {};
+      GAMES.forEach(function (g) { likeState[g.key] = { count: null, liked: false }; });
+
+      function ensureFs() {
+        if (fsDb) return Promise.resolve(true);
+        if (fsPromise) return fsPromise;
+        fsPromise = Promise.all([
+          import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"),
+          import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js")
+        ]).then(function (mods) {
+          var app;
+          try { app = mods[0].initializeApp(FB_CFG); } catch (e) { app = mods[0].getApp(); }
+          fsMod = mods[1];
+          fsDb = fsMod.getFirestore(app);
+          return true;
+        }).catch(function () { return false; });
+        return fsPromise;
+      }
+      function paintLike(key, btn) {
+        btn = btn || currentLikeBtns[key];
+        if (!btn) return;
+        var st = likeState[key];
+        btn.classList.toggle("liked", !!st.liked);
+        btn.setAttribute("aria-pressed", st.liked ? "true" : "false");
+        btn.querySelector(".lheart").textContent = st.liked ? "❤️" : "🤍";
+        btn.querySelector(".lcount").textContent = st.count === null ? "" : st.count;
+      }
+      function loadLikeCounts() {
+        ensureFs().then(function (ok) {
+          if (!ok) return;
+          GAMES.forEach(function (g) {
+            fsMod.getDoc(fsMod.doc(fsDb, "likes", g.key)).then(function (snap) {
+              likeState[g.key].count = snap.exists() ? (snap.data().count || 0) : 0;
+              paintLike(g.key);
+            }).catch(function () { /* leave the heart without a count */ });
+          });
+        });
+      }
+      function toggleLike(key, btn) {
+        if (btn.dataset.busy) return;
+        btn.dataset.busy = "1";
+        ensureFs().then(function (ok) {
+          if (!ok) { delete btn.dataset.busy; return; }
+          var st = likeState[key];
+          var delta = st.liked ? -1 : 1;
+          var ref = fsMod.doc(fsDb, "likes", key);
+          var write = fsMod.updateDoc(ref, { count: fsMod.increment(delta) }).catch(function (e) {
+            // Same fallback as the homepage: a never-seeded doc gets created
+            // in the rules-allowed shape, then the ±1 step is retried once.
+            return fsMod.getDoc(ref).then(function (snap) {
+              if (snap.exists() || delta < 0) throw e;
+              return fsMod.setDoc(ref, { game: key, count: 0 }).then(function () {
+                return fsMod.updateDoc(ref, { count: fsMod.increment(delta) });
+              });
+            });
+          });
+          write.then(function () {
+            st.count = Math.max(0, (st.count || 0) + delta);
+            st.liked = !st.liked;
+            paintLike(key, btn);
+          }).catch(function () { /* leave UI unchanged */ })
+            .then(function () { delete btn.dataset.busy; });
+        });
+      }
+
+      /* ---------- categories / chips ---------- */
+      var categories = ["All"];
+      GAMES.forEach(function (g) { if (categories.indexOf(g.category) === -1) categories.push(g.category); });
+      categories.forEach(function (c) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.textContent = c;
+        b.setAttribute("aria-pressed", c === "All" ? "true" : "false");
+        b.addEventListener("click", function () {
+          state.category = c;
+          chipsEl.querySelectorAll(".chip").forEach(function (x) {
+            x.setAttribute("aria-pressed", x === b ? "true" : "false");
+          });
+          document.getElementById("genreCurrent").textContent = c === "All" ? "All categories" : c;
+          setGenreMenu(false);
+          render();
+        });
+        chipsEl.appendChild(b);
+      });
+
+      /* ---------- category menu toggle ---------- */
+      var genreToggle = document.getElementById("genreToggle");
+      var genrePanel = document.getElementById("genrePanel");
+      function setGenreMenu(open) {
+        genrePanel.classList.toggle("open", open);
+        genreToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      genreToggle.addEventListener("click", function () {
+        setGenreMenu(!genrePanel.classList.contains("open"));
+      });
+
+      /* ---------- sort toggle: Newest (site order) <-> Title A–Z ---------- */
+      var sortBtn = document.getElementById("sortBtn");
+      sortBtn.addEventListener("click", function () {
+        state.sortAZ = !state.sortAZ;
+        document.getElementById("sortCurrent").textContent = state.sortAZ ? "Title A–Z" : "Newest";
+        render();
+      });
+
+      /* ---------- displayed list ---------- */
+      function displayed() {
+        var q = state.query.trim().toLowerCase();
+        var list = GAMES.filter(function (g) {
+          if (state.category !== "All" && g.category !== state.category) return false;
+          if (!q) return true;
+          return (g.title + " " + g.category + " " + g.desc).toLowerCase().indexOf(q) !== -1;
+        });
+        if (state.sortAZ) {
+          list = list.slice().sort(function (a, b) {
+            var x = a.title.toLowerCase(), y = b.title.toLowerCase();
+            return x < y ? -1 : (x > y ? 1 : a.id - b.id);
+          });
+        }
+        return list;
+      }
+
+      function render() {
+        var list = displayed();
+        libraryEl.innerHTML = "";
+        currentLikeBtns = {};
+        list.forEach(function (g) {
+          var card = document.createElement("article");
+          card.className = "game-card";
+
+          var cover = document.createElement("a");
+          cover.className = "game-cover";
+          cover.href = g.url;
+          cover.target = "_blank";
+          cover.rel = "noopener";
+          cover.setAttribute("aria-label", g.play + " (opens in a new window)");
+          var img = document.createElement("img");
+          img.src = g.img;
+          img.alt = g.title + " — game artwork";
+          img.loading = "lazy";
+          cover.appendChild(img);
+
+          var body = document.createElement("div");
+          body.className = "game-body";
+
+          var head = document.createElement("div");
+          head.className = "game-head";
+          var title = document.createElement("h3");
+          title.className = "game-title";
+          title.textContent = g.title;
+          var pill = document.createElement("span");
+          pill.className = "cat-pill";
+          pill.textContent = g.category;
+          head.appendChild(title);
+          head.appendChild(pill);
+
+          var desc = document.createElement("p");
+          desc.className = "game-desc";
+          desc.textContent = g.desc;
+
+          var actions = document.createElement("div");
+          actions.className = "game-actions";
+          var play = document.createElement("a");
+          play.className = "btn btn-play";
+          play.href = g.url;
+          play.target = "_blank";
+          play.rel = "noopener";
+          play.innerHTML = "▶ " + g.play + ' <span class="ext" aria-hidden="true">↗</span>';
+
+          var like = document.createElement("button");
+          like.type = "button";
+          like.className = "like-btn";
+          like.setAttribute("aria-label", "Like " + g.title);
+          var lheart = document.createElement("span");
+          lheart.className = "lheart";
+          lheart.setAttribute("aria-hidden", "true");
+          lheart.textContent = "🤍";
+          var lcount = document.createElement("span");
+          lcount.className = "lcount";
+          like.appendChild(lheart);
+          like.appendChild(lcount);
+          like.addEventListener("click", function () { toggleLike(g.key, like); });
+          paintLike(g.key, like);
+          currentLikeBtns[g.key] = like;
+
+          actions.appendChild(play);
+          actions.appendChild(like);
+
+          body.appendChild(head);
+          body.appendChild(desc);
+          body.appendChild(actions);
+
+          card.appendChild(cover);
+          card.appendChild(body);
+          libraryEl.appendChild(card);
+        });
+        emptyEl.classList.toggle("show", list.length === 0);
+        var gc = document.getElementById("gameCount");
+        gc.textContent = list.length === GAMES.length
+          ? GAMES.length + " games"
+          : list.length + " of " + GAMES.length + " games";
+      }
+
+      /* ---------- search ---------- */
+      searchEl.addEventListener("input", function () {
+        state.query = searchEl.value;
+        render();
+      });
+
+      /* ---------- no pull-to-refresh, no zoom (same as Quantum Radio) ---------- */
+      document.addEventListener("gesturestart", function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener("gesturechange", function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener("gestureend", function (e) { e.preventDefault(); }, { passive: false });
+      document.addEventListener("wheel", function (e) { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+      document.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === "+" || e.key === "-" || e.key === "=" || e.key === "0")) {
+          e.preventDefault();
+        }
+      });
+
+      /* ---------- background: twinkling stars + shooting comets (same as Quantum Radio / main site) ---------- */
+      (function () {
+        var canvas = document.getElementById("bgCanvas");
+        if (!canvas) return;
+        var ctx = canvas.getContext("2d");
+        var W = 0, H = 0, stars = [], comets = [];
+        var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        function resize() {
+          W = canvas.width = window.innerWidth;
+          H = canvas.height = window.innerHeight;
+          stars = [];
+          for (var i = 0; i < 140; i++) {
+            stars.push({
+              x: Math.random() * W,
+              y: Math.random() * H,
+              r: 0.3 + Math.random() * 1.4,
+              phase: Math.random() * Math.PI * 2,
+              speed: 0.4 + Math.random() * 1.1
+            });
+          }
+        }
+
+        function spawnComet() {
+          comets.push({
+            x: W * (0.45 + Math.random() * 0.55),
+            y: H * Math.random() * 0.35,
+            vx: -(6.5 + Math.random() * 4.5),
+            vy: 3.2 + Math.random() * 2.4,
+            life: 1
+          });
+        }
+
+        function frame(t) {
+          ctx.clearRect(0, 0, W, H);
+          var time = t * 0.001;
+          for (var i = 0; i < stars.length; i++) {
+            var s = stars[i];
+            var a = 0.35 + 0.35 * Math.sin(time * s.speed + s.phase);
+            ctx.globalAlpha = Math.max(0, Math.min(1, a));
+            ctx.fillStyle = "#cfefff";
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          if (comets.length < 3 && Math.random() < 0.006) spawnComet();
+          for (var j = comets.length - 1; j >= 0; j--) {
+            var c = comets[j];
+            c.x += c.vx;
+            c.y += c.vy;
+            c.life -= 0.008;
+            if (c.life <= 0 || c.x < -120 || c.y > H + 120) { comets.splice(j, 1); continue; }
+            var fade = Math.min(1, c.life * 1.6);
+            var mag = Math.sqrt(c.vx * c.vx + c.vy * c.vy) || 1;
+            var tx = c.x - (c.vx / mag) * 90;
+            var ty = c.y - (c.vy / mag) * 90;
+            var grad = ctx.createLinearGradient(c.x, c.y, tx, ty);
+            grad.addColorStop(0, "rgba(255,255,255," + (0.95 * fade) + ")");
+            grad.addColorStop(0.25, "rgba(56,189,248," + (0.55 * fade) + ")");
+            grad.addColorStop(1, "rgba(56,189,248,0)");
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 2.4;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(c.x, c.y);
+            ctx.lineTo(tx, ty);
+            ctx.stroke();
+            ctx.fillStyle = "rgba(255,255,255," + fade + ")";
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          if (!reduceMotion) requestAnimationFrame(frame);
+        }
+
+        resize();
+        window.addEventListener("resize", resize);
+        if (reduceMotion) { frame(0); } else { requestAnimationFrame(frame); }
+      })();
+
+      render();
+      loadLikeCounts();
+    </script>
+  </body>
+</html>
