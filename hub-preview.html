@@ -960,6 +960,46 @@ function drawPlaza(t) {
   fountain(1150, 1000, t); fountain(2050, 1000, t);
   crystal(360, 1980, 26, "rgba(255,215,106,0.25)"); crystal(2840, 1980, 26, "rgba(255,215,106,0.25)");
   crystal(1050, 260, 20, "rgba(56,225,255,0.25)"); crystal(2150, 260, 20, "rgba(168,85,247,0.25)");
+  /* quantum trees — floating in the space around the plaza, atom fruit in the canopy */
+  function quantumTree(tx, ty, ts, ph) {
+    const bob = Math.sin(t / 1100 + ph) * 7;
+    const gy = ty + bob * 0.35;
+    const gg = ctx.createRadialGradient(tx, gy, 6, tx, gy, 100 * ts);
+    gg.addColorStop(0, "rgba(168,85,247,0.16)"); gg.addColorStop(1, "rgba(168,85,247,0)");
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.ellipse(tx, gy, 100 * ts, 27 * ts, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#160a2a"; ctx.lineCap = "round";
+    ctx.lineWidth = 15 * ts; ctx.beginPath(); ctx.moveTo(tx, ty + bob); ctx.quadraticCurveTo(tx + 6 * ts, ty - 55 * ts + bob, tx, ty - 108 * ts + bob); ctx.stroke();
+    ctx.lineWidth = 7 * ts;
+    ctx.beginPath(); ctx.moveTo(tx, ty - 100 * ts + bob); ctx.lineTo(tx - 40 * ts, ty - 138 * ts + bob); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx, ty - 104 * ts + bob); ctx.lineTo(tx + 36 * ts, ty - 144 * ts + bob); ctx.stroke();
+    const ccx = tx, ccy = ty - 162 * ts + bob;
+    ctx.fillStyle = "rgba(168,85,247,0.10)";
+    ctx.beginPath(); ctx.arc(ccx, ccy, 84 * ts, 0, 7); ctx.arc(ccx - 54 * ts, ccy + 26 * ts, 60 * ts, 0, 7); ctx.arc(ccx + 54 * ts, ccy + 26 * ts, 60 * ts, 0, 7); ctx.fill();
+    const cg3 = ctx.createRadialGradient(ccx, ccy - 20 * ts, 8, ccx, ccy, 95 * ts);
+    cg3.addColorStop(0, "#46207e"); cg3.addColorStop(1, "#1d0e3d");
+    ctx.fillStyle = cg3;
+    ctx.beginPath(); ctx.arc(ccx, ccy, 72 * ts, 0, 7); ctx.arc(ccx - 52 * ts, ccy + 24 * ts, 50 * ts, 0, 7); ctx.arc(ccx + 52 * ts, ccy + 24 * ts, 50 * ts, 0, 7); ctx.fill();
+    for (let i = 0; i < 14; i++) {
+      const tw = 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(t / 340 + ph * 3 + i * 1.9));
+      ctx.fillStyle = i % 3 ? "rgba(220,245,255," + tw + ")" : "rgba(56,225,255," + tw + ")";
+      ctx.beginPath(); ctx.arc(ccx + (hashN(i * 3.3 + tx) - 0.5) * 120 * ts, ccy + (hashN(i * 7.9 + ty) - 0.5) * 84 * ts, 1.7, 0, 7); ctx.fill();
+    }
+    /* atom fruit — gold cores with orbit rings, gently pulsing */
+    [[-42, -6], [38, -22], [0, 24], [-14, -40], [52, 12]].forEach((f, j) => {
+      const fx = ccx + f[0] * ts, fy = ccy + f[1] * ts;
+      const pulse = 0.75 + 0.25 * Math.sin(t / 500 + ph + j * 1.3);
+      ctx.fillStyle = "rgba(255,215,106," + (0.16 * pulse) + ")"; ctx.beginPath(); ctx.arc(fx, fy, 11 * ts, 0, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(56,225,255,0.85)"; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.ellipse(fx, fy, 9 * ts, 3.8 * ts, t / 1400 + j * 1.1, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(fx, fy, 9 * ts, 3.8 * ts, -t / 1700 + j * 2.0, 0, 7); ctx.stroke();
+      ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(fx, fy, 3.2 * ts, 0, 7); ctx.fill();
+    });
+  }
+  [[700, 700, 1.0], [2500, 700, 1.0], [430, 1150, 1.0], [2770, 1150, 1.0], [700, 1900, 1.0], [2500, 1900, 1.0],
+   [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
+   [200, 180, 0.9], [900, 180, 1.1], [2300, 180, 0.95], [3000, 180, 1.05], [3100, 800, 0.9], [110, 800, 1.0],
+   [2850, 1900, 1.1], [150, 2050, 0.95], [3050, 2050, 1.0], [1600, 2030, 1.1]
+  ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
   function silhouette(b) {
     ctx.fillStyle = "#080f22"; rr(b.x, b.y, b.w, b.h, 14); ctx.fill();
