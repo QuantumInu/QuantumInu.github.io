@@ -321,9 +321,10 @@ if (db) {
 const hqVids = [], hqCur = [-1, -1, -1, -1], hqPrev = [-1, -1, -1, -1];
 for (let i = 0; i < 4; i++) {
   const v = document.createElement("video");
-  v.muted = true; v.loop = false; v.playsInline = true; v.preload = "auto"; v.crossOrigin = "anonymous";
+  v.muted = true; v.loop = false; v.playsInline = true; v.preload = "auto";
   const idx = i;
   v.addEventListener("ended", () => { if (me.scene === "hq") pickHq(idx); });
+  v.addEventListener("error", () => { v.dataset.cur = ""; hqCur[idx] = -1; if (me.scene === "hq") setTimeout(() => pickHq(idx), 900); });
   hqVids.push(v);
 }
 function hqCatalog() {
@@ -449,7 +450,7 @@ const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2304, h: 1720 };
 const PORTAL = { x: 420, y: 1000 };
-const HQPORTAL = { x: HQROOM.w / 2, y: HQROOM.h - 210 };
+const HQPORTAL = { x: 250, y: HQROOM.h - 160 };
 const HQTABLE = { x: HQROOM.w / 2 - 330, y: HQROOM.h / 2 - 150, w: 660, h: 300 };
 const HQSTATIONS = [ { sx: 300, sy: 300 }, { sx: 1484, sy: 300 }, { sx: 300, sy: 1030 }, { sx: 1484, sy: 1030 } ];
 function hqDeskRects(st) {
@@ -612,7 +613,7 @@ function checkPortal(P, go) {
   if (d > 100) portalArmed = true;
   else if (portalArmed && d < 56) { portalArmed = false; go(); }
 }
-function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQROOM.w / 2; me.y = HQROOM.h - 260; sfxChime(); publish(true); startHqVideos(); }
+function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQPORTAL.x + 140; me.y = HQPORTAL.y; sfxChime(); publish(true); startHqVideos(); }
 function toPlazaFromHQ() { portalArmed = false; me.scene = "plaza"; me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
@@ -1144,6 +1145,7 @@ function drawHQ(t) {
     ctx.fillStyle = "#0b1226"; roundRect(sx - 8, sy - 8, 536, 316, 14); ctx.fill();
     ctx.strokeStyle = "#38b6ff"; ctx.lineWidth = 3; ctx.shadowColor = "#38b6ff"; ctx.shadowBlur = 10; roundRect(sx - 8, sy - 8, 536, 316, 14); ctx.stroke(); ctx.shadowBlur = 0;
     const v = hqVids[si];
+    if (hqCur[si] < 0 && hqCatalog().length >= 4) pickHq(si);
     if (v && v.dataset.cur && v.readyState >= 2) {
       const vw = v.videoWidth || 16, vh = v.videoHeight || 9, s = Math.min(520 / vw, 300 / vh);
       ctx.drawImage(v, sx + (520 - vw * s) / 2, sy + (300 - vh * s) / 2, vw * s, vh * s);
