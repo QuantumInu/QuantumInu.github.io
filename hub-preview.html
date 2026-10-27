@@ -613,7 +613,7 @@ function checkPortal(P, go) {
   if (d > 100) portalArmed = true;
   else if (portalArmed && d < 56) { portalArmed = false; go(); }
 }
-function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQPORTAL.x + 140; me.y = HQPORTAL.y; sfxChime(); publish(true); startHqVideos(); }
+function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQROOM.w / 2; me.y = HQTABLE.y + HQTABLE.h + 170; sfxChime(); publish(true); startHqVideos(); }
 function toPlazaFromHQ() { portalArmed = false; me.scene = "plaza"; me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
@@ -665,9 +665,10 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   ctx.drawImage(img, -W / 2, -H / 2, W, H);
   ctx.restore();
   ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-  ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.75)";
   const ny = wy - H - 8 + bob;
+  ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
   ctx.strokeText(name, wx, ny); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, ny);
+  ctx.restore();
   if (chat && chatAge < 5000) {
     ctx.font = "700 21px 'Segoe UI',sans-serif";
     const words = chat.split(" "); let lines = [], line = "";
@@ -1105,7 +1106,7 @@ function drawHQ(t) {
   for (let i = 0; i < 4; i++) {
     const wx = 92 + i * 552, wy = 38, ww = 472, wh = 148;
     ctx.save();
-    roundRect(wx, wy, ww, wh, 26); ctx.clip();
+    rr(wx, wy, ww, wh, 26); ctx.clip();
     const sg = ctx.createLinearGradient(0, wy, 0, wy + wh);
     sg.addColorStop(0, "#02020c"); sg.addColorStop(0.6, "#060a24"); sg.addColorStop(1, "#0a1030");
     ctx.fillStyle = sg; ctx.fillRect(wx, wy, ww, wh);
@@ -1131,8 +1132,8 @@ function drawHQ(t) {
     ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 7;
     ctx.beginPath(); ctx.moveTo(wx + 40, wy + wh - 12); ctx.lineTo(wx + ww * 0.45, wy + 10); ctx.stroke();
     ctx.restore();
-    ctx.strokeStyle = "#3d5a80"; ctx.lineWidth = 9; roundRect(wx, wy, ww, wh, 26); ctx.stroke();
-    ctx.strokeStyle = "rgba(125,211,252,0.5)"; ctx.lineWidth = 2; roundRect(wx + 7, wy + 7, ww - 14, wh - 14, 20); ctx.stroke();
+    ctx.strokeStyle = "#3d5a80"; ctx.lineWidth = 9; rr(wx, wy, ww, wh, 26); ctx.stroke();
+    ctx.strokeStyle = "rgba(125,211,252,0.5)"; ctx.lineWidth = 2; rr(wx + 7, wy + 7, ww - 14, wh - 14, 20); ctx.stroke();
   }
   ctx.save();
   ctx.font = "900 34px system-ui, sans-serif"; ctx.textAlign = "center";
@@ -1142,8 +1143,8 @@ function drawHQ(t) {
   /* stations: screen + U-shaped control panel with flashing buttons */
   HQSTATIONS.forEach((st, si) => {
     const sx = st.sx, sy = st.sy;
-    ctx.fillStyle = "#0b1226"; roundRect(sx - 8, sy - 8, 536, 316, 14); ctx.fill();
-    ctx.strokeStyle = "#38b6ff"; ctx.lineWidth = 3; ctx.shadowColor = "#38b6ff"; ctx.shadowBlur = 10; roundRect(sx - 8, sy - 8, 536, 316, 14); ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "#0b1226"; rr(sx - 8, sy - 8, 536, 316, 14); ctx.fill();
+    ctx.strokeStyle = "#38b6ff"; ctx.lineWidth = 3; ctx.shadowColor = "#38b6ff"; ctx.shadowBlur = 10; rr(sx - 8, sy - 8, 536, 316, 14); ctx.stroke(); ctx.shadowBlur = 0;
     const v = hqVids[si];
     if (hqCur[si] < 0 && hqCatalog().length >= 4) pickHq(si);
     if (v && v.dataset.cur && v.readyState >= 2) {
@@ -1155,9 +1156,9 @@ function drawHQ(t) {
       ctx.fillText("SUPERHERO FEED " + (si + 1), sx + 260, sy + 158);
     }
     ctx.fillStyle = "#1b1030";
-    for (const r of hqDeskRects(st)) { roundRect(r.x, r.y, r.w, r.h, 10); ctx.fill(); }
+    for (const r of hqDeskRects(st)) { rr(r.x, r.y, r.w, r.h, 10); ctx.fill(); }
     ctx.strokeStyle = "rgba(255,93,143,0.65)"; ctx.lineWidth = 2;
-    for (const r of hqDeskRects(st)) { roundRect(r.x, r.y, r.w, r.h, 10); ctx.stroke(); }
+    for (const r of hqDeskRects(st)) { rr(r.x, r.y, r.w, r.h, 10); ctx.stroke(); }
     const cols = ["#ff5d8f", "#ffd76a", "#38e1ff", "#a855f7", "#7dff8a"];
     for (let k = 0; k < 16; k++) {
       const bx = st.sx + 52 + k * 27, by = st.sy + 370;
@@ -1185,9 +1186,9 @@ function drawHQ(t) {
   /* conference table with holo atom */
   const tb = HQTABLE;
   ctx.fillStyle = "rgba(56,225,255,0.07)"; ctx.beginPath(); ctx.ellipse(tb.x + tb.w / 2, tb.y + tb.h / 2 + 10, tb.w / 2 + 26, tb.h / 2 + 22, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = "#141033"; roundRect(tb.x, tb.y, tb.w, tb.h, 60); ctx.fill();
-  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; roundRect(tb.x, tb.y, tb.w, tb.h, 60); ctx.stroke();
-  ctx.strokeStyle = "rgba(56,225,255,0.35)"; ctx.lineWidth = 2; roundRect(tb.x + 14, tb.y + 14, tb.w - 28, tb.h - 28, 48); ctx.stroke();
+  ctx.fillStyle = "#141033"; rr(tb.x, tb.y, tb.w, tb.h, 60); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; rr(tb.x, tb.y, tb.w, tb.h, 60); ctx.stroke();
+  ctx.strokeStyle = "rgba(56,225,255,0.35)"; ctx.lineWidth = 2; rr(tb.x + 14, tb.y + 14, tb.w - 28, tb.h - 28, 48); ctx.stroke();
   const hx = tb.x + tb.w / 2, hy = tb.y + tb.h / 2, pulse = 1 + 0.07 * Math.sin(t / 380);
   ctx.save(); ctx.translate(hx, hy); ctx.scale(pulse, pulse);
   ctx.shadowColor = "#38e1ff"; ctx.shadowBlur = 22;
@@ -1201,8 +1202,8 @@ function drawHQ(t) {
   ctx.fillStyle = "#241547";
   for (let k = 0; k < 5; k++) {
     const cxp = tb.x + 70 + k * 130;
-    roundRect(cxp, tb.y - 44, 56, 34, 10); ctx.fill();
-    roundRect(cxp, tb.y + tb.h + 10, 56, 34, 10); ctx.fill();
+    rr(cxp, tb.y - 44, 56, 34, 10); ctx.fill();
+    rr(cxp, tb.y + tb.h + 10, 56, 34, 10); ctx.fill();
   }
   drawPortal(HQPORTAL.x, HQPORTAL.y, t, "Portal To Plaza");
   ctx.strokeStyle = "#38b6ff"; ctx.lineWidth = 6; ctx.strokeRect(3, 3, W - 6, H - 6);
@@ -1375,6 +1376,7 @@ function frame(now) {
   publish(false);
   const dims = sceneDims(), roomW = dims.w, roomH = dims.h;
   SCALE = Math.max(0.36, Math.min(VW / 1280, VH / 980, 1.0));
+  if (me.scene === "hq") SCALE = Math.max(SCALE, 0.52);
   camX = Math.max(0, Math.min(roomW - VW / SCALE, me.x - VW / (2 * SCALE)));
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
   if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
