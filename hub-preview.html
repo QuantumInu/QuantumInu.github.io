@@ -266,7 +266,7 @@ const EXIT = { x: ROOM.w / 2 - 62, y: ROOM.h - 58, w: 124, h: 44 };
 const TDOOR = { y: ROOM.h / 2, half: 92 };
 const TH = { w: 2600, h: 1440 };
 const HALL = { x1: 620, top: TH.h / 2 - 140, bot: TH.h / 2 + 140 };
-const SCREEN = { x: 1070, y: 92, w: 1080, h: 608 };
+const SCREEN = { x: 1186, y: 92, w: 848, h: 478 };
 const PEDESTAL = { x: SCREEN.x + SCREEN.w + 56, y: SCREEN.y + SCREEN.h - 88, w: 56, h: 88 };
 const seats = [];
 (function buildSeats() {
@@ -276,7 +276,7 @@ const seats = [];
 function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : TH; }
 function obstacles() {
   if (me.scene === "plaza") return [BUILDING, SIL_L, SIL_R];
-  if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 4, w: c.w - 16, h: 76 }));
+  if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y - 20, w: c.w - 16, h: 100 }));
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -393,7 +393,7 @@ $("sendbtn").onclick = sendChat;
 chatIn.addEventListener("keydown", e => { if (e.key === "Enter") { if (chatIn.value.trim()) sendChat(); else chatIn.blur(); } e.stopPropagation(); });
 /* ============ scenes ============ */
 function toArcade() { me.scene = "arcade"; me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
-function toPlaza() { me.scene = "plaza"; me.x = 1600 + spawnOff; me.y = 1560; sfxChime(); publish(true); }
+function toPlaza() { me.scene = "plaza"; me.x = 1600; me.y = 566; sfxChime(); publish(true); }
 function toTheatre() { me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
 function toArcadeFromTheatre() { me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
@@ -725,13 +725,11 @@ function drawTheatre(t) {
     const gy = Math.abs((Math.sin(i * 57.3) * 12543.8) % 1) * (TH.h - 40) + 20;
     ctx.fillRect(gx, gy, 3, 3);
   }
-  /* ONE red runner: hallway -> into the room -> turns down the center aisle */
-  ctx.fillStyle = "rgba(150,22,44,0.52)";
-  ctx.fillRect(0, HALL.top, 1772, HALL.bot - HALL.top);
-  ctx.fillRect(1448, HALL.top, 324, TH.h - HALL.top);
-  ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, HALL.top); ctx.lineTo(1772, HALL.top); ctx.moveTo(0, HALL.bot); ctx.lineTo(1448, HALL.bot); ctx.stroke();
-  ctx.strokeRect(1448, HALL.top, 324, TH.h - HALL.top);
+  /* ONE red runner as a single continuous carpet: hallway -> into the room -> turns down the center aisle (one shape, no overlapping pieces) */
+  ctx.beginPath();
+  ctx.moveTo(0, HALL.top); ctx.lineTo(1772, HALL.top); ctx.lineTo(1772, TH.h); ctx.lineTo(1448, TH.h); ctx.lineTo(1448, HALL.bot); ctx.lineTo(0, HALL.bot); ctx.closePath();
+  ctx.fillStyle = "rgba(150,22,44,0.52)"; ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; ctx.stroke();
   /* wall light fixtures on the room's side walls */
   [320, 720, 1120].forEach(fy => {
     [HALL.x1 + 12, TH.w - 36].forEach(fx => {
