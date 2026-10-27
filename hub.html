@@ -809,8 +809,20 @@ function voiceDesired(pid) {
   if (p.scene !== me.scene) return false;
   return Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE;
 }
+const CF_TURN_ID = "b7901936772140280f6a49ec67156b9d", CF_TURN_TOKEN = "6648df285f3f9e73a576f9366924eb28162f0464190a752044e30ff53f9ccb72";
+let cfIce = null, cfIceAt = 0, cfFetching = false;
+async function fetchCfIce() {
+  if (cfFetching || (cfIce && Date.now() - cfIceAt < 6 * 3600 * 1000)) return;
+  cfFetching = true;
+  try {
+    const r = await fetch("https://rtc.live.cloudflare.com/v1/turn/keys/" + CF_TURN_ID + "/credentials/generate", { method: "POST", headers: { "Authorization": "Bearer " + CF_TURN_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ ttl: 86400 }) });
+    if (r.ok) { const j = await r.json(); if (j && j.iceServers) { cfIce = j.iceServers; cfIceAt = Date.now(); } }
+  } catch (e) {}
+  cfFetching = false;
+}
 function voiceInit() {
   if (voiceInitDone || !db || !myId) return; voiceInitDone = true;
+  fetchCfIce();
   const mail = db.ref("hub/voice/" + myId);
   mail.onDisconnect().remove();
   mail.on("child_added", s => onVoiceMail(s.key, s.val()));
@@ -842,7 +854,9 @@ function voiceConnect(pid) {
   const V = { pc: null, sender: null, audio: null, analyser: null, remoteSet: false, iceQ: [], handledOffer: 0, handledAnswer: 0, levelAt: 0, makingOffer: false, iceRef: null };
   voicePeers.set(pid, V);
   let pc;
-  try { pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] }); }
+  const servers = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
+  if (cfIce) servers.push(cfIce);
+  try { pc = new RTCPeerConnection({ iceServers: servers }); }
   catch (e) { voicePeers.delete(pid); return; }
   V.pc = pc;
   pc.addTransceiver("audio", { direction: "sendrecv" });
@@ -891,12 +905,14 @@ function voiceReport(pid) {
   const V = voicePeers.get(pid); if (!V || !V.pc || !db) return;
   try {
     V.pc.getStats().then(rep => {
-      let so = 0, si = 0;
+      let so = 0, si = 0, via = "";
+      const byId = {}; rep.forEach(s => { byId[s.id] = s; });
       rep.forEach(s => {
         if (s.type === "outbound-rtp" && s.kind === "audio") so = s.bytesSent || 0;
         if (s.type === "inbound-rtp" && s.kind === "audio") si = s.bytesReceived || 0;
+        if (s.type === "candidate-pair" && (s.state === "succeeded" || s.selected)) { const lc = byId[s.localCandidateId]; if (lc) via = lc.candidateType || ""; }
       });
-      db.ref("hub/voice/" + myId + "/_state/" + pid).set({ c: V.pc.connectionState, i: V.pc.iceConnectionState, so, si, ts: Date.now() });
+      db.ref("hub/voice/" + myId + "/_state/" + pid).set({ c: V.pc.connectionState, i: V.pc.iceConnectionState, so, si, via, ts: Date.now() });
     }).catch(() => {});
   } catch (e) {}
 }
@@ -930,6 +946,7 @@ function voiceClose(pid) {
 function voiceTick() {
   if (!entered || !db) return;
   voiceInit();
+  if (!cfIce) fetchCfIce();
   for (const p of peers.values()) if (voiceDesired(p.id)) voiceConnect(p.id);
   for (const [pid, V] of [...voicePeers.entries()]) {
     const p = peers.get(pid);
