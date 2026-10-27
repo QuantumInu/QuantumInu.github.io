@@ -869,7 +869,13 @@ function voiceConnect(pid) {
   pc.addTransceiver("audio", { direction: "sendrecv" });
   attachMic(V);
   pc.onicecandidate = e => { if (e.candidate) { try { db.ref("hub/voice/" + pid + "/" + myId + "/ice").push(JSON.stringify(e.candidate)); } catch (err) {} } };
-  pc.ontrack = e => { if (e.streams && e.streams[0]) attachRemote(pid, e.streams[0]); };
+  pc.ontrack = e => {
+    if (!V.rstream) { try { V.rstream = new MediaStream(); } catch (err) { return; } }
+    const addT = t => { if (t && !V.rstream.getTracks().includes(t)) { try { V.rstream.addTrack(t); } catch (err) {} } };
+    addT(e.track);
+    if (e.streams && e.streams[0]) e.streams[0].getTracks().forEach(addT);
+    attachRemote(pid, V.rstream);
+  };
   pc.onnegotiationneeded = () => renegotiate(pid);
   pc.onconnectionstatechange = () => { voiceReport(pid); if (pc.connectionState === "failed") voiceClose(pid); };
   pc.oniceconnectionstatechange = () => voiceReport(pid);
