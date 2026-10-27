@@ -346,12 +346,13 @@ function joyMove(e) {
   stickEl.style.transform = "translate(calc(-50% + " + dx + "px), calc(-50% + " + dy + "px))";
   joyVec = m > 8 ? { x: dx / max, y: dy / max } : { x: 0, y: 0 };
 }
-let holdVec = { x: 0, y: 0 }, holdId = null;
+let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0;
 cv.addEventListener("pointerdown", e => {
   if (!entered) return;
   holdId = e.pointerId;
   const sx = me.x, sy = me.y, r = cv.getBoundingClientRect();
   const px = (e.clientX - r.left), py = (e.clientY - r.top);
+  holdPX = px; holdPY = py;
   const c = worldToScreen(sx, sy);
   let dx = px - c.x, dy = py - c.y; const m = Math.hypot(dx, dy);
   holdVec = m > 14 ? { x: dx / m, y: dy / m } : { x: 0, y: 0 };
@@ -361,6 +362,11 @@ cv.addEventListener("pointerdown", e => {
     const ps = worldToScreen(PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + PEDESTAL.h / 2);
     if (Math.hypot(px - ps.x, py - ps.y) < 90 && nearPedestal()) changeChannel();
   }
+});
+cv.addEventListener("pointermove", e => {
+  if (e.pointerId !== holdId) return;
+  const r = cv.getBoundingClientRect();
+  holdPX = e.clientX - r.left; holdPY = e.clientY - r.top;
 });
 cv.addEventListener("pointerup", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
 cv.addEventListener("pointercancel", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
@@ -569,6 +575,11 @@ function frame(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!entered) { drawStars(0, 0, 1); return; }
   let vx = 0, vy = 0;
+  if (holdId !== null) {
+    const c = worldToScreen(me.x, me.y);
+    let hdx = holdPX - c.x, hdy = holdPY - c.y; const hm = Math.hypot(hdx, hdy);
+    holdVec = hm > 14 ? { x: hdx / hm, y: hdy / hm } : { x: 0, y: 0 };
+  }
   if (keys.has("a") || keys.has("arrowleft")) vx -= 1;
   if (keys.has("d") || keys.has("arrowright")) vx += 1;
   if (keys.has("w") || keys.has("arrowup")) vy -= 1;
@@ -614,7 +625,8 @@ function frame(now) {
     const isMe = a === me;
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
     const phase = isMe ? 0 : a.bob * 7;
-    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, isMe ? now - me.chatAt : now - (a.chatAt || 0), isMe, now, moving);
+    const chatAge = a.chatId ? Date.now() - a.chatId : 999999;
+    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
   }
   ctx.restore();
   const cab = nearestCabinet();
