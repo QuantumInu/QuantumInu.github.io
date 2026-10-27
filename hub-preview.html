@@ -28,7 +28,7 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 #prompt{position:absolute;left:50%;transform:translateX(-50%);bottom:70px;z-index:20;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800;font-size:16px;border:none;border-radius:999px;padding:12px 22px;cursor:pointer;box-shadow:0 4px 22px rgba(56,225,255,.45);display:none;max-width:94vw}
 #joy{position:absolute;left:18px;bottom:76px;width:118px;height:118px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none}
 #joystick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(56,225,255,.5);transform:translate(-50%,-50%)}
-#gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto}
+#gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
 #namein{width:min(420px,92vw);background:rgba(255,255,255,.06);border:1px solid rgba(56,225,255,.4);border-radius:12px;color:#fff;padding:12px 14px;font-size:17px;outline:none;text-align:center}
@@ -39,8 +39,9 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 .cell.sel{border-color:var(--gold);box-shadow:0 0 14px rgba(255,215,106,.45)}
 .cell img{width:100%;height:64px;object-fit:contain;display:block;pointer-events:none}
 .cell .nm{font-size:10.5px;color:#cfeaff;margin-top:3px;line-height:1.15;pointer-events:none}
-#enterbtn{margin:16px 0 26px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;font-size:18px;border-radius:999px;padding:14px 38px;cursor:pointer;box-shadow:0 4px 22px rgba(168,85,247,.4)}
-#enterbtn:disabled{opacity:.45;cursor:default;box-shadow:none}
+.enterbtn{margin:16px 0 26px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;font-size:18px;border-radius:999px;padding:14px 38px;cursor:pointer;box-shadow:0 4px 22px rgba(168,85,247,.4)}
+.enterbtn:disabled{opacity:.45;cursor:default;box-shadow:none}
+#enterbtn-top{margin:12px 0 4px}
 #cancelbtn{margin:-8px 0 26px;background:none;border:1px solid rgba(255,255,255,.3);color:#cfeaff;border-radius:999px;padding:9px 24px;font-size:14px;cursor:pointer;display:none}
 @media (max-width:520px){#topbar h1{font-size:15px}#status{display:none}.chip{padding:5px 9px;font-size:12px}}
 </style>
@@ -69,8 +70,9 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
   <p class="sub">Pick a name and a hero sticker, then walk the galaxy plaza and meet the pack. Your name and hero are saved in this browser.</p>
   <input id="namein" maxlength="24" placeholder="Your display name" autocomplete="off">
   <div id="loadline">loading stickers…</div>
+  <button class="enterbtn" id="enterbtn-top" disabled>Enter the Hub</button>
   <div id="grid"></div>
-  <button id="enterbtn" disabled>Enter the Hub</button>
+  <button class="enterbtn" id="enterbtn" disabled>Enter the Hub</button>
   <button id="cancelbtn">Cancel</button>
 </div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -156,7 +158,7 @@ HERO_NAMES.forEach((nm, i) => {
   grid.appendChild(cell);
 });
 if (profile) nameIn.value = profile.name;
-function checkEnter() { enterBtn.disabled = !(nameIn.value.trim().length > 0 && pickedHero >= 1); }
+function checkEnter() { const ok = nameIn.value.trim().length > 0 && pickedHero >= 1; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
@@ -257,6 +259,7 @@ function enterHub() {
   publish(true);
 }
 enterBtn.onclick = enterHub;
+$("enterbtn-top").onclick = enterHub;
 $("changebtn").onclick = () => {
   if (!entered) return;
   gate.style.display = "flex"; cancelBtn.style.display = "block";
@@ -367,15 +370,15 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   const ny = wy - H - 8 + bob;
   ctx.strokeText(name, wx, ny); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, ny);
   if (chat && chatAge < 5000) {
-    ctx.font = "13px 'Segoe UI',sans-serif";
+    ctx.font = "700 21px 'Segoe UI',sans-serif";
     const words = chat.split(" "); let lines = [], line = "";
-    for (const w of words) { if ((line + " " + w).trim().length > 24) { lines.push(line.trim()); line = w; } else line += " " + w; }
+    for (const w of words) { if ((line + " " + w).trim().length > 15) { lines.push(line.trim()); line = w; } else line += " " + w; }
     lines.push(line.trim()); lines = lines.slice(0, 3);
-    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 18, bh = lines.length * 16 + 12;
-    const bx = wx - bw / 2, by = ny - bh - 16;
-    ctx.fillStyle = "rgba(255,255,255,0.96)"; rr(bx, by, bw, bh, 9); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(wx - 6, by + bh); ctx.lineTo(wx + 6, by + bh); ctx.lineTo(wx, by + bh + 7); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, wx, by + 17 + i * 16));
+    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 26, bh = lines.length * 26 + 16;
+    const bx = wx - bw / 2, by = ny - bh - 18;
+    ctx.fillStyle = "rgba(255,255,255,0.97)"; rr(bx, by, bw, bh, 12); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(wx - 7, by + bh); ctx.lineTo(wx + 7, by + bh); ctx.lineTo(wx, by + bh + 9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, wx, by + 26 + i * 26));
   }
 }
 let camX = 0, camY = 0, SCALE = 0.6;
