@@ -460,6 +460,14 @@ function hqDeskRects(st) {
     { x: st.sx + 446, y: st.sy + 348, w: 44, h: 130 }
   ];
 }
+function hashN(n) { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+function traceU(st) {
+  const x = st.sx, y = st.sy;
+  ctx.beginPath();
+  ctx.moveTo(x + 30, y + 478); ctx.lineTo(x + 30, y + 348); ctx.lineTo(x + 490, y + 348); ctx.lineTo(x + 490, y + 478);
+  ctx.lineTo(x + 446, y + 478); ctx.lineTo(x + 446, y + 392); ctx.lineTo(x + 74, y + 392); ctx.lineTo(x + 74, y + 478);
+  ctx.closePath();
+}
 const HQSCREENS = HQSTATIONS.map(st => ({ x: st.sx, y: st.sy, w: 520, h: 300 }));
 /* stage walls: back + curtain sides block; the whole front width is open, no barrier */
 const STAGE_WALLS = [
@@ -475,7 +483,7 @@ function obstacles() {
   if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
-  if (me.scene === "hq") return [HQTABLE, ...HQSCREENS, ...HQSTATIONS.flatMap(hqDeskRects)];
+  if (me.scene === "hq") return [...HQSCREENS];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -1097,6 +1105,30 @@ function drawPortal(x, y, t, label) {
 function drawHQ(t) {
   const W = HQROOM.w, H = HQROOM.h;
   ctx.fillStyle = "#070d1d"; ctx.fillRect(0, 0, W, H);
+  /* deep-space backdrop: nebulas, spiral galaxies, scattered stars */
+  for (let i = 0; i < 7; i++) {
+    const gx = (i * 613.7 + 200) % W, gy = (i * 389.3 + 140) % H;
+    const gg = ctx.createRadialGradient(gx, gy, 8, gx, gy, 200 + (i % 3) * 70);
+    gg.addColorStop(0, i % 2 ? "rgba(168,85,247,0.10)" : "rgba(56,150,255,0.10)"); gg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gg; ctx.fillRect(gx - 290, gy - 290, 580, 580);
+  }
+  for (let i = 0; i < 4; i++) {
+    const gx = 320 + ((i * 547) % (W - 640)), gy = 300 + ((i * 431) % (H - 560));
+    ctx.save(); ctx.translate(gx, gy); ctx.rotate(0.6 + i * 0.9);
+    for (let a = 0; a < 3; a++) {
+      ctx.save(); ctx.rotate(a * 2.1 + t / 9000);
+      ctx.fillStyle = "rgba(190,220,255,0.10)";
+      ctx.beginPath(); ctx.ellipse(27, 0, 36, 9, 0, 0, 7); ctx.fill(); ctx.restore();
+    }
+    ctx.fillStyle = "rgba(255,240,200,0.55)"; ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = "#cfeeff";
+  for (let k = 0; k < 130; k++) {
+    ctx.globalAlpha = 0.10 + 0.28 * Math.abs(Math.sin(t / 800 + k * 1.7));
+    ctx.fillRect(hashN(k) * W, hashN(k + 5000) * H, 2.2, 2.2);
+  }
+  ctx.globalAlpha = 1;
   ctx.strokeStyle = "rgba(56,225,255,0.06)"; ctx.lineWidth = 2;
   for (let x = 0; x <= W; x += 96) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
   for (let y = 0; y <= H; y += 96) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
@@ -1122,8 +1154,8 @@ function drawHQ(t) {
       const sp = layer ? 0.055 : 0.02, sz = layer ? 2.4 : 1.5;
       ctx.fillStyle = layer ? "#eaf7ff" : "#9fd8ff";
       for (let k = 0; k < 26; k++) {
-        const sx = wx + (((k * 173.3 + layer * 431.7 - t * sp) % ww) + ww) % ww;
-        const sy = wy + ((k * 61.7 + layer * 97.3) % (wh - 14)) + 7;
+        const sx = wx + (((hashN(k * 3 + layer * 77) * ww - t * sp) % ww) + ww) % ww;
+        const sy = wy + hashN(k * 7 + layer * 131 + 900) * (wh - 14) + 7;
         ctx.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(t / 700 + k));
         ctx.fillRect(sx, sy, sz, sz);
       }
@@ -1155,10 +1187,8 @@ function drawHQ(t) {
       ctx.fillStyle = "#7dd3fc"; ctx.font = "bold 24px system-ui, sans-serif"; ctx.textAlign = "center";
       ctx.fillText("SUPERHERO FEED " + (si + 1), sx + 260, sy + 158);
     }
-    ctx.fillStyle = "#1b1030";
-    for (const r of hqDeskRects(st)) { rr(r.x, r.y, r.w, r.h, 10); ctx.fill(); }
-    ctx.strokeStyle = "rgba(255,93,143,0.65)"; ctx.lineWidth = 2;
-    for (const r of hqDeskRects(st)) { rr(r.x, r.y, r.w, r.h, 10); ctx.stroke(); }
+    ctx.fillStyle = "#1b1030"; traceU(st); ctx.fill();
+    ctx.strokeStyle = "rgba(255,93,143,0.65)"; ctx.lineWidth = 2; traceU(st); ctx.stroke();
     const cols = ["#ff5d8f", "#ffd76a", "#38e1ff", "#a855f7", "#7dff8a"];
     for (let k = 0; k < 16; k++) {
       const bx = st.sx + 52 + k * 27, by = st.sy + 370;
@@ -1376,7 +1406,7 @@ function frame(now) {
   publish(false);
   const dims = sceneDims(), roomW = dims.w, roomH = dims.h;
   SCALE = Math.max(0.36, Math.min(VW / 1280, VH / 980, 1.0));
-  if (me.scene === "hq") SCALE = Math.max(SCALE, 0.52);
+  if (me.scene === "hq") SCALE = Math.max(SCALE, 0.62);
   camX = Math.max(0, Math.min(roomW - VW / SCALE, me.x - VW / (2 * SCALE)));
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
   if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
