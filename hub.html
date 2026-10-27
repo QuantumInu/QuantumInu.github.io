@@ -32,6 +32,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #runbtn{position:absolute;right:18px;bottom:76px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:17px;font-weight:800;letter-spacing:1.5px;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none}
 #runbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
+#micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+#micbtnm{position:absolute;left:3vw;bottom:68px;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center;padding:0;z-index:16;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+#micbtn.on,#micbtnm.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
 #chatlog{position:absolute;inset:52px 0 0 0;background:rgba(4,6,16,.82);z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #logpanel{background:var(--panel);border:2px solid rgba(56,225,255,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(56,225,255,.25)}
 #logpanel h2{margin:0 0 8px;font-size:21px;color:var(--cyan);text-align:center}
@@ -98,10 +101,12 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <button id="logclose">Close</button>
   </div></div>
   <div id="chatbar">
+    <button id="micbtn" title="Hold to talk">🎤</button>
     <button id="logbtn" title="Chat log">💬</button>
     <input id="chatin" maxlength="300" placeholder="Say something…" autocomplete="off">
     <button id="sendbtn">Send</button>
   </div>
+  <button id="micbtnm" title="Hold to talk">🎤</button>
 </div>
 <div id="gate">
   <h2>⚛️ Welcome to the Quantum Hub</h2>
@@ -777,6 +782,141 @@ cv.addEventListener("pointermove", e => {
 });
 cv.addEventListener("pointerup", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
 cv.addEventListener("pointercancel", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
+/* ============ voice chat (push to talk) ============ */
+const VOICE_RANGE = 600;
+let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
+const voicePeers = new Map();
+const speakingNow = new Set();
+function voiceDesired(pid) {
+  const p = peers.get(pid); if (!p || !entered) return false;
+  if (p.scene !== me.scene) return false;
+  return Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE;
+}
+function voiceInit() {
+  if (voiceInitDone || !db || !myId) return; voiceInitDone = true;
+  const mail = db.ref("hub/voice/" + myId);
+  mail.onDisconnect().remove();
+  mail.on("child_added", s => onVoiceMail(s.key, s.val()));
+  mail.on("child_changed", s => onVoiceMail(s.key, s.val()));
+}
+function voiceConnect(pid) {
+  if (voicePeers.has(pid)) return;
+  const V = { pc: null, sender: null, gain: null, analyser: null, remoteSet: false, iceQ: [], handled: 0, levelAt: 0, initiator: myId < pid, iceRef: null };
+  voicePeers.set(pid, V);
+  let pc;
+  try { pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] }); }
+  catch (e) { voicePeers.delete(pid); return; }
+  V.pc = pc;
+  V.sender = pc.addTransceiver("audio", { direction: "sendrecv" }).sender;
+  if (micStream) { const tr = micStream.getAudioTracks()[0]; if (tr) V.sender.replaceTrack(tr).catch(() => {}); }
+  pc.onicecandidate = e => { if (e.candidate) { try { db.ref("hub/voice/" + pid + "/" + myId + "/ice").push(JSON.stringify(e.candidate)); } catch (err) {} } };
+  pc.ontrack = e => { if (e.streams && e.streams[0]) attachRemote(pid, e.streams[0]); };
+  pc.onconnectionstatechange = () => { if (pc.connectionState === "failed") voiceClose(pid); };
+  V.iceRef = db.ref("hub/voice/" + myId + "/" + pid + "/ice");
+  V.iceRef.on("child_added", s => {
+    const c = s.val(); if (!c) return; let cand; try { cand = JSON.parse(c); } catch (e) { return; }
+    if (V.remoteSet) pc.addIceCandidate(cand).catch(() => {}); else V.iceQ.push(cand);
+  });
+  if (V.initiator) {
+    pc.createOffer().then(off => pc.setLocalDescription(off)).then(() => {
+      db.ref("hub/voice/" + pid + "/" + myId).update({ type: "offer", sdp: pc.localDescription.sdp, ts: Date.now() });
+    }).catch(() => {});
+  }
+}
+function onVoiceMail(fromId, val) {
+  if (!val || !val.sdp || !val.type || fromId === myId) return;
+  if (val.type === "offer") {
+    let V = voicePeers.get(fromId);
+    if (V && V.initiator) return;
+    if (V && V.handled === val.ts) return;
+    if (!V) { if (!voiceDesired(fromId)) return; voiceConnect(fromId); V = voicePeers.get(fromId); if (!V) return; }
+    V.handled = val.ts;
+    V.pc.setRemoteDescription({ type: "offer", sdp: val.sdp }).then(() => {
+      V.remoteSet = true; V.iceQ.forEach(c => V.pc.addIceCandidate(c).catch(() => {})); V.iceQ = [];
+      return V.pc.createAnswer();
+    }).then(ans => V.pc.setLocalDescription(ans)).then(() => {
+      db.ref("hub/voice/" + fromId + "/" + myId).update({ type: "answer", sdp: V.pc.localDescription.sdp, ts: Date.now() });
+    }).catch(() => {});
+  } else if (val.type === "answer") {
+    const V = voicePeers.get(fromId);
+    if (!V || !V.initiator || V.handled === val.ts) return;
+    V.handled = val.ts;
+    V.pc.setRemoteDescription({ type: "answer", sdp: val.sdp }).then(() => {
+      V.remoteSet = true; V.iceQ.forEach(c => V.pc.addIceCandidate(c).catch(() => {})); V.iceQ = [];
+    }).catch(() => {});
+  }
+}
+function attachRemote(pid, stream) {
+  const V = voicePeers.get(pid); if (!V) return;
+  const ctx = ac(); if (!ctx) return;
+  try {
+    const src = ctx.createMediaStreamSource(stream);
+    const an = ctx.createAnalyser(); an.fftSize = 512;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(an); an.connect(g); g.connect(ctx.destination);
+    V.gain = g; V.analyser = an;
+  } catch (e) {}
+}
+function voiceClose(pid) {
+  const V = voicePeers.get(pid); if (!V) return;
+  voicePeers.delete(pid); speakingNow.delete(pid);
+  try { if (V.iceRef) V.iceRef.off(); } catch (e) {}
+  try { if (V.pc) V.pc.close(); } catch (e) {}
+  try { db.ref("hub/voice/" + pid + "/" + myId).remove(); } catch (e) {}
+}
+function voiceTick() {
+  if (!entered || !db) return;
+  voiceInit();
+  for (const p of peers.values()) if (voiceDesired(p.id)) voiceConnect(p.id);
+  for (const [pid, V] of [...voicePeers.entries()]) {
+    const p = peers.get(pid);
+    if (!p || !voiceDesired(pid)) { voiceClose(pid); continue; }
+    const d = Math.hypot(me.x - p.tx, me.y - p.ty);
+    if (V.gain) { const g = muted ? 0 : Math.max(0, Math.min(1, 1.15 * (1 - d / VOICE_RANGE))); try { V.gain.gain.setTargetAtTime(g, ac().currentTime, 0.1); } catch (e) {} }
+    if (V.analyser) {
+      const arr = new Uint8Array(V.analyser.fftSize); V.analyser.getByteTimeDomainData(arr);
+      let sum = 0; for (let i = 0; i < arr.length; i += 16) { const v = (arr[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / (arr.length / 16));
+      if (rms > 0.04) { V.levelAt = performance.now(); speakingNow.add(pid); }
+      else if (performance.now() - V.levelAt > 350) speakingNow.delete(pid);
+    }
+  }
+  if (pttHeld && micStream) speakingNow.add(myId); else speakingNow.delete(myId);
+}
+setInterval(voiceTick, 800);
+const micBtn = $("micbtn"), micBtnM = $("micbtnm");
+if (window.matchMedia("(pointer: coarse)").matches) { micBtn.style.display = "none"; micBtnM.style.display = "flex"; }
+function flashMicDenied() {
+  for (const b of [micBtn, micBtnM]) { if (!b) continue; const old = b.textContent; b.textContent = "🚫"; setTimeout(() => { b.textContent = old; }, 1300); }
+}
+async function pttStart() {
+  if (pttHeld) return; pttHeld = true;
+  micBtn.classList.add("on"); micBtnM.classList.add("on");
+  ac();
+  if (!micStream && !micDenied) {
+    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch (e) { micDenied = true; flashMicDenied(); }
+    if (micStream) {
+      micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
+      for (const V of voicePeers.values()) { const tr = micStream.getAudioTracks()[0]; if (tr && V.sender) V.sender.replaceTrack(tr).catch(() => {}); }
+    }
+  } else if (micStream) {
+    micStream.getAudioTracks().forEach(t => t.enabled = true);
+  } else if (micDenied) flashMicDenied();
+}
+function pttEnd() {
+  if (!pttHeld) return; pttHeld = false;
+  micBtn.classList.remove("on"); micBtnM.classList.remove("on");
+  if (micStream) micStream.getAudioTracks().forEach(t => t.enabled = false);
+}
+function wireMic(el) {
+  if (!el) return;
+  el.addEventListener("pointerdown", e => { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (err) {} pttStart(); });
+  el.addEventListener("pointerup", () => pttEnd());
+  el.addEventListener("pointercancel", () => pttEnd());
+  el.addEventListener("contextmenu", e => e.preventDefault());
+}
+wireMic(micBtn); wireMic(micBtnM);
 /* ============ chat log ============ */
 const chatLog = [];
 const loggedChatKeys = new Set();
@@ -802,9 +942,9 @@ function renderLog() {
     d.appendChild(b); d.appendChild(document.createTextNode(m.text));
     el.appendChild(d);
   }
-  el.scrollTop = el.scrollHeight;
+  requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
 }
-$("logbtn").onclick = () => { renderLog(); $("chatlog").style.display = "flex"; };
+$("logbtn").onclick = () => { $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); };
 $("logclose").onclick = () => { $("chatlog").style.display = "none"; };
 $("chatlog").addEventListener("click", e => { if (e.target === $("chatlog")) $("chatlog").style.display = "none"; });
 /* ============ chat ============ */
@@ -892,7 +1032,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
     for (const w of words) { if ((line + " " + w).trim().length > 24) { lines.push(line.trim()); line = w; } else line += " " + w; }
     lines.push(line.trim()); lines = lines.slice(0, 6);
     const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 26, bh = lines.length * 26 + 16;
-    const bx = wx - bw / 2, by = ny - bh - 18;
+    const bx = wx - bw / 2, by = ny - bh - 26;
     ctx.fillStyle = "rgba(255,255,255,0.97)"; rr(bx, by, bw, bh, 12); ctx.fill();
     ctx.beginPath(); ctx.moveTo(wx - 7, by + bh); ctx.lineTo(wx + 7, by + bh); ctx.lineTo(wx, by + bh + 9); ctx.closePath(); ctx.fill();
     ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, wx, by + 26 + i * 26));
@@ -1798,6 +1938,7 @@ function frame(now) {
     const phase = isMe ? sprintPhase : a.bob * 7;
     const chatAge = a.chatId ? Date.now() - a.chatId : 999999;
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
+    if (speakingNow.has(isMe ? myId : a.id)) { ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
   ctx.restore();
   const cab = nearestCabinet();
