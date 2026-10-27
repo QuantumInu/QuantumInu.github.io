@@ -588,7 +588,7 @@ const SCREEN = { x: 1186, y: 332, w: 848, h: 478 };
 const PEDESTAL = { x: SCREEN.x + SCREEN.w + 56, y: SCREEN.y + SCREEN.h - 88, w: 56, h: 88 };
 const seats = [];
 (function buildSeats() {
-  const rows = [1430, 1560, 1690, 1820], xs = [800, 960, 1120, 1280, 1812, 1972, 2132, 2292];
+  const rows = [1170, 1300, 1430, 1560, 1690, 1820], xs = [800, 960, 1120, 1280, 1812, 1972, 2132, 2292];
   rows.forEach(y => xs.forEach(x => seats.push({ x, y, w: 128, h: 66 })));
 })();
 /* ============ club room layout ============ */
@@ -1490,10 +1490,7 @@ function drawTheatre(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; rr(tcx - 212, 20, 424, 46, 12); ctx.stroke();
   ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("🎬 QUANTUM THEATRE", tcx, 52);
-  ctx.fillStyle = "#0d2b16"; rr(16, HALL.top - 44, 168, 32, 8); ctx.fill();
-  ctx.strokeStyle = "#2eff7a"; ctx.lineWidth = 2; rr(16, HALL.top - 44, 168, 32, 8); ctx.stroke();
-  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dff9a"; ctx.textAlign = "center";
-  ctx.fillText("← EXIT · ARCADE", 100, HALL.top - 23);
+
   /* patterned carpet floor for the room (dots + gold flecks over deep purple) */
   ctx.fillStyle = "#130f26"; ctx.fillRect(HALL.x1, 0, TH.w - HALL.x1, TH.h);
   ctx.fillStyle = "rgba(168,85,247,0.13)";
@@ -1532,6 +1529,22 @@ function drawTheatre(t) {
   ctx.beginPath(); ctx.ellipse(SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h + 96, SCREEN.w * 0.42, 46, 0, 0, 7); ctx.fill();
   /* purple room border — drawn over the floors so the full outline shows on every side */
   ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, TH.w - 8, TH.h - 8);
+  /* exit doorway on the left wall — the arcade theatre-door treatment, mirrored: the border
+     breaks across the full carpet width, gold caps at both ends, gold wash, chevrons out,
+     and the gold sign plate beside the door (replaces the old green plaque) */
+  ctx.fillStyle = "#050914"; ctx.fillRect(0, HALL.top, 12, HALL.bot - HALL.top);
+  const eg = ctx.createLinearGradient(0, 0, 90, 0);
+  eg.addColorStop(0, "rgba(255,215,106,0.4)"); eg.addColorStop(1, "rgba(255,215,106,0)");
+  ctx.fillStyle = eg; ctx.fillRect(0, HALL.top, 90, HALL.bot - HALL.top);
+  ctx.fillStyle = "#ffd76a";
+  ctx.fillRect(0, HALL.top - 6, 10, 16); ctx.fillRect(0, HALL.bot - 10, 10, 16);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("❮", 58, (HALL.top + HALL.bot) / 2 - 12); ctx.fillText("❮", 58, (HALL.top + HALL.bot) / 2 + 34);
+  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
+  ctx.fillStyle = "#150b31"; rr(68, (HALL.top + HALL.bot) / 2 - 22, 252, 44, 11); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(68, (HALL.top + HALL.bot) / 2 - 22, 252, 44, 11); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("← EXIT · ARCADE", 194, (HALL.top + HALL.bot) / 2 + 7);
   /* the big screen */
   ctx.save(); ctx.shadowColor = "rgba(" + glowCols[gIdx] + ",0.5)"; ctx.shadowBlur = 22;
   ctx.fillStyle = "#000"; rr(SCREEN.x - 10, SCREEN.y - 10, SCREEN.w + 20, SCREEN.h + 20, 10); ctx.fill(); ctx.restore();
@@ -1560,6 +1573,14 @@ function drawTheatre(t) {
   ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 3;
   for (let fx = SCREEN.x - 54; fx < SCREEN.x - 14; fx += 13) { ctx.beginPath(); ctx.moveTo(fx, SCREEN.y - 16); ctx.lineTo(fx, SCREEN.y + SCREEN.h + 16); ctx.stroke(); }
   for (let fx = SCREEN.x + SCREEN.w + 22; fx < SCREEN.x + SCREEN.w + 62; fx += 13) { ctx.beginPath(); ctx.moveTo(fx, SCREEN.y - 16); ctx.lineTo(fx, SCREEN.y + SCREEN.h + 16); ctx.stroke(); }
+  /* QUANTUM THEATER banner plate sitting on top of the screen frame, marquee bulbs on its edges */
+  const bcx = SCREEN.x + SCREEN.w / 2;
+  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.45)"; ctx.shadowBlur = 16;
+  ctx.fillStyle = "#150b31"; rr(bcx - 330, 250, 660, 56, 12); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(bcx - 330, 250, 660, 56, 12); ctx.stroke();
+  for (let i = 0; i <= 16; i++) { const bx2 = bcx - 330 + i * 660 / 16; bulb(bx2, 250, i); bulb(bx2, 306, i + 1); }
+  ctx.font = "800 32px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("QUANTUM THEATER", bcx, 290);
   if (vid.readyState >= 2 && vid.videoWidth) {
     const sc = Math.max(SCREEN.w / vid.videoWidth, SCREEN.h / vid.videoHeight);
     ctx.save(); rr(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 4); ctx.clip();
