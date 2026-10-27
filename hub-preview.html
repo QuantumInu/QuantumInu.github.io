@@ -196,7 +196,7 @@ function startMusic() {
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
   let i = 0;
   setInterval(() => {
-    if (muted || !entered || clubSongActive()) return;
+    if (muted || !entered || (me.scene === "club" && clubSongActive())) return;
     tone(seq[i % seq.length], 0, 0.5, "sine", 0.022);
     if (i % 4 === 0) tone(seq[i % seq.length] / 2, 0, 1.6, "triangle", 0.016);
     i++;
@@ -357,8 +357,8 @@ const me = { name: "", hero: 0, scene: "plaza", x: 1600 + spawnOff, y: 1560, fli
 let entered = false;
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
-const CLUB = { x: 140, y: 1330, w: 420, h: 300 };
-const CLUBDOOR = { x: 310, y: 1606, w: 80, h: 34 };
+const CLUB = { x: 140, y: 1180, w: 420, h: 300 };
+const CLUBDOOR = { x: 310, y: 1456, w: 80, h: 34 };
 const SIL_R = { x: 2640, y: 1330, w: 420, h: 300 };
 const ROOM = { w: 2304, h: 1720 };
 const cabinets = [];
@@ -394,6 +394,12 @@ const BAR_R = { x: 1688, y: 76, w: 560, h: 60 };
 const DFLOOR = { x: 652, y: 540, w: 1000, h: 740 };
 const JUKE = { x: 296, y: 1170, w: 104, h: 148 };
 const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
+/* stage walls: back + curtain sides block; the whole front width is open, no barrier */
+const STAGE_WALLS = [
+  { x: STAGE.x, y: STAGE.y, w: STAGE.w, h: 40 },
+  { x: STAGE.x, y: STAGE.y, w: 58, h: STAGE.h },
+  { x: STAGE.x + STAGE.w - 58, y: STAGE.y, w: 58, h: STAGE.h }
+];
 const booths = [];
 [520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
@@ -401,7 +407,7 @@ function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcad
 function obstacles() {
   if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
-  if (me.scene === "club") return [STAGE, BAR_L, BAR_R, JUKE];
+  if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -628,7 +634,7 @@ function drawPlaza(t) {
   ctx.arc(CX, 1560, 205, Math.atan2(-D, 80), Math.atan2(-80, D));
   ctx.lineTo(2640, 1480); ctx.lineTo(2640, 1640); ctx.lineTo(CX + D, 1640);
   ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(80, -D));
-  ctx.lineTo(560, 1640); ctx.lineTo(560, 1480); ctx.lineTo(CX - D, 1480);
+  ctx.lineTo(0, 1640); ctx.lineTo(0, 1480); ctx.lineTo(CX - D, 1480);
   ctx.arc(CX, 1560, 205, Math.atan2(-80, -D), Math.atan2(-D, -80));
   ctx.lineTo(1520, 510); ctx.closePath();
   ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
