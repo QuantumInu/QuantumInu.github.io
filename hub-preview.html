@@ -44,6 +44,17 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 #enterbtn-top{margin:12px 0 4px}
 #cancelbtn{margin:-8px 0 26px;background:none;border:1px solid rgba(255,255,255,.3);color:#cfeaff;border-radius:999px;padding:9px 24px;font-size:14px;cursor:pointer;display:none}
 @media (max-width:520px){#topbar h1{font-size:15px}#status{display:none}.chip{padding:5px 9px;font-size:12px}}
+#jukebox{position:absolute;inset:52px 0 0 0;background:rgba(4,6,16,.82);z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#jukepanel{background:var(--panel);border:2px solid rgba(255,93,143,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,93,143,.35)}
+#jukepanel h2{margin:0 0 2px;font-size:21px;color:#ff8fb5;text-align:center}
+#jukenow{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
+#jukelist{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+.jukesong{background:rgba(255,255,255,.05);border:1px solid rgba(56,225,255,.28);color:var(--ink);border-radius:12px;padding:9px 12px;font-size:14.5px;text-align:left;cursor:pointer;font-family:inherit}
+.jukesong:active{transform:scale(.98)}
+.jukesong small{color:#9fd8ea}
+.jukesong.playing{border-color:var(--gold);background:rgba(255,215,106,.10)}
+#jukestop{margin-top:10px;background:rgba(255,93,143,.16);border:1px solid rgba(255,93,143,.6);color:#ffb3c9;border-radius:999px;padding:10px;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit}
+#jukeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 </style>
 </head>
 <body>
@@ -60,6 +71,13 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
   <canvas id="game"></canvas>
   <div id="joy"><div id="joystick"></div></div>
   <button id="prompt"></button>
+  <div id="jukebox"><div id="jukepanel">
+    <h2>🎵 Club Quantum Jukebox</h2>
+    <p id="jukenow">Nothing playing — pick a song for the whole club!</p>
+    <div id="jukelist"></div>
+    <button id="jukestop">⏹ Stop the music</button>
+    <button id="jukeclose">Close</button>
+  </div></div>
   <div id="chatbar">
     <input id="chatin" maxlength="120" placeholder="Say something…" autocomplete="off">
     <button id="sendbtn">Send</button>
@@ -102,6 +120,53 @@ const GAMES = [
 ["QI Space Shooter","qi-space-shooter.html","qi-space-shooter.jpg"],
 ["QI Sticker Battle","qi-sticker-battle.html","qi-sticker-battle.jpg"],
 ["QI Sticker Spellmatch","qi-sticker-spellmatch.html","qi-sticker-spellmatch.jpg"]];
+/* the site's full song library: [slug, title, artist, genre, seconds] */
+const SONGS = [
+["i-know-what-i-hold","I Know What I Hold","Phat Boi J","Lo-Fi",267],
+["the-shadow-armada","The Shadow Armada","Phat Boi J","Cinematic",279],
+["la-victoria-es-nuestra","La Victoria Es Nuestra","Phat Boi J","Reggaeton",224],
+["extinction-denied","Extinction Denied!","Phat Boi J","Rock",303],
+["victory-on-lock","Victory On Lock","Phat Boi J","Rap",231],
+["hush-little-world","Hush Little World","Phat Boi J","Rap",266],
+["go-go-go-quantum-inu","Go! Go! Go! Quantum Inu!","Phat Boi J","Rock",264],
+["built-from-the-dirt","Built From The Dirt","Phat Boi J","Outlaw Country",277],
+["neon-velocity","Neon Velocity","Phat Boi J","Synthwave",265],
+["the-last-defender","The Last Defender","Phat Boi J","Orchestral Rock",296],
+["no-off-switch","No Off Switch","Phat Boi J","Rap",224],
+["heart-of-the-resistance","Heart Of The Resistance","Phat Boi J","Rock / Punk",209],
+["forever-united","Forever United","Phat Boi J","Hardstyle",308],
+["bajo-el-mismo-cielo","Bajo El Mismo Cielo","Phat Boi J","Bachata",371],
+["quantum-bounce","Quantum Bounce","Vital","House",160],
+["beyond-the-horizon","Beyond The Horizon","Phat Boi J","D&B",313],
+["pon-di-top","Pon Di Top","Phat Boi J","Reggae",237],
+["standing-tall","Standing Tall","Phat Boi J","Rock",289],
+["higher-than-the-stars","Higher Than The Stars","Phat Boi J","Rock",360],
+["dancing-through-the-blue","Dancing Through The Blue","Phat Boi J","House",319],
+["one-consciousness","One Consciousness","Phat Boi J","Melodic House",414],
+["rise-above-the-flame","Rise Above The Flame","Phat Boi J","Cinematic",436],
+["carved-in-stone","Carved In Stone","Phat Boi J","Orchestral Rap",335],
+["were-still-standing","We're Still Standing","Phat Boi J","Rock / Punk",261],
+["feeling-quantum","Feeling Quantum","Vital","Rap",143],
+["ghost-gonna-gechu","Ghost Gonna Gechu","Phat Boi J","Rap",288],
+["haters-gonna-hate","Haters Gonna Hate","Phat Boi J","Orchestral Rap",246],
+["la-familia-qi","La Familia QI","Phat Boi J","Merengue",265],
+["infinite-qi","Infinite QI","Phat Boi J","Techno",316],
+["diamond-paws","Diamond Paws","Phat Boi J","Rap",212],
+["energia-quantica","Energia Quantica","Phat Boi J","Salsa",333],
+["more-than-a-name","More Than A Name","Phat Boi J","Country",317],
+["take-us-higher","Take Us Higher","Phat Boi J","Uplifting Trance",369],
+["fuego-cuantico","Fuego Cuantico","Phat Boi J","Reggaeton",226],
+["quantum-fi","Quantum-Fi","Phat Boi J","Lo-Fi",298],
+["qi-family","QI Family","Phat Boi J","Rap",303],
+["quantum-awakening","Quantum Awakening","Phat Boi J","Dark Metal",365],
+["quantumania","Quantum Mania","Vital","House",76],
+["quantum-train","Quantum Train","Phat Boi J","Country",283],
+["quantum-warrior","Quantum Warriors","Phat Boi J","Rock / Metal",406],
+["quantum-rising","Quantum Rising","Phat Boi J","Synthwave",327],
+["quantum-chase","Quantum Chase","Phat Boi J","Psytrance / Rock",239],
+["quantum-hodl","Quantum HODL","Phat Boi J","90s Rap",162],
+["we-are-one","We Are One","Phat Boi J","Orchestral Rap",55],
+["quantum-wave","Quantum Wave","Phat Boi J","Goa Psytrance",308]];
 const FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
 const DB_URL = "https://quantum-inu-games-default-rtdb.firebaseio.com";
 /* ============ profile ============ */
@@ -131,7 +196,7 @@ function startMusic() {
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
   let i = 0;
   setInterval(() => {
-    if (muted || !entered) return;
+    if (muted || !entered || clubSongActive()) return;
     tone(seq[i % seq.length], 0, 0.5, "sine", 0.022);
     if (i % 4 === 0) tone(seq[i % seq.length] / 2, 0, 1.6, "triangle", 0.016);
     i++;
@@ -163,6 +228,7 @@ nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
   muted = !muted; $("mutebtn").textContent = muted ? "🔇" : "🔊";
+  jukeAudio.volume = muted ? 0 : 1;
   if (profile) { profile.muted = muted; localStorage.setItem(LS_KEY, JSON.stringify(profile)); }
   if (!muted) sfxClick();
 };
@@ -238,6 +304,52 @@ if (db) {
     maybeSeedTheatre();
   });
 }
+/* ============ club (shared jukebox, synced for everyone in the club) ============ */
+const jukeAudio = new Audio(); jukeAudio.preload = "auto";
+let clubState = null;
+function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
+function syncJuke() {
+  if (!clubSongActive()) { if (!jukeAudio.paused) jukeAudio.pause(); return; }
+  const key = clubState.idx + "@" + clubState.ts;
+  if (jukeAudio.dataset.k !== key) {
+    jukeAudio.dataset.k = key;
+    jukeAudio.src = "assets/music/" + SONGS[clubState.idx][0] + ".mp3";
+    jukeAudio.volume = muted ? 0 : 1;
+    jukeAudio.onloadedmetadata = () => {
+      const pos = (Date.now() - (clubState.ts || Date.now())) / 1000;
+      if (pos > 0.5 && pos < jukeAudio.duration - 1) { try { jukeAudio.currentTime = pos; } catch (e) {} }
+      if (me.scene === "club") jukeAudio.play().catch(() => {});
+    };
+  } else if (me.scene === "club" && jukeAudio.paused) jukeAudio.play().catch(() => {});
+}
+function pickSong(i) {
+  if (!db) return;
+  sfxChime();
+  db.ref("hub/club").set({ idx: i, title: i >= 0 ? SONGS[i][1] : "", by: me.name || "", ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+}
+function fmtDur(s) { return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+function updateJukePanel() {
+  const now = $("jukenow"); if (!now) return;
+  if (clubSongActive()) now.textContent = "▶ Now playing: " + SONGS[clubState.idx][1] + (clubState.by ? " — picked by " + clubState.by : "");
+  else now.textContent = "Nothing playing — pick a song for the whole club!";
+  document.querySelectorAll(".jukesong").forEach((b, i) => b.classList.toggle("playing", clubSongActive() && clubState.idx === i));
+}
+(function buildJukeList() {
+  const list = $("jukelist"); if (!list) return;
+  SONGS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "jukesong";
+    b.innerHTML = "";
+    b.textContent = s[1] + " — " + s[2] + " · " + s[3] + " · " + fmtDur(s[4]);
+    b.onclick = () => { pickSong(i); closeJuke(); };
+    list.appendChild(b);
+  });
+})();
+function openJuke() { updateJukePanel(); $("jukebox").style.display = "flex"; sfxClick(); }
+function closeJuke() { $("jukebox").style.display = "none"; sfxClick(); }
+$("jukeclose").onclick = closeJuke;
+$("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
+if (db) db.ref("hub/club").on("value", s => { clubState = s.val(); syncJuke(); updateJukePanel(); });
 /* ============ player / world ============ */
 const WORLD = { w: 3200, h: 2133 };
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
@@ -245,7 +357,8 @@ const me = { name: "", hero: 0, scene: "plaza", x: 1600 + spawnOff, y: 1560, fli
 let entered = false;
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
-const SIL_L = { x: 140, y: 1330, w: 420, h: 300 };
+const CLUB = { x: 140, y: 1330, w: 420, h: 300 };
+const CLUBDOOR = { x: 310, y: 1606, w: 80, h: 34 };
 const SIL_R = { x: 2640, y: 1330, w: 420, h: 300 };
 const ROOM = { w: 2304, h: 1720 };
 const cabinets = [];
@@ -273,21 +386,37 @@ const seats = [];
   const rows = [950, 1080, 1210, 1340], xs = [800, 960, 1120, 1280, 1812, 1972, 2132, 2292];
   rows.forEach(y => xs.forEach(x => seats.push({ x, y, w: 128, h: 66 })));
 })();
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : TH; }
+/* ============ club room layout ============ */
+const CLUBROOM = { w: 2304, h: 1720 };
+const STAGE = { x: 752, y: 56, w: 800, h: 300 };
+const BAR_L = { x: 56, y: 76, w: 560, h: 60 };
+const BAR_R = { x: 1688, y: 76, w: 560, h: 60 };
+const DFLOOR = { x: 652, y: 540, w: 1000, h: 740 };
+const JUKE = { x: 296, y: 1170, w: 104, h: 148 };
+const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
+const booths = [];
+[520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
+booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [BUILDING, SIL_L, SIL_R];
+  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
+  if (me.scene === "club") return [STAGE, BAR_L, BAR_R, JUKE, ...booths];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
   const r = 30;
   if (me.scene === "plaza") {
     if (nx > DOOR.x - 6 && nx < DOOR.x + DOOR.w + 6 && ny > BUILDING.y + BUILDING.h - 14 && ny < BUILDING.y + BUILDING.h + 46) return { x: nx, y: ny, door: true };
+    if (nx > CLUBDOOR.x - 6 && nx < CLUBDOOR.x + CLUBDOOR.w + 6 && ny > CLUB.y + CLUB.h - 14 && ny < CLUB.y + CLUB.h + 46) return { x: nx, y: ny, clubdoor: true };
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
     if (nx > EXIT.x - 4 && nx < EXIT.x + EXIT.w + 4 && ny > ROOM.h - 76) return { x: nx, y: ny, exit: true };
     nx = Math.max(56, Math.min(ROOM.w - 56, nx)); ny = Math.max(70, Math.min(ROOM.h - 46, ny));
+  } else if (me.scene === "club") {
+    if (nx > CEXIT.x - 4 && nx < CEXIT.x + CEXIT.w + 4 && ny > CLUBROOM.h - 76) return { x: nx, y: ny, clubexit: true };
+    nx = Math.max(56, Math.min(CLUBROOM.w - 56, nx)); ny = Math.max(70, Math.min(CLUBROOM.h - 46, ny));
   } else {
     if (nx < 48 && ny > HALL.top && ny < HALL.bot) return { x: nx, y: ny, back: true };
     nx = Math.max(46, Math.min(TH.w - 56, nx)); ny = Math.max(60, Math.min(TH.h - 46, ny));
@@ -374,6 +503,10 @@ cv.addEventListener("pointerdown", e => {
     const ps = worldToScreen(PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + PEDESTAL.h / 2);
     if (Math.hypot(px - ps.x, py - ps.y) < 90 && nearPedestal()) changeChannel();
   }
+  if (me.scene === "club") {
+    const js = worldToScreen(JUKE.x + JUKE.w / 2, JUKE.y + JUKE.h / 2);
+    if (Math.hypot(px - js.x, py - js.y) < 90 && nearJuke()) openJuke();
+  }
 });
 cv.addEventListener("pointermove", e => {
   if (e.pointerId !== holdId) return;
@@ -396,6 +529,9 @@ function toArcade() { me.scene = "arcade"; me.x = ROOM.w / 2; me.y = ROOM.h - 15
 function toPlaza() { me.scene = "plaza"; me.x = 1600; me.y = 566; sfxChime(); publish(true); }
 function toTheatre() { me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
 function toArcadeFromTheatre() { me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
+function toClub() { me.scene = "club"; me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
+function toPlazaFromClub() { me.scene = "plaza"; me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
+function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
   if (me.scene !== "arcade") return null;
@@ -484,11 +620,19 @@ function drawPlaza(t) {
     ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
   }
-  pathRect(1520, 510, 160, 1050);
-  pathRect(560, 1480, 1040, 160);
-  pathRect(1600, 1480, 1040, 160);
-  ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.beginPath(); ctx.arc(CX, 1560, 205, 0, 7); ctx.fill();
-  ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX, 1560, 205, 0, 7); ctx.stroke();
+  /* paths + roundabout as ONE union shape (theatre-carpet style): one fill, outer edge only */
+  const D = Math.sqrt(205 * 205 - 80 * 80); /* 188.7 — where the bars meet the circle */
+  ctx.beginPath();
+  ctx.moveTo(1520, 510); ctx.lineTo(1680, 510);
+  ctx.lineTo(1680, 1560 - D);
+  ctx.arc(CX, 1560, 205, Math.atan2(-D, 80), Math.atan2(-80, D));
+  ctx.lineTo(2640, 1480); ctx.lineTo(2640, 1640); ctx.lineTo(CX + D, 1640);
+  ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(80, -D));
+  ctx.lineTo(560, 1640); ctx.lineTo(560, 1480); ctx.lineTo(CX - D, 1480);
+  ctx.arc(CX, 1560, 205, Math.atan2(-80, -D), Math.atan2(-D, -80));
+  ctx.lineTo(1520, 510); ctx.closePath();
+  ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
+  ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
   /* lamp posts along the paths */
   ctx.fillStyle = "#ffd76a";
@@ -529,7 +673,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  silhouette(SIL_L); silhouette(SIL_R);
+  drawClubBuilding(t); silhouette(SIL_R);
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -541,29 +685,10 @@ function drawPlaza(t) {
   ctx.beginPath(); ctx.moveTo(b.x - 48, b.y + 48); ctx.lineTo(b.x - 20, b.y + 2); ctx.lineTo(b.x + 8, b.y + 48); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(b.x + b.w - 8, b.y + 48); ctx.lineTo(b.x + b.w + 20, b.y + 2); ctx.lineTo(b.x + b.w + 48, b.y + 48); ctx.closePath(); ctx.fill();
   ctx.fillStyle = "rgba(255,215,106,0.35)"; ctx.fillRect(b.x - 32, b.y + 120, 24, 30); ctx.fillRect(b.x + b.w + 8, b.y + 120, 24, 30);
-  ctx.fillStyle = "rgba(56,225,255,0.55)"; ctx.fillRect(b.x - 32, b.y + 176, 24, 30); ctx.fillRect(b.x + b.w + 8, b.y + 176, 24, 30);
-  ctx.fillStyle = "rgba(255,93,143,0.5)"; ctx.fillRect(b.x - 32, b.y + 232, 24, 30); ctx.fillRect(b.x + b.w + 8, b.y + 232, 24, 30);
   ctx.fillStyle = "#0d1830"; rr(b.x, b.y, b.w, b.h, 18); ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.65)"; ctx.lineWidth = 3; rr(b.x, b.y, b.w, b.h, 18); ctx.stroke();
-  ctx.strokeStyle = "rgba(168,85,247,0.5)"; ctx.lineWidth = 2; rr(b.x + 8, b.y + 8, b.w - 16, b.h - 16, 12); ctx.stroke();
-  /* glass front: rows of glowing arcade cabinet screens inside */
-  const cabCols = ["#38e1ff", "#ff5d8f", "#a855f7", "#ffd76a", "#4ade80"];
-  let ci = 0;
-  for (let wy = b.y + 108; wy < b.y + b.h - 96; wy += 58) {
-    for (let wx = b.x + 40; wx < b.x + b.w - 34; wx += 62, ci++) {
-      const col = cabCols[(ci * 7 + wy) % cabCols.length];
-      const lit = (ci * 13 + wy) % 6 !== 0;
-      ctx.fillStyle = lit ? col : "#16233f";
-      ctx.globalAlpha = lit ? 0.5 + ((ci * 29) % 40) / 100 : 0.9;
-      rr(wx, wy, 30, 22, 4); ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "rgba(6,10,22,0.85)"; ctx.fillRect(wx + 4, wy + 24, 22, 5);
-    }
-  }
-  /* glass sheen */
-  const sheen = ctx.createLinearGradient(b.x, b.y + 74, b.x + b.w, b.y + b.h);
-  sheen.addColorStop(0, "rgba(255,255,255,0.07)"); sheen.addColorStop(0.5, "rgba(255,255,255,0.0)"); sheen.addColorStop(1, "rgba(255,255,255,0.04)");
-  ctx.fillStyle = sheen; rr(b.x, b.y + 74, b.w, b.h - 74, 18); ctx.fill();
+  ctx.fillStyle = "rgba(255,215,106,0.30)";
+  for (let wx = b.x + 44; wx < b.x + b.w - 30; wx += 62) for (let wy = b.y + 104; wy < b.y + b.h - 90; wy += 58) ctx.fillRect(wx, wy, 26, 20);
   ctx.fillStyle = "rgba(56,225,255,0.9)";
   ctx.save(); ctx.shadowColor = "rgba(56,225,255,0.75)"; ctx.shadowBlur = 8;
   for (let bx = b.x + 26; bx < b.x + b.w - 10; bx += 34) { ctx.beginPath(); ctx.arc(bx, b.y + 86, 4, 0, 7); ctx.fill(); }
@@ -572,22 +697,10 @@ function drawPlaza(t) {
   rg.addColorStop(0, "#2a1650"); rg.addColorStop(1, "#170b36");
   ctx.fillStyle = rg; rr(b.x, b.y, b.w, 74, 18); ctx.fill();
   ctx.fillStyle = "#0d1830"; ctx.fillRect(b.x, b.y + 56, b.w, 18);
-  /* marquee chase bulbs around the sign */
-  ctx.save(); ctx.shadowBlur = 9;
-  const chase = Math.floor(t / 280) % 2;
-  for (let bx = b.x + 14, bi = 0; bx < b.x + b.w - 6; bx += 26, bi++) {
-    const on = (bi + chase) % 2 === 0;
-    ctx.fillStyle = on ? "#ffd76a" : "#38e1ff"; ctx.shadowColor = ctx.fillStyle;
-    ctx.beginPath(); ctx.arc(bx, b.y + 9, 3.6, 0, 7); ctx.fill();
-    ctx.beginPath(); ctx.arc(bx, b.y + 65, 3.6, 0, 7); ctx.fill();
-  }
-  ctx.restore();
   ctx.font = "800 34px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.lineWidth = 6; ctx.strokeStyle = "rgba(0,0,0,0.6)";
   ctx.strokeText("QUANTUM ARCADE", b.x + b.w / 2, b.y + 50);
-  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.8)"; ctx.shadowBlur = 16;
   ctx.fillStyle = "#ffd76a"; ctx.fillText("QUANTUM ARCADE", b.x + b.w / 2, b.y + 50);
-  ctx.restore();
   ctx.font = "26px sans-serif"; ctx.fillText("🕹️", b.x + 42, b.y + 50); ctx.fillText("🕹️", b.x + b.w - 42, b.y + 50);
   const dg = ctx.createLinearGradient(DOOR.x, DOOR.y, DOOR.x, DOOR.y + DOOR.h + 60);
   dg.addColorStop(0, "rgba(56,225,255,0.55)"); dg.addColorStop(1, "rgba(56,225,255,0)");
@@ -598,6 +711,152 @@ function drawPlaza(t) {
   ctx.fillStyle = "#38e1ff"; rr(DOOR.x, DOOR.y, DOOR.w, 10, 5); ctx.fill();
   ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff";
   ctx.fillText("▼ ENTER ▼", DOOR.x + DOOR.w / 2, DOOR.y + DOOR.h + 52);
+  ctx.restore();
+}
+function drawClubBuilding(t) {
+  const b = CLUB;
+  ctx.fillStyle = "#12061f"; rr(b.x, b.y, b.w, b.h, 16); ctx.fill();
+  ctx.save(); ctx.shadowColor = "rgba(255,93,143,0.85)"; ctx.shadowBlur = 14;
+  ctx.strokeStyle = "#ff5d8f"; ctx.lineWidth = 3; rr(b.x, b.y, b.w, b.h, 16); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle = "rgba(56,225,255,0.55)"; ctx.lineWidth = 2; rr(b.x + 9, b.y + 9, b.w - 18, b.h - 18, 11); ctx.stroke();
+  /* vertical neon strips on the facade */
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = i % 2 ? "rgba(56,225,255,0.5)" : "rgba(255,93,143,0.5)";
+    ctx.fillRect(b.x + 34 + i * 62, b.y + 96, 7, b.h - 150);
+  }
+  /* dark club windows with a purple glow */
+  ctx.fillStyle = "rgba(88,40,160,0.5)";
+  for (let wx = b.x + 60; wx < b.x + b.w - 50; wx += 92) ctx.fillRect(wx, b.y + 118, 52, 66);
+  /* the neon sign */
+  const sg = ctx.createLinearGradient(b.x, b.y + 10, b.x, b.y + 84);
+  sg.addColorStop(0, "#2a0a2e"); sg.addColorStop(1, "#17041f");
+  ctx.fillStyle = sg; rr(b.x + 16, b.y + 12, b.w - 32, 72, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.7)"; ctx.lineWidth = 2; rr(b.x + 16, b.y + 12, b.w - 32, 72, 12); ctx.stroke();
+  ctx.font = "800 33px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.save(); ctx.shadowColor = "rgba(255,93,143,0.95)"; ctx.shadowBlur = 18;
+  ctx.fillStyle = "#ff8fb5"; ctx.fillText("CLUB QUANTUM", b.x + b.w / 2, b.y + 58); ctx.restore();
+  ctx.font = "24px sans-serif"; ctx.fillText("🪩", b.x + 38, b.y + 56); ctx.fillText("🪩", b.x + b.w - 38, b.y + 56);
+  /* door glow + striped awning, pink like the arcade's but club colors */
+  const dg = ctx.createLinearGradient(CLUBDOOR.x, CLUBDOOR.y, CLUBDOOR.x, CLUBDOOR.y + CLUBDOOR.h + 60);
+  dg.addColorStop(0, "rgba(255,93,143,0.55)"); dg.addColorStop(1, "rgba(255,93,143,0)");
+  ctx.fillStyle = dg; ctx.fillRect(CLUBDOOR.x - 8, CLUBDOOR.y - 6, CLUBDOOR.w + 16, CLUBDOOR.h + 64);
+  for (let i = 0; i < 9; i++) { ctx.fillStyle = i % 2 ? "#ff5d8f" : "#a855f7"; ctx.fillRect(CLUBDOOR.x - 48 + i * 19, CLUBDOOR.y - 36, 19, 18); }
+  ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 1.5; ctx.strokeRect(CLUBDOOR.x - 48, CLUBDOOR.y - 36, 171, 18);
+  ctx.fillStyle = "#ff5d8f"; rr(CLUBDOOR.x, CLUBDOOR.y, CLUBDOOR.w, 10, 5); ctx.fill();
+  ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd3e2";
+  ctx.fillText("▼ ENTER ▼", CLUBDOOR.x + CLUBDOOR.w / 2, CLUBDOOR.y + CLUBDOOR.h + 52);
+}
+function drawClub(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  ctx.fillStyle = "#0a0616"; ctx.fillRect(0, 0, CLUBROOM.w, CLUBROOM.h);
+  ctx.strokeStyle = "rgba(168,85,247,0.13)"; ctx.lineWidth = 2;
+  for (let x = 0; x <= CLUBROOM.w; x += 84) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CLUBROOM.h); ctx.stroke(); }
+  for (let y = 0; y <= CLUBROOM.h; y += 84) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CLUBROOM.w, y); ctx.stroke(); }
+  /* bar shelves with bottles along the top wall */
+  for (const bx of [BAR_L.x, BAR_R.x]) {
+    ctx.fillStyle = "#170b26"; ctx.fillRect(bx, 18, 560, 46);
+    const bottleCols = ["#38e1ff", "#ff5d8f", "#ffd76a", "#4ade80", "#a855f7"];
+    for (let i = 0; i < 16; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(bx + 14 + i * 34, 30 - (i % 3) * 4, 9, 26 + (i % 3) * 4); }
+    ctx.globalAlpha = 1;
+  }
+  /* bar counters + stools */
+  for (const bar of [BAR_L, BAR_R]) {
+    ctx.fillStyle = "#241031"; rr(bar.x, bar.y, bar.w, bar.h, 10); ctx.fill();
+    ctx.fillStyle = "#ff5d8f"; ctx.fillRect(bar.x, bar.y, bar.w, 6);
+    ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 2; rr(bar.x, bar.y, bar.w, bar.h, 10); ctx.stroke();
+    for (let sx = bar.x + 36; sx < bar.x + bar.w - 10; sx += 62) {
+      ctx.fillStyle = "#3b1554"; ctx.beginPath(); ctx.arc(sx, bar.y + bar.h + 34, 17, 0, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(255,93,143,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, bar.y + bar.h + 34, 17, 0, 7); ctx.stroke();
+      ctx.fillStyle = "rgba(255,215,106,0.8)"; ctx.fillRect(sx - 2, bar.y + bar.h + 12, 4, 8);
+    }
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd3e2";
+    ctx.fillText("🍹 BAR", bar.x + bar.w / 2, bar.y + 38);
+  }
+  /* the stage with curtains, top center */
+  const st = STAGE;
+  ctx.fillStyle = "#1c0b31"; rr(st.x, st.y, st.w, st.h, 12); ctx.fill();
+  ctx.fillStyle = "#2b1150"; ctx.fillRect(st.x + 60, st.y + 96, st.w - 120, st.h - 110);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(st.x, st.y + st.h - 14, st.w, 6);
+  ctx.font = "800 44px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.save(); ctx.shadowColor = "rgba(255,93,143,0.9)"; ctx.shadowBlur = 22;
+  ctx.fillStyle = "#ff8fb5"; ctx.fillText("CLUB QUANTUM", st.x + st.w / 2, st.y + 74); ctx.restore();
+  ctx.font = "30px sans-serif"; ctx.fillText("🪩", st.x + st.w / 2, st.y + 150);
+  /* sweeping spotlights */
+  for (const [sx, ph] of [[st.x + 90, 0], [st.x + st.w - 90, 2.2]]) {
+    const sway = Math.sin(t / 900 + ph) * 130;
+    ctx.save(); ctx.globalAlpha = 0.13; ctx.fillStyle = ph ? "#38e1ff" : "#ffd76a";
+    ctx.beginPath(); ctx.moveTo(sx, st.y + 100); ctx.lineTo(st.x + st.w / 2 + sway - 70, st.y + st.h - 16); ctx.lineTo(st.x + st.w / 2 + sway + 70, st.y + st.h - 16); ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  /* curtains: valance + side drapes with folds */
+  ctx.fillStyle = "#8e1f42";
+  for (let x = st.x; x < st.x + st.w; x += 44) { ctx.beginPath(); ctx.arc(x + 22, st.y + 14, 23, 0, Math.PI); ctx.fill(); }
+  for (const cx0 of [st.x, st.x + st.w - 58]) {
+    ctx.fillStyle = "#7f1d3a"; rr(cx0, st.y + 8, 58, st.h - 16, 8); ctx.fill();
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    for (let fx = cx0 + 12; fx < cx0 + 52; fx += 13) ctx.fillRect(fx, st.y + 16, 5, st.h - 32);
+    ctx.fillStyle = "#ffd76a"; ctx.fillRect(cx0, st.y + st.h - 74, 58, 7);
+  }
+  /* dance floor: cycling neon tiles */
+  const cols = 10, rows = 8, tw = DFLOOR.w / cols, th = DFLOOR.h / rows;
+  const pal = ["#ff5d8f", "#38e1ff", "#a855f7", "#ffd76a", "#4ade80", "#ff8c42"];
+  const step = Math.floor(t / 480);
+  for (let r2 = 0; r2 < rows; r2++) for (let c2 = 0; c2 < cols; c2++) {
+    ctx.fillStyle = pal[(c2 * 3 + r2 * 5 + step) % pal.length]; ctx.globalAlpha = 0.42;
+    ctx.fillRect(DFLOOR.x + c2 * tw + 2, DFLOOR.y + r2 * th + 2, tw - 4, th - 4);
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; ctx.strokeRect(DFLOOR.x, DFLOOR.y, DFLOOR.w, DFLOOR.h);
+  /* disco ball over the floor */
+  const dbx = DFLOOR.x + DFLOOR.w / 2, dby = DFLOOR.y - 62;
+  ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(dbx, DFLOOR.y - 150); ctx.lineTo(dbx, dby - 30); ctx.stroke();
+  ctx.save(); ctx.shadowColor = "rgba(190,230,255,0.9)"; ctx.shadowBlur = 18;
+  ctx.fillStyle = "#cfe9ff"; ctx.beginPath(); ctx.arc(dbx, dby, 30, 0, 7); ctx.fill(); ctx.restore();
+  ctx.fillStyle = "rgba(56,225,255,0.55)";
+  for (let i = 0; i < 10; i++) { const a = t / 700 + i * 0.63; ctx.fillRect(dbx + Math.cos(a) * 19 - 2, dby + Math.sin(a) * 19 - 2, 4, 4); }
+  /* chairs all around the dance floor */
+  const chairCols = ["#ff5d8f", "#38e1ff", "#a855f7", "#ffd76a"];
+  let chi = 0;
+  function chair(cx2, cy2) {
+    ctx.fillStyle = "#1d0f36"; rr(cx2 - 15, cy2 - 15, 30, 30, 6); ctx.fill();
+    ctx.strokeStyle = chairCols[chi++ % 4]; ctx.lineWidth = 2; rr(cx2 - 15, cy2 - 15, 30, 30, 6); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.16)"; ctx.fillRect(cx2 - 9, cy2 - 9, 18, 6);
+  }
+  for (let cx2 = DFLOOR.x + 50; cx2 < DFLOOR.x + DFLOOR.w - 20; cx2 += 90) { chair(cx2, DFLOOR.y - 42); chair(cx2, DFLOOR.y + DFLOOR.h + 42); }
+  for (let cy2 = DFLOOR.y + 66; cy2 < DFLOOR.y + DFLOOR.h - 30; cy2 += 103) { chair(DFLOOR.x - 42, cy2); chair(DFLOOR.x + DFLOOR.w + 42, cy2); }
+  /* private booths */
+  for (const bt of booths) {
+    ctx.fillStyle = "#22103f"; rr(bt.x, bt.y, bt.w, bt.h, 14); ctx.fill();
+    ctx.strokeStyle = "rgba(255,93,143,0.55)"; ctx.lineWidth = 2; rr(bt.x, bt.y, bt.w, bt.h, 14); ctx.stroke();
+    ctx.fillStyle = "#31155c"; rr(bt.x + 14, bt.y + 14, bt.w - 28, 40, 9); ctx.fill(); rr(bt.x + 14, bt.y + bt.h - 54, bt.w - 28, 40, 9); ctx.fill();
+    ctx.fillStyle = "#170b26"; rr(bt.x + bt.w / 2 - 34, bt.y + bt.h / 2 - 24, 68, 48, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.6)"; rr(bt.x + bt.w / 2 - 34, bt.y + bt.h / 2 - 24, 68, 48, 8); ctx.stroke();
+    ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(bt.x + bt.w / 2, bt.y + bt.h / 2, 5, 0, 7); ctx.fill();
+    ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff8fb5";
+    ctx.fillText("BOOTH", bt.x + bt.w / 2, bt.y + 38);
+  }
+  /* the jukebox */
+  const jx = JUKE.x, jy = JUKE.y;
+  ctx.save(); ctx.shadowColor = "rgba(255,93,143,0.7)"; ctx.shadowBlur = 16;
+  ctx.fillStyle = "#2b0f2e"; rr(jx, jy + 26, JUKE.w, JUKE.h - 26, 12); ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.arc(jx + JUKE.w / 2, jy + 28, JUKE.w / 2, Math.PI, 0); ctx.fillStyle = "#2b0f2e"; ctx.fill();
+  const archCols = ["#ff5d8f", "#ffd76a", "#38e1ff", "#a855f7"];
+  for (let i = 0; i < 4; i++) { ctx.strokeStyle = archCols[i]; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(jx + JUKE.w / 2, jy + 40, JUKE.w / 2 - 6 - i * 9, Math.PI, 0); ctx.stroke(); }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(jx + JUKE.w / 2, jy + 74, 17, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(190,230,255,0.85)";
+  for (let gy = jy + 104; gy < jy + JUKE.h - 12; gy += 10) for (let gx = jx + 16; gx < jx + JUKE.w - 12; gx += 10) ctx.fillRect(gx, gy, 3, 3);
+  ctx.font = "700 12.5px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd3e2";
+  ctx.fillText("JUKEBOX", jx + JUKE.w / 2, jy + JUKE.h + 18);
+  /* now playing on the wall */
+  if (clubSongActive()) {
+    ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", CLUBROOM.w / 2, DFLOOR.y - 176);
+  }
+  /* exit door */
+  ctx.fillStyle = "#ff5d8f"; rr(CEXIT.x, CEXIT.y, CEXIT.w, 10, 5); ctx.fill();
+  ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd3e2";
+  ctx.fillText("▼ EXIT ▼", CEXIT.x + CEXIT.w / 2, CEXIT.y + 40);
+  /* neon room border last, like the theatre's */
+  ctx.strokeStyle = "#ff5d8f"; ctx.lineWidth = 5; ctx.strokeRect(4, 4, CLUBROOM.w - 8, CLUBROOM.h - 8);
   ctx.restore();
 }
 function drawArcade(t) {
@@ -885,6 +1144,8 @@ function frame(now) {
     if (vx > 0.2) me.flip = true; else if (vx < -0.2) me.flip = false;
     if (now - stepAt > 270) { stepAt = now; sfxStep(); }
     if (res.door) toArcade();
+    if (res.clubdoor) toClub();
+    if (res.clubexit) toPlazaFromClub();
     if (res.exit) toPlaza();
     if (res.theatre) toTheatre();
     if (res.back) toArcadeFromTheatre();
@@ -898,9 +1159,10 @@ function frame(now) {
   if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
   drawStars(camX, camY, SCALE);
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else drawTheatre(now);
   if (me.scene === "theatre") { if (vid.dataset.cur && vid.paused) vid.play().catch(() => {}); }
   else if (!vid.paused) vid.pause();
+  if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
   const actors = [];
   for (const p of peers.values()) {
@@ -922,6 +1184,7 @@ function frame(now) {
   const cab = nearestCabinet();
   if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
+  else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
   else { promptBtn.style.display = "none"; promptAction = null; }
 }
 requestAnimationFrame(frame);
