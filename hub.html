@@ -21,7 +21,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);co
 button.chip{cursor:pointer;font-family:inherit}
 button.chip:active{transform:scale(.96)}
 #stage{position:absolute;inset:52px 0 0 0}
-canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);display:block;touch-action:none}
 #chatbar{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;display:flex;gap:6px;width:min(560px,94vw);z-index:20}
 #chatin{flex:1;background:rgba(5,10,24,.88);border:1px solid rgba(56,225,255,.4);border-radius:999px;color:var(--ink);padding:11px 16px;font-size:15px;outline:none}
 #chatin:focus{border-color:var(--cyan)}
@@ -183,8 +183,9 @@ let pickedHero = profile ? profile.hero : 0;
 /* ============ audio ============ */
 let AC = null, muted = profile ? !!profile.muted : false, musicOn = false;
 function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } if (AC && AC.state === "suspended") AC.resume(); return AC; }
+let audioHeld = false; /* true while the tab/window is out of focus — all hub sound mutes */
 function tone(f0, f1, dur, type, vol, when) {
-  if (muted) return; const c = ac(); if (!c) return;
+  if (muted || audioHeld) return; const c = ac(); if (!c) return;
   const t = c.currentTime + (when || 0), o = c.createOscillator(), g = c.createGain();
   o.type = type || "sine"; o.frequency.setValueAtTime(f0, t);
   if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
@@ -198,7 +199,7 @@ const sfxChime = () => { tone(660, 660, 0.12, "sine", 0.06); tone(880, 880, 0.14
 const sfxStep = () => tone(180 + Math.random() * 60, 120, 0.05, "triangle", 0.025);
 /* slow swelling pad chord — detuned triangle pairs through long fades, for a cinematic-strings feel */
 function padChord(freqs, dur, vol) {
-  if (muted) return; const c = ac(); if (!c) return;
+  if (muted || audioHeld) return; const c = ac(); if (!c) return;
   const t = c.currentTime;
   freqs.forEach(f => {
     [-5, 5].forEach(det => {
@@ -210,6 +211,22 @@ function padChord(freqs, dur, vol) {
       o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.1);
     });
   });
+}
+const ARCADE_BLIPS = [523.3, 587.3, 659.3, 784.0, 880.0, 1046.5, 1174.7, 1318.5];
+function arcadeAmb() {
+  const r = Math.random();
+  if (r < 0.52) {
+    tone(ARCADE_BLIPS[Math.floor(Math.random() * ARCADE_BLIPS.length)], 0, 0.09, "square", 0.006 + Math.random() * 0.005);
+  } else if (r < 0.78) {
+    const b = Math.floor(Math.random() * (ARCADE_BLIPS.length - 2));
+    tone(ARCADE_BLIPS[b], 0, 0.08, "square", 0.008);
+    tone(ARCADE_BLIPS[b + 1], 0, 0.08, "square", 0.008, 0.09);
+    tone(ARCADE_BLIPS[b + 2], 0, 0.11, "square", 0.008, 0.18);
+  } else if (r < 0.88) {
+    tone(987.8, 0, 0.07, "sine", 0.008); tone(1318.5, 0, 0.16, "sine", 0.008, 0.07);
+  }
+  /* a second, farther machine chimes in most beats — a busier floor */
+  if (Math.random() < 0.45) tone(ARCADE_BLIPS[Math.floor(Math.random() * ARCADE_BLIPS.length)], 0, 0.08, "square", 0.005, 0.23 + Math.random() * 0.1);
 }
 const THEATRE_CHORDS = [
   [110.0, 164.8, 220.0, 261.6], [87.3, 130.8, 174.6, 220.0],
@@ -224,9 +241,9 @@ function startMusic() {
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
   let tick = 0;
   setInterval(() => {
-    if (muted || !entered || (me.scene === "club" && clubSongActive())) return;
+    if (muted || audioHeld || !entered || (me.scene === "club" && clubSongActive())) return;
     const sc = me.scene;
-    if (sc === "arcade") { tick++; return; } /* the arcade is silent — no music, no ambience */
+    if (sc === "arcade") { arcadeAmb(); tick++; return; }
     if (sc === "theatre") {
       if (tick % 16 === 0) padChord(THEATRE_CHORDS[Math.floor(tick / 16) % 4], 8.4, 0.011);
       tick++; return;
@@ -319,6 +336,12 @@ function publish(force) {
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) publish(true); });
+/* all hub sound mutes while the tab/window is out of focus, and returns when it is focused again */
+function holdAudio() { audioHeld = true; try { if (!jukeAudio.paused) jukeAudio.pause(); } catch (e) {} }
+function releaseAudio() { audioHeld = false; }
+document.addEventListener("visibilitychange", () => { if (document.hidden) holdAudio(); else releaseAudio(); });
+window.addEventListener("blur", holdAudio);
+window.addEventListener("focus", releaseAudio);
 /* no pinch zoom or double-tap zoom anywhere in the hub, in any room */
 document.addEventListener("gesturestart", e => e.preventDefault());
 document.addEventListener("gesturechange", e => e.preventDefault());
@@ -845,6 +868,51 @@ function drawPlaza(t) {
   }
   crystal(420, 420, 34, "rgba(56,225,255,0.30)"); crystal(520, 500, 22, "rgba(168,85,247,0.30)");
   crystal(2780, 420, 34, "rgba(168,85,247,0.30)"); crystal(2680, 520, 22, "rgba(56,225,255,0.30)");
+  /* fountains flanking the main road — pure decor, you can walk right over them */
+  function fountain(fx, fy, t) {
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(fx + 4, fy + 10, 122, 62, 0, 0, 7); ctx.fill();
+    const bg2 = ctx.createRadialGradient(fx, fy - 8, 20, fx, fy, 120);
+    bg2.addColorStop(0, "#2a3f74"); bg2.addColorStop(0.8, "#1b2a52"); bg2.addColorStop(1, "#141f3d");
+    ctx.fillStyle = bg2; ctx.beginPath(); ctx.ellipse(fx, fy, 120, 62, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = "rgba(56,225,255,0.5)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(fx, fy, 112, 57, 0, 0, 7); ctx.stroke();
+    const wg = ctx.createRadialGradient(fx, fy, 6, fx, fy, 100);
+    wg.addColorStop(0, "rgba(140,230,255,0.85)"); wg.addColorStop(0.6, "rgba(56,160,255,0.55)"); wg.addColorStop(1, "rgba(30,90,200,0.45)");
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.ellipse(fx, fy, 100, 48, 0, 0, 7); ctx.fill();
+    for (let k = 0; k < 3; k++) {
+      const rp = ((t / 1600) + k / 3) % 1;
+      ctx.strokeStyle = "rgba(200,245,255," + (0.35 * (1 - rp)) + ")"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(fx, fy, 14 + rp * 78, (14 + rp * 78) * 0.48, 0, 0, 7); ctx.stroke();
+    }
+    for (let i = 0; i < 6; i++) {
+      const tw = 0.25 + 0.30 * (0.5 + 0.5 * Math.sin(t / 280 + i * 1.7));
+      ctx.fillStyle = "rgba(255,255,255," + tw + ")";
+      ctx.beginPath(); ctx.arc(fx + (hashN(i * 3.1 + fx) - 0.5) * 150, fy + (hashN(i * 7.3 + fy) - 0.5) * 60, 1.8, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = "#31497f"; ctx.beginPath(); ctx.ellipse(fx, fy - 2, 17, 9, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 1.5; ctx.stroke();
+    /* tall center jet — droplets loop up and fall back */
+    for (let i = 0; i < 26; i++) {
+      const ph = ((t / 900) + i / 26) % 1;
+      const px = fx + (hashN(i * 3.7) - 0.5) * (4 + ph * 12);
+      const py = fy - 6 - Math.sin(ph * Math.PI) * 76 + ph * ph * 26;
+      ctx.fillStyle = "rgba(190,240,255," + (0.85 - ph * 0.35) + ")";
+      ctx.beginPath(); ctx.arc(px, py, 2.1, 0, 7); ctx.fill();
+    }
+    /* 8-way arc spray off the nozzle */
+    for (let d = 0; d < 8; d++) {
+      const ang = d / 8 * Math.PI * 2;
+      for (let j = 0; j < 4; j++) {
+        const ph = ((t / 1100) + (d * 4 + j) / 32) % 1;
+        const reach = 64 + (hashN(d * 7 + j * 1.3) - 0.5) * 16;
+        const px = fx + Math.cos(ang) * reach * ph;
+        const py = fy + Math.sin(ang) * reach * 0.5 * ph - Math.sin(ph * Math.PI) * 30;
+        ctx.fillStyle = "rgba(170,230,255," + (0.75 * (1 - ph * 0.5)) + ")";
+        ctx.beginPath(); ctx.arc(px, py, 1.9, 0, 7); ctx.fill();
+      }
+    }
+  }
+  fountain(1150, 1000, t); fountain(2050, 1000, t);
   crystal(360, 1980, 26, "rgba(255,215,106,0.25)"); crystal(2840, 1980, 26, "rgba(255,215,106,0.25)");
   crystal(1050, 260, 20, "rgba(56,225,255,0.25)"); crystal(2150, 260, 20, "rgba(168,85,247,0.25)");
   /* the two silhouette buildings — coming soon */
@@ -1409,9 +1477,9 @@ function drawTheatre(t) {
   const gPhase = (t / 11000) % 4, gIdx = Math.floor(gPhase) % 4, gNext = (gIdx + 1) % 4, gMix = gPhase - Math.floor(gPhase);
   const flick = 0.085 + 0.016 * Math.sin(t / 131) + 0.011 * Math.sin(t / 47 + 1.7);
   function screenGlow(col, alpha) {
-    const sg = ctx.createRadialGradient(SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2, 130, SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2, 800);
+    const sg = ctx.createRadialGradient(SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2, 130, SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2, 520);
     sg.addColorStop(0, "rgba(" + col + "," + alpha + ")"); sg.addColorStop(1, "rgba(" + col + ",0)");
-    ctx.fillStyle = sg; ctx.fillRect(SCREEN.x - 210, SCREEN.y - 140, SCREEN.w + 420, SCREEN.h + 330);
+    ctx.fillStyle = sg; ctx.fillRect(SCREEN.x - 40, SCREEN.y - 34, SCREEN.w + 80, SCREEN.h + 68);
   }
   screenGlow(glowCols[gIdx], flick * (1 - gMix * 0.6));
   screenGlow(glowCols[gNext], flick * gMix * 0.6);
