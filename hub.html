@@ -31,6 +31,15 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #joystick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(56,225,255,.5);transform:translate(-50%,-50%)}
 #runbtn{position:absolute;right:18px;bottom:76px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:17px;font-weight:800;letter-spacing:1.5px;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none}
 #runbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
+#logbtn{position:absolute;right:34px;bottom:172px;width:52px;height:52px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:22px;touch-action:none;-webkit-user-select:none;user-select:none;cursor:pointer;padding:0}
+#chatlog{position:absolute;inset:52px 0 0 0;background:rgba(4,6,16,.82);z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#logpanel{background:var(--panel);border:2px solid rgba(56,225,255,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(56,225,255,.25)}
+#logpanel h2{margin:0 0 8px;font-size:21px;color:var(--cyan);text-align:center}
+#loglist{overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding:2px;min-height:60px}
+.logrow{font-size:14.5px;line-height:1.35;color:var(--ink);word-break:break-word}
+.logrow b{color:var(--gold)}
+.logempty{color:rgba(234,246,255,.55);font-size:14.5px;text-align:center;padding:8px 0}
+#logclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:none}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
@@ -75,6 +84,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <canvas id="game"></canvas>
   <div id="joy"><div id="joystick"></div></div>
   <div id="runbtn">RUN</div>
+  <button id="logbtn" title="Chat log">💬</button>
   <button id="prompt"></button>
   <div id="jukebox"><div id="jukepanel">
     <h2>🎵 Club Quantum Jukebox</h2>
@@ -83,8 +93,13 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <button id="jukestop">⏹ Stop the music</button>
     <button id="jukeclose">Close</button>
   </div></div>
+  <div id="chatlog"><div id="logpanel">
+    <h2>💬 Chat Log</h2>
+    <div id="loglist"></div>
+    <button id="logclose">Close</button>
+  </div></div>
   <div id="chatbar">
-    <input id="chatin" maxlength="120" placeholder="Say something…" autocomplete="off">
+    <input id="chatin" maxlength="300" placeholder="Say something…" autocomplete="off">
     <button id="sendbtn">Send</button>
   </div>
 </div>
@@ -351,8 +366,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key); count++;
       const p = peers.get(ch.key);
-      if (p) { p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6 });
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logChat(v.name, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6 }); if (v.chatId && v.chat) logChat(v.name, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + Math.max(count, 1) + " online";
@@ -718,6 +733,8 @@ if (window.matchMedia("(pointer: coarse)").matches) joyEl.style.display = "block
 /* sprint: hold the round run button (touch) or the space bar (PC) */
 const runEl = $("runbtn");
 if (window.matchMedia("(pointer: coarse)").matches) runEl.style.display = "flex";
+const logEl = $("logbtn");
+if (window.matchMedia("(pointer: coarse)").matches) logEl.style.display = "flex";
 let runBtnHeld = false, runId = null;
 runEl.addEventListener("pointerdown", e => { e.preventDefault(); runId = e.pointerId; runBtnHeld = true; runEl.classList.add("on"); try { runEl.setPointerCapture(runId); } catch (err) {} });
 function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = false; runEl.classList.remove("on"); } }
@@ -762,10 +779,34 @@ cv.addEventListener("pointermove", e => {
 });
 cv.addEventListener("pointerup", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
 cv.addEventListener("pointercancel", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
+/* ============ chat log ============ */
+const chatLog = [];
+function logChat(name, text) {
+  if (!text) return;
+  chatLog.push({ name: name || "?", text: String(text) });
+  if (chatLog.length > 60) chatLog.shift();
+  if ($("chatlog").style.display === "flex") renderLog();
+}
+function renderLog() {
+  const el = $("loglist"); if (!el) return;
+  el.innerHTML = "";
+  if (!chatLog.length) { el.innerHTML = '<div class="logempty">No messages yet — say something!</div>'; return; }
+  for (const m of chatLog) {
+    const d = document.createElement("div"); d.className = "logrow";
+    const b = document.createElement("b"); b.textContent = m.name + ": ";
+    d.appendChild(b); d.appendChild(document.createTextNode(m.text));
+    el.appendChild(d);
+  }
+  el.scrollTop = el.scrollHeight;
+}
+$("logbtn").onclick = () => { renderLog(); $("chatlog").style.display = "flex"; };
+$("logclose").onclick = () => { $("chatlog").style.display = "none"; };
+$("chatlog").addEventListener("click", e => { if (e.target === $("chatlog")) $("chatlog").style.display = "none"; });
 /* ============ chat ============ */
 function sendChat() {
   const t = chatIn.value.trim(); if (!t || !entered) return;
-  me.chat = t.slice(0, 120); me.chatId = Date.now(); me.chatAt = performance.now();
+  me.chat = t.slice(0, 300); me.chatId = Date.now(); me.chatAt = performance.now();
+  logChat(me.name, me.chat);
   chatIn.value = ""; chatIn.blur(); sfxPop(); publish(true);
   setTimeout(() => { if (me.chatId && performance.now() - me.chatAt > 4900) publish(true); }, 5100);
 }
@@ -853,6 +894,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   }
 }
 let camX = 0, camY = 0, SCALE = 0.6;
+let drawnScene = "";
 function worldToScreen(wx, wy) { return { x: (wx - camX) * SCALE, y: (wy - camY) * SCALE }; }
 function drawPlaza(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
@@ -1726,9 +1768,11 @@ function frame(now) {
   else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
   if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
+  if (me.scene !== drawnScene) { drawnScene = me.scene; for (const p of peers.values()) if (p.scene === me.scene) p.snap = true; }
   const actors = [];
   for (const p of peers.values()) {
     if (p.scene !== me.scene) continue;
+    if (p.snap) { p.x = p.tx; p.y = p.ty; p.snap = false; }
     p.x += (p.tx - p.x) * Math.min(1, dt * 9); p.y += (p.ty - p.y) * Math.min(1, dt * 9);
     actors.push(p);
   }
