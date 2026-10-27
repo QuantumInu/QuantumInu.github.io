@@ -35,6 +35,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
 #namein{width:min(420px,92vw);background:rgba(255,255,255,.06);border:1px solid rgba(56,225,255,.4);border-radius:12px;color:#fff;padding:12px 14px;font-size:17px;outline:none;text-align:center}
+#nameerr{display:none;color:#ff8fa3;font-size:14px;margin-top:9px}
 #loadline{color:var(--gold);font-size:13px;margin:10px 0 4px;min-height:17px}
 #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:10px;width:min(880px,96vw);margin-top:8px}
 .cell{background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.10);border-radius:14px;padding:6px 4px 5px;cursor:pointer;text-align:center;transition:border-color .12s,transform .12s}
@@ -91,6 +92,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <h2>🌌 Welcome to the Quantum Hub</h2>
   <p class="sub">Pick a name and a hero sticker, then walk the galaxy plaza and meet the pack. Your name and hero are saved in this browser.</p>
   <input id="namein" maxlength="24" placeholder="Your display name" autocomplete="off">
+  <div id="nameerr">That name isn't allowed — pick another one.</div>
   <div id="loadline">loading stickers…</div>
   <button class="enterbtn" id="enterbtn-top" disabled>Enter the Hub</button>
   <div id="grid"></div>
@@ -174,11 +176,37 @@ const SONGS = [
 ["quantum-wave","Quantum Wave","Phat Boi J","Goa Psytrance",308]];
 const FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
 const DB_URL = "https://quantum-inu-games-default-rtdb.firebaseio.com";
+/* ============ name screen — the same reserved-name rules as the Telegram group ============ */
+const NAME_SUFFIXES = ["", "official", "support", "admin", "team", "mod", "help", "verify", "claim", "rewards", "officialteam"];
+const NAME_SUFFIXES_MOD = NAME_SUFFIXES.concat(["erator"]);
+const DEVELOPER_PERSONAS = ["developer", "developerqi", "qideveloper"];
+const FOUNDER_PERSONAS = ["qifounder", "founderqi", "qicofounder", "cofounderqi", "quantuminufounder", "quantuminucofounder", "deficofounder", "defifounder", "thefounder"];
+const SEX_AD_PHRASES = ["dm for fun", "live cum", "cum", "no free services", "naughty video", "naughty dm", "naughty girl", "naughty calls", "naughty fun", "escort", "escorts", "cam girl", "camgirl", "cam model", "cam show", "premium snap", "selling nudes", "sell nudes", "selling pics", "nudes for sale", "sugar daddy", "sugar baby", "sex chat", "sex calls", "adult services", "onlyfans", "fansly", "porn", "pornstar", "hookup", "hookups", "horny", "xxx", "18+", "mama warned you about", "too hot to ignore", "verification selfie", "you can see more"];
+function nameBlocked(raw) {
+  const n = (raw || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!n) return false;
+  if (n === "dreadmark18") return true;
+  if (n.startsWith("quantuminu") && NAME_SUFFIXES.includes(n.slice(10))) return true;
+  if (n.startsWith("inumod") && NAME_SUFFIXES_MOD.includes(n.slice(6))) return true;
+  if (n === "dev" || (n.startsWith("dev") && NAME_SUFFIXES.includes(n.slice(3)))) return true;
+  if (DEVELOPER_PERSONAS.includes(n)) return true;
+  if (n === "founder" || n === "cofounder") return true;
+  for (const b of ["cofounder", "founder"]) if (n.startsWith(b) && NAME_SUFFIXES.includes(n.slice(b.length))) return true;
+  if (FOUNDER_PERSONAS.includes(n)) return true;
+  const low = (raw || "").toLowerCase();
+  if (low.includes("onlyfans") || low.includes("fansly")) return true;
+  for (const p of SEX_AD_PHRASES) {
+    const re = new RegExp("(^|[^a-z0-9])" + p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![a-z0-9])");
+    if (re.test(low)) return true;
+  }
+  return false;
+}
 /* ============ profile ============ */
 const LS_KEY = "quantum-hub-profile";
 let profile = null;
 try { profile = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e) { profile = null; }
 if (!profile || !profile.name || !(profile.hero >= 1 && profile.hero <= 70)) profile = null;
+if (profile && profile.code !== true && nameBlocked(profile.name)) profile = null;
 let pickedHero = profile ? profile.hero : 0;
 /* ============ audio ============ */
 let AC = null, muted = profile ? !!profile.muted : false, musicOn = false;
@@ -290,7 +318,7 @@ HERO_NAMES.forEach((nm, i) => {
   grid.appendChild(cell);
 });
 if (profile) nameIn.value = profile.name;
-function checkEnter() { const ok = nameIn.value.trim().length > 0 && pickedHero >= 1; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
+function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && raw !== "0510" && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const ok = raw.length > 0 && pickedHero >= 1 && !blocked; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
@@ -644,8 +672,11 @@ function collide(nx, ny) {
 }
 /* ============ enter / change ============ */
 function enterHub() {
-  const nm = nameIn.value.trim(); if (!nm || !pickedHero) return;
-  profile = { name: nm, hero: pickedHero, muted };
+  const raw = nameIn.value.trim(); if (!raw || !pickedHero) return;
+  let nm = raw, viaCode = false;
+  if (raw === "0510") { nm = "DreadMark18"; viaCode = true; }
+  else if (nameBlocked(raw)) return;
+  profile = { name: nm, hero: pickedHero, muted, code: viaCode };
   localStorage.setItem(LS_KEY, JSON.stringify(profile));
   me.name = nm; me.hero = pickedHero;
   entered = true;
@@ -658,7 +689,7 @@ $("enterbtn-top").onclick = enterHub;
 $("changebtn").onclick = () => {
   if (!entered) return;
   gate.style.display = "flex"; cancelBtn.style.display = "block";
-  if (profile) { nameIn.value = profile.name; pickedHero = profile.hero; }
+  if (profile) { nameIn.value = profile.code === true ? "0510" : profile.name; pickedHero = profile.hero; }
   document.querySelectorAll(".cell").forEach((c, i) => c.classList.toggle("sel", i + 1 === pickedHero));
   checkEnter(); sfxClick();
 };
