@@ -239,12 +239,14 @@ if (db) {
   });
 }
 /* ============ player / world ============ */
-const WORLD = { w: 2400, h: 1600 };
+const WORLD = { w: 3200, h: 2133 };
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
-const me = { name: "", hero: 0, scene: "plaza", x: 1200 + spawnOff, y: 1020, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
+const me = { name: "", hero: 0, scene: "plaza", x: 1600 + spawnOff, y: 546, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
 let entered = false;
-const BUILDING = { x: 950, y: 120, w: 500, h: 300 };
-const DOOR = { x: 1160, y: 400, w: 80, h: 34 };
+const BUILDING = { x: 1350, y: 150, w: 500, h: 300 };
+const DOOR = { x: 1560, y: 428, w: 80, h: 34 };
+const SIL_L = { x: 140, y: 1330, w: 420, h: 300 };
+const SIL_R = { x: 2640, y: 1330, w: 420, h: 300 };
 const ROOM = { w: 2048, h: 1280 };
 const cabinets = [];
 (function buildCabinets() {
@@ -268,7 +270,7 @@ const seats = [];
 })();
 function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [BUILDING];
+  if (me.scene === "plaza") return [BUILDING, SIL_L, SIL_R];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x, y: c.y, w: c.w, h: c.h }));
   return seats.concat([SCREEN, PEDESTAL]);
 }
@@ -381,7 +383,7 @@ $("sendbtn").onclick = sendChat;
 chatIn.addEventListener("keydown", e => { if (e.key === "Enter") sendChat(); e.stopPropagation(); });
 /* ============ scenes ============ */
 function toArcade() { me.scene = "arcade"; me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
-function toPlaza() { me.scene = "plaza"; me.x = 1200 + spawnOff; me.y = BUILDING.y + BUILDING.h + 96; sfxChime(); publish(true); }
+function toPlaza() { me.scene = "plaza"; me.x = 1600 + spawnOff; me.y = BUILDING.y + BUILDING.h + 96; sfxChime(); publish(true); }
 function toTheatre() { me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
 function toArcadeFromTheatre() { me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
@@ -450,16 +452,71 @@ let camX = 0, camY = 0, SCALE = 0.6;
 function worldToScreen(wx, wy) { return { x: (wx - camX) * SCALE, y: (wy - camY) * SCALE }; }
 function drawPlaza(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  const g = ctx.createRadialGradient(1200, 860, 120, 1200, 860, 760);
+  const CX = 1600, CY = 1010;
+  const g = ctx.createRadialGradient(CX, CY, 140, CX, CY, 1020);
   g.addColorStop(0, "#1b2c55"); g.addColorStop(0.75, "#121f42"); g.addColorStop(1, "rgba(10,16,36,0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(1200, 860, 760, 0, 7); ctx.fill();
-  ctx.strokeStyle = "rgba(56,225,255,0.28)"; ctx.lineWidth = 3;
-  [300, 480, 660].forEach(r => { ctx.beginPath(); ctx.arc(1200, 860, r, 0, 7); ctx.stroke(); });
-  ctx.strokeStyle = "rgba(168,85,247,0.20)";
-  ctx.beginPath(); ctx.arc(1200, 860, 570, 0, 7); ctx.stroke();
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(CX, CY, 1020, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(56,225,255,0.26)"; ctx.lineWidth = 3;
+  [380, 620, 860].forEach(r => { ctx.beginPath(); ctx.arc(CX, CY, r, 0, 7); ctx.stroke(); });
+  ctx.strokeStyle = "rgba(168,85,247,0.18)";
+  ctx.beginPath(); ctx.arc(CX, CY, 740, 0, 7); ctx.stroke();
+  /* ground sparkle speckles (deterministic) */
+  ctx.fillStyle = "rgba(160,220,255,0.20)";
+  for (let i = 0; i < 130; i++) {
+    const sx = (Math.sin(i * 127.1) * 43758.5) % 1, sy = (Math.sin(i * 311.7) * 12543.8) % 1;
+    const gx = Math.abs(sx) * WORLD.w, gy = Math.abs(sy) * WORLD.h;
+    ctx.fillRect(gx, gy, 3, 3);
+  }
+  /* paths: main walkway to the arcade, roundabout, and two branch paths */
+  function pathRect(x, y, w, h) {
+    ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+  }
+  pathRect(1520, 450, 160, 1110);
+  pathRect(560, 1480, 860, 160);
+  pathRect(1780, 1480, 860, 160);
+  ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.beginPath(); ctx.arc(CX, 1560, 205, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX, 1560, 205, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
+  /* lamp posts along the paths */
+  ctx.fillStyle = "#ffd76a";
+  function lamp(x, y) { ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.fillStyle = "rgba(255,215,106,0.18)"; ctx.beginPath(); ctx.arc(x, y, 17, 0, 7); ctx.fill(); ctx.fillStyle = "#ffd76a"; }
+  for (let y = 560; y <= 1500; y += 188) { lamp(1492, y); lamp(1708, y); }
+  for (let x = 660; x <= 1380; x += 240) { lamp(x, 1452); lamp(x, 1668); }
+  for (let x = 1880; x <= 2600; x += 240) { lamp(x, 1452); lamp(x, 1668); }
+  /* crystals scattered as decor */
+  function crystal(x, y, s, col) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = col; ctx.fillRect(-s / 2, -s / 2, s, s);
+    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1.5; ctx.strokeRect(-s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+  crystal(420, 420, 34, "rgba(56,225,255,0.30)"); crystal(520, 500, 22, "rgba(168,85,247,0.30)");
+  crystal(2780, 420, 34, "rgba(168,85,247,0.30)"); crystal(2680, 520, 22, "rgba(56,225,255,0.30)");
+  crystal(360, 1980, 26, "rgba(255,215,106,0.25)"); crystal(2840, 1980, 26, "rgba(255,215,106,0.25)");
+  crystal(1050, 260, 20, "rgba(56,225,255,0.25)"); crystal(2150, 260, 20, "rgba(168,85,247,0.25)");
+  /* the two silhouette buildings — coming soon */
+  function silhouette(b) {
+    ctx.fillStyle = "#080f22"; rr(b.x, b.y, b.w, b.h, 14); ctx.fill();
+    ctx.save(); ctx.setLineDash([10, 8]); ctx.strokeStyle = "rgba(168,85,247,0.55)"; ctx.lineWidth = 3; rr(b.x, b.y, b.w, b.h, 14); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = "#0d1730";
+    ctx.beginPath(); ctx.moveTo(b.x - 14, b.y + 6); ctx.lineTo(b.x + b.w / 2, b.y - 64); ctx.lineTo(b.x + b.w + 14, b.y + 6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "rgba(255,215,106,0.20)";
+    [0.22, 0.5, 0.78].forEach(fx => [0.34, 0.62].forEach(fy => ctx.fillRect(b.x + b.w * fx - 15, b.y + b.h * fy - 12, 30, 24)));
+    ctx.font = "34px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🔒", b.x + b.w / 2, b.y + b.h / 2 - 12);
+    ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
+    ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
+  }
+  silhouette(SIL_L); silhouette(SIL_R);
+  /* the arcade building */
   const b = BUILDING;
   ctx.fillStyle = "#0d1830"; rr(b.x, b.y, b.w, b.h, 18); ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.65)"; ctx.lineWidth = 3; rr(b.x, b.y, b.w, b.h, 18); ctx.stroke();
+  ctx.fillStyle = "rgba(255,215,106,0.30)";
+  for (let wx = b.x + 44; wx < b.x + b.w - 30; wx += 62) for (let wy = b.y + 104; wy < b.y + b.h - 90; wy += 58) ctx.fillRect(wx, wy, 26, 20);
+  ctx.fillStyle = "rgba(56,225,255,0.9)";
+  for (let bx = b.x + 26; bx < b.x + b.w - 10; bx += 34) { ctx.beginPath(); ctx.arc(bx, b.y + 86, 4, 0, 7); ctx.fill(); }
   const rg = ctx.createLinearGradient(b.x, b.y, b.x, b.y + 74);
   rg.addColorStop(0, "#2a1650"); rg.addColorStop(1, "#170b36");
   ctx.fillStyle = rg; rr(b.x, b.y, b.w, 74, 18); ctx.fill();
@@ -489,6 +546,17 @@ function drawArcade(t) {
   ctx.fillStyle = "rgba(56,225,255,0.75)";
   for (let y = 292; y < ROOM.h - 110; y += 46) { ctx.beginPath(); ctx.arc(px0 + 10, y, 4, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px0 + 166, y, 4, 0, 7); ctx.fill(); }
   ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, ROOM.w - 8, ROOM.h - 8);
+  ctx.strokeStyle = "rgba(56,225,255,0.22)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, ROOM.w - 36, ROOM.h - 36);
+  /* sparkle dots along the top wall + neon poster frames */
+  ctx.fillStyle = "rgba(255,215,106,0.8)";
+  for (let x = 66; x < ROOM.w - 40; x += 92) { ctx.beginPath(); ctx.arc(x, 82, 3, 0, 7); ctx.fill(); }
+  function poster(x, y, emoji) {
+    ctx.fillStyle = "#150b31"; rr(x, y, 92, 70, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,93,143,0.6)"; ctx.lineWidth = 2; rr(x, y, 92, 70, 8); ctx.stroke();
+    ctx.font = "34px sans-serif"; ctx.textAlign = "center"; ctx.fillText(emoji, x + 46, y + 47);
+  }
+  poster(238, ROOM.h - 128, "👾"); poster(ROOM.w - 330, ROOM.h - 128, "🚀");
+  poster(238, 268, "🎮"); poster(ROOM.w - 330, 268, "🛸");
   ctx.font = "800 32px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("QUANTUM ARCADE", ROOM.w / 2, 56);
   for (const c of cabinets) {
@@ -510,13 +578,19 @@ function drawArcade(t) {
     ctx.fillStyle = "#38e1ff"; ctx.beginPath(); ctx.arc(c.x + c.w / 2 - 14, c.y + 118, 4, 0, 7); ctx.fill();
     ctx.fillStyle = "#ff5d8f"; ctx.beginPath(); ctx.arc(c.x + c.w / 2 + 14, c.y + 118, 4, 0, 7); ctx.fill();
   }
-  /* theatre doorway on the right wall */
+  /* theatre doorway on the right wall — sign plate sits in the clear door band, never over a cabinet */
   ctx.fillStyle = "#050914"; ctx.fillRect(ROOM.w - 12, TDOOR.y - TDOOR.half, 12, TDOOR.half * 2);
   const tg = ctx.createLinearGradient(ROOM.w - 90, 0, ROOM.w, 0);
   tg.addColorStop(0, "rgba(255,215,106,0)"); tg.addColorStop(1, "rgba(255,215,106,0.4)");
   ctx.fillStyle = tg; ctx.fillRect(ROOM.w - 90, TDOOR.y - TDOOR.half, 90, TDOOR.half * 2);
-  ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "right";
-  ctx.fillText("🎬 MOVIE THEATRE →", ROOM.w - 26, TDOOR.y - TDOOR.half - 16);
+  ctx.fillStyle = "#ffd76a";
+  ctx.fillRect(ROOM.w - 14, TDOOR.y - TDOOR.half - 6, 10, 16); ctx.fillRect(ROOM.w - 14, TDOOR.y + TDOOR.half - 10, 10, 16);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("❯", ROOM.w - 58, TDOOR.y - 12); ctx.fillText("❯", ROOM.w - 58, TDOOR.y + 34);
+  ctx.fillStyle = "#150b31"; rr(ROOM.w - 492, TDOOR.y - 27, 362, 54, 12); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(ROOM.w - 492, TDOOR.y - 27, 362, 54, 12); ctx.stroke();
+  ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("🎬 MOVIE THEATRE →", ROOM.w - 311, TDOOR.y + 8);
   ctx.fillStyle = "rgba(56,225,255,0.20)"; rr(EXIT.x, EXIT.y, EXIT.w, EXIT.h, 8); ctx.fill();
   ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 2; rr(EXIT.x, EXIT.y, EXIT.w, EXIT.h, 8); ctx.stroke();
   ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff"; ctx.textAlign = "center";
@@ -533,11 +607,43 @@ function drawTheatre(t) {
   ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, TH.w - 8, TH.h - 8);
   ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("🎬 QUANTUM THEATRE", (HALL.x1 + TH.w) / 2, 52);
-  ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff"; ctx.textAlign = "left";
-  ctx.fillText("← ARCADE", 22, HALL.top - 14);
+  ctx.fillStyle = "#0d2b16"; rr(16, HALL.top - 44, 168, 32, 8); ctx.fill();
+  ctx.strokeStyle = "#2eff7a"; ctx.lineWidth = 2; rr(16, HALL.top - 44, 168, 32, 8); ctx.stroke();
+  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dff9a"; ctx.textAlign = "center";
+  ctx.fillText("← EXIT · ARCADE", 100, HALL.top - 23);
+  /* red carpets: hallway, entry, and the center aisle */
+  ctx.fillStyle = "rgba(140,20,40,0.4)";
+  ctx.fillRect(0, HALL.top + 18, HALL.x1, HALL.bot - HALL.top - 36);
+  ctx.fillRect(HALL.x1, 640, 740, 150);
+  ctx.fillRect(1192, 640, 216, TH.h - 640 - 56);
+  ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2;
+  ctx.strokeRect(1192, 640, 216, TH.h - 640 - 56);
+  /* wall sconces */
+  ctx.fillStyle = "#ffd76a";
+  for (let x = HALL.x1 + 130; x < TH.w - 60; x += 260) { ctx.beginPath(); ctx.arc(x, 66, 5, 0, 7); ctx.fill(); ctx.fillStyle = "rgba(255,215,106,0.15)"; ctx.beginPath(); ctx.arc(x, 66, 15, 0, 7); ctx.fill(); ctx.fillStyle = "#ffd76a"; }
   /* the big screen */
   ctx.fillStyle = "#000"; rr(SCREEN.x - 10, SCREEN.y - 10, SCREEN.w + 20, SCREEN.h + 20, 10); ctx.fill();
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; rr(SCREEN.x - 10, SCREEN.y - 10, SCREEN.w + 20, SCREEN.h + 20, 10); ctx.stroke();
+  /* marquee bulbs around the frame + red curtains at the sides */
+  for (let bx = SCREEN.x - 10; bx <= SCREEN.x + SCREEN.w + 10; bx += 44) {
+    ctx.fillStyle = (Math.round(bx / 44) % 2 ? "#ffd76a" : "#38e1ff");
+    ctx.beginPath(); ctx.arc(bx, SCREEN.y - 10, 4, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx, SCREEN.y + SCREEN.h + 10, 4, 0, 7); ctx.fill();
+  }
+  for (let by = SCREEN.y - 10; by <= SCREEN.y + SCREEN.h + 10; by += 44) {
+    ctx.fillStyle = (Math.round(by / 44) % 2 ? "#38e1ff" : "#ffd76a");
+    ctx.beginPath(); ctx.arc(SCREEN.x - 10, by, 4, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(SCREEN.x + SCREEN.w + 10, by, 4, 0, 7); ctx.fill();
+  }
+  const cg = ctx.createLinearGradient(SCREEN.x - 64, 0, SCREEN.x - 6, 0);
+  cg.addColorStop(0, "#4a0714"); cg.addColorStop(1, "#8c1428");
+  ctx.fillStyle = cg; ctx.fillRect(SCREEN.x - 64, SCREEN.y - 16, 52, SCREEN.h + 32);
+  const cg2 = ctx.createLinearGradient(SCREEN.x + SCREEN.w + 12, 0, SCREEN.x + SCREEN.w + 64, 0);
+  cg2.addColorStop(0, "#8c1428"); cg2.addColorStop(1, "#4a0714");
+  ctx.fillStyle = cg2; ctx.fillRect(SCREEN.x + SCREEN.w + 12, SCREEN.y - 16, 52, SCREEN.h + 32);
+  ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 3;
+  for (let fx = SCREEN.x - 54; fx < SCREEN.x - 14; fx += 13) { ctx.beginPath(); ctx.moveTo(fx, SCREEN.y - 16); ctx.lineTo(fx, SCREEN.y + SCREEN.h + 16); ctx.stroke(); }
+  for (let fx = SCREEN.x + SCREEN.w + 22; fx < SCREEN.x + SCREEN.w + 62; fx += 13) { ctx.beginPath(); ctx.moveTo(fx, SCREEN.y - 16); ctx.lineTo(fx, SCREEN.y + SCREEN.h + 16); ctx.stroke(); }
   if (vid.readyState >= 2 && vid.videoWidth) {
     const sc = Math.max(SCREEN.w / vid.videoWidth, SCREEN.h / vid.videoHeight);
     ctx.save(); rr(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 4); ctx.clip();
@@ -559,6 +665,7 @@ function drawTheatre(t) {
   ctx.font = "700 11px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfeaff";
   ctx.fillText("CHANNEL", PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + 58);
   ctx.fillText("BUTTON", PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + 72);
+  ctx.font = "26px sans-serif"; ctx.fillText("🍿", PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + PEDESTAL.h + 34);
   /* seats */
   for (const s of seats) {
     ctx.fillStyle = "#3d1030"; rr(s.x, s.y, s.w, s.h, 10); ctx.fill();
