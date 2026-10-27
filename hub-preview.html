@@ -29,6 +29,8 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 #prompt{position:absolute;left:50%;transform:translateX(-50%);bottom:70px;z-index:20;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800;font-size:16px;border:none;border-radius:999px;padding:12px 22px;cursor:pointer;box-shadow:0 4px 22px rgba(56,225,255,.45);display:none;max-width:94vw}
 #joy{position:absolute;left:18px;bottom:76px;width:118px;height:118px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none}
 #joystick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(56,225,255,.5);transform:translate(-50%,-50%)}
+#runbtn{position:absolute;right:18px;bottom:76px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:36px;touch-action:none;-webkit-user-select:none;user-select:none}
+#runbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
 #gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:none}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
@@ -71,6 +73,7 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 <div id="stage">
   <canvas id="game"></canvas>
   <div id="joy"><div id="joystick"></div></div>
+  <div id="runbtn">🏃</div>
   <button id="prompt"></button>
   <div id="jukebox"><div id="jukepanel">
     <h2>🎵 Club Quantum Jukebox</h2>
@@ -605,6 +608,13 @@ window.addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 let joyVec = { x: 0, y: 0 }, joyOn = false;
 const joyEl = $("joy"), stickEl = $("joystick");
 if (window.matchMedia("(pointer: coarse)").matches) joyEl.style.display = "block";
+/* sprint: hold the round run button (touch) or the space bar (PC) */
+const runEl = $("runbtn");
+if (window.matchMedia("(pointer: coarse)").matches) runEl.style.display = "flex";
+let runBtnHeld = false, runId = null;
+runEl.addEventListener("pointerdown", e => { e.preventDefault(); runId = e.pointerId; runBtnHeld = true; runEl.classList.add("on"); try { runEl.setPointerCapture(runId); } catch (err) {} });
+function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = false; runEl.classList.remove("on"); } }
+runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
 let joyId = null;
 joyEl.addEventListener("pointerdown", e => { joyId = e.pointerId; joyEl.setPointerCapture(joyId); joyMove(e); });
 joyEl.addEventListener("pointermove", e => { if (e.pointerId === joyId) joyMove(e); });
@@ -1443,6 +1453,7 @@ function drawTheatre(t) {
 }
 /* ============ main loop ============ */
 let lastT = performance.now(), stepAt = 0;
+const dust = []; let dustAt = 0, sprintPhase = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
@@ -1462,12 +1473,18 @@ function frame(now) {
   const m = Math.hypot(vx, vy);
   if (m > 1) { vx /= m; vy /= m; }
   me.moving = m > 0.12;
+  const sprinting = me.moving && (runBtnHeld || keys.has(" "));
+  if (sprinting) sprintPhase += dt * 4.8;
+  if (sprinting && now - dustAt > 65) {
+    dustAt = now;
+    dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 14, y: me.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 });
+  }
   if (me.moving) {
-    const sp = 305;
+    const sp = sprinting ? 305 * 1.55 : 305;
     const res = collide(me.x + vx * sp * dt, me.y + vy * sp * dt);
     me.x = res.x; me.y = res.y;
     if (vx > 0.2) me.flip = true; else if (vx < -0.2) me.flip = false;
-    if (now - stepAt > 270) { stepAt = now; sfxStep(); }
+    if (now - stepAt > (sprinting ? 175 : 270)) { stepAt = now; sfxStep(); }
     if (res.door) toArcade();
     if (res.clubdoor) toClub();
     if (res.clubexit) toPlazaFromClub();
@@ -1501,10 +1518,18 @@ function frame(now) {
   actors.push(me);
   actors.sort((a, b) => a.y - b.y);
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  /* sprint dust puffs, kicked up at my feet, drawn under the sprites */
+  for (let i = dust.length - 1; i >= 0; i--) {
+    const p = dust[i]; p.life += dt * 1000;
+    if (p.life >= p.max) { dust.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.r += dt * 16;
+    ctx.fillStyle = "rgba(203,196,225," + (0.32 * (1 - p.life / p.max)) + ")";
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.55, 0, 0, 7); ctx.fill();
+  }
   for (const a of actors) {
     const isMe = a === me;
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
-    const phase = isMe ? 0 : a.bob * 7;
+    const phase = isMe ? sprintPhase : a.bob * 7;
     const chatAge = a.chatId ? Date.now() - a.chatId : 999999;
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
   }
