@@ -9,7 +9,7 @@
 :root{--cyan:#38e1ff;--purple:#a855f7;--gold:#ffd76a;--bg:#050914;--panel:#0b1428;--ink:#eaf6ff}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #chatin,#namein{-webkit-user-select:text;user-select:text}
-html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;touch-action:none;overscroll-behavior:none}
 #topbar{height:52px;display:flex;align-items:center;gap:8px;padding:0 10px;background:rgba(8,15,32,.92);border-bottom:1px solid rgba(56,225,255,.25);position:relative;z-index:30}
 #topbar .back{color:var(--cyan);text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap}
 #topbar h1{font-size:17px;margin:0;color:#fff;white-space:nowrap}
@@ -29,7 +29,7 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 #prompt{position:absolute;left:50%;transform:translateX(-50%);bottom:70px;z-index:20;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800;font-size:16px;border:none;border-radius:999px;padding:12px 22px;cursor:pointer;box-shadow:0 4px 22px rgba(56,225,255,.45);display:none;max-width:94vw}
 #joy{position:absolute;left:18px;bottom:76px;width:118px;height:118px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none}
 #joystick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(56,225,255,.5);transform:translate(-50%,-50%)}
-#gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain}
+#gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:none}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
 #namein{width:min(420px,92vw);background:rgba(255,255,255,.06);border:1px solid rgba(56,225,255,.4);border-radius:12px;color:#fff;padding:12px 14px;font-size:17px;outline:none;text-align:center}
@@ -48,8 +48,8 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 #jukebox{position:absolute;inset:52px 0 0 0;background:rgba(4,6,16,.82);z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #jukepanel{background:var(--panel);border:2px solid rgba(255,93,143,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,93,143,.35)}
 #jukepanel h2{margin:0 0 2px;font-size:21px;color:#ff8fb5;text-align:center}
-#jukenow{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
-#jukelist{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+#jukenow{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px;white-space:nowrap}
+#jukelist{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px;overscroll-behavior:none}
 .jukesong{background:rgba(255,255,255,.05);border:1px solid rgba(56,225,255,.28);color:var(--ink);border-radius:12px;padding:9px 12px;font-size:14.5px;text-align:left;cursor:pointer;font-family:inherit}
 .jukesong:active{transform:scale(.98)}
 .jukesong small{color:#9fd8ea}
@@ -278,6 +278,11 @@ function publish(force) {
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) publish(true); });
+/* no pinch zoom or double-tap zoom anywhere in the hub, in any room */
+document.addEventListener("gesturestart", e => e.preventDefault());
+document.addEventListener("gesturechange", e => e.preventDefault());
+let lastTapEnd = 0;
+document.addEventListener("touchend", e => { if (e.target.closest && e.target.closest("button, input, a, .cell, .jukesong")) return; const nw = Date.now(); if (nw - lastTapEnd <= 300) e.preventDefault(); lastTapEnd = nw; }, { passive: false });
 /* self-healing hero images: if a peer's sticker has not loaded yet, load it now */
 const heroLoading = {};
 function ensureHero(n) {
@@ -419,7 +424,14 @@ function updateJukePanel() {
   const now = $("jukenow"); if (!now) return;
   if (clubSongActive()) now.textContent = "▶ Now playing: " + SONGS[clubState.idx][1] + (clubState.by ? " — picked by " + clubState.by : "");
   else now.textContent = "Nothing playing — pick a song for the whole club!";
+  fitJukeNow();
   document.querySelectorAll(".jukesong").forEach((b, i) => b.classList.toggle("playing", clubSongActive() && clubState.idx === i));
+}
+function fitJukeNow() {
+  const now = $("jukenow"); if (!now || !now.clientWidth) return;
+  let sz = 14;
+  now.style.fontSize = sz + "px";
+  while (now.scrollWidth > now.clientWidth && sz > 8) { sz -= 0.5; now.style.fontSize = sz + "px"; }
 }
 (function buildJukeList() {
   const list = $("jukelist"); if (!list) return;
@@ -432,7 +444,7 @@ function updateJukePanel() {
     list.appendChild(b);
   });
 })();
-function openJuke() { updateJukePanel(); $("jukebox").style.display = "flex"; sfxClick(); }
+function openJuke() { $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); }
 function closeJuke() { $("jukebox").style.display = "none"; sfxClick(); }
 $("jukeclose").onclick = closeJuke;
 $("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
@@ -1392,9 +1404,6 @@ function drawTheatre(t) {
     ctx.save(); rr(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 4); ctx.clip();
     ctx.drawImage(vid, SCREEN.x + (SCREEN.w - vid.videoWidth * sc) / 2, SCREEN.y + (SCREEN.h - vid.videoHeight * sc) / 2, vid.videoWidth * sc, vid.videoHeight * sc);
     ctx.restore();
-  } else {
-    ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#5f7ba6"; ctx.textAlign = "center";
-    ctx.fillText("📺 tuning the channel…", SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2);
   }
   ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff"; ctx.textAlign = "center";
   const lbl = theatreState && theatreState.label ? theatreState.label : "Daily Life QI";
@@ -1478,8 +1487,8 @@ function frame(now) {
   drawStars(camX, camY, SCALE);
   ctx.save();
   if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else drawTheatre(now);
-  if (me.scene === "theatre") { if (vid.dataset.cur && vid.paused) vid.play().catch(() => {}); }
-  else if (!vid.paused) vid.pause();
+  /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
+  if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
   if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
