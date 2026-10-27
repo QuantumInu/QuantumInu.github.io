@@ -366,8 +366,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key); count++;
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logChat(v.name, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6 }); if (v.chatId && v.chat) logChat(v.name, v.chat);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + Math.max(count, 1) + " online";
@@ -779,6 +779,13 @@ cv.addEventListener("pointerup", () => { holdId = null; holdVec = { x: 0, y: 0 }
 cv.addEventListener("pointercancel", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
 /* ============ chat log ============ */
 const chatLog = [];
+const loggedChatKeys = new Set();
+function logPeerChat(id, name, chatId, text) {
+  const k = id + ":" + chatId;
+  if (loggedChatKeys.has(k)) return;
+  loggedChatKeys.add(k);
+  logChat(name, text);
+}
 function logChat(name, text) {
   if (!text) return;
   chatLog.push({ name: name || "?", text: String(text) });
