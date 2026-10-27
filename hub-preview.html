@@ -207,6 +207,37 @@ function publish(force) {
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   myRef.set({ name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
 }
+/* ============ theatre (shared channel, synced for everyone) ============ */
+let theatreState = null, dlCatalog = [];
+const vid = document.createElement("video");
+vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = "auto";
+fetch("https://firestore.googleapis.com/v1/projects/quantum-inu-games/databases/(default)/documents/dailylife?pageSize=300")
+  .then(r => r.json()).then(j => {
+    dlCatalog = (j.documents || []).map(d => ({ label: ((d.fields.label || {}).stringValue || "Daily Life QI"), url: ((d.fields.url || {}).stringValue || "") })).filter(v => v.url);
+    maybeSeedTheatre();
+  }).catch(() => {});
+function maybeSeedTheatre() {
+  if (!db || theatreState || !dlCatalog.length) return;
+  const v = dlCatalog[Math.floor(Math.random() * dlCatalog.length)];
+  db.ref("hub/theatre").set({ url: v.url, label: v.label, by: "", ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+}
+function changeChannel() {
+  if (!db || !dlCatalog.length) return;
+  let v = dlCatalog[Math.floor(Math.random() * dlCatalog.length)], guard = 0;
+  if (theatreState) while (v.url === theatreState.url && guard++ < 8) v = dlCatalog[Math.floor(Math.random() * dlCatalog.length)];
+  sfxChime();
+  db.ref("hub/theatre").set({ url: v.url, label: v.label, by: me.name || "", ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+}
+if (db) {
+  db.ref("hub/theatre").on("value", s => {
+    theatreState = s.val();
+    if (theatreState && theatreState.url && vid.dataset.cur !== theatreState.url) {
+      vid.dataset.cur = theatreState.url; vid.src = theatreState.url;
+      vid.play().catch(() => {});
+    }
+    maybeSeedTheatre();
+  });
+}
 /* ============ player / world ============ */
 const WORLD = { w: 2400, h: 1600 };
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
@@ -214,29 +245,49 @@ const me = { name: "", hero: 0, scene: "plaza", x: 1200 + spawnOff, y: 1020, fli
 let entered = false;
 const BUILDING = { x: 950, y: 120, w: 500, h: 300 };
 const DOOR = { x: 1160, y: 400, w: 80, h: 34 };
-const ROOM = { w: 1680, h: 1040 };
+const ROOM = { w: 2048, h: 1280 };
 const cabinets = [];
 (function buildCabinets() {
-  const per = 10, x0 = 110, gap = (ROOM.w - 220) / per, cw = 108, ch = 132;
-  GAMES.forEach((g, i) => {
-    const row = i < per ? 0 : 1, col = i % per;
-    cabinets.push({ title: g[0], file: g[1], img: g[2], x: x0 + col * gap + (gap - cw) / 2, y: row === 0 ? 96 : ROOM.h - 96 - ch, w: cw, h: ch, row, im: null, imOk: false });
-  });
+  const cw = 108, ch = 132;
+  for (let i = 0; i < 10; i++) cabinets.push({ title: GAMES[i][0], file: GAMES[i][1], img: GAMES[i][2], x: 120 + i * ((ROOM.w - 240) / 10) + (((ROOM.w - 240) / 10) - cw) / 2, y: 108, w: cw, h: ch, row: 0, im: null, imOk: false });
+  const leftYs = [330, 500, 670, 840, 1010], rightYs = [240, 408, 790, 960, 1130];
+  leftYs.forEach((y, i) => cabinets.push({ title: GAMES[10 + i][0], file: GAMES[10 + i][1], img: GAMES[10 + i][2], x: 46, y, w: cw, h: ch, row: 1, im: null, imOk: false }));
+  rightYs.forEach((y, i) => cabinets.push({ title: GAMES[15 + i][0], file: GAMES[15 + i][1], img: GAMES[15 + i][2], x: ROOM.w - 46 - cw, y, w: cw, h: ch, row: 1, im: null, imOk: false }));
   cabinets.forEach(c => { const im = new Image(); im.onload = () => { c.im = im; c.imOk = true; }; im.src = "assets/games/" + c.img; });
 })();
-const EXIT = { x: ROOM.w / 2 - 50, y: ROOM.h - 58, w: 100, h: 44 };
+const EXIT = { x: ROOM.w / 2 - 62, y: ROOM.h - 58, w: 124, h: 44 };
+const TDOOR = { y: ROOM.h / 2, half: 92 };
+const TH = { w: 2160, h: 1160 };
+const HALL = { x1: 560, top: TH.h / 2 - 130, bot: TH.h / 2 + 130 };
+const SCREEN = { x: 920, y: 84, w: 880, h: 495 };
+const PEDESTAL = { x: SCREEN.x + SCREEN.w + 46, y: SCREEN.y + SCREEN.h - 88, w: 56, h: 88 };
+const seats = [];
+(function buildSeats() {
+  const rows = [716, 836, 956], xs = [700, 880, 1060, 1420, 1600, 1780];
+  rows.forEach(y => xs.forEach(x => seats.push({ x, y, w: 128, h: 66 })));
+})();
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : TH; }
 function obstacles() {
   if (me.scene === "plaza") return [BUILDING];
-  return cabinets.map(c => ({ x: c.x, y: c.y, w: c.w, h: c.h }));
+  if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x, y: c.y, w: c.w, h: c.h }));
+  return seats.concat([SCREEN, PEDESTAL]);
 }
 function collide(nx, ny) {
   const r = 30;
   if (me.scene === "plaza") {
     if (nx > DOOR.x - 6 && nx < DOOR.x + DOOR.w + 6 && ny > BUILDING.y + BUILDING.h - 14 && ny < BUILDING.y + BUILDING.h + 46) return { x: nx, y: ny, door: true };
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
-  } else {
-    if (nx > EXIT.x && nx < EXIT.x + EXIT.w && ny > ROOM.h - 74) return { x: nx, y: ny, exit: true };
+  } else if (me.scene === "arcade") {
+    if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
+    if (nx > EXIT.x - 4 && nx < EXIT.x + EXIT.w + 4 && ny > ROOM.h - 76) return { x: nx, y: ny, exit: true };
     nx = Math.max(56, Math.min(ROOM.w - 56, nx)); ny = Math.max(70, Math.min(ROOM.h - 46, ny));
+  } else {
+    if (nx < 48 && ny > HALL.top && ny < HALL.bot) return { x: nx, y: ny, back: true };
+    nx = Math.max(46, Math.min(TH.w - 56, nx)); ny = Math.max(60, Math.min(TH.h - 46, ny));
+    if (nx - r < HALL.x1 && (ny - r < HALL.top || ny + r > HALL.bot)) {
+      if (me.x - r >= HALL.x1) nx = HALL.x1 + r;
+      else ny = ny < TH.h / 2 ? HALL.top + r : HALL.bot - r;
+    }
   }
   for (const o of obstacles()) {
     if (nx + r > o.x && nx - r < o.x + o.w && ny + r > o.y && ny - r < o.y + o.h) {
@@ -306,6 +357,10 @@ cv.addEventListener("pointerdown", e => {
   holdVec = m > 14 ? { x: dx / m, y: dy / m } : { x: 0, y: 0 };
   const cab = nearestCabinet();
   if (cab && Math.hypot(px - cab.sx, py - cab.sy) < 90) playCabinet(cab);
+  if (me.scene === "theatre") {
+    const ps = worldToScreen(PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + PEDESTAL.h / 2);
+    if (Math.hypot(px - ps.x, py - ps.y) < 90 && nearPedestal()) changeChannel();
+  }
 });
 cv.addEventListener("pointerup", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
 cv.addEventListener("pointercancel", () => { holdId = null; holdVec = { x: 0, y: 0 }; });
@@ -321,6 +376,9 @@ chatIn.addEventListener("keydown", e => { if (e.key === "Enter") sendChat(); e.s
 /* ============ scenes ============ */
 function toArcade() { me.scene = "arcade"; me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
 function toPlaza() { me.scene = "plaza"; me.x = 1200 + spawnOff; me.y = BUILDING.y + BUILDING.h + 96; sfxChime(); publish(true); }
+function toTheatre() { me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
+function toArcadeFromTheatre() { me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
+function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
   if (me.scene !== "arcade") return null;
   let best = null, bd = 1e9;
@@ -332,7 +390,8 @@ function nearestCabinet() {
   return null;
 }
 function playCabinet(c) { sfxChime(); window.open("games/" + c.file, "_blank"); }
-promptBtn.onclick = () => { const c = nearestCabinet(); if (c) playCabinet(c); };
+let promptAction = null;
+promptBtn.onclick = () => { if (promptAction) promptAction(); };
 window.addEventListener("pagehide", () => { if (myRef) { try { myRef.remove(); } catch (e) {} } });
 /* ============ drawing ============ */
 const stars = [];
@@ -418,9 +477,14 @@ function drawArcade(t) {
   ctx.strokeStyle = "rgba(168,85,247,0.16)"; ctx.lineWidth = 2;
   for (let x = 0; x <= ROOM.w; x += 84) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ROOM.h); ctx.stroke(); }
   for (let y = 0; y <= ROOM.h; y += 84) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(ROOM.w, y); ctx.stroke(); }
+  /* the clear path: a lit runner from the entrance/exit straight up the middle */
+  const px0 = ROOM.w / 2 - 88;
+  ctx.fillStyle = "rgba(88,40,160,0.35)"; ctx.fillRect(px0, 268, 176, ROOM.h - 268 - 64);
+  ctx.fillStyle = "rgba(56,225,255,0.75)";
+  for (let y = 292; y < ROOM.h - 110; y += 46) { ctx.beginPath(); ctx.arc(px0 + 10, y, 4, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px0 + 166, y, 4, 0, 7); ctx.fill(); }
   ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, ROOM.w - 8, ROOM.h - 8);
-  ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("QUANTUM ARCADE", ROOM.w / 2, 52);
+  ctx.font = "800 32px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("QUANTUM ARCADE", ROOM.w / 2, 56);
   for (const c of cabinets) {
     ctx.fillStyle = c.row === 0 ? "#1c1140" : "#0f2a4a"; rr(c.x, c.y, c.w, c.h, 10); ctx.fill();
     ctx.strokeStyle = "rgba(56,225,255,0.55)"; ctx.lineWidth = 2; rr(c.x, c.y, c.w, c.h, 10); ctx.stroke();
@@ -440,10 +504,61 @@ function drawArcade(t) {
     ctx.fillStyle = "#38e1ff"; ctx.beginPath(); ctx.arc(c.x + c.w / 2 - 14, c.y + 118, 4, 0, 7); ctx.fill();
     ctx.fillStyle = "#ff5d8f"; ctx.beginPath(); ctx.arc(c.x + c.w / 2 + 14, c.y + 118, 4, 0, 7); ctx.fill();
   }
+  /* theatre doorway on the right wall */
+  ctx.fillStyle = "#050914"; ctx.fillRect(ROOM.w - 12, TDOOR.y - TDOOR.half, 12, TDOOR.half * 2);
+  const tg = ctx.createLinearGradient(ROOM.w - 90, 0, ROOM.w, 0);
+  tg.addColorStop(0, "rgba(255,215,106,0)"); tg.addColorStop(1, "rgba(255,215,106,0.4)");
+  ctx.fillStyle = tg; ctx.fillRect(ROOM.w - 90, TDOOR.y - TDOOR.half, 90, TDOOR.half * 2);
+  ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "right";
+  ctx.fillText("🎬 MOVIE THEATRE →", ROOM.w - 26, TDOOR.y - TDOOR.half - 16);
   ctx.fillStyle = "rgba(56,225,255,0.20)"; rr(EXIT.x, EXIT.y, EXIT.w, EXIT.h, 8); ctx.fill();
   ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 2; rr(EXIT.x, EXIT.y, EXIT.w, EXIT.h, 8); ctx.stroke();
-  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff";
+  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff"; ctx.textAlign = "center";
   ctx.fillText("EXIT ▼", ROOM.w / 2, EXIT.y + 28);
+  ctx.restore();
+}
+function drawTheatre(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  ctx.fillStyle = "#07060f"; ctx.fillRect(0, 0, TH.w, TH.h);
+  ctx.fillStyle = "#0d0b1e"; ctx.fillRect(HALL.x1, 0, TH.w - HALL.x1, TH.h);
+  ctx.fillStyle = "#131126"; ctx.fillRect(0, HALL.top, HALL.x1, HALL.bot - HALL.top);
+  ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, HALL.top); ctx.lineTo(HALL.x1, HALL.top); ctx.moveTo(0, HALL.bot); ctx.lineTo(HALL.x1, HALL.bot); ctx.stroke();
+  ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, TH.w - 8, TH.h - 8);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("🎬 QUANTUM THEATRE", (HALL.x1 + TH.w) / 2, 52);
+  ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff"; ctx.textAlign = "left";
+  ctx.fillText("← ARCADE", 22, HALL.top - 14);
+  /* the big screen */
+  ctx.fillStyle = "#000"; rr(SCREEN.x - 10, SCREEN.y - 10, SCREEN.w + 20, SCREEN.h + 20, 10); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; rr(SCREEN.x - 10, SCREEN.y - 10, SCREEN.w + 20, SCREEN.h + 20, 10); ctx.stroke();
+  if (vid.readyState >= 2 && vid.videoWidth) {
+    const sc = Math.max(SCREEN.w / vid.videoWidth, SCREEN.h / vid.videoHeight);
+    ctx.save(); rr(SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 4); ctx.clip();
+    ctx.drawImage(vid, SCREEN.x + (SCREEN.w - vid.videoWidth * sc) / 2, SCREEN.y + (SCREEN.h - vid.videoHeight * sc) / 2, vid.videoWidth * sc, vid.videoHeight * sc);
+    ctx.restore();
+  } else {
+    ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#5f7ba6"; ctx.textAlign = "center";
+    ctx.fillText("📺 tuning the channel…", SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2);
+  }
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff"; ctx.textAlign = "center";
+  const lbl = theatreState && theatreState.label ? theatreState.label : "Daily Life QI";
+  ctx.fillText("Now showing: " + lbl, SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h + 44);
+  if (theatreState && theatreState.by) { ctx.font = "13px 'Segoe UI',sans-serif"; ctx.fillStyle = "#9fd8ea"; ctx.fillText("channel picked by " + theatreState.by, SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h + 68); }
+  /* channel pedestal next to the screen */
+  ctx.fillStyle = "#1a1430"; rr(PEDESTAL.x, PEDESTAL.y, PEDESTAL.w, PEDESTAL.h, 8); ctx.fill();
+  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 2; rr(PEDESTAL.x, PEDESTAL.y, PEDESTAL.w, PEDESTAL.h, 8); ctx.stroke();
+  const pulse = 9 + Math.sin(t / 300) * 2;
+  ctx.fillStyle = "#ff4757"; ctx.beginPath(); ctx.arc(PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + 26, pulse, 0, 7); ctx.fill();
+  ctx.font = "700 11px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfeaff";
+  ctx.fillText("CHANNEL", PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + 58);
+  ctx.fillText("BUTTON", PEDESTAL.x + PEDESTAL.w / 2, PEDESTAL.y + 72);
+  /* seats */
+  for (const s of seats) {
+    ctx.fillStyle = "#3d1030"; rr(s.x, s.y, s.w, s.h, 10); ctx.fill();
+    ctx.fillStyle = "#571845"; rr(s.x, s.y, s.w, 20, 10); ctx.fill();
+    ctx.strokeStyle = "rgba(255,93,143,0.35)"; ctx.lineWidth = 1.5; rr(s.x, s.y, s.w, s.h, 10); ctx.stroke();
+  }
   ctx.restore();
 }
 /* ============ main loop ============ */
@@ -470,9 +585,11 @@ function frame(now) {
     if (now - stepAt > 270) { stepAt = now; sfxStep(); }
     if (res.door) toArcade();
     if (res.exit) toPlaza();
+    if (res.theatre) toTheatre();
+    if (res.back) toArcadeFromTheatre();
   }
   publish(false);
-  const roomW = me.scene === "plaza" ? WORLD.w : ROOM.w, roomH = me.scene === "plaza" ? WORLD.h : ROOM.h;
+  const dims = sceneDims(), roomW = dims.w, roomH = dims.h;
   SCALE = Math.max(0.36, Math.min(VW / 1280, VH / 980, 1.0));
   camX = Math.max(0, Math.min(roomW - VW / SCALE, me.x - VW / (2 * SCALE)));
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
@@ -480,7 +597,9 @@ function frame(now) {
   if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
   drawStars(camX, camY, SCALE);
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else drawArcade(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else drawTheatre(now);
+  if (me.scene === "theatre") { if (vid.dataset.cur && vid.paused) vid.play().catch(() => {}); }
+  else if (!vid.paused) vid.pause();
   ctx.restore();
   const actors = [];
   for (const p of peers.values()) {
@@ -499,8 +618,9 @@ function frame(now) {
   }
   ctx.restore();
   const cab = nearestCabinet();
-  if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; }
-  else promptBtn.style.display = "none";
+  if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
+  else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
+  else { promptBtn.style.display = "none"; promptAction = null; }
 }
 requestAnimationFrame(frame);
 if (profile) { gate.scrollTop = 0; }
