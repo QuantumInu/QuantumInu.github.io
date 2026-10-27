@@ -98,7 +98,7 @@ canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch
 <script>
 "use strict";
 /* ============ data ============ */
-const HERO_NAMES = ["Red Cape", "Gold Mech", "Jetpack", "Shield Guard", "Rocket Armor", "Flame Vest", "Purple Cape", "Green Gauntlets", "Pink Suit", "Circuit Suit", "Crystal Wings", "Royal Crown", "Pilot", "Rainbow Cape", "Steampunk", "Emerald Vest", "Blue Scarf", "Knight", "Gold Armor", "Violet Stars", "Astronaut", "Racer", "Firefighter", "Doctor", "Pirate", "Cowboy", "Samurai", "Viking", "Cyberpunk", "Explorer", "Mountaineer", "Biker", "Surfer", "Boxer", "Ninja", "Deep Diver", "Exosuit", "Arctic", "Space Ranger", "Time Traveler", "Detective", "Magician", "Rockstar", "Disco", "Highlander", "Archer", "Desert Nomad", "Tech Monk", "Retro Hero", "Lifeguard", "Engineer", "Sailor", "Vintage Pilot", "Bandit", "Scientist Scout", "Adventurer", "Lab Scientist", "Cyber Samurai", "Dragon Rider", "Paladin", "Lunar Astronaut", "Ocean King", "Forest Guardian", "Blacksmith", "Winter Champion", "Comic Hero", "Rainbow Knight", "Chess Knight", "Jester", "Monster Hunter", "Mech Pilot", "Dragon Suit", "Grand Champion", "Quantum Guardian"];
+const HERO_NAMES = ["Red Cape", "Gold Mech", "Jetpack", "Shield Guard", "Rocket Armor", "Flame Vest", "Purple Cape", "Green Gauntlets", "Pink Suit", "Circuit Suit", "Crystal Wings", "Royal Crown", "Pilot", "Steampunk", "Emerald Vest", "Blue Scarf", "Knight", "Gold Armor", "Violet Stars", "Astronaut", "Racer", "Firefighter", "Doctor", "Pirate", "Cowboy", "Samurai", "Viking", "Wizard", "Cyberpunk", "Mountaineer", "Biker", "Surfer", "Boxer", "Ninja", "Deep Diver", "Exosuit", "Arctic", "Space Ranger", "Time Traveler", "Detective", "Magician", "Rockstar", "Disco", "Highlander", "Archer", "Desert Nomad", "Tech Monk", "Retro Hero", "Lifeguard", "Engineer", "Sailor", "Vintage Pilot", "Bandit", "Scientist Scout", "Adventurer", "Lab Scientist", "Cyber Samurai", "Dragon Rider", "Paladin", "Lunar Astronaut", "Ocean King", "Forest Guardian", "Blacksmith", "Winter Champion", "Comic Hero", "Rainbow Knight", "Chess Knight", "Jester", "Monster Hunter", "Mech Pilot", "Dragon Suit", "Grand Champion", "Quantum Guardian"];
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
 ["QI Quantum Whack-a-Pup","qi-quantum-whack.html","qi-quantum-whack.jpg"],
@@ -173,7 +173,7 @@ const DB_URL = "https://quantum-inu-games-default-rtdb.firebaseio.com";
 const LS_KEY = "quantum-hub-profile";
 let profile = null;
 try { profile = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e) { profile = null; }
-if (!profile || !profile.name || !(profile.hero >= 1 && profile.hero <= 74)) profile = null;
+if (!profile || !profile.name || !(profile.hero >= 1 && profile.hero <= 73)) profile = null;
 let pickedHero = profile ? profile.hero : 0;
 /* ============ audio ============ */
 let AC = null, muted = profile ? !!profile.muted : false, musicOn = false;
@@ -214,7 +214,7 @@ HERO_NAMES.forEach((nm, i) => {
   cell.className = "cell" + (n === pickedHero ? " sel" : "");
   const img = document.createElement("img");
   img.alt = nm;
-  img.onload = () => { heroImgs[n] = img; loadedCount++; loadLine.textContent = "loading stickers " + loadedCount + "/74"; if (loadedCount === 74) loadLine.textContent = "all 74 loaded ✓"; };
+  img.onload = () => { heroImgs[n] = img; loadedCount++; loadLine.textContent = "loading stickers " + loadedCount + "/73"; if (loadedCount === 73) loadLine.textContent = "all 73 loaded ✓"; };
   img.onerror = () => { loadedCount++; };
   img.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
   const lab = document.createElement("div"); lab.className = "nm"; lab.textContent = n + " · " + nm;
@@ -317,6 +317,45 @@ if (db) {
     maybeSeedTheatre();
   });
 }
+/* ============ HQ screens: superhero feeds, no repeats ============ */
+const hqVids = [], hqCur = [-1, -1, -1, -1], hqPrev = [-1, -1, -1, -1];
+for (let i = 0; i < 4; i++) {
+  const v = document.createElement("video");
+  v.muted = true; v.loop = false; v.playsInline = true; v.preload = "auto"; v.crossOrigin = "anonymous";
+  const idx = i;
+  v.addEventListener("ended", () => { if (me.scene === "hq") pickHq(idx); });
+  hqVids.push(v);
+}
+function hqCatalog() {
+  const heroes = dlCatalog.filter(d => (d.label || "").indexOf("Superhero") === 0 && d.url);
+  return heroes.length >= 4 ? heroes : dlCatalog.filter(d => d.url);
+}
+function pickHq(i) {
+  const cat = hqCatalog(); if (!cat.length) return;
+  const used = new Set();
+  hqCur.forEach((c, j) => { if (j !== i && c >= 0) used.add(c); });
+  if (hqCur[i] >= 0) used.add(hqCur[i]);
+  let opts = cat.map((_, k) => k).filter(k => !used.has(k));
+  if (!opts.length) opts = cat.map((_, k) => k).filter(k => k !== hqPrev[i] && k !== hqCur[i]);
+  if (!opts.length) opts = [Math.floor(Math.random() * cat.length)];
+  const pick = opts[Math.floor(Math.random() * opts.length)];
+  hqPrev[i] = hqCur[i]; hqCur[i] = pick;
+  const v = hqVids[i];
+  v.src = cat[pick].url; v.dataset.cur = cat[pick].url;
+  v.play().catch(() => {});
+}
+function startHqVideos() {
+  let waited = 0;
+  const tries = setInterval(() => {
+    waited += 600;
+    if (me.scene !== "hq" || waited > 15000) { clearInterval(tries); return; }
+    if (hqCatalog().length >= 4) {
+      clearInterval(tries);
+      for (let i = 0; i < 4; i++) { if (hqCur[i] < 0) pickHq(i); else if (hqVids[i].paused) hqVids[i].play().catch(() => {}); }
+    }
+  }, 600);
+}
+function pauseHqVideos() { for (const v of hqVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
 let clubState = null;
@@ -407,6 +446,20 @@ const BAR_R = { x: 1688, y: 76, w: 560, h: 60 };
 const DFLOOR = { x: 652, y: 540, w: 1000, h: 740 };
 const JUKE = { x: 296, y: 1170, w: 104, h: 148 };
 const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
+/* ============ Quantum HQ (portal room) ============ */
+const HQROOM = { w: 2304, h: 1720 };
+const PORTAL = { x: 420, y: 1000 };
+const HQPORTAL = { x: HQROOM.w / 2, y: HQROOM.h - 210 };
+const HQTABLE = { x: HQROOM.w / 2 - 330, y: HQROOM.h / 2 - 150, w: 660, h: 300 };
+const HQSTATIONS = [ { sx: 300, sy: 300 }, { sx: 1484, sy: 300 }, { sx: 300, sy: 1030 }, { sx: 1484, sy: 1030 } ];
+function hqDeskRects(st) {
+  return [
+    { x: st.sx + 30, y: st.sy + 348, w: 460, h: 44 },
+    { x: st.sx + 30, y: st.sy + 348, w: 44, h: 130 },
+    { x: st.sx + 446, y: st.sy + 348, w: 44, h: 130 }
+  ];
+}
+const HQSCREENS = HQSTATIONS.map(st => ({ x: st.sx, y: st.sy, w: 520, h: 300 }));
 /* stage walls: back + curtain sides block; the whole front width is open, no barrier */
 const STAGE_WALLS = [
   { x: STAGE.x, y: STAGE.y, w: STAGE.w, h: 40 },
@@ -416,11 +469,12 @@ const STAGE_WALLS = [
 const booths = [];
 [520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "hq" ? HQROOM : TH; }
 function obstacles() {
   if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
+  if (me.scene === "hq") return [HQTABLE, ...HQSCREENS, ...HQSTATIONS.flatMap(hqDeskRects)];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -436,6 +490,8 @@ function collide(nx, ny) {
   } else if (me.scene === "club") {
     if (nx > CEXIT.x - 4 && nx < CEXIT.x + CEXIT.w + 4 && ny > CLUBROOM.h - 76) return { x: nx, y: ny, clubexit: true };
     nx = Math.max(56, Math.min(CLUBROOM.w - 56, nx)); ny = Math.max(70, Math.min(CLUBROOM.h - 46, ny));
+  } else if (me.scene === "hq") {
+    nx = Math.max(56, Math.min(HQROOM.w - 56, nx)); ny = Math.max(70, Math.min(HQROOM.h - 46, ny));
   } else {
     if (nx < 48 && ny > HALL.top && ny < HALL.bot) return { x: nx, y: ny, back: true };
     nx = Math.max(46, Math.min(TH.w - 56, nx)); ny = Math.max(60, Math.min(TH.h - 46, ny));
@@ -550,6 +606,14 @@ function toTheatre() { me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChim
 function toArcadeFromTheatre() { me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
 function toClub() { me.scene = "club"; me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
 function toPlazaFromClub() { me.scene = "plaza"; me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
+let portalArmed = true;
+function checkPortal(P, go) {
+  const d = Math.hypot(me.x - P.x, me.y - P.y);
+  if (d > 100) portalArmed = true;
+  else if (portalArmed && d < 56) { portalArmed = false; go(); }
+}
+function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQROOM.w / 2; me.y = HQROOM.h - 260; sfxChime(); publish(true); startHqVideos(); }
+function toPlazaFromHQ() { portalArmed = false; me.scene = "plaza"; me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
@@ -692,7 +756,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); silhouette(SIL_R);
+  drawClubBuilding(t); silhouette(SIL_R); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ");
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -850,7 +914,13 @@ function drawClub(t) {
   ctx.fillStyle = "#2b0f2e"; rr(jx, jy + 26, JUKE.w, JUKE.h - 26, 12); ctx.fill(); ctx.restore();
   ctx.beginPath(); ctx.arc(jx + JUKE.w / 2, jy + 28, JUKE.w / 2, Math.PI, 0); ctx.fillStyle = "#2b0f2e"; ctx.fill();
   const archCols = ["#ff5d8f", "#ffd76a", "#38e1ff", "#a855f7"];
-  for (let i = 0; i < 4; i++) { ctx.strokeStyle = archCols[i]; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(jx + JUKE.w / 2, jy + 40, JUKE.w / 2 - 6 - i * 9, Math.PI, 0); ctx.stroke(); }
+  const glowI = Math.floor(t / 300) % 4;
+  for (let i = 0; i < 4; i++) {
+    ctx.save();
+    if (i === glowI) { ctx.shadowColor = archCols[i]; ctx.shadowBlur = 14; } else ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = archCols[i]; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(jx + JUKE.w / 2, jy + 40, JUKE.w / 2 - 6 - i * 9, Math.PI, 0); ctx.stroke();
+    ctx.restore();
+  }
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(jx + JUKE.w / 2, jy + 74, 17, 0, 7); ctx.fill();
   ctx.fillStyle = "rgba(190,230,255,0.85)";
   for (let gy = jy + 104; gy < jy + JUKE.h - 12; gy += 10) for (let gx = jx + 16; gx < jx + JUKE.w - 12; gx += 10) ctx.fillRect(gx, gy, 3, 3);
@@ -996,6 +1066,144 @@ function drawArcade(t) {
   ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff"; ctx.textAlign = "center";
   ctx.fillText("EXIT ▼", ROOM.w / 2, EXIT.y + 28);
   ctx.restore();
+}
+/* ============ portals + Quantum HQ ============ */
+function drawPortal(x, y, t, label) {
+  ctx.save();
+  ctx.fillStyle = "rgba(56,150,255,0.16)"; ctx.beginPath(); ctx.ellipse(x, y + 58, 88, 20, 0, 0, 7); ctx.fill();
+  const R = 62;
+  const g = ctx.createRadialGradient(x, y, 4, x, y, R);
+  g.addColorStop(0, "rgba(190,230,255,0.95)"); g.addColorStop(0.45, "rgba(80,170,255,0.75)"); g.addColorStop(1, "rgba(30,80,220,0.10)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, R * 0.82, R * 1.18, 0, 0, 7); ctx.fill();
+  for (let i = 0; i < 3; i++) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(0.82, 1.18); ctx.rotate(t / (700 + i * 260) * (i % 2 ? -1 : 1));
+    ctx.strokeStyle = ["#bfe6ff", "#38b6ff", "#7dd3fc"][i]; ctx.lineWidth = 4 - i * 0.8; ctx.shadowColor = "#38b6ff"; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(0, 0, R - 8 - i * 13, 0.3 + i, 2.4 + i); ctx.stroke(); ctx.restore();
+  }
+  ctx.fillStyle = "#cfeeff";
+  for (let i = 0; i < 10; i++) {
+    const ph = ((t / 900 + i * 0.37) % 1);
+    const sx = x + Math.sin(i * 2.7 + t / 500) * 34 * (1 - ph), sy = y + 66 - ph * 140;
+    ctx.globalAlpha = 0.85 * (1 - ph); ctx.beginPath(); ctx.arc(sx, sy, 2.6, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.font = "bold 21px system-ui, sans-serif"; ctx.textAlign = "center";
+  ctx.shadowColor = "#1d6fff"; ctx.shadowBlur = 12; ctx.fillStyle = "#dff2ff";
+  ctx.fillText(label, x, y - 96);
+  ctx.restore();
+}
+function drawHQ(t) {
+  const W = HQROOM.w, H = HQROOM.h;
+  ctx.fillStyle = "#070d1d"; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(56,225,255,0.06)"; ctx.lineWidth = 2;
+  for (let x = 0; x <= W; x += 96) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y <= H; y += 96) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  ctx.fillStyle = "rgba(56,225,255,0.10)";
+  ctx.fillRect(0, 700, W, 5); ctx.fillRect(0, 1020, W, 5);
+  /* shuttle windows along the upper wall — space streaming past */
+  for (let i = 0; i < 4; i++) {
+    const wx = 92 + i * 552, wy = 38, ww = 472, wh = 148;
+    ctx.save();
+    roundRect(wx, wy, ww, wh, 26); ctx.clip();
+    const sg = ctx.createLinearGradient(0, wy, 0, wy + wh);
+    sg.addColorStop(0, "#02020c"); sg.addColorStop(0.6, "#060a24"); sg.addColorStop(1, "#0a1030");
+    ctx.fillStyle = sg; ctx.fillRect(wx, wy, ww, wh);
+    ctx.fillStyle = i % 2 ? "rgba(168,85,247,0.13)" : "rgba(56,150,255,0.13)";
+    ctx.beginPath(); ctx.ellipse(wx + ww * (0.3 + 0.14 * Math.sin(t / 9000 + i)), wy + wh * 0.62, 150, 42, -0.4, 0, 7); ctx.fill();
+    if (i === 1 || i === 3) {
+      const px = wx + ww * 0.72, py = wy + wh * 0.38;
+      const pg = ctx.createRadialGradient(px - 8, py - 8, 4, px, py, 30);
+      pg.addColorStop(0, "#ffe9b8"); pg.addColorStop(0.55, "#e8a34f"); pg.addColorStop(1, "rgba(232,163,79,0)");
+      ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, 30, 0, 7); ctx.fill();
+    }
+    for (let layer = 0; layer < 2; layer++) {
+      const sp = layer ? 0.055 : 0.02, sz = layer ? 2.4 : 1.5;
+      ctx.fillStyle = layer ? "#eaf7ff" : "#9fd8ff";
+      for (let k = 0; k < 26; k++) {
+        const sx = wx + (((k * 173.3 + layer * 431.7 - t * sp) % ww) + ww) % ww;
+        const sy = wy + ((k * 61.7 + layer * 97.3) % (wh - 14)) + 7;
+        ctx.globalAlpha = 0.45 + 0.4 * Math.abs(Math.sin(t / 700 + k));
+        ctx.fillRect(sx, sy, sz, sz);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(wx + 40, wy + wh - 12); ctx.lineTo(wx + ww * 0.45, wy + 10); ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = "#3d5a80"; ctx.lineWidth = 9; roundRect(wx, wy, ww, wh, 26); ctx.stroke();
+    ctx.strokeStyle = "rgba(125,211,252,0.5)"; ctx.lineWidth = 2; roundRect(wx + 7, wy + 7, ww - 14, wh - 14, 20); ctx.stroke();
+  }
+  ctx.save();
+  ctx.font = "900 34px system-ui, sans-serif"; ctx.textAlign = "center";
+  ctx.shadowColor = "#38b6ff"; ctx.shadowBlur = 16; ctx.fillStyle = "#dff2ff";
+  ctx.fillText("⚛ QUANTUM WATCHTOWER HQ", W / 2, 252);
+  ctx.restore();
+  /* stations: screen + U-shaped control panel with flashing buttons */
+  HQSTATIONS.forEach((st, si) => {
+    const sx = st.sx, sy = st.sy;
+    ctx.fillStyle = "#0b1226"; roundRect(sx - 8, sy - 8, 536, 316, 14); ctx.fill();
+    ctx.strokeStyle = "#38b6ff"; ctx.lineWidth = 3; ctx.shadowColor = "#38b6ff"; ctx.shadowBlur = 10; roundRect(sx - 8, sy - 8, 536, 316, 14); ctx.stroke(); ctx.shadowBlur = 0;
+    const v = hqVids[si];
+    if (v && v.dataset.cur && v.readyState >= 2) {
+      const vw = v.videoWidth || 16, vh = v.videoHeight || 9, s = Math.min(520 / vw, 300 / vh);
+      ctx.drawImage(v, sx + (520 - vw * s) / 2, sy + (300 - vh * s) / 2, vw * s, vh * s);
+    } else {
+      ctx.fillStyle = "#0a1a33"; ctx.fillRect(sx, sy, 520, 300);
+      ctx.fillStyle = "#7dd3fc"; ctx.font = "bold 24px system-ui, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("SUPERHERO FEED " + (si + 1), sx + 260, sy + 158);
+    }
+    ctx.fillStyle = "#1b1030";
+    for (const r of hqDeskRects(st)) { roundRect(r.x, r.y, r.w, r.h, 10); ctx.fill(); }
+    ctx.strokeStyle = "rgba(255,93,143,0.65)"; ctx.lineWidth = 2;
+    for (const r of hqDeskRects(st)) { roundRect(r.x, r.y, r.w, r.h, 10); ctx.stroke(); }
+    const cols = ["#ff5d8f", "#ffd76a", "#38e1ff", "#a855f7", "#7dff8a"];
+    for (let k = 0; k < 16; k++) {
+      const bx = st.sx + 52 + k * 27, by = st.sy + 370;
+      const on = ((Math.floor(t / 240) + k + si * 3) % 5) < 2;
+      ctx.save();
+      ctx.fillStyle = cols[(k + si) % cols.length];
+      if (on) { ctx.shadowColor = cols[(k + si) % cols.length]; ctx.shadowBlur = 12; } else ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.arc(bx, by, 6, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+    for (let k = 0; k < 4; k++) {
+      for (const ax of [st.sx + 52, st.sx + 468]) {
+        const by = st.sy + 388 + k * 26;
+        const on = ((Math.floor(t / 300) + k * 2 + si) % 4) < 2;
+        ctx.save();
+        ctx.fillStyle = cols[(k + 2 + si) % cols.length];
+        if (on) { ctx.shadowColor = cols[(k + 2 + si) % cols.length]; ctx.shadowBlur = 10; } else ctx.globalAlpha = 0.3;
+        ctx.beginPath(); ctx.arc(ax, by, 5, 0, 7); ctx.fill();
+        ctx.restore();
+      }
+    }
+    ctx.fillStyle = "#241547"; ctx.beginPath(); ctx.arc(st.sx + 260, st.sy + 420, 25, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(125,211,252,0.4)"; ctx.lineWidth = 2; ctx.stroke();
+  });
+  /* conference table with holo atom */
+  const tb = HQTABLE;
+  ctx.fillStyle = "rgba(56,225,255,0.07)"; ctx.beginPath(); ctx.ellipse(tb.x + tb.w / 2, tb.y + tb.h / 2 + 10, tb.w / 2 + 26, tb.h / 2 + 22, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#141033"; roundRect(tb.x, tb.y, tb.w, tb.h, 60); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; roundRect(tb.x, tb.y, tb.w, tb.h, 60); ctx.stroke();
+  ctx.strokeStyle = "rgba(56,225,255,0.35)"; ctx.lineWidth = 2; roundRect(tb.x + 14, tb.y + 14, tb.w - 28, tb.h - 28, 48); ctx.stroke();
+  const hx = tb.x + tb.w / 2, hy = tb.y + tb.h / 2, pulse = 1 + 0.07 * Math.sin(t / 380);
+  ctx.save(); ctx.translate(hx, hy); ctx.scale(pulse, pulse);
+  ctx.shadowColor = "#38e1ff"; ctx.shadowBlur = 22;
+  ctx.fillStyle = "#bff1ff"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
+  ctx.shadowBlur = 10; ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) {
+    ctx.save(); ctx.rotate(t / 1400 + i * Math.PI / 3);
+    ctx.beginPath(); ctx.ellipse(0, 0, 52, 19, 0, 0, 7); ctx.stroke(); ctx.restore();
+  }
+  ctx.restore();
+  ctx.fillStyle = "#241547";
+  for (let k = 0; k < 5; k++) {
+    const cxp = tb.x + 70 + k * 130;
+    roundRect(cxp, tb.y - 44, 56, 34, 10); ctx.fill();
+    roundRect(cxp, tb.y + tb.h + 10, 56, 34, 10); ctx.fill();
+  }
+  drawPortal(HQPORTAL.x, HQPORTAL.y, t, "Portal To Plaza");
+  ctx.strokeStyle = "#38b6ff"; ctx.lineWidth = 6; ctx.strokeRect(3, 3, W - 6, H - 6);
 }
 function drawTheatre(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
@@ -1159,6 +1367,8 @@ function frame(now) {
     if (res.exit) toPlaza();
     if (res.theatre) toTheatre();
     if (res.back) toArcadeFromTheatre();
+    if (me.scene === "plaza") checkPortal(PORTAL, toHQ);
+    else if (me.scene === "hq") checkPortal(HQPORTAL, toPlazaFromHQ);
   }
   publish(false);
   const dims = sceneDims(), roomW = dims.w, roomH = dims.h;
@@ -1169,9 +1379,10 @@ function frame(now) {
   if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
   drawStars(camX, camY, SCALE);
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else drawTheatre(now);
   if (me.scene === "theatre") { if (vid.dataset.cur && vid.paused) vid.play().catch(() => {}); }
   else if (!vid.paused) vid.pause();
+  if (me.scene !== "hq") pauseHqVideos();
   if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
   const actors = [];
