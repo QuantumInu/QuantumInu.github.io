@@ -909,7 +909,7 @@ function voiceReport(pid) {
       const byId = {}; rep.forEach(s => { byId[s.id] = s; });
       rep.forEach(s => {
         if (s.type === "outbound-rtp" && s.kind === "audio") so = s.bytesSent || 0;
-        if (s.type === "inbound-rtp" && s.kind === "audio") si = s.bytesReceived || 0;
+        if (s.type === "inbound-rtp" && s.kind === "audio") { si = s.bytesReceived || 0; if ((s.audioLevel || 0) > 0.02) V.levelAt = performance.now(); }
         if (s.type === "candidate-pair" && (s.state === "succeeded" || s.selected)) { const lc = byId[s.localCandidateId]; if (lc) via = lc.candidateType || ""; }
       });
       db.ref("hub/voice/" + myId + "/_state/" + pid).set({ c: V.pc.connectionState, i: V.pc.iceConnectionState, so, si, via, ts: Date.now() });
@@ -926,13 +926,6 @@ function attachRemote(pid, stream) {
     }
     V.audio.srcObject = stream;
     V.audio.play().catch(() => {});
-  } catch (e) {}
-  const ctx = ac(); if (!ctx) return;
-  try {
-    const src = ctx.createMediaStreamSource(stream);
-    const an = ctx.createAnalyser(); an.fftSize = 512;
-    src.connect(an);
-    V.analyser = an;
   } catch (e) {}
 }
 function voiceClose(pid) {
@@ -953,13 +946,7 @@ function voiceTick() {
     if (!p || !voiceDesired(pid)) { voiceClose(pid); continue; }
     const d = Math.hypot(me.x - p.tx, me.y - p.ty);
     if (V.audio) { const g = Math.max(0, Math.min(1, 1.15 * (1 - d / VOICE_RANGE))); try { V.audio.volume = g; if (V.audio.paused) V.audio.play().catch(() => {}); } catch (e) {} }
-    if (V.analyser) {
-      const arr = new Uint8Array(V.analyser.fftSize); V.analyser.getByteTimeDomainData(arr);
-      let sum = 0; for (let i = 0; i < arr.length; i += 16) { const v = (arr[i] - 128) / 128; sum += v * v; }
-      const rms = Math.sqrt(sum / (arr.length / 16));
-      if (rms > 0.04) { V.levelAt = performance.now(); speakingNow.add(pid); }
-      else if (performance.now() - V.levelAt > 350) speakingNow.delete(pid);
-    }
+    if (V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
   }
   if (pttHeld && micStream) speakingNow.add(myId); else speakingNow.delete(myId);
   voiceTickN = (voiceTickN + 1) % 3; if (voiceTickN === 0) for (const pid of voicePeers.keys()) voiceReport(pid);
