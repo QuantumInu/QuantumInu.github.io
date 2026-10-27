@@ -827,6 +827,13 @@ function voiceInit() {
   mail.onDisconnect().remove();
   mail.on("child_added", s => onVoiceMail(s.key, s.val()));
   mail.on("child_changed", s => onVoiceMail(s.key, s.val()));
+  if (!window.__qhUnlock) {
+    window.__qhUnlock = true;
+    document.addEventListener("pointerdown", () => {
+      voicePeers.forEach((V2) => { if (V2.audio && V2.audio.paused) V2.audio.play().catch(() => {}); });
+      if (AC) AC.resume().catch(() => {});
+    }, true);
+  }
 }
 function attachMic(V) {
   if (!micStream || !V.pc) return;
@@ -912,16 +919,17 @@ function voiceReport(pid) {
         if (s.type === "inbound-rtp" && s.kind === "audio") { si = s.bytesReceived || 0; if ((s.audioLevel || 0) > 0.02) V.levelAt = performance.now(); }
         if (s.type === "candidate-pair" && (s.state === "succeeded" || s.selected)) { const lc = byId[s.localCandidateId]; if (lc) via = lc.candidateType || ""; }
       });
-      db.ref("hub/voice/" + myId + "/_state/" + pid).set({ c: V.pc.connectionState, i: V.pc.iceConnectionState, so, si, via, ts: Date.now() });
+      db.ref("hub/voice/" + myId + "/_state/" + pid).set({ c: V.pc.connectionState, i: V.pc.iceConnectionState, so, si, via, ts: Date.now(), ae: V.audio ? (V.audio.paused ? "paused" : "playing") : "none", av: V.audio ? Math.round(V.audio.volume * 100) : -1, am: V.audio ? (V.audio.muted ? 1 : 0) : -1, rs: V.audio ? V.audio.readyState : -1, tm: V.rtrack ? (V.rtrack.muted ? 1 : 0) : -1 });
     }).catch(() => {});
   } catch (e) {}
 }
 function attachRemote(pid, stream) {
   const V = voicePeers.get(pid); if (!V) return;
+  try { V.rtrack = stream.getAudioTracks()[0]; } catch (e) {}
   try {
     if (!V.audio) {
       const a = document.createElement("audio");
-      a.autoplay = true; a.setAttribute("playsinline", ""); a.style.display = "none";
+      a.autoplay = true; a.muted = false; a.setAttribute("playsinline", ""); a.style.display = "none";
       document.body.appendChild(a); V.audio = a;
     }
     V.audio.srcObject = stream;
