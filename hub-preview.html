@@ -184,6 +184,11 @@ let pickedHero = profile ? profile.hero : 0;
 let AC = null, muted = profile ? !!profile.muted : false, musicOn = false;
 function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } if (AC && AC.state === "suspended") AC.resume(); return AC; }
 let audioHeld = false; /* true while the tab/window is out of focus — all hub sound mutes */
+const liveOscs = new Set(); /* every sounding oscillator, so a room change can cut them instantly */
+function stopAllTones() {
+  if (!AC) return; const t = AC.currentTime;
+  liveOscs.forEach(o => { try { o.stop(t + 0.03); } catch(e) {} });
+}
 function tone(f0, f1, dur, type, vol, when) {
   if (muted || audioHeld) return; const c = ac(); if (!c) return;
   const t = c.currentTime + (when || 0), o = c.createOscillator(), g = c.createGain();
@@ -192,6 +197,7 @@ function tone(f0, f1, dur, type, vol, when) {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.08, t + 0.015);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.05);
+  liveOscs.add(o); o.onended = () => liveOscs.delete(o);
 }
 const sfxPop = () => tone(520, 880, 0.09, "sine", 0.07);
 const sfxClick = () => tone(700, 700, 0.05, "triangle", 0.05);
@@ -209,6 +215,7 @@ function padChord(freqs, dur, vol) {
       g.gain.linearRampToValueAtTime(vol, t + dur * 0.35);
       g.gain.linearRampToValueAtTime(0.0001, t + dur);
       o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.1);
+      liveOscs.add(o); o.onended = () => liveOscs.delete(o);
     });
   });
 }
@@ -251,10 +258,10 @@ function startMusic() {
     if (sc === "hq") {
       const ci = Math.floor(tick / 16) % 4;
       if (tick % 16 === 0) {
-        padChord(HQ_CHORDS[ci], 8.6, 0.013);
-        tone(HQ_CHORDS[ci][0] / 2, 0, 3.2, "triangle", 0.015);
+        padChord(HQ_CHORDS[ci], 8.6, 0.0033);
+        tone(HQ_CHORDS[ci][0] / 2, 0, 3.2, "triangle", 0.0038);
       }
-      if (tick % 4 === 0) tone(HQ_CHORDS[ci][[0, 2, 3, 2][Math.floor(tick / 4) % 4]] * 4, 0, 2.4, "triangle", 0.010);
+      if (tick % 4 === 0) tone(HQ_CHORDS[ci][[0, 2, 3, 2][Math.floor(tick / 4) % 4]] * 4, 0, 2.4, "triangle", 0.0025);
       tick++; return;
     }
     tone(seq[tick % seq.length], 0, 0.5, "sine", 0.022);
@@ -726,20 +733,20 @@ function sendChat() {
 $("sendbtn").onclick = sendChat;
 chatIn.addEventListener("keydown", e => { if (e.key === "Enter") { if (chatIn.value.trim()) sendChat(); else chatIn.blur(); } e.stopPropagation(); });
 /* ============ scenes ============ */
-function toArcade() { me.scene = "arcade"; me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
-function toPlaza() { me.scene = "plaza"; me.x = 1600; me.y = 566; sfxChime(); publish(true); }
-function toTheatre() { me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
-function toArcadeFromTheatre() { me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
-function toClub() { me.scene = "club"; me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
-function toPlazaFromClub() { me.scene = "plaza"; me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
+function toArcade() { stopAllTones(); me.scene = "arcade"; me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
+function toPlaza() { stopAllTones(); me.scene = "plaza"; me.x = 1600; me.y = 566; sfxChime(); publish(true); }
+function toTheatre() { stopAllTones(); me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
+function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
+function toClub() { stopAllTones(); me.scene = "club"; me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
+function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
 let portalArmed = true;
 function checkPortal(P, go) {
   const d = Math.hypot(me.x - P.x, me.y - P.y);
   if (d > 100) portalArmed = true;
   else if (portalArmed && d < 56) { portalArmed = false; go(); }
 }
-function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQPORTAL.x; me.y = HQPORTAL.y - 130; sfxChime(); publish(true); startHqVideos(); }
-function toPlazaFromHQ() { portalArmed = false; me.scene = "plaza"; me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
+function toHQ() { stopAllTones(); portalArmed = false; me.scene = "hq"; me.x = HQPORTAL.x; me.y = HQPORTAL.y - 130; sfxChime(); publish(true); startHqVideos(); }
+function toPlazaFromHQ() { stopAllTones(); portalArmed = false; me.scene = "plaza"; me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
