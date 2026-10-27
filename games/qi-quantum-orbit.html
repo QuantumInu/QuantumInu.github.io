@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>QI Quantum Orbit</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; touch-action:manipulation; }
+  body {
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:#e8f4ff;
+    background: radial-gradient(1100px 750px at 50% -12%, #0a1e3a 0%, #050d1f 46%, #010208 100%);
+    height:100vh; height:100dvh; overflow:hidden; padding:52px 12px calc(10px + env(safe-area-inset-bottom));
+    text-align:center; position:relative; display:flex; flex-direction:column;
+  }
+  #spaceBg { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  .wrap { position:relative; z-index:1; max-width:540px; width:100%; margin:0 auto; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  h1 { font-size:clamp(22px,5.8vw,34px); letter-spacing:2px; font-weight:900; color:#7fdcff;
+       text-shadow:0 0 14px rgba(41,182,255,.85), 0 0 42px rgba(41,182,255,.45); }
+  h1 .q { color:#ffd964; text-shadow:0 0 14px rgba(245,197,66,.8), 0 0 42px rgba(245,197,66,.4); }
+  .sub { opacity:.85; margin-top:2px; font-size:13.5px; }
+  .stats { display:flex; gap:8px; justify-content:center; margin:8px 0; flex-wrap:wrap; }
+  .stat { background:rgba(120,200,255,.06); border:1px solid rgba(120,200,255,.18); border-radius:12px; padding:4px 12px; min-width:70px; }
+  .stat b { display:block; font-size:17px; color:#7fdcff; }
+  .stat b.gold { color:#ffd964; }
+  .stat span { font-size:11px; text-transform:uppercase; letter-spacing:1px; opacity:.75; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; width:100%; margin:0 auto;
+           display:flex; align-items:center; justify-content:center; }
+  canvas#game { display:block; touch-action:none; background:#020409; border-radius:14px;
+           box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 1px rgba(41,182,255,.35), 0 0 26px rgba(41,182,255,.18); }
+  body.playing h1, body.playing .sub, body.playing .howto { display:none; }
+  .card-overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+                  gap:7px; background:rgba(2,6,16,.88); padding:12px 14px; overflow-y:auto; z-index:5; border-radius:14px; }
+  .card-overlay > * { flex:none; }
+  .card-overlay.show { display:flex; }
+  @supports (justify-content: safe center) { .card-overlay { justify-content:safe center; } }
+  .card-overlay .big { font-size:clamp(20px,5.6vw,29px); font-weight:900; letter-spacing:1px; color:#7fdcff;
+                       text-shadow:0 0 16px rgba(41,182,255,.7); }
+  .card-overlay .big.gold { color:#ffd964; text-shadow:0 0 16px rgba(245,197,66,.65); }
+  .card-overlay .detail { font-size:14px; line-height:1.5; }
+  .card-overlay .detail b { color:#ffd964; }
+  .newbest { font-size:13px; font-weight:800; letter-spacing:1.5px; color:#7dfcd4; text-transform:uppercase; }
+  #loadStatus { font-size:12.5px; letter-spacing:1px; opacity:.85; min-height:16px; }
+  .controls { margin-top:9px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; align-items:stretch; }
+  button.ctl { font:inherit; font-weight:700; color:#03101f; background:linear-gradient(180deg,#8fe3ff,#29b6ff);
+    border:none; border-radius:999px; padding:11px 22px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+  button.ctl.ghost { background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25); box-shadow:none; }
+  button.ctl:active { transform:scale(.96); }
+  button.ctl:disabled { opacity:.55; cursor:default; }
+  .like-btn { font:inherit; font-weight:700; background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25);
+    border-radius:999px; padding:11px 18px; cursor:pointer; }
+  .like-btn:active { transform:scale(.96); }
+  .like-btn .like-count { margin-left:5px; color:#ffd964; }
+  .howto { margin:9px auto 0; max-width:480px; font-size:12.5px; line-height:1.45; opacity:.78; }
+  @media (max-height:880px) { .howto { display:none; } }
+  @media (max-height:520px) { .sub { display:none; } }
+  .lb-form { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; width:100%; }
+  .lb-form input { font:inherit; font-size:15px; color:#e8f4ff; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.3); border-radius:999px; padding:10px 16px; width:210px; max-width:72vw; text-align:center; }
+  .lb-form input::placeholder { color:rgba(232,244,255,.5); }
+  .lb-form input:focus-visible { outline:2px solid #7fdcff; outline-offset:1px; }
+  .lb-msg { min-height:20px; font-size:14px; color:#ffd964; }
+  .lb-msg.err { color:#ff9db0; } .lb-msg.ok { color:#7dfcd4; }
+  #overBoard, #lbPanelBody { width:100%; }
+  #overBoard { flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+  table.board { width:100%; max-width:340px; margin:4px auto 0; border-collapse:collapse; font-size:14.5px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:12px; }
+  table.board th { text-align:left; font-size:11px; letter-spacing:.12em; text-transform:uppercase; opacity:.7; padding:7px 10px; }
+  table.board th.r, table.board td.r { text-align:right; }
+  table.board td { padding:6px 10px; border-top:1px solid rgba(255,255,255,.09); font-weight:700; text-align:left; }
+  table.board tr.me td { color:#ffd964; background:rgba(245,197,66,.1); }
+  .board-note { text-align:center; font-size:14px; opacity:.85; padding:8px 4px; }
+  #lbPanel { position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(2,4,12,.85); z-index:60; padding:16px; }
+  #lbPanel.show { display:flex; }
+  .lb-card { background:#071426; border:1px solid rgba(127,220,255,.3); border-radius:16px; padding:22px 18px;
+    width:100%; max-width:380px; max-height:88vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; align-items:center;
+    box-shadow:0 12px 40px rgba(0,0,0,.6); }
+  .lb-card .lb-title { font-size:20px; font-weight:800; color:#7fdcff; }
+  .lb-card table.board { max-width:none; }
+</style>
+</head>
+<body>
+ <a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
+
+<canvas id="spaceBg" aria-hidden="true"></canvas>
+<div class="wrap">
+  <h1><span class="q">QI</span> QUANTUM ORBIT</h1>
+  <div class="sub">One tap. One slingshot. Don't get lost in deep space.</div>
+  <div class="stats">
+    <div class="stat"><b id="hudScore">0</b><span>Score</span></div>
+    <div class="stat"><b id="hudStreak" class="gold">×0</b><span>Streak</span></div>
+    <div class="stat"><b id="hudBest">0</b><span>Best</span></div>
+  </div>
+
+  <div id="stage">
+    <canvas id="game" width="440" height="440"></canvas>
+
+    <div class="card-overlay show" id="startCard">
+      <div class="big">⚛️ QI QUANTUM ORBIT</div>
+      <div class="detail">The golden atom circles each planet, and a Quantum Inu pup is watching from the surface.<br>
+      <b>Tap anywhere</b> to release the atom — it flies off straight along its tangent.<br>
+      Cross the <b>next planet's orbit ring</b> and it locks in: <b>+10 × your streak</b>.<br>
+      Fly through a <b style="color:#ffd964">golden bonus ring</b> floating between the planets, right on the flight path to the next one, for <b>+25</b>.<br>
+      Miss every ring and the atom drifts off into deep space…</div>
+      <button class="ctl" id="startBtn" disabled>▶ Start Orbiting</button>
+      <div id="loadStatus">LOADING STICKERS…</div>
+    </div>
+
+    <div class="card-overlay" id="overCard">
+      <div class="big gold" id="overTitle">🌌 Lost in Deep Space</div>
+      <div class="detail">Score <b id="finalScore">0</b> · Planets chained <b id="finalStreak">0</b> · Best <b id="finalBest">0</b></div>
+      <div class="newbest" id="newBest" style="display:none">✦ New Best! ✦</div>
+      <form class="lb-form" id="lbForm">
+        <input id="lbName" type="text" maxlength="16" placeholder="Name for the leaderboard" autocomplete="off">
+        <button class="ctl" id="lbSubmit" type="submit">Submit Score</button>
+      </form>
+      <div class="lb-msg" id="lbMsg"></div>
+      <div id="overBoard"></div>
+      <button class="ctl" id="againBtn" type="button">▶ One More Try</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl ghost" id="lbBtn" type="button">🏆 Leaderboard</button>
+    <button class="ctl ghost" id="soundBtn" type="button" aria-label="Toggle sound">🔊 Sound On</button>
+    <button class="like-btn" id="likeBtn" type="button" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count" id="likeCount">–</span></button>
+  </div>
+
+  <p class="howto">How to play: the atom orbits the planet on its own — watch its path and tap (or press Space) to let go at just the right moment.
+  It keeps whatever direction it was travelling, so release timing is everything. Every planet you capture raises your streak multiplier,
+  and planets drift farther apart the longer your run lasts. The spin starts slow, then steps up a bit after every orbit: each planet you capture
+  spins faster than the one before, and every full loop around a planet speeds that planet up a touch more — so don't wait too long. A golden ring sometimes floats in the space between two planets, right on the flight path between them — thread your flight through it on the way to the next planet for +25.</p>
+</div>
+
+<div id="lbPanel">
+  <div class="lb-card">
+    <div class="lb-title">🏆 QI Quantum Orbit Leaderboard</div>
+    <div id="lbPanelBody"><div class="board-note">Loading…</div></div>
+    <button class="ctl" id="lbClose" type="button">Close</button>
+  </div>
+</div>
+
+<script>
+/* stop double-tap zoom + pinch gestures hijacking the game */
+var lastTouchEnd = 0;
+document.addEventListener('touchend', function(e){
+  var now = Date.now();
+  if (now - lastTouchEnd <= 350) { e.preventDefault(); }
+  lastTouchEnd = now;
+}, { passive: false });
+document.addEventListener('touchstart', function(e){
+  if (e.touches.length > 1) { e.preventDefault(); }
+}, { passive: false });
+document.addEventListener('dblclick', function(e){ e.preventDefault(); }, { passive: false });
+
+function $(id){ return document.getElementById(id); }
+
+/* ================= sticker roster (full 106 pack) ================= */
+var STICKER_IDS = ["wave","gm","gn","lfg","hodl","cool","laugh","love","thumbsup","salute","knight","wizard","astronaut","ramen","coffee","rich","chart","dance","buff","chill","detective","party","king","pirate","ninja","hero","zen","gamer","dj","chef","float","bone","jetpack","rain","hug","mindblown","ok","stop","facepalm","shrug","thinking","silly","dreaming","thumbsdown","clap","pray","fine","run","swim","bath","snow","guitar","sing","book","phone","laptop","jackpot","telescope","fishing","skateboard","bike","racecar","popcorn","pizza","icecream","birthday","gift","trophy","flag","idea","dizzy","sick","firefighter","painter","construction","cowboy","viking","magician","director","robot","alien","ghost","santa","cupid","fortune","beekeeper","mail","boxer","soccer","basketball","baseball","surfer","scuba","parachute","balloon","train","climber","kayak","gardener","photographer","violin","drummer","pumpkin","camper","umbrella","bubbles"];
+
+/* ================= sticker loader =================
+   Family loader: gate on the load event (never decode()), a stall
+   watchdog per attempt, retries with backoff until the face lands,
+   faces baked to offscreen canvases, live loaded count while loading,
+   and an 8-second failsafe that unlocks Start no matter what. */
+var FACE = {}; /* id -> baked canvas */
+var IMG = {};  /* id -> loaded Image (fallback draw source) */
+var facesTotal = STICKER_IDS.length;
+var facesSettled = 0;
+var facesBaked = 0;
+var facesReady = false;
+function updateLoadStatus() {
+  var el = $("loadStatus");
+  if (!el) return;
+  el.textContent = facesBaked >= facesTotal
+    ? "STICKERS LOADED ✦ " + facesBaked + "/" + facesTotal
+    : "LOADING STICKERS… " + facesBaked + "/" + facesTotal;
+}
+function finishLoading() {
+  if (facesReady) return;
+  facesReady = true;
+  updateLoadStatus();
+  var btn = $("startBtn");
+  if (btn) btn.disabled = false;
+}
+function settleFace() {
+  facesSettled++;
+  if (facesReady) return;
+  if (facesSettled >= facesTotal) finishLoading();
+  else updateLoadStatus();
+}
+function bakeFace(id, im) {
+  try {
+    var w = 168;
+    var h = Math.max(1, Math.round(w * im.naturalHeight / im.naturalWidth));
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    c.getContext("2d").drawImage(im, 0, 0, w, h);
+    FACE[id] = c;
+  } catch (e) { /* the raw Image stays in IMG[id] as the draw source */ }
+}
+var faceSt = {};
+function stFor(id) { return faceSt[id] || (faceSt[id] = { gate: false, ok: false }); }
+function markFaceOk(id, im) {
+  var st = stFor(id);
+  if (st.ok) return;
+  st.ok = true;
+  IMG[id] = im;
+  bakeFace(id, im);
+  if (FACE[id]) facesBaked++;
+  if (!st.gate) { st.gate = true; settleFace(); }
+  updateLoadStatus();
+}
+function loadFace(id, attempt) {
+  var st = stFor(id);
+  if (st.ok) return;
+  var im = new Image();
+  var settled = false;
+  var timer = setTimeout(function () {
+    if (settled) return;
+    settled = true;
+    retryFace(id, attempt);
+  }, 3000);
+  im.onload = function () {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    markFaceOk(id, im);
+  };
+  im.onerror = function () {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    retryFace(id, attempt);
+  };
+  im.src = "assets/faces/" + id + ".webp";
+  if (im.complete && im.naturalWidth) {
+    settled = true;
+    clearTimeout(timer);
+    markFaceOk(id, im);
+  }
+}
+function retryFace(id, attempt) {
+  var st = stFor(id);
+  if (st.ok) return;
+  if (attempt >= 5) {
+    if (!st.gate) { st.gate = true; settleFace(); }
+    setTimeout(function () { loadFace(id, attempt + 1); }, 5000);
+    return;
+  }
+  setTimeout(function () { loadFace(id, attempt + 1); }, 300);
+}
+function loadImages() {
+  STICKER_IDS.forEach(function (id) { loadFace(id, 0); });
+  setTimeout(finishLoading, 8000);
+  updateLoadStatus();
+}
+function randomFace() { return STICKER_IDS[(Math.random() * STICKER_IDS.length) | 0]; }
+
+/* ================= sound effects (WebAudio, generated — no files) ================= */
+var AC = null, soundOn = true;
+function audio() {
+  if (!soundOn) return null;
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  }
+  if (AC.state === "suspended") { AC.resume(); }
+  return AC;
+}
+function tone(freq, dur, type, vol, delay, slideTo) {
+  var ac = audio(); if (!ac) return;
+  var t0 = ac.currentTime + (delay || 0);
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square";
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+  g.gain.setValueAtTime(vol || 0.06, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function noiseSweep(dur, vol, fFrom, fTo) {
+  var ac = audio(); if (!ac) return;
+  var n = Math.floor(ac.sampleRate * dur);
+  var buf = ac.createBuffer(1, n, ac.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n * 0.4);
+  var src = ac.createBufferSource(); src.buffer = buf;
+  var f = ac.createBiquadFilter(); f.type = "bandpass"; f.Q.value = 1.1;
+  f.frequency.setValueAtTime(fFrom, ac.currentTime);
+  f.frequency.exponentialRampToValueAtTime(fTo, ac.currentTime + dur);
+  var g = ac.createGain();
+  g.gain.setValueAtTime(vol || 0.14, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start();
+}
+function sfxRelease() { noiseSweep(0.34, 0.16, 500, 2600); tone(392, 0.2, "sine", 0.05, 0, 880); }
+/* capture chime climbs a pentatonic ladder as the streak grows */
+var CHIME = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51];
+function sfxCapture(streak) {
+  var base = CHIME[Math.min(CHIME.length - 1, Math.max(0, streak - 1))];
+  tone(base, 0.16, "triangle", 0.09);
+  tone(base * 1.5, 0.22, "triangle", 0.08, 0.07);
+  tone(base * 2, 0.3, "sine", 0.05, 0.14);
+}
+function sfxBonus() {
+  [1318.51, 1567.98, 2093.00].forEach(function (f, i) { tone(f, 0.14, "sine", 0.06, i * 0.05); });
+}
+function sfxLost() {
+  tone(330, 1.1, "sine", 0.1, 0, 55);
+  tone(165, 1.1, "triangle", 0.07, 0.05, 40);
+  noiseSweep(0.9, 0.05, 900, 120);
+}
+function sfxClick() { tone(660, 0.05, "square", 0.04); }
+$("soundBtn").addEventListener("click", function () {
+  soundOn = !soundOn;
+  this.textContent = soundOn ? "🔊 Sound On" : "🔇 Sound Off";
+  if (soundOn) sfxClick();
+});
+</script>
+<script>
+/* ================= the game =================
+   World-space orbital slingshot. The atom rides the current planet's
+   ring at that planet's angular speed; on release it keeps the exact
+   tangent velocity and flies straight. Capture = the flight segment
+   crossing the NEXT planet's ring circle, at which point the atom
+   locks onto that ring at the crossing angle and the camera glides
+   over. Planets are generated ahead forever, farther apart and
+   faster-spinning as the streak climbs. */
+var canvas = $("game"), ctx = canvas.getContext("2d");
+var stage = $("stage");
+var viewW = 440, viewH = 440, dpr = 1;
+
+var PLANET_HUES = [
+  { top:"#3fd9c0", bot:"#0d5f70", glow:"rgba(63,217,192,.5)"  },  /* teal   */
+  { top:"#b78cff", bot:"#4b2380", glow:"rgba(167,120,255,.5)" },  /* purple */
+  { top:"#57b8ff", bot:"#173f8f", glow:"rgba(87,184,255,.5)"  },  /* blue   */
+  { top:"#ffb45e", bot:"#8f4a12", glow:"rgba(255,180,94,.5)"  },  /* ember  */
+  { top:"#ff8fb8", bot:"#7d2150", glow:"rgba(255,143,184,.5)" },  /* rose   */
+  { top:"#9be15d", bot:"#2f6b1e", glow:"rgba(155,225,93,.5)" }   /* lime   */
+];
+
+var state = "ready"; /* ready | orbit | fly | lost | over */
+var score = 0, best = 0, bestAtStart = 0, streak = 0, submitted = false;
+var planets = [];      /* generated ahead; planets[cur] holds the atom */
+var cur = 0;
+var atom = { x: 0, y: 0, angle: 0, vx: 0, vy: 0, flyT: 0, fade: 1 };
+var bonus = null;      /* { x, y, r, taken } golden ring between planets */
+var cam = { x: 0, y: 0, s: 1 };
+var trail = [];        /* recent flight positions {x,y} */
+var particles = [];
+var popups = [];       /* {x,y,text,color,t} */
+var timeMs = 0;
+var orbitAccum = 0;    /* rotation banked toward the next in-orbit speed-up */
+
+function makePlanet(x, y, n) {
+  var hue = PLANET_HUES[(Math.random() * PLANET_HUES.length) | 0];
+  var r = 21 + Math.random() * 15;                          /* 21–36 */
+  var ring = r + 44 + Math.random() * 30;                   /* planet r + 44–74 */
+  /* Start slow, then a clear step up with every planet chained:
+     planet n spins at 0.92 + n × 0.075 rad/s (plus a jitter smaller
+     than the step, so the ramp always goes up, never down), capped
+     so late runs stay fast but playable. */
+  var speed = 0.92 + Math.min(1.58, n * 0.075) + Math.random() * 0.04;
+  return {
+    x: x, y: y, r: r, ring: ring,
+    omega: speed * (n === 0 ? 1 : (Math.random() < 0.5 ? -1 : 1)), /* signed rad/s — the first planet's spin sign is pinned, so every run opens the same way */
+    hue: hue, face: randomFace(),
+    seed: Math.random() * 1000
+  };
+}
+function genNext() {
+  var prev = planets[planets.length - 1];
+  var n = planets.length; /* grows with the run — drives difficulty */
+  /* The FIRST hop is pinned — fixed distance, level with the start
+     planet — so the opening is identical every run and the first
+     target starts on screen. Every hop after that stays random. */
+  var gap = n === 1 ? 390 : Math.min(620, 330 + n * 20 + Math.random() * 80);
+  var dy = n === 1 ? 0 : (Math.random() * 2 - 1) * Math.min(210, 90 + n * 12);
+  var p = makePlanet(prev.x + gap, prev.y + dy, n);
+  planets.push(p);
+}
+function resetGame() {
+  score = 0; streak = 0; submitted = false; bestAtStart = best;
+  planets = [makePlanet(0, 0, 0)];
+  cur = 0;
+  genNext();
+  atom.angle = -Math.PI / 2; /* fixed start: the atom sits at the top of the first ring, every run */
+  atom.fade = 1; atom.flyT = 0;
+  orbitAccum = 0;
+  trail = []; particles = []; popups = [];
+  /* camera starts already settled on the two-planet framing (the
+     same target step() eases toward), so the first target is on
+     screen from the first frame and the off-screen arrow never
+     fires at the start */
+  var fa = planets[0], fb = planets[1];
+  cam.x = (fa.x + fb.x) / 2; cam.y = (fa.y + fb.y) / 2;
+  var fspan = Math.hypot(fb.x - fa.x, fb.y - fa.y) + (fa.ring + fb.ring) * 2 + 120;
+  cam.s = Math.max(0.5, Math.min(1.12, Math.min(viewW, viewH) / fspan * 1.55));
+  placeAtomOnRing();
+  maybeBonus(planets[0], planets[1]);
+  updateHUD();
+}
+function placeAtomOnRing() {
+  var p = planets[cur];
+  atom.x = p.x + Math.cos(atom.angle) * p.ring;
+  atom.y = p.y + Math.sin(atom.angle) * p.ring;
+}
+/* golden bonus ring: ~45% of planet pairs get one, floating in
+   the space BETWEEN the two planets — never on an orbit circle —
+   but exactly on the flight path. The atom leaves a planet along
+   the tangent at its release point; exactly one release point on
+   the current ring sends that tangent flight straight through the
+   next planet's centre, and every release that still captures
+   flies a line fanned closely around that perfect line. The ring
+   sits on the perfect line, partway across the gap between the
+   two rings: well clear of both orbit circles, and squarely in
+   the path of a normal release-and-capture flight. */
+function maybeBonus(from, to) {
+  bonus = null;
+  if (!from || !to) return;
+  if (Math.random() >= 0.45) return;
+  var dx = to.x - from.x, dy = to.y - from.y;
+  var D = Math.hypot(dx, dy);
+  if (D <= from.ring) return;
+  var ux = dx / D, uy = dy / D;                 /* unit toward the target */
+  var sgn = from.omega > 0 ? 1 : -1;            /* the spin the atom rides */
+  var along = from.ring / D;
+  var side = -sgn * Math.sqrt(Math.max(0, 1 - along * along));
+  /* release point S on the current ring whose tangent flight runs
+     through the target's centre */
+  var rx = along * ux + side * (-uy);
+  var ry = along * uy + side * ux;
+  var sx = from.x + rx * from.ring, sy = from.y + ry * from.ring;
+  /* tangent flight direction at S, along the planet's spin */
+  var tx = sgn * (-ry), ty = sgn * rx;
+  /* capture point C: where that line first meets the target's ring */
+  var cx = to.x - tx * to.ring, cy = to.y - ty * to.ring;
+  var f = 0.45;                                 /* partway across the gap */
+  bonus = {
+    x: sx + (cx - sx) * f,
+    y: sy + (cy - sy) * f,
+    r: 27, taken: false
+  };
+}
+function collectBonus() {
+  if (!bonus || bonus.taken) return;
+  var dx = atom.x - bonus.x, dy = atom.y - bonus.y;
+  /* capturing flights fan out around the ring's flight line by
+     up to ~35 units where the ring sits, so the pickup reach
+     covers that fan: any release that goes on to capture passes
+     close enough to collect */
+  if (dx * dx + dy * dy < 38 * 38) {
+    bonus.taken = true;
+    score += 25;
+    if (score > best) best = score;
+    sfxBonus();
+    popups.push({ x: bonus.x, y: bonus.y - 34, text: "+25", color: "#ffd964", t: 0 });
+    burst(bonus.x, bonus.y, "#ffd964", 18);
+    updateHUD();
+  }
+}
+function release() {
+  if (state !== "orbit") return;
+  var p = planets[cur];
+  var sp = Math.abs(p.omega) * p.ring * 1.55;               /* tangent speed */
+  var sgn = p.omega > 0 ? 1 : -1;
+  atom.vx = -Math.sin(atom.angle) * sp * sgn;
+  atom.vy = Math.cos(atom.angle) * sp * sgn;
+  atom.flyT = 0;
+  trail = [{ x: atom.x, y: atom.y }];
+  state = "fly";
+  sfxRelease();
+}
+function capture(hitX, hitY) {
+  var from = planets[cur];
+  cur++;
+  var p = planets[cur];
+  /* spin direction comes from the entry: the atom keeps the
+     rotational sense its flight already had around this planet.
+     The sign of (crossing point − centre) × (flight velocity) is
+     the sign of its tangential motion at the crossing point, so
+     matching omega's sign to it means no reversal on capture —
+     and the tangent release later fires along that same sense. */
+  var cross = (hitX - p.x) * atom.vy - (hitY - p.y) * atom.vx;
+  if (cross > 0) p.omega = Math.abs(p.omega);
+  else if (cross < 0) p.omega = -Math.abs(p.omega);
+  /* never a slowdown on capture: the new planet spins at least a
+     touch faster than the one just left (which may itself have
+     been boosted by full loops), capped at the same top speed */
+  var spinFloor = Math.min(2.85, Math.abs(from.omega) + 0.05);
+  if (Math.abs(p.omega) < spinFloor) p.omega = (p.omega > 0 ? 1 : -1) * spinFloor;
+  atom.angle = Math.atan2(hitY - p.y, hitX - p.x);
+  placeAtomOnRing();
+  orbitAccum = 0;
+  streak++;
+  var gained = 10 * streak;
+  score += gained;
+  bonus = null; /* a ring left between the planets behind is gone */
+  genNext();
+  maybeBonus(p, planets[cur + 1]);
+  state = "orbit";
+  trail = [];
+  sfxCapture(streak);
+  popups.push({ x: p.x, y: p.y - p.ring - 14, text: "+" + gained + (streak > 1 ? "  ×" + streak : ""), color: "#ffd964", t: 0 });
+  burst(p.x + Math.cos(atom.angle) * p.ring, p.y + Math.sin(atom.angle) * p.ring, "#7fdcff", 16);
+  burst(from.x, from.y, "rgba(255,255,255,.6)", 5);
+  if (score > best) best = score;
+  updateHUD();
+}
+function gameOver() {
+  state = "over";
+  document.body.classList.remove("playing");
+  $("finalScore").textContent = score;
+  $("finalStreak").textContent = streak;
+  $("finalBest").textContent = best;
+  $("newBest").style.display = (score > 0 && score > bestAtStart) ? "block" : "none";
+  submitted = false;
+  var btn = $("lbSubmit");
+  btn.disabled = false; btn.textContent = "Submit Score";
+  $("lbMsg").textContent = "";
+  $("lbForm").style.display = score > 0 ? "flex" : "none";
+  $("overBoard").innerHTML = "";
+  $("overCard").classList.add("show");
+  updateHUD();
+}
+function burst(x, y, color, n) {
+  for (var i = 0; i < n; i++) {
+    var a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 130;
+    particles.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.5 + Math.random() * 0.5, color: color, r: 1.5 + Math.random() * 2.4 });
+  }
+}
+function updateHUD() {
+  $("hudScore").textContent = score;
+  $("hudStreak").textContent = "×" + streak;
+  $("hudBest").textContent = best;
+}
+
+/* ---------- segment vs circle crossing (capture test) ---------- */
+function segCircleT(x0, y0, x1, y1, cx, cy, r) {
+  var dx = x1 - x0, dy = y1 - y0;
+  var fx = x0 - cx, fy = y0 - cy;
+  var a = dx * dx + dy * dy;
+  if (a < 1e-9) return -1;
+  var b = 2 * (fx * dx + fy * dy);
+  var c = fx * fx + fy * fy - r * r;
+  var disc = b * b - 4 * a * c;
+  if (disc < 0) return -1;
+  var sq = Math.sqrt(disc);
+  var t = (-b - sq) / (2 * a);
+  if (t >= 0 && t <= 1) return t;
+  t = (-b + sq) / (2 * a);
+  if (t >= 0 && t <= 1) return t;
+  return -1;
+}
+/* ---------- simulation ---------- */
+function step(dt) {
+  var p = planets[cur];
+  if (state === "orbit" || state === "ready") {
+    atom.angle += p.omega * dt;
+    placeAtomOnRing();
+    if (state === "orbit") {
+      /* Every full orbit loop around the planet also nudges that
+         planet's spin a bit faster, so waiting gets riskier the
+         longer you circle. Capped, and release speed follows the
+         boosted spin, so the slingshot speeds up with it. */
+      orbitAccum += Math.abs(p.omega * dt);
+      if (orbitAccum >= Math.PI * 2) {
+        orbitAccum -= Math.PI * 2;
+        var boosted = Math.min(2.85, Math.abs(p.omega) * 1.06 + 0.02);
+        p.omega = (p.omega > 0 ? 1 : -1) * boosted;
+        popups.push({ x: p.x, y: p.y - p.ring - 14, text: "Speed up!", color: "#7fdcff", t: 0 });
+      }
+      collectBonus();
+    }
+  } else if (state === "fly" || state === "lost") {
+    var steps = Math.max(1, Math.ceil((Math.abs(atom.vx) + Math.abs(atom.vy)) * dt / 6));
+    var sdt = dt / steps;
+    for (var i = 0; i < steps && (state === "fly" || state === "lost"); i++) {
+      var ox = atom.x, oy = atom.y;
+      atom.x += atom.vx * sdt;
+      atom.y += atom.vy * sdt;
+      if (state === "fly") collectBonus();
+      var tgt = planets[cur + 1];
+      if (tgt && state === "fly") {
+        var t = segCircleT(ox, oy, atom.x, atom.y, tgt.x, tgt.y, tgt.ring);
+        if (t >= 0) {
+          capture(ox + (atom.x - ox) * t, oy + (atom.y - oy) * t);
+          break;
+        }
+      }
+    }
+    atom.flyT += dt;
+    trail.push({ x: atom.x, y: atom.y });
+    if (trail.length > 42) trail.shift();
+    if (state === "fly") {
+      var anchor = planets[cur + 1] || p;
+      var dxA = atom.x - anchor.x, dyA = atom.y - anchor.y;
+      var dAnchor = Math.hypot(dxA, dyA);
+      var dHome = Math.hypot(atom.x - p.x, atom.y - p.y);
+      /* a straight flight can never come back: once the atom is
+         moving away from the target and is clear of its ring, the
+         miss is final — call it lost right away instead of letting
+         it drift deep into space */
+      var receding = (atom.vx * dxA + atom.vy * dyA) > 0;
+      var passedTarget = receding && dAnchor > anchor.ring + 70;
+      if ((atom.flyT > 0.45 && passedTarget) || (atom.flyT > 0.9 && (dAnchor > 560 || dHome > 680))) {
+        state = "lost";
+        atom.fade = 1;
+        sfxLost();
+      }
+    } else if (state === "lost") {
+      atom.fade -= dt * 1.7;
+      if (atom.fade <= 0) { atom.fade = 0; gameOver(); }
+    }
+  }
+  /* particles + popups */
+  for (var j = particles.length - 1; j >= 0; j--) {
+    var q = particles[j];
+    q.t += dt;
+    if (q.t >= q.life) { particles.splice(j, 1); continue; }
+    q.x += q.vx * dt; q.y += q.vy * dt;
+    q.vx *= (1 - 1.6 * dt); q.vy *= (1 - 1.6 * dt);
+  }
+  for (var k = popups.length - 1; k >= 0; k--) {
+    popups[k].t += dt;
+    popups[k].y -= 26 * dt;
+    if (popups[k].t > 1.15) popups.splice(k, 1);
+  }
+  /* camera: frame the current planet + the target (and the atom in flight) */
+  var a = planets[cur], b = planets[cur + 1] || a;
+  var fx = (a.x + b.x) / 2, fy = (a.y + b.y) / 2, fw = 1;
+  if (state === "fly" || state === "lost") { fx = (fx + atom.x * 1.3) / 2.3; fy = (fy + atom.y * 1.3) / 2.3; fw = 1.3; }
+  var span = Math.hypot(b.x - a.x, b.y - a.y) + (a.ring + b.ring) * 2 + 120;
+  if (state === "fly" || state === "lost") span = Math.max(span, Math.hypot(atom.x - a.x, atom.y - a.y) + 320);
+  var targetS = Math.max(0.5, Math.min(1.12, Math.min(viewW, viewH) / span * 1.55));
+  var ease = 1 - Math.exp(-dt * 3.2);
+  cam.x += (fx - cam.x) * ease;
+  cam.y += (fy - cam.y) * ease;
+  cam.s += (targetS - cam.s) * (1 - Math.exp(-dt * 2.2));
+}
+
+/* ---------- drawing ---------- */
+function w2s(x, y) { return [(x - cam.x) * cam.s + viewW / 2, (y - cam.y) * cam.s + viewH / 2]; }
+/* deterministic in-canvas starfield, wrapped around the camera */
+var gStars = [];
+(function () {
+  var seed = 777;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  for (var i = 0; i < 170; i++) gStars.push({ x: rnd(), y: rnd(), r: rnd() < 0.12 ? 1.6 : 0.8, a: 0.25 + rnd() * 0.6, par: 0.25 + rnd() * 0.5 });
+})();
+function drawStars() {
+  var wrapW = viewW + 40, wrapH = viewH + 40;
+  gStars.forEach(function (s) {
+    var sx = (((s.x * wrapW - cam.x * cam.s * s.par) % wrapW) + wrapW) % wrapW - 20;
+    var sy = (((s.y * wrapH - cam.y * cam.s * s.par) % wrapH) + wrapH) % wrapH - 20;
+    ctx.globalAlpha = s.a;
+    ctx.fillStyle = "#cfeaff";
+    ctx.beginPath(); ctx.arc(sx, sy, s.r, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+function drawFaceBadge(x, y, size, faceId, bob) {
+  var img = FACE[faceId] || IMG[faceId];
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y + bob, size / 2, 0, Math.PI * 2); ctx.clip();
+  if (img) {
+    var iw = img.width || img.naturalWidth, ih = img.height || img.naturalHeight;
+    var sc = Math.max(size / iw, size / ih) * 1.18;
+    ctx.drawImage(img, x - iw * sc / 2, y + bob - ih * sc / 2, iw * sc, ih * sc);
+  } else {
+    ctx.fillStyle = "#ffd964";
+    ctx.fillRect(x - size / 2, y + bob - size / 2, size, size);
+  }
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(x, y + bob, size / 2, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255,217,100,.85)"; ctx.lineWidth = 2; ctx.stroke();
+}
+function drawPlanet(p, isCurrent, isTarget, now) {
+  var pt = w2s(p.x, p.y);
+  var sx = pt[0], sy = pt[1];
+  var R = p.r * cam.s, ringR = p.ring * cam.s;
+  if (sx < -ringR - 60 || sx > viewW + ringR + 60 || sy < -ringR - 60 || sy > viewH + ringR + 60) return;
+  /* orbit ring */
+  ctx.save();
+  if (isTarget) {
+    var pulse = 0.65 + 0.35 * Math.sin(now / 280);
+    ctx.strokeStyle = "rgba(127,220,255," + (0.55 + 0.4 * pulse) + ")";
+    ctx.lineWidth = 2.4;
+    ctx.shadowColor = "rgba(41,182,255,.8)"; ctx.shadowBlur = 12 * pulse;
+  } else if (isCurrent) {
+    ctx.strokeStyle = "rgba(167,120,255,.55)";
+    ctx.lineWidth = 1.8;
+  } else {
+    ctx.strokeStyle = "rgba(160,190,255,.22)";
+    ctx.lineWidth = 1.4;
+  }
+  ctx.setLineDash([7, 6]);
+  ctx.lineDashOffset = isTarget ? -now / 40 : 0;
+  ctx.beginPath(); ctx.arc(sx, sy, ringR, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  /* planet body */
+  var grad = ctx.createRadialGradient(sx - R * 0.35, sy - R * 0.4, R * 0.15, sx, sy, R * 1.05);
+  grad.addColorStop(0, p.hue.top);
+  grad.addColorStop(1, p.hue.bot);
+  ctx.save();
+  ctx.shadowColor = p.hue.glow; ctx.shadowBlur = 22;
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  /* soft surface shading bands */
+  ctx.save();
+  ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.clip();
+  ctx.globalAlpha = 0.13; ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.ellipse(sx + R * 0.25, sy + R * 0.45, R * 0.8, R * 0.34, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.1; ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.ellipse(sx - R * 0.3, sy - R * 0.5, R * 0.55, R * 0.22, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  /* the pup, filling the planet's centre */
+  var bob = Math.sin(now / 600 + p.seed) * R * 0.045;
+  drawFaceBadge(sx, sy, R * 1.62, p.face, bob);
+}
+function drawBonus(now) {
+  if (!bonus || bonus.taken) return;
+  var pt = w2s(bonus.x, bonus.y);
+  var sx = pt[0], sy = pt[1], R = bonus.r * cam.s;
+  if (sx < -80 || sx > viewW + 80 || sy < -80 || sy > viewH + 80) return;
+  var pulse = 0.75 + 0.25 * Math.sin(now / 240);
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,217,100," + (0.85 * pulse) + ")";
+  ctx.lineWidth = 4.5;
+  ctx.shadowColor = "rgba(245,197,66,.9)"; ctx.shadowBlur = 16 * pulse;
+  ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,240,190,.9)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(sx, sy, R * 0.72, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  /* sparkles riding the ring */
+  ctx.fillStyle = "#ffe9a8";
+  for (var i = 0; i < 3; i++) {
+    var a = now / 500 + i * (Math.PI * 2 / 3);
+    ctx.beginPath(); ctx.arc(sx + Math.cos(a) * R, sy + Math.sin(a) * R, 2.1, 0, Math.PI * 2); ctx.fill();
+  }
+}
+function drawAtom(now) {
+  if (state === "over") return;
+  var pt = w2s(atom.x, atom.y);
+  var sx = pt[0], sy = pt[1];
+  /* flight trail */
+  if (trail.length > 1) {
+    ctx.save();
+    ctx.lineCap = "round";
+    for (var i = 1; i < trail.length; i++) {
+      var q0 = w2s(trail[i - 1].x, trail[i - 1].y), q1 = w2s(trail[i].x, trail[i].y);
+      ctx.strokeStyle = "rgba(255,217,100," + (i / trail.length * 0.5 * atom.fade) + ")";
+      ctx.lineWidth = 1 + (i / trail.length) * 2.4;
+      ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.globalAlpha = atom.fade;
+  ctx.shadowColor = "rgba(245,197,66,.95)"; ctx.shadowBlur = 18;
+  var grad = ctx.createRadialGradient(sx - 2, sy - 2, 1, sx, sy, 9);
+  grad.addColorStop(0, "#fff6d8"); grad.addColorStop(0.55, "#ffd964"); grad.addColorStop(1, "#e8930c");
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(sx, sy, 7.5, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  /* electron rings, slowly tumbling */
+  ctx.strokeStyle = "rgba(255,217,100,.75)"; ctx.lineWidth = 1.2;
+  for (var k = 0; k < 3; k++) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(now / 700 + k * Math.PI / 3);
+    ctx.beginPath(); ctx.ellipse(0, 0, 13, 5.2, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function draw(now) {
+  ctx.clearRect(0, 0, viewW, viewH);
+  var bg = ctx.createRadialGradient(viewW / 2, viewH * 0.42, 40, viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.75);
+  bg.addColorStop(0, "#081631"); bg.addColorStop(0.6, "#040c20"); bg.addColorStop(1, "#01030a");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, viewW, viewH);
+  drawStars();
+  /* faint flight-line hint while orbiting: where a release right now would go */
+  for (var i = Math.max(0, cur - 1); i < planets.length; i++) {
+    drawPlanet(planets[i], i === cur, i === cur + 1, now);
+  }
+  drawBonus(now);
+  drawAtom(now);
+  /* particles */
+  particles.forEach(function (q) {
+    var pt = w2s(q.x, q.y);
+    ctx.globalAlpha = Math.max(0, 1 - q.t / q.life);
+    ctx.fillStyle = q.color;
+    ctx.beginPath(); ctx.arc(pt[0], pt[1], q.r * cam.s, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  /* popups */
+  ctx.textAlign = "center";
+  popups.forEach(function (pp) {
+    var pt = w2s(pp.x, pp.y);
+    ctx.globalAlpha = Math.max(0, 1 - pp.t / 1.15);
+    ctx.font = "900 21px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = pp.color;
+    ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 6;
+    ctx.fillText(pp.text, pt[0], pt[1]);
+    ctx.shadowBlur = 0;
+  });
+  ctx.globalAlpha = 1;
+  /* guidance text inside the arena */
+  if (state === "orbit") {
+    ctx.font = "700 15px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = "rgba(207,234,255,.85)";
+    ctx.fillText("TAP to release the atom", viewW / 2, viewH - 16);
+  } else if (state === "lost") {
+    ctx.font = "900 19px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,157,176,.95)";
+    ctx.fillText("Lost in deep space…", viewW / 2, viewH / 2 - 60);
+  }
+  /* direction arrow to the target planet when it sits off-screen */
+  var tgt = planets[cur + 1];
+  if (tgt && (state === "orbit" || state === "fly")) {
+    var tp = w2s(tgt.x, tgt.y);
+    if (tp[0] < -20 || tp[0] > viewW + 20 || tp[1] < -20 || tp[1] > viewH + 20) {
+      var ap = w2s(atom.x, atom.y);
+      var ang = Math.atan2(tp[1] - ap[1], tp[0] - ap[0]);
+      var ax = Math.max(26, Math.min(viewW - 26, ap[0] + Math.cos(ang) * 64));
+      var ay = Math.max(26, Math.min(viewH - 26, ap[1] + Math.sin(ang) * 64));
+      ctx.save();
+      ctx.translate(ax, ay); ctx.rotate(ang);
+      ctx.fillStyle = "rgba(127,220,255,.9)";
+      ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-7, -6.5); ctx.lineTo(-7, 6.5); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+/* ---------- sizing: arena fills the stage, no scrolling ---------- */
+function sizeCanvas() {
+  var r = stage.getBoundingClientRect();
+  viewW = Math.max(240, Math.floor(r.width));
+  viewH = Math.max(240, Math.floor(r.height));
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.style.width = viewW + "px";
+  canvas.style.height = viewH + "px";
+  canvas.width = viewW * dpr;
+  canvas.height = viewH * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", sizeCanvas);
+
+/* ---------- main loop ---------- */
+var lastTs = 0;
+function loop(ts) {
+  var dt = Math.min(0.033, lastTs ? (ts - lastTs) / 1000 : 0.016);
+  lastTs = ts;
+  timeMs = ts;
+  if (state !== "over") step(dt);
+  draw(ts);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- input: one tap does everything ---------- */
+canvas.addEventListener("pointerdown", function (e) {
+  e.preventDefault();
+  if (state === "orbit") release();
+});
+document.addEventListener("keydown", function (e) {
+  if (e.code === "Space" || e.code === "Enter") {
+    if (state === "orbit") { e.preventDefault(); release(); }
+  }
+});
+$("startBtn").addEventListener("click", function () {
+  sfxClick();
+  resetGame();
+  state = "orbit";
+  document.body.classList.add("playing");
+  $("startCard").classList.remove("show");
+});
+$("againBtn").addEventListener("click", function () {
+  sfxClick();
+  $("overCard").classList.remove("show");
+  resetGame();
+  state = "orbit";
+  document.body.classList.add("playing");
+});
+</script>
+<script>
+/* ================= page space background =================
+   A fixed starfield canvas behind the whole page: deep-space
+   nebula washes, a few hundred stars that gently twinkle, and a
+   slow parallax drift. Static (no twinkle/drift) when the player
+   prefers reduced motion. */
+(function () {
+  var cv = document.getElementById("spaceBg");
+  if (!cv) return;
+  var g = cv.getContext("2d");
+  var W = 0, H = 0, stars = [];
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var seed = 4242;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  function build() {
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seed = 4242;
+    stars = [];
+    var n = Math.round((W * H) / 5500);
+    for (var i = 0; i < n; i++) {
+      stars.push({
+        x: rnd() * W, y: rnd() * H,
+        r: rnd() < 0.1 ? 1.7 : (rnd() < 0.38 ? 1.1 : 0.65),
+        a: 0.3 + rnd() * 0.7,
+        ph: rnd() * Math.PI * 2,
+        sp: 0.4 + rnd() * 1.1,
+        tint: rnd()
+      });
+    }
+  }
+  function paint(now) {
+    g.clearRect(0, 0, W, H);
+    var t = now / 1000;
+    var nebs = [
+      [0.16 + 0.02 * Math.sin(t * 0.05), 0.20, 0.62, "rgba(52,32,140,0.26)"],
+      [0.88, 0.72 + 0.02 * Math.cos(t * 0.04), 0.55, "rgba(8,80,120,0.22)"],
+      [0.55, 0.95, 0.48, "rgba(110,26,100,0.14)"],
+      [0.72, 0.08, 0.40, "rgba(20,60,150,0.18)"]
+    ];
+    nebs.forEach(function (nb) {
+      var gx = nb[0] * W, gy = nb[1] * H, gr = nb[2] * Math.max(W, H);
+      var grad = g.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      grad.addColorStop(0, nb[3]);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+    });
+    stars.forEach(function (s) {
+      var tw = reduced ? 1 : 0.72 + 0.28 * Math.sin(s.ph + t * s.sp);
+      g.globalAlpha = s.a * tw;
+      g.fillStyle = s.tint < 0.16 ? "#aee6ff" : (s.tint < 0.26 ? "#ffe9b8" : "#ffffff");
+      g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
+      if (s.r > 1.5) {
+        g.globalAlpha = s.a * tw * 0.5;
+        g.fillRect(s.x - s.r * 3.2, s.y - 0.5, s.r * 6.4, 1);
+        g.fillRect(s.x - 0.5, s.y - s.r * 3.2, 1, s.r * 6.4);
+      }
+    });
+    g.globalAlpha = 1;
+  }
+  build();
+  paint(0);
+  window.addEventListener("resize", function () { build(); paint(0); });
+  if (!reduced) {
+    (function tick(now) { paint(now || 0); requestAnimationFrame(tick); })(0);
+  }
+})();
+</script>
+<script>
+/* ================= leaderboard + likes (Firebase, lazy) ================= */
+var FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+var fbPromise = null;
+function loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+function loadFirebase() {
+  if (!fbPromise) {
+    fbPromise = loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js")
+      .then(function () { return loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"); })
+      .then(function () {
+        var app = firebase.initializeApp(FB_CONFIG);
+        return firebase.firestore(app);
+      });
+  }
+  return fbPromise;
+}
+var BLOCKED = ["fuck","shit","bitch","cunt","dick","cock","pussy","porn","sex","nude","naked","boob","tits","cum","anal","whore","slut","fag","nigger","nigga","vagina","penis","dildo","horny","hentai","onlyfans","wank","jizz","boner","rape","pedo","incest","blowjob","asshole","twat"];
+var LEET = {"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s","!":"i"};
+function nameBlocked(name) {
+  var n = String(name).toLowerCase().split("").map(function (ch) { return LEET[ch] || ch; }).join("").replace(/[^a-z]/g, "");
+  return BLOCKED.some(function (w) { return n.indexOf(w) !== -1; });
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (ch) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+  });
+}
+function boardHTML(rows, myName, myScore) {
+  if (!rows.length) return "<div class='board-note'>No scores yet — be the first on the board!</div>";
+  var marked = false;
+  var html = "<table class='board'><tr><th>#</th><th>Name</th><th class='r'>Score</th></tr>";
+  rows.forEach(function (r, i) {
+    var me = !marked && myName != null && r.name === myName && r.score === myScore;
+    if (me) marked = true;
+    html += "<tr" + (me ? " class='me'" : "") + "><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td class='r'>" + r.score + "</td></tr>";
+  });
+  return html + "</table>";
+}
+async function fetchBoard() {
+  var db = await loadFirebase();
+  var snap = await db.collection("scores").orderBy("score", "desc").limit(50).get();
+  var rows = [];
+  snap.forEach(function (d) {
+    var v = d.data();
+    if (v && v.game === "orbit" && typeof v.score === "number" && typeof v.name === "string" && !nameBlocked(v.name)) {
+      rows.push({ name: v.name, score: v.score });
+    }
+  });
+  return rows.slice(0, 10);
+}
+$("lbForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  if (submitted) return;
+  var name = $("lbName").value.trim();
+  var msg = $("lbMsg");
+  if (!name) { msg.textContent = "Type a name first"; msg.className = "lb-msg err"; return; }
+  if (nameBlocked(name)) {
+    msg.textContent = "That name isn't allowed — pick another";
+    msg.className = "lb-msg err"; tone(160, 0.15, "sawtooth", 0.08); return;
+  }
+  var btn = $("lbSubmit"); btn.disabled = true; btn.textContent = "Submitting…";
+  try {
+    var db = await loadFirebase();
+    await db.collection("scores").add({
+      name: name, score: score, game: "orbit", ts: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    submitted = true;
+    msg.textContent = "Score submitted!"; msg.className = "lb-msg ok";
+    btn.textContent = "Submitted ✓";
+    sfxCapture(6);
+    try { $("overBoard").innerHTML = boardHTML(await fetchBoard(), name, score); }
+    catch (err) { $("overBoard").innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+  } catch (err) {
+    msg.textContent = "Leaderboard unavailable right now"; msg.className = "lb-msg err";
+    btn.disabled = false; btn.textContent = "Submit Score";
+  }
+});
+$("lbBtn").addEventListener("click", async function () {
+  $("lbPanel").classList.add("show");
+  var body = $("lbPanelBody");
+  body.innerHTML = "<div class='board-note'>Loading…</div>";
+  try { body.innerHTML = boardHTML(await fetchBoard(), null, null); }
+  catch (e) { body.innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+});
+$("lbClose").addEventListener("click", function () { $("lbPanel").classList.remove("show"); });
+$("lbPanel").addEventListener("click", function (e) { if (e.target === $("lbPanel")) $("lbPanel").classList.remove("show"); });
+
+/* ================= like button ================= */
+/* Same heart as the site game cards: one doc per game in the
+   `likes` collection, count moved in ±1 steps only. The player's
+   own like is held for this visit only. */
+var likeBusy = false;
+var liked = false;
+function paintLike(count) {
+  $("likeBtn").querySelector(".heart").textContent = liked ? "❤️" : "🤍";
+  if (typeof count === "number") $("likeCount").textContent = count;
+}
+async function loadLike() {
+  paintLike();
+  try {
+    var db = await loadFirebase();
+    var snap = await db.collection("likes").doc("orbit").get();
+    paintLike(snap.exists ? (snap.data().count || 0) : 0);
+  } catch (e) { $("likeCount").textContent = "–"; }
+}
+$("likeBtn").addEventListener("click", async function () {
+  if (likeBusy) return;
+  likeBusy = true;
+  var was = liked;
+  var delta = was ? -1 : 1;
+  try {
+    var db = await loadFirebase();
+    var ref = db.collection("likes").doc("orbit");
+    try {
+      await ref.update({ count: firebase.firestore.FieldValue.increment(delta) });
+    } catch (e1) {
+      await ref.set({ count: Math.max(0, delta) }, { merge: true });
+    }
+    var snap = await ref.get();
+    var c = snap.exists ? (snap.data().count || 0) : 0;
+    liked = !was;
+    paintLike(Math.max(0, c));
+  } catch (e) { /* leave the heart as it was */ }
+  likeBusy = false;
+});
+
+/* ================= init ================= */
+resetGame();
+loadImages();
+loadLike();
+sizeCanvas();
+updateHUD();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
