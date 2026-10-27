@@ -655,7 +655,7 @@ function checkPortal(P, go) {
   if (d > 100) portalArmed = true;
   else if (portalArmed && d < 56) { portalArmed = false; go(); }
 }
-function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQROOM.w / 2; me.y = HQTABLE.y + HQTABLE.h + 170; sfxChime(); publish(true); startHqVideos(); }
+function toHQ() { portalArmed = false; me.scene = "hq"; me.x = HQPORTAL.x; me.y = HQPORTAL.y - 130; sfxChime(); publish(true); startHqVideos(); }
 function toPlazaFromHQ() { portalArmed = false; me.scene = "plaza"; me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
@@ -1204,44 +1204,13 @@ function drawHQ(t) {
     const sg = ctx.createLinearGradient(0, wy, 0, wy + wh);
     sg.addColorStop(0, "#02020c"); sg.addColorStop(0.6, "#060a24"); sg.addColorStop(1, "#0a1030");
     ctx.fillStyle = sg; ctx.fillRect(wx, wy, ww, wh);
-    if (i === 0) {
-      /* window 1: a ringed planet */
-      const px = wx + ww * 0.30, py = wy + wh * 0.52;
-      ctx.save(); ctx.translate(px, py); ctx.rotate(-0.35);
-      ctx.strokeStyle = "rgba(255,215,106,0.75)"; ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.ellipse(0, 0, 52, 14, 0, 0, 7); ctx.stroke(); ctx.restore();
-      const pg = ctx.createRadialGradient(px - 9, py - 9, 3, px, py, 27);
-      pg.addColorStop(0, "#bff3ff"); pg.addColorStop(0.55, "#38a8d8"); pg.addColorStop(1, "#14507e");
-      ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, 27, 0, 7); ctx.fill();
-      ctx.save(); ctx.translate(px, py); ctx.rotate(-0.35);
-      ctx.strokeStyle = "rgba(255,215,106,0.9)"; ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.ellipse(0, 0, 52, 14, 0, 0, Math.PI); ctx.stroke(); ctx.restore();
-    } else if (i === 1) {
-      /* window 2: a spiral galaxy */
-      const gx2 = wx + ww * 0.68, gy2 = wy + wh * 0.5;
-      ctx.save(); ctx.translate(gx2, gy2); ctx.rotate(0.7);
-      for (let a = 0; a < 3; a++) {
-        ctx.save(); ctx.rotate(a * 2.1 + t / 5200);
-        ctx.fillStyle = "rgba(216,180,255,0.16)";
-        ctx.beginPath(); ctx.ellipse(20, 0, 27, 7, 0, 0, 7); ctx.fill(); ctx.restore();
-      }
-      ctx.fillStyle = "rgba(255,240,210,0.8)"; ctx.beginPath(); ctx.arc(0, 0, 4, 0, 7); ctx.fill();
-      ctx.restore();
-    } else if (i === 2) {
-      /* window 3: the sun — the only sun in the windows */
+    if (i === 2) {
+      /* window 3: the sun — the only feature in the windows; the rest is streaming stars */
       const px = wx + ww * 0.5, py = wy + wh * 0.5;
       const pg = ctx.createRadialGradient(px - 10, py - 10, 4, px, py, 38);
       pg.addColorStop(0, "#fff3c4"); pg.addColorStop(0.45, "#ffb84f"); pg.addColorStop(0.75, "rgba(232,130,40,0.55)"); pg.addColorStop(1, "rgba(232,130,40,0)");
       ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, 38, 0, 7); ctx.fill();
       ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(px, py, 15, 0, 7); ctx.fill();
-    } else {
-      /* window 4: a crescent moon and a small distant planet */
-      const mx = wx + ww * 0.32, my = wy + wh * 0.44;
-      ctx.fillStyle = "#e8f4ff"; ctx.beginPath(); ctx.arc(mx, my, 19, 0, 7); ctx.fill();
-      ctx.fillStyle = "#080d28"; ctx.beginPath(); ctx.arc(mx + 9, my - 6, 16, 0, 7); ctx.fill();
-      const pg = ctx.createRadialGradient(wx + ww * 0.74 - 3, wy + wh * 0.62 - 3, 1, wx + ww * 0.74, wy + wh * 0.62, 8);
-      pg.addColorStop(0, "#e9d5ff"); pg.addColorStop(1, "#7c3aed");
-      ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(wx + ww * 0.74, wy + wh * 0.62, 8, 0, 7); ctx.fill();
     }
     for (let layer = 0; layer < 2; layer++) {
       const sp = layer ? 0.055 : 0.02, sz = layer ? 2.4 : 1.5;
@@ -1301,8 +1270,11 @@ function drawHQ(t) {
         ctx.restore();
       }
     }
-    ctx.fillStyle = "#241547"; ctx.beginPath(); ctx.arc(st.sx + 260, st.sy + 545, 25, 0, 7); ctx.fill();
-    ctx.strokeStyle = "rgba(125,211,252,0.4)"; ctx.lineWidth = 2; ctx.stroke();
+    /* two round chairs inside the U, close under the desk bar with a small gap — touching nothing */
+    ctx.fillStyle = "#241547";
+    for (const chx of [st.sx + 205, st.sx + 315]) { ctx.beginPath(); ctx.arc(chx, st.sy + 431, 25, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = "rgba(125,211,252,0.4)"; ctx.lineWidth = 2;
+    for (const chx of [st.sx + 205, st.sx + 315]) { ctx.beginPath(); ctx.arc(chx, st.sy + 431, 25, 0, 7); ctx.stroke(); }
   });
   /* conference table with holo atom */
   const tb = HQTABLE;
@@ -1499,7 +1471,6 @@ function frame(now) {
   publish(false);
   const dims = sceneDims(), roomW = dims.w, roomH = dims.h;
   SCALE = Math.max(0.36, Math.min(VW / 1280, VH / 980, 1.0));
-  if (me.scene === "hq") SCALE = Math.max(SCALE, 0.5);
   camX = Math.max(0, Math.min(roomW - VW / SCALE, me.x - VW / (2 * SCALE)));
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
   if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
