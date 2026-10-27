@@ -692,13 +692,30 @@ function collide(nx, ny) {
   return { x: nx, y: ny };
 }
 /* ============ enter / change ============ */
+let lockBeat = null;
+function claimTabLock() {
+  try {
+    const raw = localStorage.getItem("qh-tab-lock");
+    if (raw) { const L = JSON.parse(raw); if (L && L.id !== myId && Date.now() - L.ts < 9000) return false; }
+    localStorage.setItem("qh-tab-lock", JSON.stringify({ id: myId, ts: Date.now() }));
+    return true;
+  } catch (e) { return true; }
+}
+function releaseTabLock() {
+  try { const raw = localStorage.getItem("qh-tab-lock"); if (raw) { const L = JSON.parse(raw); if (L && L.id === myId) localStorage.removeItem("qh-tab-lock"); } } catch (e) {}
+}
+window.addEventListener("beforeunload", releaseTabLock);
+window.addEventListener("pagehide", e => { if (!e.persisted) releaseTabLock(); });
 function enterHub() {
   const raw = nameIn.value.trim(); if (!raw || !pickedHero) return;
   let nm = raw, viaCode = false;
   if (raw === "0510") { nm = "DreadMark18"; viaCode = true; }
   else if (nameBlocked(raw)) return;
+  if (!claimTabLock()) { $("nameerr").textContent = "⚠️ The Hub is already open in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   profile = { name: nm, hero: pickedHero, muted, code: viaCode };
   localStorage.setItem(LS_KEY, JSON.stringify(profile));
+  if (lockBeat) clearInterval(lockBeat);
+  lockBeat = setInterval(() => { try { localStorage.setItem("qh-tab-lock", JSON.stringify({ id: myId, ts: Date.now() })); } catch (e) {} }, 3000);
   me.name = nm; me.hero = pickedHero;
   entered = true;
   gate.style.display = "none";
