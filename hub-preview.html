@@ -349,6 +349,13 @@ function releaseAudio() { audioHeld = false; }
 document.addEventListener("visibilitychange", () => { if (document.hidden) holdAudio(); else releaseAudio(); });
 window.addEventListener("blur", holdAudio);
 window.addEventListener("focus", releaseAudio);
+/* browsers pause the room videos while the tab is in the background — restart them the moment we're back */
+function resumeVideos() {
+  if (typeof vid !== "undefined" && vid.dataset && vid.dataset.cur && vid.paused) vid.play().catch(() => {});
+  if (typeof me !== "undefined" && me.scene === "hq" && typeof startHqVideos === "function") startHqVideos();
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeVideos(); });
+window.addEventListener("focus", resumeVideos);
 /* no pinch zoom or double-tap zoom anywhere in the hub, in any room */
 document.addEventListener("gesturestart", e => e.preventDefault());
 document.addEventListener("gesturechange", e => e.preventDefault());
@@ -547,13 +554,13 @@ const cabinets = [];
 })();
 const EXIT = { x: ROOM.w / 2 - 62, y: ROOM.h - 58, w: 124, h: 44 };
 const TDOOR = { y: ROOM.h / 2, half: 92 };
-const TH = { w: 2600, h: 1440 };
+const TH = { w: 2600, h: 1920 };
 const HALL = { x1: 620, top: TH.h / 2 - 140, bot: TH.h / 2 + 140 };
 const SCREEN = { x: 1186, y: 92, w: 848, h: 478 };
 const PEDESTAL = { x: SCREEN.x + SCREEN.w + 56, y: SCREEN.y + SCREEN.h - 88, w: 56, h: 88 };
 const seats = [];
 (function buildSeats() {
-  const rows = [950, 1080, 1210, 1340], xs = [800, 960, 1120, 1280, 1812, 1972, 2132, 2292];
+  const rows = [950, 1160, 1370, 1580], xs = [800, 960, 1120, 1280, 1812, 1972, 2132, 2292];
   rows.forEach(y => xs.forEach(x => seats.push({ x, y, w: 128, h: 66 })));
 })();
 /* ============ club room layout ============ */
@@ -1472,7 +1479,7 @@ function drawTheatre(t) {
   ctx.fillStyle = "rgba(150,22,44,0.52)"; ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; ctx.stroke();
   /* wall light fixtures on the room's side walls */
-  [320, 720, 1120].forEach(fy => {
+  [320, 720, 1120, 1520].forEach(fy => {
     [HALL.x1 + 12, TH.w - 36].forEach(fx => {
       ctx.fillStyle = "#1a1430"; rr(fx, fy - 18, 24, 36, 6); ctx.fill();
       ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(fx + 12, fy, 5, 0, 7); ctx.fill();
@@ -1623,6 +1630,7 @@ function frame(now) {
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
+  else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
   if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
   const actors = [];
