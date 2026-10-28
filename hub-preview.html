@@ -948,8 +948,20 @@ function voiceDesired(pid) {
   if (p.scene !== me.scene) return false;
   return Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE;
 }
+function voiceSceneMate(pid) {
+  const p = peers.get(pid); if (!p || !entered) return false;
+  return p.scene === me.scene;
+}
+function detachMic(V) {
+  if (!V.pc) return;
+  try {
+    const snd = V.pc.getSenders().find(s => s.track && s.track.kind === "audio");
+    if (snd) snd.replaceTrack(null).catch(() => {});
+  } catch (e) {}
+}
 const CF_TURN_ID = "b7901936772140280f6a49ec67156b9d", CF_TURN_TOKEN = "6648df285f3f9e73a576f9366924eb28162f0464190a752044e30ff53f9ccb72";
-let cfIce = null, cfIceAt = 0, cfFetching = false;
+let cfIce = null, cfIceAt = 0, cfFetching = false, cfSettled = false;
+const voiceBackoff = new Map();
 async function fetchCfIce() {
   if (cfFetching || (cfIce && Date.now() - cfIceAt < 6 * 3600 * 1000)) return;
   cfFetching = true;
@@ -957,7 +969,7 @@ async function fetchCfIce() {
     const r = await fetch("https://rtc.live.cloudflare.com/v1/turn/keys/" + CF_TURN_ID + "/credentials/generate", { method: "POST", headers: { "Authorization": "Bearer " + CF_TURN_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ ttl: 86400 }) });
     if (r.ok) { const j = await r.json(); if (j && j.iceServers) { cfIce = j.iceServers; cfIceAt = Date.now(); } }
   } catch (e) {}
-  cfFetching = false;
+  cfFetching = false; cfSettled = true;
 }
 function voiceInit() {
   if (voiceInitDone || !db || !myId) return; voiceInitDone = true;
@@ -997,7 +1009,9 @@ async function renegotiate(pid) {
 }
 function voiceConnect(pid) {
   if (voicePeers.has(pid)) return;
-  const V = { pc: null, sender: null, audio: null, analyser: null, remoteSet: false, iceQ: [], handledOffer: 0, handledAnswer: 0, levelAt: 0, makingOffer: false, iceRef: null };
+  const bo = voiceBackoff.get(pid); if (bo && Date.now() < bo) return;
+  if (!cfIce && !cfSettled) { fetchCfIce(); return; }
+  const V = { pc: null, sender: null, audio: null, analyser: null, remoteSet: false, iceQ: [], handledOffer: 0, handledAnswer: 0, levelAt: 0, makingOffer: false, iceRef: null, usedTurn: !!cfIce, bornAt: Date.now(), iceRestarted: false };
   voicePeers.set(pid, V);
   let pc;
   const servers = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
@@ -1006,7 +1020,7 @@ function voiceConnect(pid) {
   catch (e) { voicePeers.delete(pid); return; }
   V.pc = pc;
   pc.addTransceiver("audio", { direction: "sendrecv" });
-  attachMic(V);
+  { const p0 = peers.get(pid); if (!micStream || !p0 || Math.hypot(me.x - p0.tx, me.y - p0.ty) <= VOICE_RANGE + 140) attachMic(V); }
   pc.onicecandidate = e => { if (e.candidate) { try { db.ref("hub/voice/" + pid + "/" + myId + "/ice").push(JSON.stringify(e.candidate)); } catch (err) {} } };
   pc.ontrack = e => {
     if (!V.rstream) { try { V.rstream = new MediaStream(); } catch (err) { return; } }
@@ -1016,9 +1030,10 @@ function voiceConnect(pid) {
     attachRemote(pid, V.rstream);
   };
   pc.onnegotiationneeded = () => renegotiate(pid);
-  pc.onconnectionstatechange = () => { voiceReport(pid); if (pc.connectionState === "failed") voiceClose(pid); };
-  pc.oniceconnectionstatechange = () => voiceReport(pid);
+  pc.onconnectionstatechange = () => { voiceReport(pid); if (pc.connectionState === "failed") { voiceBackoff.set(pid, Date.now() + 4000); voiceClose(pid); } };
+  pc.oniceconnectionstatechange = () => { voiceReport(pid); if (pc.iceConnectionState === "failed" && !V.iceRestarted) { V.iceRestarted = true; try { pc.restartIce(); } catch (e) {} if (myId < pid) renegotiate(pid); } };
   V.iceRef = db.ref("hub/voice/" + myId + "/" + pid + "/ice");
+  try { V.iceRef.remove(); } catch (e) {}
   V.iceRef.on("child_added", s => {
     const c = s.val(); if (!c) return; let cand; try { cand = JSON.parse(c); } catch (e) { return; }
     if (V.remoteSet) pc.addIceCandidate(cand).catch(() => {}); else V.iceQ.push(cand);
@@ -1030,7 +1045,7 @@ async function onVoiceMail(fromId, val) {
   if (val.type === "offer") {
     let V = voicePeers.get(fromId);
     if (V && V.handledOffer === val.ts) return;
-    if (!V) { if (!voiceDesired(fromId)) return; voiceConnect(fromId); V = voicePeers.get(fromId); if (!V) return; }
+    if (!V) { if (!voiceSceneMate(fromId)) return; voiceConnect(fromId); V = voicePeers.get(fromId); if (!V) return; }
     const glare = V.makingOffer || V.pc.signalingState !== "stable";
     if (glare && myId < fromId) return;
     V.handledOffer = val.ts;
@@ -1093,13 +1108,15 @@ function voiceTick() {
   if (!entered || !db) return;
   voiceInit();
   if (!cfIce) fetchCfIce();
-  for (const p of peers.values()) if (voiceDesired(p.id)) voiceConnect(p.id);
+  for (const p of peers.values()) if (voiceSceneMate(p.id)) voiceConnect(p.id);
   for (const [pid, V] of [...voicePeers.entries()]) {
     const p = peers.get(pid);
-    if (!p || !voiceDesired(pid)) { voiceClose(pid); continue; }
+    if (!p || p.scene !== me.scene) { voiceClose(pid); continue; }
+    if (cfIce && !V.usedTurn && V.pc && V.pc.connectionState !== "connected" && Date.now() - V.bornAt > 5000) { voiceClose(pid); voiceConnect(pid); continue; }
     const d = Math.hypot(me.x - p.tx, me.y - p.ty);
+    if (micStream && pttHeld) { if (d <= VOICE_RANGE + 140) attachMic(V); else detachMic(V); }
     if (V.audio) { const g = Math.max(0, Math.min(1, 1.15 * (1 - d / VOICE_RANGE))); try { V.audio.volume = g; if (V.audio.paused) V.audio.play().catch(() => {}); } catch (e) {} }
-    if (V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
+    if (d <= VOICE_RANGE && V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
   }
   if (pttHeld && micStream) speakingNow.add(myId); else speakingNow.delete(myId);
   voiceTickN = (voiceTickN + 1) % 3; if (voiceTickN === 0) for (const pid of voicePeers.keys()) voiceReport(pid);
@@ -1119,7 +1136,7 @@ async function pttStart() {
     catch (e) { micDenied = true; flashMicDenied(); }
     if (micStream) {
       micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
-      for (const [pid, V] of voicePeers.entries()) { attachMic(V); renegotiate(pid); }
+      for (const [pid, V] of voicePeers.entries()) { const p = peers.get(pid); if (p && Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE + 140) { attachMic(V); renegotiate(pid); } }
     }
   } else if (micStream) {
     micStream.getAudioTracks().forEach(t => t.enabled = true);
@@ -2464,7 +2481,7 @@ function drawTheatre(t) {
   ctx.fillStyle = "#150b31"; rr(tcx - 212, 20, 424, 46, 12); ctx.fill(); ctx.restore();
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; rr(tcx - 212, 20, 424, 46, 12); ctx.stroke();
   ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("🎬 QUANTUM THEATRE", tcx, 52);
+  ctx.fillText("🎬 QUANTUM THEATER", tcx, 52);
 
   /* patterned carpet floor for the room (dots + gold flecks over deep purple) */
   ctx.fillStyle = "#130f26"; ctx.fillRect(HALL.x1, 0, TH.w - HALL.x1, TH.h);
