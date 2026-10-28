@@ -423,8 +423,8 @@ $("mutebtn").onclick = () => {
 };
 /* ============ presence (Firebase Realtime Database) ============ */
 let db = null, myRef = null, connected = false;
-let myId = sessionStorage.getItem("quantum-hub-session");
-if (!myId) { myId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); sessionStorage.setItem("quantum-hub-session", myId); }
+let myId = localStorage.getItem("quantum-hub-session");
+if (!myId) { myId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); localStorage.setItem("quantum-hub-session", myId); } /* localStorage, not sessionStorage (2026-10-28): the id survives tab closes, so after a reload the game still knows this browser — that is what lets a player reclaim their own casino chair instead of finding it stuck under a stranger-id */
 const peers = new Map();
 function setStatus(txt, cls) { statusEl.textContent = txt; statusEl.className = cls || ""; }
 try {
@@ -1226,8 +1226,28 @@ function tblUpd(p, v) { if (db) db.ref("hub/tables/" + p).update(v); }
 function saveChips() { if (profile) { profile.chipsTs = Date.now(); localStorage.setItem(LS_KEY, JSON.stringify(profile)); } acctSave(); drawChips(); }
 function addChips(n) { if (!profile) return; profile.chips = Math.max(0, (profile.chips || 0) + n); saveChips(); }
 function settleOnce(key, amt) { if (settledKeys.has(key)) return; settledKeys.add(key); if (amt) addChips(amt); }
+/* seat release on disconnect (2026-10-28): while seated, Firebase holds a standing order to remove the seat record the moment this page's connection drops (reload, tab close, crash) — a chair can never stay stuck under a session that no longer exists. Standing up cancels the order. */
+function seatOD(game, idx, on) {
+  if (!db) return;
+  try {
+    const ref = db.ref(game === "slot" ? "hub/tables/slotseats/" + idx : "hub/tables/" + game + "/seats/" + idx);
+    if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel();
+  } catch (e) {}
+}
+function reclaimSeat() {
+  /* after a reload the in-page seat is forgotten but the seat record may still carry this browser's id: adopt it back automatically — same chair, same table, bet untouched */
+  if (!db || !entered || me.scene !== "casino") return;
+  const scan = (seats, n, game, poss) => {
+    if (!seats) return false;
+    for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId && Date.now() - (s.ts || 0) <= 25000) { mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true; } }
+    return false;
+  };
+  if (scan(slotSeats, 6, "slot", SLOTSEATS)) return;
+  if (scan(bjState && bjState.seats, 5, "bj", BJSEATS)) return;
+  scan(rrState && rrState.seats, 6, "rr", RRSEATS);
+}
 function seatBeat() {
-  if (!mySeat) return;
+  if (!mySeat) { reclaimSeat(); return; }
   if (mySeat.game === "slot") {
     const s = slotSeats && slotSeats[mySeat.idx];
     if (!s || s.pid !== myId) { mySeat = null; mySeatPos = null; return; }
@@ -1244,12 +1264,12 @@ function sitDown(game, idx) {
   const st = game === "bj" ? bjState : rrState;
   const seats = (st && st.seats) || {};
   const n = game === "bj" ? 5 : 6, poss = game === "bj" ? BJSEATS : RRSEATS;
-  for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId) { mySeat = { game, idx: i }; mySeatPos = poss[i]; return true; } }
+  for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId) { mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true; } }
   const tryClaim = i => {
     const s = seats[i];
     if (s && Date.now() - (s.ts || 0) <= 25000) return false;
     tblSet(game + "/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
-    mySeat = { game, idx: i }; mySeatPos = poss[i]; return true;
+    mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true;
   };
   if (idx !== undefined && idx !== null) return tryClaim(idx);
   /* no forced chair: the free chair nearest to where the player is standing */
@@ -1263,6 +1283,7 @@ function standUpAll() {
   if (g === "slot") {
     const s = slotSeats && slotSeats[i];
     if (s && s.pid === myId) tblSet("slotseats/" + i, null);
+    seatOD("slot", i, false);
     mySeat = null; mySeatPos = null;
     return;
   }
@@ -1274,6 +1295,7 @@ function standUpAll() {
     if (g === "rr" && st.phase === "spin" && s.bet) noteCasino("🚪 You left mid-spin — your spot and bet are forfeited.");
     tblSet(g + "/seats/" + i, null);
   }
+  seatOD(g, i, false);
   mySeat = null; mySeatPos = null;
 }
 /* ---- slot seats: one chair per machine, same shared-seat pattern as the tables ---- */
@@ -1281,10 +1303,10 @@ function sitAtSlot(i) {
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   if (mySeat) { if (!(mySeat.game === "slot" && mySeat.idx === i)) noteCasino("Stand up from the other table first."); return; }
   const s = slotSeats && slotSeats[i];
-  if (s && s.pid === myId) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; return; }
+  if (s && s.pid === myId) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; }
   if (s && Date.now() - (s.ts || 0) <= 25000) { noteCasino("That machine is taken."); return; }
   tblSet("slotseats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
-  mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i];
+  mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true);
 }
 /* the seated camera frames the whole table / machine, not just the player */
 function seatFocusRect() {
