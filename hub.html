@@ -337,16 +337,24 @@ HERO_NAMES.forEach((nm, i) => {
   cell.className = "cell" + (n === pickedHero ? " sel" : "");
   const img = document.createElement("img");
   img.alt = nm;
-  img.onload = () => { heroImgs[n] = img; loadedCount++; loadLine.textContent = "loading stickers " + loadedCount + "/70"; if (loadedCount === 70) loadLine.textContent = "all 70 loaded ✓"; };
-  img.onerror = () => { loadedCount++; };
+  img.onload = () => { heroImgs[n] = img; heroLoaded(); };
+  img.onerror = () => { heroLoaded(); };
   img.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
   const lab = document.createElement("div"); lab.className = "nm"; lab.textContent = n + " · " + nm;
   cell.appendChild(img); cell.appendChild(lab);
   cell.onclick = () => { pickedHero = n; document.querySelectorAll(".cell").forEach(c => c.classList.remove("sel")); cell.classList.add("sel"); sfxClick(); checkEnter(); };
   grid.appendChild(cell);
 });
+const HERO_TOTAL = 72;
+function heroLoaded() { loadedCount++; loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL; checkEnter(); }
+[71, 72].forEach(n => {
+  const im = new Image();
+  im.onload = () => { heroImgs[n] = im; heroLoaded(); };
+  im.onerror = () => { heroLoaded(); };
+  im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
+});
 if (profile) nameIn.value = profile.code === true ? "0510" : profile.name;
-function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && raw !== "0510" && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const ok = raw.length > 0 && pickedHero >= 1 && !blocked; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
+function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && raw !== "0510" && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const ok = raw.length > 0 && pickedHero >= 1 && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
@@ -714,7 +722,7 @@ function releaseTabLock() {
 window.addEventListener("beforeunload", releaseTabLock);
 window.addEventListener("pagehide", e => { if (!e.persisted) releaseTabLock(); });
 function enterHub() {
-  const raw = nameIn.value.trim(); if (!raw || !pickedHero) return;
+  const raw = nameIn.value.trim(); if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return;
   let nm = raw, viaCode = false;
   if (raw === "0510") { nm = "DreadMark18"; viaCode = true; }
   else if (nameBlocked(raw)) return;
@@ -1166,7 +1174,13 @@ function drawStars(camX, camY, S) {
 }
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving) {
-  const img = heroImgs[hero]; if (!img) { ensureHero(hero); return; }
+  const img = heroImgs[hero];
+  if (!img) { ensureHero(hero);
+    ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(wx, wy - 4, 27, 9, 0, 0, 7); ctx.fill();
+    ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
+    ctx.strokeText(name, wx, wy - 104); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, wy - 104);
+    ctx.restore(); return; }
   const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * 11 : Math.sin(t / 620 + phase) * 1.4;
   const H = 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8);
   ctx.fillStyle = "rgba(0,0,0,0.4)";
