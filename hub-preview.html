@@ -198,6 +198,7 @@ const GAMES = [
 ["QI Quantum Pinball","qi-quantum-pinball.html","qi-quantum-pinball.jpg"]];
 /* the site's full song library: [slug, title, artist, genre, seconds] */
 const SONGS = [
+["show-me-dat-shrek","Show Me Dat Shrek","Phat Boi J","Rap",237],
 ["above-the-noise","Above The Noise","Phat Boi J","Rock / Punk",197],
 ["go-with-the-flow","Go With The Flow","Phat Boi J","Rap",283],
 ["i-know-what-i-hold","I Know What I Hold","Phat Boi J","Lo-Fi",267],
@@ -655,6 +656,7 @@ const RRSEATS = [
 ];
 const BJSPOTS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h - 128 }));
 const SLOTM = [0, 1, 2, 3, 4, 5].map(i => ({ x: 270 + i * 480, y: 250, w: 210, h: 330 }));
+const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 40 }));
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
 const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 58, w: 124, h: 44 };
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
@@ -1179,7 +1181,7 @@ function wireMic(el) {
 wireMic(micBtn);
 
 /* ============ casino: shared table state (RTDB hub/tables) ============ */
-let bjState = null, rrState = null, slotState = {}, casinoHooked = false;
+let bjState = null, rrState = null, slotState = {}, slotSeats = {}, casinoHooked = false;
 let mySeat = null, mySeatPos = null;
 const settledKeys = new Set();
 function casinoListen() {
@@ -1187,6 +1189,7 @@ function casinoListen() {
   db.ref("hub/tables/bj").on("value", s => { bjState = s.val(); bjSettle(); });
   db.ref("hub/tables/rr").on("value", s => { rrState = s.val(); rouletteSettle(); });
   db.ref("hub/tables/slots").on("value", s => { slotState = s.val() || {}; });
+  db.ref("hub/tables/slotseats").on("value", s => { slotSeats = s.val() || {}; });
   setInterval(casinoHostTick, 900);
   setInterval(seatBeat, 4000);
 }
@@ -1199,30 +1202,71 @@ function addChips(n) { if (!profile) return; profile.chips = Math.max(0, (profil
 function settleOnce(key, amt) { if (settledKeys.has(key)) return; settledKeys.add(key); if (amt) addChips(amt); }
 function seatBeat() {
   if (!mySeat) return;
+  if (mySeat.game === "slot") {
+    const s = slotSeats && slotSeats[mySeat.idx];
+    if (!s || s.pid !== myId) { mySeat = null; mySeatPos = null; return; }
+    tblUpd("slotseats/" + mySeat.idx, { ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+    return;
+  }
   const st = mySeat.game === "bj" ? bjState : rrState;
   const s = st && st.seats && st.seats[mySeat.idx];
   if (!s || s.pid !== myId) { mySeat = null; mySeatPos = null; return; }
   tblUpd(mySeat.game + "/seats/" + mySeat.idx, { ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
 }
-function sitDown(game) {
+function sitDown(game, idx) {
   if (mySeat && mySeat.game !== game) return false;
   const st = game === "bj" ? bjState : rrState;
   const seats = (st && st.seats) || {};
   const n = game === "bj" ? 5 : 6, poss = game === "bj" ? BJSEATS : RRSEATS;
   for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId) { mySeat = { game, idx: i }; mySeatPos = poss[i]; return true; } }
-  for (let i = 0; i < n; i++) { const s = seats[i]; if (!s || Date.now() - (s.ts || 0) > 25000) {
+  const tryClaim = i => {
+    const s = seats[i];
+    if (s && Date.now() - (s.ts || 0) <= 25000) return false;
     tblSet(game + "/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
     mySeat = { game, idx: i }; mySeatPos = poss[i]; return true;
-  } }
-  return false;
+  };
+  if (idx !== undefined && idx !== null) return tryClaim(idx);
+  /* no forced chair: the free chair nearest to where the player is standing */
+  let best = -1, bestD = 1e12;
+  for (let i = 0; i < n; i++) { const s = seats[i]; if (!s || Date.now() - (s.ts || 0) > 25000) { const d = Math.hypot(me.x - poss[i].x, me.y - poss[i].y); if (d < bestD) { bestD = d; best = i; } } }
+  return best >= 0 ? tryClaim(best) : false;
 }
 function standUpAll() {
   if (!mySeat) return;
   const g = mySeat.game, i = mySeat.idx;
+  if (g === "slot") {
+    const s = slotSeats && slotSeats[i];
+    if (s && s.pid === myId) tblSet("slotseats/" + i, null);
+    mySeat = null; mySeatPos = null;
+    return;
+  }
   const st = g === "bj" ? bjState : rrState;
   const s = st && st.seats && st.seats[i];
-  if (s && s.pid === myId) tblSet(g + "/seats/" + i, null);
+  if (s && s.pid === myId) {
+    /* leaving after the game has started forfeits the spot: the bet stays in and the hand is out */
+    if (g === "bj" && st.phase === "play" && s.bet) noteCasino("🚪 You left mid-hand — your spot and bet are forfeited.");
+    if (g === "rr" && st.phase === "spin" && s.bet) noteCasino("🚪 You left mid-spin — your spot and bet are forfeited.");
+    tblSet(g + "/seats/" + i, null);
+  }
   mySeat = null; mySeatPos = null;
+}
+/* ---- slot seats: one chair per machine, same shared-seat pattern as the tables ---- */
+function sitAtSlot(i) {
+  if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  if (mySeat) { if (!(mySeat.game === "slot" && mySeat.idx === i)) noteCasino("Stand up from the other table first."); return; }
+  const s = slotSeats && slotSeats[i];
+  if (s && s.pid === myId) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; return; }
+  if (s && Date.now() - (s.ts || 0) <= 25000) { noteCasino("That machine is taken."); return; }
+  tblSet("slotseats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+  mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i];
+}
+/* the seated camera frames the whole table / machine, not just the player */
+function seatFocusRect() {
+  if (!mySeat) return null;
+  if (mySeat.game === "bj") return { x: BJT.x - 60, y: BJT.y - 60, w: BJT.w + 120, h: BJT.h + 254 };
+  if (mySeat.game === "rr") return { x: RRT.x - 150, y: RRT.y - 60, w: RRT.w + 300, h: RRT.h + 254 };
+  if (mySeat.game === "slot") { const mch = SLOTM[mySeat.idx]; if (!mch) return null; return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 190 }; }
+  return null;
 }
 /* ---- cards ---- */
 const SUITS = ["♠", "♥", "♦", "♣"], RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
@@ -1248,6 +1292,11 @@ function bjBet(amt) {
   if (!st.firstBetTs) tblUpd("bj", { firstBetTs: Date.now() });
   tblUpd("bj/seats/" + mySeat.idx, { bet: amt, ts: Date.now() }); sfxClick();
 }
+function bjStartGame() {
+  const st = bjState, mine = myBjSeat();
+  if (!st || st.phase !== "bet" || !mine) return;
+  tblUpd("bj", { startReq: Date.now() }); sfxClick();
+}
 function bjHit() {
   const st = bjState, mine = myBjSeat();
   if (!st || st.phase !== "play" || st.turn !== mySeat.idx || !mine) return;
@@ -1266,18 +1315,19 @@ function bjDouble() {
 }
 function bjHostSeat() { const st = bjState; if (!st || !st.seats) return -1; const ks = Object.keys(st.seats).map(Number).sort((a, b) => a - b); for (const i of ks) { const s = st.seats[i]; if (s && Date.now() - (s.ts || 0) < 25000) return i; } return -1; }
 function bjHostTick() {
-  if (!bjState) { tblSet("bj", { phase: "bet", seats: {}, dealer: [], handId: 0, ts: Date.now() }); return; }
+  if (!bjState) { tblSet("bj", { phase: "bet", seats: {}, dealer: [], handId: 0, startReq: 0, ts: Date.now() }); return; }
   const hi = bjHostSeat(); if (hi < 0 || bjState.seats[hi].pid !== myId) return;
   const st = bjState, now = Date.now(), seats = st.seats || {};
   Object.keys(seats).forEach(k => { if (now - (seats[k].ts || 0) > 25000 && !seats[k].bet) tblSet("bj/seats/" + k, null); });
   const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && now - (seats[i].ts || 0) < 25000);
   const bettors = fresh.filter(i => seats[i].bet > 0).sort((a, b) => a - b);
   if (st.phase === "bet") {
-    if (bettors.length && (bettors.length === fresh.length || now - (st.firstBetTs || now) > 12000)) {
+    /* a hand starts only when a seated player presses START GAME — no auto-deal timer */
+    if (bettors.length && st.startReq) {
       const deck = newDeck();
       const dealer = [deck.pop(), deck.pop()];
       bettors.forEach(i => tblUpd("bj/seats/" + i, { hand: [deck.pop(), deck.pop()], stood: false, dbl: false }));
-      tblUpd("bj", { phase: "play", deck, dealer, turn: bettors[0], turnTs: now, results: null, msg: "" });
+      tblUpd("bj", { phase: "play", deck, dealer, turn: bettors[0], turnTs: now, results: null, msg: "", startReq: 0 });
     }
   } else if (st.phase === "play") {
     const active = bettors.filter(i => !seats[i].stood && cardVal(seats[i].hand || []) < 21);
@@ -1303,7 +1353,7 @@ function bjHostTick() {
     }
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 7000) {
     Object.keys(seats).forEach(i => tblUpd("bj/seats/" + i, { bet: 0, hand: [], stood: false, dbl: false }));
-    tblUpd("bj", { phase: "bet", dealer: [], results: null, handId: (st.handId || 0) + 1, firstBetTs: 0, msg: "" });
+    tblUpd("bj", { phase: "bet", dealer: [], results: null, handId: (st.handId || 0) + 1, firstBetTs: 0, startReq: 0, msg: "" });
   }
 }
 /* ---- roulette (the wheel game) ---- */
@@ -1358,6 +1408,7 @@ function spinMachine(i) {
   const a = slotAnim[i];
   if (a && performance.now() < a.endsAt) return;
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  if (!mySeat || mySeat.game !== "slot" || mySeat.idx !== i) { noteCasino("🪑 Sit at the machine to play."); return; }
   if (!profile || (profile.chips || 0) < slotBet) { noteCasino("Not enough chips for a " + slotBet + " bet."); return; }
   addChips(-slotBet);
   const bag = ["🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🔔", "🔔", "💎", "💎", "⭐", "⭐", "⚛"];
@@ -1387,8 +1438,16 @@ function trySit(game) {
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   if (!sitDown(game)) noteCasino(mySeat ? "Stand up from the other table first." : "All seats are taken.");
 }
-function nearBJ() { return me.scene === "casino" && Math.hypot(me.x - (BJT.x + BJT.w / 2), me.y - (BJT.y + BJT.h + 60)) < 470; }
-function nearRR() { return me.scene === "casino" && Math.hypot(me.x - (RRT.x + RRT.w / 2), me.y - (RRT.y + RRT.h + 60)) < 470; }
+function trySitAt(game, idx) {
+  if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  if (mySeat && mySeat.game !== game) { noteCasino("Stand up from the other table first."); return; }
+  if (!sitDown(game, idx)) noteCasino("That seat is taken.");
+}
+/* proximity counts the chairs themselves, not just the table's front-center:
+   the roulette END chairs sit ~600px from that point, so the old check never fired there */
+function nearSeatOf(list) { for (const s of list) { if (Math.hypot(me.x - s.x, me.y - s.y) < 150) return true; } return false; }
+function nearBJ() { return me.scene === "casino" && (Math.hypot(me.x - (BJT.x + BJT.w / 2), me.y - (BJT.y + BJT.h + 60)) < 470 || nearSeatOf(BJSEATS)); }
+function nearRR() { return me.scene === "casino" && (Math.hypot(me.x - (RRT.x + RRT.w / 2), me.y - (RRT.y + RRT.h + 60)) < 470 || nearSeatOf(RRSEATS)); }
 function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < SLOTM.length; i++) { const mch = SLOTM[i]; if (Math.hypot(me.x - (mch.x + mch.w / 2), me.y - (mch.y + mch.h + 40)) < 180) return i; } return -1; }
 
 
@@ -1646,9 +1705,14 @@ function feltBase(tb, label) {
   ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.92)"; ctx.textAlign = "center";
   ctx.fillText(label, tb.x + tb.w / 2, tb.y + 52);
 }
-function drawSeatsRow(list, st) {
+function drawSeatsRow(list, st, game) {
   list.forEach((s, i) => {
     const occ = st && st.seats && st.seats[i] && Date.now() - (st.seats[i].ts || 0) < 25000;
+    /* a free chair is a tap target: sit in exactly this chair, never an auto-assigned one */
+    if (!occ && game && !mySeat && me.scene === "casino") {
+      const nearIt = game === "bj" ? nearBJ() : game === "rr" ? nearRR() : nearSlot() === i;
+      if (nearIt) uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => game === "slot" ? sitAtSlot(i) : trySitAt(game, i) });
+    }
     ctx.fillStyle = occ ? "#ffd76a" : "#4a2a72";
     ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
     ctx.strokeStyle = occ ? "#fff2c4" : "rgba(255,215,106,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
@@ -1687,7 +1751,7 @@ function drawBJTable(t) {
   ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
   let status = "Setting up the table…";
   if (st) {
-    if (st.phase === "bet") status = st.firstBetTs ? "Place your bets — dealing in " + Math.max(0, Math.ceil((12000 - (Date.now() - st.firstBetTs)) / 1000)) + "s" : "Place your bets — sit down & bet to start";
+    if (st.phase === "bet") status = st.firstBetTs ? "Place your bets — a seated player taps ▶ START GAME to deal" : "Place your bets — sit down & bet to start";
     else if (st.phase === "play") { const ts = st.seats && st.seats[st.turn]; status = (mySeat && mySeat.game === "bj" && st.turn === mySeat.idx) ? "⭐ YOUR TURN ⭐" : ((ts ? ts.name : "A player") + " is playing…"); }
     else if (st.phase === "done") status = st.msg || "Hand over.";
   }
@@ -1712,11 +1776,15 @@ function drawBJTable(t) {
       ctx.fillText(st.results[i].res + (st.results[i].amt ? " · +" + st.results[i].amt : ""), sp.x, sp.y + 28);
     } else if (s.bet) drawChip(sp.x, sp.y + 52, s.bet);
   });
-  drawSeatsRow(BJSEATS, st);
+  drawSeatsRow(BJSEATS, st, "bj");
   /* my controls, on the felt */
   if (mySeat && mySeat.game === "bj" && st) {
     const mine = st.seats && st.seats[mySeat.idx];
     const by = BJT.y + BJT.h - 58;
+    if (st.phase === "bet" && mine) {
+      const anyBet = Object.keys(st.seats || {}).some(k => { const s2 = st.seats[k]; return s2 && s2.bet > 0 && Date.now() - (s2.ts || 0) < 25000; });
+      if (anyBet) drawBtn(cx - 150, BJT.y + 246, 300, 52, st.startReq ? "⏳ DEALING…" : "▶ START GAME", st.startReq ? null : bjStartGame, { fs: 23, fill: "#8a6a1f", dim: !!st.startReq });
+    }
     if (st.phase === "bet" && mine && !mine.bet) {
       [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(cx - 308 + k * 104, by, 96, 48, "BET " + amt, () => bjBet(amt), { fs: 20 }));
     }
@@ -1805,10 +1873,11 @@ function drawRouletteTable(t) {
       ctx.fillText(st.results[i].res, ax, ay + (s.bet ? 62 : 24));
     }
   });
-  drawSeatsRow(RRSEATS, st);
+  drawSeatsRow(RRSEATS, st, "rr");
 }
 function drawSlots(t) {
   const near = nearSlot();
+  drawSeatsRow(SLOTSEATS, { seats: slotSeats }, "slot");
   SLOTM.forEach((mch, i) => {
     ctx.fillStyle = "#2a1150"; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.fill();
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke();
@@ -1823,14 +1892,14 @@ function drawSlots(t) {
     const lastTxt = a && a.paid ? (a.pay ? "🎉 +" + a.pay : "no luck") : (st && st.amt ? "+" + st.amt + (st.name ? " · " + String(st.name).slice(0, 12) : "") : "SLOTS");
     ctx.fillText(lastTxt, mch.x + mch.w / 2, mch.y + 140);
     ctx.fillStyle = "#eaf6ff";
-    if (near === i) {
+    if (mySeat && mySeat.game === "slot" && mySeat.idx === i) {
       [1, 5, 10, 20, 50, 100].forEach((amt, k) => {
         drawBtn(mch.x + 13 + (k % 3) * 64, mch.y + 156 + Math.floor(k / 3) * 46, 56, 38, String(amt), () => { slotBet = amt; }, { fs: 17, sel: slotBet === amt });
       });
       drawBtn(mch.x + 16, mch.y + 252, mch.w - 32, 56, spinning ? "···" : "🎰 SPIN " + slotBet, spinning ? null : () => spinMachine(i), { fs: 24, fill: "#8a6a1f", dim: !!spinning });
     } else {
       ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.55)";
-      ctx.fillText("👆 walk up to play", mch.x + mch.w / 2, mch.y + 216);
+      ctx.fillText(near === i ? "🪑 sit down to play" : "👆 walk up to play", mch.x + mch.w / 2, mch.y + 216);
     }
   });
 }
@@ -2705,8 +2774,8 @@ function frame(now) {
   vx += joyVec.x + holdVec.x; vy += joyVec.y + holdVec.y;
   const m = Math.hypot(vx, vy);
   if (m > 1) { vx /= m; vy /= m; }
-  if (mySeatPos) { if (m > 0.12) standUpAll(); else { vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; } }
-  me.moving = m > 0.12;
+  if (mySeatPos) { vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; }
+  me.moving = mySeatPos ? false : m > 0.12;
   const sprinting = me.moving && (runBtnHeld || keys.has(" "));
   me.run = sprinting;
   if (sprinting) sprintPhase += dt * 4.8;
@@ -2738,6 +2807,16 @@ function frame(now) {
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
   if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
   if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+  if (me.scene === "casino" && mySeatPos) {
+    const f = seatFocusRect();
+    if (f) {
+      SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
+      camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
+      camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
+      if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+      if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+    }
+  }
   drawStars(camX, camY, SCALE);
   ctx.save();
   if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else drawTheatre(now);
@@ -2783,8 +2862,10 @@ function frame(now) {
   if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
-  else if (nearBJ()) { promptBtn.style.display = "block"; promptBtn.textContent = (mySeat && mySeat.game === "bj") ? "🚪 Stand up" : "🪑 Sit at Blackjack"; promptAction = (mySeat && mySeat.game === "bj") ? standUpAll : () => trySit("bj"); }
-  else if (nearRR()) { promptBtn.style.display = "block"; promptBtn.textContent = (mySeat && mySeat.game === "rr") ? "🚪 Stand up" : "🎡 Sit at Roulette"; promptAction = (mySeat && mySeat.game === "rr") ? standUpAll : () => trySit("rr"); }
+  else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
+  else if (nearBJ()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Blackjack"; promptAction = () => trySit("bj"); }
+  else if (nearRR()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎡 Sit at Roulette"; promptAction = () => trySit("rr"); }
+  else if (me.scene === "casino" && nearSlot() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Slots"; promptAction = () => sitAtSlot(nearSlot()); }
   else { promptBtn.style.display = "none"; promptAction = null; }
 }
 requestAnimationFrame(frame);
