@@ -3247,9 +3247,15 @@ async function lbLoadBoard() {
   const list = document.getElementById('lb-list');
   if (!(await lbEnsure())) { list.innerHTML = '<p class="lb-msg">Leaderboard unavailable right now.</p>'; return; }
   try {
-    const q = lbFs.query(lbFs.collection(lbDb, 'scores'), lbFs.orderBy('score', 'desc'), lbFs.limit(50));
+    let q;
+    if (lbFilter === 'all') {
+      q = lbFs.query(lbFs.collection(lbDb, 'scores'), lbFs.orderBy('score', 'desc'), lbFs.limit(50));
+    } else {
+      q = lbFs.query(lbFs.collection(lbDb, 'scores'), lbFs.where('game', '==', lbFilter), lbFs.limit(200));
+    }
     const snap = await lbFs.getDocs(q);
     lbRows = snap.docs.map(d => d.data()).filter(r => lbNameClean(r.name));
+    if (lbFilter !== 'all') lbRows.sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
     lbRender();
   } catch (e) { list.innerHTML = '<p class="lb-msg">Leaderboard unavailable right now.</p>'; }
 }
@@ -3257,7 +3263,7 @@ const lbSelect = document.getElementById('lb-select');
 if (lbSelect) {
   lbSelect.addEventListener('change', () => {
     lbFilter = lbSelect.value;
-    lbRender();
+    lbLoadBoard();
   });
 }
 async function lbLoadLikes() {
