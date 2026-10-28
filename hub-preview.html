@@ -810,7 +810,7 @@ function enterHub() {
     startChips = profile.chips; lastDay = profile.day || todayStr;
     if (lastDay !== todayStr) { startChips += 100; lastDay = todayStr; }
   }
-  profile = { name: nm, hero: pickedHero, muted, code: false, chips: startChips, day: lastDay };
+  profile = { name: nm, hero: pickedHero, muted, code: false, chips: startChips, chipsTs: Date.now(), day: lastDay };
   localStorage.setItem(LS_KEY, JSON.stringify(profile));
   acctSave(); drawChips();
   if (lockBeat) clearInterval(lockBeat);
@@ -828,7 +828,15 @@ function acctMsg(t) { const m = $("acctmsg"); if (m) m.textContent = t || ""; }
 function acctSave() {
   if (!acctUser || !db || !profile) return;
   if (!acctLoaded) return; /* not yet reconciled with the account — writing now could clobber it */
-  try { db.ref("hub/users/" + acctUser.uid).set({ name: profile.name, hero: profile.hero, chips: typeof profile.chips === "number" ? profile.chips : 1000, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {}
+  profile.chipsTs = Date.now(); /* this device's balance is current as of this save (post-reconciliation), so stamp it */
+  try { db.ref("hub/users/" + acctUser.uid).set({ name: profile.name, hero: profile.hero, chips: typeof profile.chips === "number" ? profile.chips : 1000, chipsTs: profile.chipsTs, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {}
+}
+/* cross-device chips rule (Jonathan 2026-10-28): each copy of the balance carries the time it last changed, and at sign-in the NEWER copy is the truth — coins spent on one device stay spent even if another device still holds an older, higher number, and coins won anywhere carry over. Legacy copies with no timestamp at all (written by the old build): the higher figure wins once, then everything is stamped from here on. */
+function pickChips(lc, lt, sc, st) {
+  if (typeof sc !== "number") return { chips: typeof lc === "number" ? lc : 1000, ts: lt || 0, local: typeof lc === "number" };
+  if (typeof lc !== "number") return { chips: sc, ts: st || 0, local: false };
+  if (!st && !lt) return lc > sc ? { chips: lc, ts: 0, local: true } : { chips: sc, ts: 0, local: false };
+  return lt > st ? { chips: lc, ts: lt, local: true } : { chips: sc, ts: st, local: false };
 }
 function acctUi() {
   drawChips(); syncOwnerCell();
@@ -875,16 +883,14 @@ function initAuth() {
         const d = snap.val();
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
-          profile = { name: d.name, hero: (d.hero >= 1 && d.hero <= ((u.email || "").toLowerCase() === OWNER_EMAIL ? OWNER_HERO : 70)) ? d.hero : 1, muted, code: false, chips: typeof d.chips === "number" ? d.chips : 1000, day: d.day || "" };
-          /* one-time heal: if THIS device holds more than the account (its copy is the real one — e.g. the account was knocked back to the 1000 default by an old sign-in bug), the higher figure wins once and is saved straight back up, so every device converges on the real balance. From then on the account copy is the single truth and every chip change saves the moment it happens. */
-          const healed = keepChips !== null && keepChips > profile.chips;
-          if (healed) profile.chips = keepChips;
+          const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
+          profile = { name: d.name, hero: (d.hero >= 1 && d.hero <= ((u.email || "").toLowerCase() === OWNER_EMAIL ? OWNER_HERO : 70)) ? d.hero : 1, muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero;
           syncOwnerCell(); syncHeroSel();
           checkEnter(); drawChips();
           acctLoaded = true;
-          if (healed) acctSave();
+          if (pk.local) acctSave(); /* this device's copy was the newer one — push it up so the account matches */
         } else if (!d) { acctLoaded = true; acctSave(); } /* first sign-in on this account: push this device's profile up as the starting point */
         /* a server profile that can't be applied is left exactly as it is — a sign-in NEVER overwrites the account with this device's local defaults */
       } catch (e) {}
@@ -1217,7 +1223,7 @@ function bjSettle() { const st = bjState; if (st && st.phase === "done" && mySea
 function rouletteSettle() { const st = rrState; if (st && st.phase === "done" && mySeat && mySeat.game === "rr" && st.results && st.results[mySeat.idx]) settleOnce("roulette" + st.spinId + "-" + mySeat.idx, st.results[mySeat.idx].amt || 0); }
 function tblSet(p, v) { if (db) { if (v === null) db.ref("hub/tables/" + p).remove(); else db.ref("hub/tables/" + p).set(v); } }
 function tblUpd(p, v) { if (db) db.ref("hub/tables/" + p).update(v); }
-function saveChips() { if (profile) localStorage.setItem(LS_KEY, JSON.stringify(profile)); acctSave(); drawChips(); }
+function saveChips() { if (profile) { profile.chipsTs = Date.now(); localStorage.setItem(LS_KEY, JSON.stringify(profile)); } acctSave(); drawChips(); }
 function addChips(n) { if (!profile) return; profile.chips = Math.max(0, (profile.chips || 0) + n); saveChips(); }
 function settleOnce(key, amt) { if (settledKeys.has(key)) return; settledKeys.add(key); if (amt) addChips(amt); }
 function seatBeat() {
