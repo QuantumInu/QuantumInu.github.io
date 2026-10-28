@@ -370,8 +370,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key); count++;
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + Math.max(count, 1) + " online";
@@ -381,12 +381,12 @@ let lastPub = 0, lastPubKey = "";
 function publish(force) {
   if (!db || !entered) return;
   const now = performance.now();
-  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip].join("|");
+  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000) return;
   if (!force && now - lastPub < 180 && key === lastPubKey) return;
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
-  myRef.set({ name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+  myRef.set({ name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
@@ -972,6 +972,7 @@ function flashMicDenied() {
 }
 async function pttStart() {
   if (pttHeld) return; pttHeld = true;
+  me.mic = true; publish(true);
   micBtn.classList.add("on");
   ac();
   if (!micStream && !micDenied) {
@@ -987,8 +988,11 @@ async function pttStart() {
 }
 function pttEnd() {
   if (!pttHeld) return; pttHeld = false;
+  me.mic = false; publish(true);
   micBtn.classList.remove("on");
-  if (micStream) micStream.getAudioTracks().forEach(t => t.enabled = false);
+  // release the microphone COMPLETELY so the phone hands audio back to other apps
+  // (a held-open mic stream keeps iPhone's record session active and other music paused)
+  if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
 }
 function wireMic(el) {
   if (!el) return;
@@ -1956,6 +1960,7 @@ function frame(now) {
   if (m > 1) { vx /= m; vy /= m; }
   me.moving = m > 0.12;
   const sprinting = me.moving && (runBtnHeld || keys.has(" "));
+  me.run = sprinting;
   if (sprinting) sprintPhase += dt * 4.8;
   if (sprinting && now - dustAt > 65) {
     dustAt = now;
@@ -2014,10 +2019,14 @@ function frame(now) {
   for (const a of actors) {
     const isMe = a === me;
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
-    const phase = isMe ? sprintPhase : a.bob * 7;
+    let phase = isMe ? sprintPhase : a.bob * 7;
+    if (!isMe && a.run && moving) {
+      a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr;
+      if (now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); }
+    }
     const chatAge = a.chatId ? Date.now() - a.chatId : 999999;
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
-    if (speakingNow.has(isMe ? myId : a.id)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
+    if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
   ctx.restore();
   const cab = nearestCabinet();
