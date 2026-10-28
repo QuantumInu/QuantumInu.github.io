@@ -172,11 +172,14 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 /* ============ data ============ */
 const HERO_NAMES = ["Red Cape", "Gold Mech", "Jetpack", "Shield Guard", "Rocket Armor", "Flame Vest", "Purple Cape", "Green Gauntlets", "Pink Suit", "Circuit Suit", "Crystal Wings", "Royal Crown", "Pilot", "Steampunk", "Emerald Vest", "Blue Scarf", "Knight", "Gold Armor", "Violet Stars", "Astronaut", "Racer", "Firefighter", "Doctor", "Pirate", "Cowboy", "Samurai", "Viking", "Cyberpunk", "Mountaineer", "Biker", "Surfer", "Boxer", "Ninja", "Deep Diver", "Exosuit", "Arctic", "Space Ranger", "Time Traveler", "Detective", "Magician", "Rockstar", "Disco", "Highlander", "Archer", "Desert Nomad", "Tech Monk", "Retro Hero", "Lifeguard", "Engineer", "Sailor", "Vintage Pilot", "Bandit", "Scientist Scout", "Adventurer", "Lab Scientist", "Cyber Samurai", "Dragon Rider", "Paladin", "Lunar Astronaut", "Ocean King", "Forest Guardian", "Blacksmith", "Winter Champion", "Comic Hero", "Chess Knight", "Monster Hunter", "Mech Pilot", "Dragon Suit", "Grand Champion", "Quantum Guardian"];
 const OWNER_HERO = 71; /* robot QI: owner-only hero — offered as the FIRST picker cell only while signed in with the owner email below; never shown to anyone else (Jonathan 2026-10-28: the old 0510 code is gone, the account is the key) */
-const OWNER_HEROES = [71, 73]; /* 71 robot QI + 73 crowned robo QI (his upload, mirrored + sized to the set 2026-10-28): both selectable ONLY under the owner sign-in, like DreadMark18 itself */
+const OWNER_HEROES = [71]; /* hero 71 is Jonathan's alone, under his sign-in only */
+const KING_HERO = 73, KING_EMAIL = "brandogaleno@icloud.com"; /* the crowned king (hero 73, mirrored + sized to the set 2026-10-28) belongs to OnlineMoney — ONLY his account ever sees it in the picker or wears it (Jonathan's correction 2026-10-28: it was wrongly wired to the owner account first) */
 const OWNER_EMAIL = "jrod11991@icloud.com";
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
 function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
+function isKingAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === KING_EMAIL); }
+function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); return n >= 1 && n <= 70; }
 const NPC_PID = "qbot-npc"; /* Q-Bot: server-driven NPC wandering the plaza roundabout; renders from presence like any player, but is never a voice peer and does not count as a person online */
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
@@ -309,6 +312,13 @@ const sfxPop = () => tone(520, 880, 0.09, "sine", 0.07);
 const sfxClick = () => tone(700, 700, 0.05, "triangle", 0.05);
 const sfxChime = () => { tone(660, 660, 0.12, "sine", 0.06); tone(880, 880, 0.14, "sine", 0.06, 0.09); tone(1320, 1320, 0.2, "sine", 0.05, 0.18); };
 const sfxStep = () => tone(180 + Math.random() * 60, 120, 0.05, "triangle", 0.025);
+/* casino table sounds (Jonathan 2026-10-28): wins sing — full volume for the winner, softer (k) for everyone else at the table; a loss is one low quiet tone for the loser only */
+const sfxWin = (k) => { k = k || 1; tone(880, 880, 0.1, "sine", 0.07 * k); tone(1108, 1108, 0.1, "sine", 0.07 * k, 0.07); tone(1318, 1318, 0.16, "sine", 0.08 * k, 0.14); tone(1760, 1760, 0.22, "sine", 0.05 * k, 0.2); };
+const sfxBigWin = (k) => { k = k || 1; [784, 988, 1175, 1568, 2093].forEach((f, i) => tone(f, f, 0.16, "triangle", 0.07 * k, i * 0.09)); tone(2637, 2637, 0.3, "sine", 0.05 * k, 0.48); };
+const sfxLose = () => tone(220, 150, 0.28, "sine", 0.05);
+const sfxPush = () => tone(520, 520, 0.08, "triangle", 0.04);
+const sfxTick = () => tone(1250, 900, 0.03, "square", 0.014);
+const sfxCard = () => tone(280 + Math.random() * 120, 170, 0.05, "triangle", 0.028);
 /* slow swelling pad chord — detuned triangle pairs through long fades, for a cinematic-strings feel */
 function padChord(freqs, dur, vol) {
   if (muted || audioHeld) return; const c = ac(); if (!c) return;
@@ -396,15 +406,13 @@ function makeHeroCell(n, nm) {
   return cell;
 }
 HERO_NAMES.forEach((nm, i) => { grid.appendChild(makeHeroCell(i + 1, nm)); });
-/* the owner hero (71) exists as a picker cell ONLY for the owner account, always FIRST in the grid; he still has to tap it himself */
-let ownerCells = [];
+/* the special heroes exist as picker cells ONLY for their own accounts, always FIRST in the grid, and each player still taps his own himself: hero 71 for the owner account, hero 73 (the king) for OnlineMoney's account — the two are never offered to the same sign-in */
+let ownerCells = [], kingCell = null;
 function syncOwnerCell() {
-  if (isOwnerAcct() && !ownerCells.length) {
-    const c73 = makeHeroCell(73, "King QI"), c71 = makeHeroCell(OWNER_HERO, "Owner QI");
-    grid.insertBefore(c73, grid.firstChild); grid.insertBefore(c71, grid.firstChild); /* front of the grid, 71 first then 73 */
-    ownerCells = [c71, c73];
-  }
-  else if (!isOwnerAcct() && ownerCells.length) { ownerCells.forEach(c => c.remove()); ownerCells = []; if (OWNER_HEROES.includes(pickedHero)) pickedHero = 0; }
+  if (isOwnerAcct() && !ownerCells.length) { const c71 = makeHeroCell(OWNER_HERO, "Owner QI"); grid.insertBefore(c71, grid.firstChild); ownerCells = [c71]; }
+  else if (!isOwnerAcct() && ownerCells.length) { ownerCells.forEach(c => c.remove()); ownerCells = []; if (pickedHero === OWNER_HERO) pickedHero = 0; }
+  if (isKingAcct() && !kingCell) { kingCell = makeHeroCell(KING_HERO, "King QI"); grid.insertBefore(kingCell, grid.firstChild); }
+  else if (!isKingAcct() && kingCell) { kingCell.remove(); kingCell = null; if (pickedHero === KING_HERO) pickedHero = 0; }
   syncHeroSel();
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
@@ -417,7 +425,7 @@ function heroLoaded() { loadedCount++; loadLine.textContent = loadedCount >= HER
   im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
 });
 if (profile) nameIn.value = profile.name;
-function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && !isOwnerAcct() && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = pickedHero >= 1 && (!OWNER_HEROES.includes(pickedHero) || isOwnerAcct()); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
+function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && !isOwnerAcct() && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = heroAllowed(pickedHero); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
@@ -807,7 +815,7 @@ function enterHub() {
   const raw = nameIn.value.trim(); if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
-  if (OWNER_HEROES.includes(pickedHero) && !isOwnerAcct()) return;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct())) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ The Hub is already open in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr;
@@ -946,7 +954,7 @@ function initAuth() {
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && OWNER_HEROES.includes(d.hero))) ? d.hero : 1, muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO)) ? d.hero : 1, muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero;
           syncOwnerCell(); syncHeroSel();
@@ -1271,13 +1279,77 @@ wireMic(micBtn);
 
 /* ============ casino: shared table state (RTDB hub/tables) ============ */
 let bjState = null, rrState = null, slotState = {}, slotSeats = {}, casinoHooked = false;
+/* ---- table celebrations (Jonathan 2026-10-28): driven by the SHARED table results, so when a hand or spin settles, every client in the casino fires the same burst at the winner's seat — the winner hears the full jingle, everyone else hears it softer ---- */
+let fxParts = [], fxTexts = [], fxFlashBJ = 0, fxFlashRR = 0, fxLastT = 0;
+let bjFxDone = 0, rrFxDone = 0, lastBjCards = -1, slotFxTs = {}, lastTickSpin = 0, lastBallPocket = -1;
+function fxBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, grey: false, r: 4 + Math.random() * 5, rot: Math.random() * 7 }); } }
+function fxPuff(x, y) { for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, sp = 24 + Math.random() * 70; fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 26, life: 0, max: 0.7 + Math.random() * 0.4, coin: false, grey: true, r: 6 + Math.random() * 7, rot: 0 }); } }
+function fxText(x, y, txt, col) { fxTexts.push({ x, y, txt, col, life: 0 }); }
+function tableResultFx(game, st, seatsList) {
+  if (!st || !st.results || !st.seats) return;
+  Object.keys(st.results).forEach(k => {
+    const i = Number(k), r = st.results[k], seat = st.seats[k];
+    if (!r || !seat || !seatsList[i]) return;
+    const bet = seat.bet || 0, amt = r.amt || 0, mine = seat.pid === myId;
+    const x = seatsList[i].x, y = seatsList[i].y - 12;
+    if (bet > 0 && amt > bet) {
+      const big = amt >= bet * 10 || amt >= 1000;
+      fxBurst(x, y, big); fxText(x, y - 24, "+🪙 " + amt, "#ffd76a");
+      if (big) { if (game === "bj") fxFlashBJ = 1; else fxFlashRR = 1; }
+      if (me.scene === "casino") { if (big) sfxBigWin(mine ? 1 : 0.45); else sfxWin(mine ? 1 : 0.45); }
+    } else if (bet > 0 && amt === 0) {
+      fxPuff(x, y); fxText(x, y - 18, "−" + bet, "rgba(205,210,225,0.95)");
+      if (mine && me.scene === "casino") sfxLose();
+    } else if (bet > 0 && amt === bet && mine && me.scene === "casino") sfxPush();
+  });
+}
+function bjFxCheck() {
+  const st = bjState; if (!st) return;
+  let cards = (st.dealer || []).length;
+  if (st.seats) Object.keys(st.seats).forEach(k => { cards += (st.seats[k].hand || []).length; });
+  if (lastBjCards >= 0 && cards > lastBjCards && me.scene === "casino" && (st.phase === "deal" || st.phase === "play" || st.phase === "done")) sfxCard(); /* a new card just landed on the felt */
+  lastBjCards = cards;
+  if (st.phase === "done" && st.doneTs && st.doneTs !== bjFxDone && Date.now() - st.doneTs < 5000) { bjFxDone = st.doneTs; tableResultFx("bj", st, BJSEATS); }
+}
+function rrFxCheck() {
+  const st = rrState; if (!st) return;
+  if (st.phase === "done" && st.doneTs && st.doneTs !== rrFxDone && Date.now() - st.doneTs < 5000) { rrFxDone = st.doneTs; tableResultFx("rr", st, RRSEATS); }
+}
+function slotFxCheck() {
+  Object.keys(slotState || {}).forEach(k => {
+    const s = slotState[k]; if (!s || !s.ts) return;
+    if (slotFxTs[k] === s.ts) return; slotFxTs[k] = s.ts;
+    if (s.amt > 0 && Date.now() - s.ts < 5000) { const m = SLOTM[Number(k)]; if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 1000); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt, "#ffd76a"); } }
+  });
+}
+function drawTableFx(t) {
+  const dt = Math.min(0.05, fxLastT ? (t - fxLastT) / 1000 : 0.016); fxLastT = t;
+  if (fxFlashBJ > 0) { ctx.strokeStyle = "rgba(255,215,106," + (fxFlashBJ * 0.85).toFixed(3) + ")"; ctx.lineWidth = 8; rr(BJT.x - 8, BJT.y - 8, BJT.w + 16, BJT.h + 16, 18); ctx.stroke(); fxFlashBJ = Math.max(0, fxFlashBJ - dt * 1.3); }
+  if (fxFlashRR > 0) { ctx.strokeStyle = "rgba(255,215,106," + (fxFlashRR * 0.85).toFixed(3) + ")"; ctx.lineWidth = 8; rr(RRT.x - 8, RRT.y - 8, RRT.w + 16, RRT.h + 16, 18); ctx.stroke(); fxFlashRR = Math.max(0, fxFlashRR - dt * 1.3); }
+  fxParts = fxParts.filter(p => { p.life += dt; if (p.life >= p.max) return false; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.grey ? -26 : 620) * dt; p.rot += dt * 6; return true; });
+  fxParts.forEach(p => {
+    const a = Math.max(0, 1 - p.life / p.max);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    if (p.grey) { ctx.fillStyle = "rgba(160,165,180,0.5)"; ctx.beginPath(); ctx.arc(0, 0, p.r, 0, 7); ctx.fill(); }
+    else if (p.coin) { ctx.fillStyle = "#ffd76a"; ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, p.r, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#a86e00"; ctx.font = "800 " + Math.round(p.r * 1.25) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("★", 0, p.r * 0.45); }
+    else { ctx.fillStyle = "#ffe9a8"; ctx.font = (p.r * 2.2) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("✦", 0, p.r * 0.7); }
+    ctx.restore();
+  });
+  fxTexts = fxTexts.filter(ft => { ft.life += dt; return ft.life < 1.5; });
+  fxTexts.forEach(ft => {
+    const a = ft.life < 1.05 ? 1 : Math.max(0, 1 - (ft.life - 1.05) / 0.45), y = ft.y - ft.life * 36;
+    ctx.save(); ctx.globalAlpha = a; ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.strokeStyle = "rgba(0,0,0,0.65)"; ctx.lineWidth = 4; ctx.strokeText(ft.txt, ft.x, y);
+    ctx.fillStyle = ft.col; ctx.fillText(ft.txt, ft.x, y); ctx.restore();
+  });
+}
 let mySeat = null, mySeatPos = null;
 const settledKeys = new Set();
 function casinoListen() {
   if (!db || casinoHooked) return; casinoHooked = true;
-  db.ref("hub/tables/bj").on("value", s => { bjState = s.val(); bjSettle(); });
-  db.ref("hub/tables/rr").on("value", s => { rrState = s.val(); rouletteSettle(); });
-  db.ref("hub/tables/slots").on("value", s => { slotState = s.val() || {}; });
+  db.ref("hub/tables/bj").on("value", s => { bjState = s.val(); bjFxCheck(); bjSettle(); });
+  db.ref("hub/tables/rr").on("value", s => { rrState = s.val(); rrFxCheck(); rouletteSettle(); });
+  db.ref("hub/tables/slots").on("value", s => { slotState = s.val() || {}; slotFxCheck(); });
   db.ref("hub/tables/slotseats").on("value", s => { slotSeats = s.val() || {}; });
   setInterval(casinoHostTick, 900);
   setInterval(seatBeat, 4000);
@@ -1982,6 +2054,14 @@ function drawRouletteTable(t) {
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.arc(bx2 + 2, by2 + 3, 9, 0, 7); ctx.fill();
   ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(bx2, by2, 9, 0, 7); ctx.fill();
   ctx.fillStyle = "rgba(120,160,255,0.9)"; ctx.beginPath(); ctx.arc(bx2 - 3, by2 - 3, 3, 0, 7); ctx.fill();
+  /* ball ticks: a soft click each time the ball crosses into the next pocket while the wheel spins */
+  if (st && st.phase === "spin" && st.spinTs) {
+    if (lastTickSpin !== st.spinTs) { lastTickSpin = st.spinTs; lastBallPocket = -1; }
+    let rel = (ballAng + Math.PI / 2) % (Math.PI * 2); if (rel < 0) rel += Math.PI * 2;
+    const pk = Math.floor(rel / step) % 37;
+    if (lastBallPocket >= 0 && pk !== lastBallPocket && me.scene === "casino") sfxTick();
+    lastBallPocket = pk;
+  }
   if (st && st.phase === "done" && st.result !== undefined) {
     ctx.font = "800 27px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
     ctx.fillText("🎯 " + st.result + " — " + (st.result === 0 ? "GREEN" : (ROU_RED[st.result] ? "🔴 RED" : "⚫ BLACK")), cx, cy + R + 52);
@@ -2071,6 +2151,7 @@ function drawCasino(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(CAEXIT.x, CAEXIT.y, CAEXIT.w, CAEXIT.h, 8); ctx.stroke();
   ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", CAEXIT.x + CAEXIT.w / 2, CAEXIT.y + 30);
+  drawTableFx(t);
   if (casinoNote && performance.now() - casinoNoteAt < 4200) {
     ctx.font = "700 20px 'Segoe UI',sans-serif";
     const w = ctx.measureText(casinoNote).width + 30;
