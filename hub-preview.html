@@ -171,7 +171,11 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 "use strict";
 /* ============ data ============ */
 const HERO_NAMES = ["Red Cape", "Gold Mech", "Jetpack", "Shield Guard", "Rocket Armor", "Flame Vest", "Purple Cape", "Green Gauntlets", "Pink Suit", "Circuit Suit", "Crystal Wings", "Royal Crown", "Pilot", "Steampunk", "Emerald Vest", "Blue Scarf", "Knight", "Gold Armor", "Violet Stars", "Astronaut", "Racer", "Firefighter", "Doctor", "Pirate", "Cowboy", "Samurai", "Viking", "Cyberpunk", "Mountaineer", "Biker", "Surfer", "Boxer", "Ninja", "Deep Diver", "Exosuit", "Arctic", "Space Ranger", "Time Traveler", "Detective", "Magician", "Rockstar", "Disco", "Highlander", "Archer", "Desert Nomad", "Tech Monk", "Retro Hero", "Lifeguard", "Engineer", "Sailor", "Vintage Pilot", "Bandit", "Scientist Scout", "Adventurer", "Lab Scientist", "Cyber Samurai", "Dragon Rider", "Paladin", "Lunar Astronaut", "Ocean King", "Forest Guardian", "Blacksmith", "Winter Champion", "Comic Hero", "Chess Knight", "Monster Hunter", "Mech Pilot", "Dragon Suit", "Grand Champion", "Quantum Guardian"];
-const OWNER_HERO = 71; /* robot QI: owner-only hero, forced for the 0510/DreadMark18 identity; never added to the picker */
+const OWNER_HERO = 71; /* robot QI: owner-only hero — offered as the FIRST picker cell only while signed in with the owner email below; never shown to anyone else (Jonathan 2026-10-28: the old 0510 code is gone, the account is the key) */
+const OWNER_EMAIL = "jrod11991@icloud.com";
+let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
+let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
+function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
 const NPC_PID = "qbot-npc"; /* Q-Bot: server-driven NPC wandering the plaza roundabout; renders from presence like any player, but is never a voice peer and does not count as a person online */
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
@@ -376,10 +380,10 @@ const gate = $("gate"), grid = $("grid"), nameIn = $("namein"), enterBtn = $("en
       cancelBtn = $("cancelbtn"), loadLine = $("loadline"), statusEl = $("status"),
       onlineEl = $("online"), promptBtn = $("prompt"), chatIn = $("chatin");
 let heroImgs = {}, loadedCount = 0;
-HERO_NAMES.forEach((nm, i) => {
-  const n = i + 1;
+function makeHeroCell(n, nm) {
   const cell = document.createElement("div");
   cell.className = "cell" + (n === pickedHero ? " sel" : "");
+  cell.dataset.hero = n;
   const img = document.createElement("img");
   img.alt = nm;
   img.onload = () => { heroImgs[n] = img; heroLoaded(); };
@@ -388,8 +392,17 @@ HERO_NAMES.forEach((nm, i) => {
   const lab = document.createElement("div"); lab.className = "nm"; lab.textContent = n + " · " + nm;
   cell.appendChild(img); cell.appendChild(lab);
   cell.onclick = () => { pickedHero = n; document.querySelectorAll(".cell").forEach(c => c.classList.remove("sel")); cell.classList.add("sel"); sfxClick(); checkEnter(); };
-  grid.appendChild(cell);
-});
+  return cell;
+}
+HERO_NAMES.forEach((nm, i) => { grid.appendChild(makeHeroCell(i + 1, nm)); });
+/* the owner hero (71) exists as a picker cell ONLY for the owner account, always FIRST in the grid; he still has to tap it himself */
+let ownerCell = null;
+function syncOwnerCell() {
+  if (isOwnerAcct() && !ownerCell) { ownerCell = makeHeroCell(OWNER_HERO, "Owner QI"); grid.insertBefore(ownerCell, grid.firstChild); }
+  else if (!isOwnerAcct() && ownerCell) { ownerCell.remove(); ownerCell = null; if (pickedHero === OWNER_HERO) pickedHero = 0; }
+  syncHeroSel();
+}
+function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
 const HERO_TOTAL = 72;
 function heroLoaded() { loadedCount++; loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL; checkEnter(); }
 [71, 72].forEach(n => {
@@ -398,8 +411,8 @@ function heroLoaded() { loadedCount++; loadLine.textContent = loadedCount >= HER
   im.onerror = () => { heroLoaded(); };
   im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
 });
-if (profile) nameIn.value = profile.code === true ? "0510" : profile.name;
-function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && raw !== "0510" && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const ok = raw.length > 0 && pickedHero >= 1 && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
+if (profile) nameIn.value = profile.name;
+function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && !isOwnerAcct() && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = pickedHero >= 1 && (pickedHero !== OWNER_HERO || isOwnerAcct()); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
@@ -787,9 +800,9 @@ window.addEventListener("beforeunload", releaseTabLock);
 window.addEventListener("pagehide", e => { if (!e.persisted) releaseTabLock(); });
 function enterHub() {
   const raw = nameIn.value.trim(); if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return;
-  let nm = raw, viaCode = false;
-  if (raw === "0510") { nm = "DreadMark18"; viaCode = true; }
-  else if (nameBlocked(raw)) return;
+  let nm = raw;
+  if (nameBlocked(raw) && !isOwnerAcct()) return;
+  if (pickedHero === OWNER_HERO && !isOwnerAcct()) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ The Hub is already open in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr;
@@ -797,27 +810,28 @@ function enterHub() {
     startChips = profile.chips; lastDay = profile.day || todayStr;
     if (lastDay !== todayStr) { startChips += 100; lastDay = todayStr; }
   }
-  profile = { name: nm, hero: pickedHero, muted, code: viaCode, chips: startChips, day: lastDay };
+  profile = { name: nm, hero: pickedHero, muted, code: false, chips: startChips, day: lastDay };
   localStorage.setItem(LS_KEY, JSON.stringify(profile));
   acctSave(); drawChips();
   if (lockBeat) clearInterval(lockBeat);
   lockBeat = setInterval(() => { try { localStorage.setItem("qh-tab-lock", JSON.stringify({ id: myId, ts: Date.now() })); } catch (e) {} }, 3000);
-  me.name = nm; me.hero = (viaCode || nm === "DreadMark18") ? OWNER_HERO : pickedHero;
+  me.name = nm; me.hero = pickedHero;
   entered = true;
   gate.style.display = "none";
   ac(); startMusic(); sfxChime();
   publish(true);
 }
 /* ============ optional accounts (Firebase Auth) ============ */
-let auth = null, acctUser = null;
+let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
 function drawChips() { const el = $("chipspill"); if (!el) return; el.style.display = acctUser ? "" : "none"; el.textContent = "🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); }
 function acctMsg(t) { const m = $("acctmsg"); if (m) m.textContent = t || ""; }
 function acctSave() {
   if (!acctUser || !db || !profile) return;
+  if (!acctLoaded) return; /* not yet reconciled with the account — writing now could clobber it */
   try { db.ref("hub/users/" + acctUser.uid).set({ name: profile.name, hero: profile.hero, chips: typeof profile.chips === "number" ? profile.chips : 1000, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {}
 }
 function acctUi() {
-  drawChips();
+  drawChips(); syncOwnerCell();
   const out = $("acctout"), inn = $("acctin"); if (!out || !inn) return;
   if (acctUser) {
     out.style.display = "none"; inn.style.display = "block";
@@ -854,19 +868,25 @@ function initAuth() {
   $("acctsignout").onclick = async () => { try { await auth.signOut(); } catch (e) {} };
   auth.onAuthStateChanged(async (u) => {
     acctUser = u || null; acctUi();
+    if (!u) { acctLoaded = false; return; }
     if (u && db) {
       try {
         const snap = await db.ref("hub/users/" + u.uid).once("value");
         const d = snap.val();
-        if (d && d.name && !nameBlocked(d.name)) {
+        if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
-          profile = { name: d.name, hero: (d.hero >= 1 && d.hero <= 70) ? d.hero : 1, muted, code: false, chips: typeof d.chips === "number" ? d.chips : 1000, day: d.day || "" };
-          if (keepChips !== null && keepChips > profile.chips) profile.chips = keepChips;
+          profile = { name: d.name, hero: (d.hero >= 1 && d.hero <= ((u.email || "").toLowerCase() === OWNER_EMAIL ? OWNER_HERO : 70)) ? d.hero : 1, muted, code: false, chips: typeof d.chips === "number" ? d.chips : 1000, day: d.day || "" };
+          /* one-time heal: if THIS device holds more than the account (its copy is the real one — e.g. the account was knocked back to the 1000 default by an old sign-in bug), the higher figure wins once and is saved straight back up, so every device converges on the real balance. From then on the account copy is the single truth and every chip change saves the moment it happens. */
+          const healed = keepChips !== null && keepChips > profile.chips;
+          if (healed) profile.chips = keepChips;
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero;
-          document.querySelectorAll(".cell").forEach((c, i) => c.classList.toggle("sel", i + 1 === pickedHero));
+          syncOwnerCell(); syncHeroSel();
           checkEnter(); drawChips();
-        } else acctSave();
+          acctLoaded = true;
+          if (healed) acctSave();
+        } else if (!d) { acctLoaded = true; acctSave(); } /* first sign-in on this account: push this device's profile up as the starting point */
+        /* a server profile that can't be applied is left exactly as it is — a sign-in NEVER overwrites the account with this device's local defaults */
       } catch (e) {}
     }
   });
@@ -877,8 +897,8 @@ $("enterbtn-top").onclick = enterHub;
 $("changebtn").onclick = () => {
   if (!entered) return;
   gate.style.display = "flex"; cancelBtn.style.display = "block";
-  if (profile) { nameIn.value = profile.code === true ? "0510" : profile.name; pickedHero = profile.hero; }
-  document.querySelectorAll(".cell").forEach((c, i) => c.classList.toggle("sel", i + 1 === pickedHero));
+  if (profile) { nameIn.value = profile.name; pickedHero = profile.hero; }
+  syncOwnerCell(); syncHeroSel();
   checkEnter(); sfxClick();
 };
 cancelBtn.onclick = () => { gate.style.display = "none"; sfxClick(); };
@@ -1388,7 +1408,8 @@ function rouletteHostTick() {
   const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && now - (seats[i].ts || 0) < 25000);
   const bettors = fresh.filter(i => seats[i].bet > 0);
   if (st.phase === "bet") {
-    if (bettors.length && (bettors.length === fresh.length || now - (st.firstBetTs || now) > 15000)) {
+    /* Jonathan 2026-10-28: the wheel rolls only when EVERY seated player has their bet down — no timer roll while someone at the table is still deciding */
+    if (bettors.length && bettors.length === fresh.length) {
       tblUpd("rr", { phase: "spin", result: Math.floor(Math.random() * 37), spinTs: now, results: null, msg: "" });
     }
   } else if (st.phase === "spin" && now - (st.spinTs || 0) > 5600) {
@@ -1406,7 +1427,26 @@ function rouletteHostTick() {
   }
 }
 
-function casinoHostTick() { if (!entered || me.scene !== "casino" || !db) return; bjHostTick(); rouletteHostTick(); }
+function casinoHostTick() {
+  if (!entered || me.scene !== "casino" || !db) return;
+  /* a table node holding a foreign shape (the roulette node was found carrying another game's state — phase "play", no seats — left by an old experiment) soft-locks the table forever: no host is ever elected, the phase never advances, and the bet buttons render as dead panels. Any visitor resets a node whose phase is not one of the game's own. */
+  if (rrState && !["bet", "spin", "done"].includes(rrState.phase)) tblSet("rr", { phase: "bet", seats: {}, spinId: 0, ts: Date.now() });
+  if (bjState && !["bet", "deal", "play", "done"].includes(bjState.phase)) tblSet("bj", { phase: "bet", seats: {}, dealer: [], handId: bjState.handId || 0, startReq: 0, ts: Date.now() });
+  tableIdleClear("rr", rrState, { phase: "bet", seats: {}, spinId: (rrState && rrState.spinId) || 0, ts: Date.now() });
+  tableIdleClear("bj", bjState, { phase: "bet", seats: {}, dealer: [], handId: (bjState && bjState.handId) || 0, startReq: 0, ts: Date.now() });
+  bjHostTick(); rouletteHostTick();
+}
+/* Jonathan 2026-10-28: a table nobody is sitting at must not sit stuck mid-game saying someone is playing — after 30s with no fresh seat it resets to a clean table. The resting state (bet phase, nothing down) is already clear and is left alone. */
+function tableIdleClear(game, st, resetVal) {
+  if (!st) return;
+  const now = Date.now(), seats = st.seats || {};
+  const fresh = Object.keys(seats).filter(k => seats[k] && now - (seats[k].ts || 0) < 25000);
+  if (fresh.length) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
+  const dirty = st.phase !== "bet" || Object.keys(seats).some(k => seats[k] && seats[k].bet > 0) || !!st.firstBetTs;
+  if (!dirty) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
+  if (!st.emptyTs) { tblUpd(game, { emptyTs: now }); return; }
+  if (now - st.emptyTs > 30000) tblSet(game, resetVal);
+}
 /* ---- slots: the machine itself is the interface ---- */
 const SLOTSYMS = ["🍒", "🍋", "🔔", "💎", "⭐", "⚛"];
 let slotAnim = {}, slotBet = 10;
@@ -1812,7 +1852,7 @@ function drawRouletteTable(t) {
   ctx.textAlign = "center"; ctx.font = "700 23px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
   let status = "Setting up the table…";
   if (st) {
-    if (st.phase === "bet") status = st.firstBetTs ? "Place your bets — spinning in " + Math.max(0, Math.ceil((15000 - (Date.now() - st.firstBetTs)) / 1000)) + "s" : "Place your bets";
+    if (st.phase === "bet") { const ss = st.seats || {}, nowS = Date.now(); const fr = Object.keys(ss).filter(k => ss[k] && nowS - (ss[k].ts || 0) < 25000); const bt = fr.filter(k => ss[k].bet > 0); status = bt.length && bt.length < fr.length ? "Waiting for everyone's bets — " + bt.length + "/" + fr.length + " in" : "Place your bets"; }
     else if (st.phase === "spin") status = "No more bets — the ball is rolling!";
     else if (st.phase === "done") status = "Next spin soon…";
   }
