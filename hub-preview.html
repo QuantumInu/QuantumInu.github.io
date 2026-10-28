@@ -67,7 +67,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .enterbtn:disabled{opacity:.45;cursor:default;box-shadow:none}
 #enterbtn-top{margin:12px 0 4px}
 #cancelbtn{margin:-8px 0 26px;background:none;border:1px solid rgba(255,255,255,.3);color:#cfeaff;border-radius:999px;padding:9px 24px;font-size:14px;cursor:pointer;display:none}
-@media (max-width:520px){#topbar{gap:5px;padding:0 6px}#topbar .back{font-size:12px}#topbar h1{font-size:13px}#status{display:none}.chip{padding:4px 7px;font-size:11px}#prompt{font-size:12.5px;padding:8px 14px;white-space:nowrap}}
+@media (max-width:520px){#topbar{gap:5px;padding:0 6px;overflow-x:auto;scrollbar-width:none}#topbar::-webkit-scrollbar{display:none}#topbar>*{flex:none}#topbar .back{font-size:12px}#topbar h1{font-size:13px}#status{display:none}.chip{padding:4px 7px;font-size:11px}#prompt{font-size:12.5px;padding:8px 14px;white-space:nowrap}}
 #jukebox{position:absolute;inset:52px 0 0 0;background:rgba(4,6,16,.82);z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #jukepanel{background:var(--panel);border:2px solid rgba(255,93,143,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,93,143,.35)}
 #jukepanel h2{margin:0 0 2px;font-size:21px;color:#ff8fb5;text-align:center}
@@ -89,6 +89,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .cards{font-size:30px;letter-spacing:3px;min-height:40px}
 .seatline{font-size:13.5px;color:#cfeaff;padding:4px 0;border-bottom:1px dashed rgba(160,200,255,.15)}
 .reels{display:flex;gap:10px;justify-content:center;margin:14px 0}
+#slotbets button.sel,#rranterow button.sel{background:rgba(255,215,106,.45);color:#fff}
 .reel{width:76px;height:76px;border-radius:14px;background:rgba(5,10,24,.85);border:1px solid rgba(255,215,106,.5);display:flex;align-items:center;justify-content:center;font-size:42px}
 #jukestop{margin-top:10px;background:rgba(255,93,143,.16);border:1px solid rgba(255,93,143,.6);color:#ffb3c9;border-radius:999px;padding:10px;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit}
 #jukeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
@@ -125,7 +126,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <div class="cards" id="bjhand"></div>
     <div class="cmsg" id="bjmsg"></div>
     <div class="crow" id="bjbetrow">
-      <button data-bet="10">Bet 10</button><button data-bet="25">Bet 25</button><button data-bet="50">Bet 50</button><button data-bet="100">Bet 100</button>
+      <button data-bet="1">Bet 1</button><button data-bet="5">Bet 5</button><button data-bet="10">Bet 10</button><button data-bet="20">Bet 20</button><button data-bet="50">Bet 50</button><button data-bet="100">Bet 100</button>
     </div>
     <div class="crow" id="bjactions">
       <button id="bjhit">Hit</button><button id="bjstand">Stand</button><button id="bjdouble">Double</button>
@@ -138,13 +139,15 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   </div></div>
   <div class="covl" id="rrovl"><div class="cpanel">
     <h2>🔫 Russian Roulette</h2>
-    <p class="csub">Ante 25 to join the round. Six chambers, one bullet — pulls go around the table. Last player standing takes the pot. Playing solo? Survive a pull and the house pays 40.</p>
+    <p class="csub">Ante up to join the round — you pick the amount. Six chambers, one bullet — pulls go around the table. Last player standing takes the pot. Playing solo? Survive a pull and the house pays 1.6× your ante.</p>
     <div class="cards" id="rrcyl">○ ○ ○ ○ ○ ○</div>
     <div class="seatline" id="rrpot">Pot: 0</div>
     <div id="rrseats"></div>
     <div class="cmsg" id="rrmsg"></div>
+    <div class="crow" id="rranterow">
+      <button data-ante="1">Ante 1</button><button data-ante="5">Ante 5</button><button data-ante="10">Ante 10</button><button data-ante="20">Ante 20</button><button data-ante="50">Ante 50</button><button data-ante="100">Ante 100</button>
+    </div>
     <div class="crow">
-      <button id="rrante">Ante 25</button>
       <button id="rrpull">🔫 Pull the trigger</button>
     </div>
     <div class="crow">
@@ -155,11 +158,14 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   </div></div>
   <div class="covl" id="slotovl"><div class="cpanel">
     <h2>🎰 Quantum Slots</h2>
-    <p class="csub">10 chips a spin. Three ⚛ = 500 · any three of a kind = 100 · a pair = 20.</p>
+    <p class="csub">Pick your bet, then spin. A pair pays 2× your bet · three of a kind 10× · three ⚛ 50×.</p>
     <div class="reels"><div class="reel" id="reel0">⚛</div><div class="reel" id="reel1">⚛</div><div class="reel" id="reel2">⚛</div></div>
     <div class="cmsg" id="slotmsg"></div>
+    <div class="crow" id="slotbets">
+      <button data-sbet="1">1</button><button data-sbet="5">5</button><button data-sbet="10" class="sel">10</button><button data-sbet="20">20</button><button data-sbet="50">50</button><button data-sbet="100">100</button>
+    </div>
     <div class="crow">
-      <button id="slotspin">🎰 SPIN — 10</button>
+      <button id="slotspin">🎰 SPIN</button>
       <button class="plain" id="slotclose">Close</button>
     </div>
   </div></div>
@@ -459,8 +465,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key); count++;
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + Math.max(count, 1) + " online";
@@ -470,12 +476,12 @@ let lastPub = 0, lastPubKey = "";
 function publish(force) {
   if (!db || !entered) return;
   const now = performance.now();
-  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip].join("|");
+  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000) return;
   if (!force && now - lastPub < 180 && key === lastPubKey) return;
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
-  myRef.set({ name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+  myRef.set({ name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
@@ -836,13 +842,14 @@ function enterHub() {
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null, acctUser = null;
-function drawChips() { const el = $("chipspill"); if (el) el.textContent = "🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); }
+function drawChips() { const el = $("chipspill"); if (!el) return; el.style.display = acctUser ? "" : "none"; el.textContent = "🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); }
 function acctMsg(t) { const m = $("acctmsg"); if (m) m.textContent = t || ""; }
 function acctSave() {
   if (!acctUser || !db || !profile) return;
   try { db.ref("hub/users/" + acctUser.uid).set({ name: profile.name, hero: profile.hero, chips: typeof profile.chips === "number" ? profile.chips : 1000, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {}
 }
 function acctUi() {
+  drawChips();
   const out = $("acctout"), inn = $("acctin"); if (!out || !inn) return;
   if (acctUser) {
     out.style.display = "none"; inn.style.display = "block";
@@ -1148,6 +1155,7 @@ function flashMicDenied() {
 }
 async function pttStart() {
   if (pttHeld) return; pttHeld = true;
+  me.mic = true; publish(true);
   micBtn.classList.add("on");
   ac();
   if (!micStream && !micDenied) {
@@ -1163,8 +1171,11 @@ async function pttStart() {
 }
 function pttEnd() {
   if (!pttHeld) return; pttHeld = false;
+  me.mic = false; publish(true);
   micBtn.classList.remove("on");
-  if (micStream) micStream.getAudioTracks().forEach(t => t.enabled = false);
+  // release the microphone COMPLETELY so the phone hands audio back to other apps
+  // (a held-open mic stream keeps iPhone's record session active and other music paused)
+  if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
 }
 function wireMic(el) {
   if (!el) return;
@@ -1336,28 +1347,28 @@ function renderRR() {
   $("rrpot").textContent = "Pot: " + (st.pot || 0) + " chips" + (st.phase === "play" ? " · pulls so far: " + (st.pulled || 0) : "");
   $("rrseats").innerHTML = seatList(st, (s, i) => {
     let x = "";
-    if (s.anted) x += " · anted 25";
+    if (s.anted) x += " · anted " + (s.anteAmt || 25);
     if (st.phase === "play" && s.alive === false) x += " · 💀 out";
     if (st.phase === "play" && st.turn === i && s.alive !== false) x += " · ⏳ their pull…";
     if (st.phase === "done" && st.winner === i) x += " · 🏆 WINNER";
     return x;
   });
   const mine = myRrSeat();
-  $("rrante").disabled = !(mine && st.phase === "join" && !mine.anted && profile && profile.chips >= 25);
+  document.querySelectorAll("#rranterow button").forEach(b => b.disabled = !(mine && st.phase === "join" && !mine.anted && profile && profile.chips >= parseInt(b.dataset.ante, 10)));
   $("rrpull").disabled = !(mine && st.phase === "play" && st.turn === mySeat.idx && mine.alive !== false);
   $("rrsit").style.display = mySeat ? "none" : "block";
   $("rrleave").style.display = (mySeat && mySeat.game === "rr") ? "block" : "none";
   if (st.phase === "done" && st.winner >= 0 && mySeat && mySeat.game === "rr" && st.winner === mySeat.idx) settleOnce("rrw" + st.handId, st.pot || 0);
   $("rrmsg").textContent = st.msg || (st.phase === "join" ? "Ante up to start the round." : st.phase === "play" ? "The cylinder is spinning…" : "");
 }
-function rrAnte() {
+function rrAnte(amt) {
   const st = rrState, mine = myRrSeat();
   if (!st || st.phase !== "join" || !mine || mine.anted) return;
-  if (!profile || profile.chips < 25) { $("rrmsg").textContent = "Not enough chips to ante."; return; }
-  addChips(-25);
+  if (!profile || profile.chips < amt) { $("rrmsg").textContent = "Not enough chips for that ante."; return; }
+  addChips(-amt);
   if (!st.firstAnteTs) tblUpd("rr", { firstAnteTs: Date.now() });
-  tblUpd("rr", { pot: (st.pot || 0) + 25 });
-  tblUpd("rr/seats/" + mySeat.idx, { anted: true, alive: true, ts: Date.now() }); sfxClick();
+  tblUpd("rr", { pot: (st.pot || 0) + amt });
+  tblUpd("rr/seats/" + mySeat.idx, { anted: true, alive: true, anteAmt: amt, ts: Date.now() }); sfxClick();
 }
 function rrDoPull(idx) {
   const st = rrState; if (!st || st.phase !== "play") return;
@@ -1372,7 +1383,7 @@ function rrDoPull(idx) {
   } else {
     if (st.solo) {
       tblUpd("rr", { pulled: p + 1, turnTs: now, msg: "Click… safe 😅 +40" });
-      if (seats[idx] && seats[idx].pid === myId) settleOnce("rrs" + st.handId + "-" + p, 40);
+      if (seats[idx] && seats[idx].pid === myId) settleOnce("rrs" + st.handId + "-" + p, Math.round((seats[idx].anteAmt || 25) * 1.6));
     } else {
       const players = Object.keys(seats).map(Number).filter(i => seats[i].anted && seats[i].alive !== false);
       const nxt = players.find(i => i > idx);
@@ -1403,12 +1414,13 @@ function rrHostTick() {
 function casinoHostTick() { if (!entered || me.scene !== "casino" || !db) return; bjHostTick(); rrHostTick(); }
 /* ---- slots ---- */
 const SLOTSYMS = ["🍒", "🍋", "🔔", "💎", "⭐", "⚛"];
-let slotBusy = false, curSlot = 0;
+let slotBusy = false, curSlot = 0, slotBet = 10;
 function openSlot(i) { curSlot = i; $("slotovl").style.display = "flex"; $("slotmsg").textContent = "Machine " + (i + 1) + " — 10 chips a spin."; }
 function spinSlot() {
   if (slotBusy) return;
-  if (!profile || profile.chips < 10) { $("slotmsg").textContent = "Not enough chips — you need 10."; return; }
-  addChips(-10); slotBusy = true; $("slotspin").disabled = true;
+  if (!acctUser) { $("slotmsg").textContent = "🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."; return; }
+  if (!profile || profile.chips < slotBet) { $("slotmsg").textContent = "Not enough chips for a " + slotBet + " bet."; return; }
+  addChips(-slotBet); slotBusy = true; $("slotspin").disabled = true;
   const iv = setInterval(() => { for (let r = 0; r < 3; r++) $("reel" + r).textContent = SLOTSYMS[Math.floor(Math.random() * SLOTSYMS.length)]; }, 80);
   setTimeout(() => {
     clearInterval(iv);
@@ -1416,9 +1428,9 @@ function spinSlot() {
     const fin = [0, 1, 2].map(() => bag[Math.floor(Math.random() * bag.length)]);
     fin.forEach((s, r) => $("reel" + r).textContent = s);
     let pay = 0;
-    if (fin[0] === "⚛" && fin[1] === "⚛" && fin[2] === "⚛") pay = 500;
-    else if (fin[0] === fin[1] && fin[1] === fin[2]) pay = 100;
-    else if (fin[0] === fin[1] || fin[1] === fin[2] || fin[0] === fin[2]) pay = 20;
+    if (fin[0] === "⚛" && fin[1] === "⚛" && fin[2] === "⚛") pay = slotBet * 50;
+    else if (fin[0] === fin[1] && fin[1] === fin[2]) pay = slotBet * 10;
+    else if (fin[0] === fin[1] || fin[1] === fin[2] || fin[0] === fin[2]) pay = slotBet * 2;
     if (pay) addChips(pay);
     tblSet("slots/" + curSlot, { pid: myId, name: me.name, syms: fin, amt: pay, ts: Date.now() });
     $("slotmsg").textContent = pay ? "🎉 You won " + pay + " chips!" : "No luck this spin.";
@@ -1435,15 +1447,16 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 $("bjclose").onclick = () => { $("bjovl").style.display = "none"; };
 $("rrclose").onclick = () => { $("rrovl").style.display = "none"; };
 $("slotclose").onclick = () => { $("slotovl").style.display = "none"; };
-$("bjsit").onclick = () => { if (!sitDown("bj")) $("bjmsg").textContent = mySeat ? "Stand up from the other table first." : "All seats are taken."; renderBJ(); };
-$("rrsit").onclick = () => { if (!sitDown("rr")) $("rrmsg").textContent = mySeat ? "Stand up from the other table first." : "All seats are taken."; renderRR(); };
+$("bjsit").onclick = () => { if (!acctUser) { $("bjmsg").textContent = "🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen (the Change button shows it)."; return; } if (!sitDown("bj")) $("bjmsg").textContent = mySeat ? "Stand up from the other table first." : "All seats are taken."; renderBJ(); };
+$("rrsit").onclick = () => { if (!acctUser) { $("rrmsg").textContent = "🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen (the Change button shows it)."; return; } if (!sitDown("rr")) $("rrmsg").textContent = mySeat ? "Stand up from the other table first." : "All seats are taken."; renderRR(); };
 $("bjleave").onclick = () => { standUpAll(); renderBJ(); };
 $("rrleave").onclick = () => { standUpAll(); renderRR(); };
 document.querySelectorAll("#bjbetrow button").forEach(b => b.onclick = () => bjBet(parseInt(b.dataset.bet, 10)));
 $("bjhit").onclick = bjHit; $("bjstand").onclick = bjStand; $("bjdouble").onclick = bjDouble;
-$("rrante").onclick = rrAnte;
+document.querySelectorAll("#rranterow button").forEach(b => b.onclick = () => rrAnte(parseInt(b.dataset.ante, 10)));
 $("rrpull").onclick = () => { if (mySeat && mySeat.game === "rr" && rrState && rrState.phase === "play" && rrState.turn === mySeat.idx) rrDoPull(mySeat.idx); };
 $("slotspin").onclick = spinSlot;
+document.querySelectorAll("#slotbets button").forEach(b => b.onclick = () => { slotBet = parseInt(b.dataset.sbet, 10); document.querySelectorAll("#slotbets button").forEach(x => x.classList.toggle("sel", x === b)); sfxClick(); });
 
 /* ============ chat log ============ */
 const chatLog = [];
@@ -2490,6 +2503,7 @@ function frame(now) {
   if (mySeatPos) { if (m > 0.12) standUpAll(); else { vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; } }
   me.moving = m > 0.12;
   const sprinting = me.moving && (runBtnHeld || keys.has(" "));
+  me.run = sprinting;
   if (sprinting) sprintPhase += dt * 4.8;
   if (sprinting && now - dustAt > 65) {
     dustAt = now;
@@ -2550,10 +2564,14 @@ function frame(now) {
   for (const a of actors) {
     const isMe = a === me;
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
-    const phase = isMe ? sprintPhase : a.bob * 7;
+    let phase = isMe ? sprintPhase : a.bob * 7;
+    if (!isMe && a.run && moving) {
+      a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr;
+      if (now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); }
+    }
     const chatAge = a.chatId ? Date.now() - a.chatId : 999999;
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
-    if (speakingNow.has(isMe ? myId : a.id)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
+    if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
   ctx.restore();
   const cab = nearestCabinet();
