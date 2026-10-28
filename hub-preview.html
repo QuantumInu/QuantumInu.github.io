@@ -37,6 +37,8 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 #micbtn.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
 #chatlog{position:absolute;inset:52px 0 0 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#chatblock{position:absolute;top:60px;left:50%;transform:translateX(-50%) translateY(-8px);background:rgba(40,6,16,.92);border:1.5px solid #ff5470;color:#ffd9de;font-weight:700;font-size:15px;padding:9px 18px;border-radius:999px;z-index:60;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;white-space:nowrap}
+#chatblock.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #logpanel{background:var(--panel);border:2px solid rgba(56,225,255,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(56,225,255,.25)}
 #logpanel h2{margin:0 0 8px;font-size:21px;color:var(--cyan);text-align:center}
 #loglist{overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding:2px;min-height:60px}
@@ -119,6 +121,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <button id="jukestop">⏹ Stop the music</button>
     <button id="jukeclose">Close</button>
   </div></div>
+  <div id="chatblock">🚫 That message isn't allowed here.</div>
   <div id="chatlog"><div id="logpanel">
     <h2>💬 Chat Log</h2>
     <div id="loglist"></div>
@@ -1409,9 +1412,49 @@ function renderLog() {
 $("logbtn").onclick = () => { $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); };
 $("logclose").onclick = () => { $("chatlog").style.display = "none"; };
 $("chatlog").addEventListener("click", e => { if (e.target === $("chatlog")) $("chatlog").style.display = "none"; });
+/* ============ chat phrase block — mirrors the Telegram raid bot's rules (2026-10-28) ============ */
+const QI_CA = "8TiMkgvsrat9tM2esko8zVTt99LZLpefUM4SnZaziXaQ";
+const _CB_SEX = ["dm for fun","live cum","cum","no free services","naughty video","naughty dm","naughty girl","naughty calls","naughty fun","escort","escorts","cam girl","camgirl","cam model","cam show","premium snap","selling nudes","sell nudes","selling pics","nudes for sale","sugar daddy","sugar baby","sex chat","sex calls","adult services","onlyfans","fansly","porn","pornstar","hookup","hookups","horny","xxx","18+","🔞","mama warned you about","too hot to ignore","verification selfie","you can see more"];
+const _CB_SEX_RE = new RegExp("(?<![a-z0-9])(" + _CB_SEX.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![a-z0-9])", "i");
+const _CB_LIST_PAST = /(?:\b(?:already|got|was|were|been)\s+listed\b|\blisting\s+was\b|\blisted\s+(?:yesterday|last\s+\w+)\b|\bwas\b[^.?!]{0,30}\blisted\b)/i;
+const _CB_LIST_COMPLAINT = /\b(ban|kick|annoying|spam|everyday|all\s+day|every\s+day|stop\s+asking|tired\s+of)\b/i;
+const _CB_LIST_FUTURE = [/\b(?:when|will|is|are|any\s+news)\b[^.?!]{0,50}\blist(?:ed|ing|s)?\b/i, /\blist(?:ed|ing)?\s+soon\b/i, /\blisting\s+on\s+\w+\s+soon\b/i, /\bany\s+list(?:ed|ing)?\s+news\b/i, /\bgo(?:es)?\s+live\s+on\b/i, /\b(?:please|pls|could\s+you|can\s+you)\b[^.?!]{0,30}\blist\b[^.?!]{0,30}\bon\b/i];
+const _CB_LIST_CUES = ["?", "when", "will", "please", "pls", "could", "can you", "any news", "soon"];
+const _CB_DMPM = [/\bdm\s+me\b/i, /\bsend\s+(?:me\s+)?a\s+dm\b/i, /\bpm\s+me\b/i, /\bsend\s+(?:me\s+)?a\s+pm\b/i, /\bmessage\s+me\b/i, /\bmsg\s+me\b/i, /\btext\s+me\b/i, /\bhit\s+me\s+up\b/i, /\bhmu\b/i];
+function _cbPmHit(t) {
+  for (const rx of [/\bpm(?:s|'d|ed)?\b/gi, /\bp\s*\.\s*m\b\.?/gi, /\bp\s+m\b/gi]) {
+    let m; rx.lastIndex = 0;
+    while ((m = rx.exec(t)) !== null) { if (!/\d(?::\d{2})?\s*$/.test(t.slice(0, m.index))) return true; }
+  }
+  return false;
+}
+function chatBlocked(t) {
+  const low = t.toLowerCase();
+  for (const m of t.matchAll(/\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g)) if (m[0] !== QI_CA) return true;
+  if (/\b0x[a-fA-F0-9]{40}\b/.test(t)) return true;
+  for (const m of t.matchAll(/\$([A-Za-z][A-Za-z0-9]{1,9})(?![A-Za-z0-9])/g)) if (m[1].toUpperCase() !== "QI") return true;
+  if (/\bdms?\b/i.test(t) || /\bd\s*\.\s*m\b\.?/i.test(t) || /\bd\s+m\b/i.test(t) || _cbPmHit(t) || _CB_DMPM.some(rx => rx.test(t))) return true;
+  if (/\bbuy[\s\-]?bots?\b/i.test(t)) return true;
+  if (_CB_SEX_RE.test(low)) return true;
+  if (_CB_LIST_CUES.some(c => low.includes(c)) && !_CB_LIST_COMPLAINT.test(low) && !_CB_LIST_PAST.test(low)) {
+    if (/\bgem[\s\-]?pump\b/i.test(low)) { if (t.includes("?") || /\b(list|listed|listing|live)\b/i.test(low)) return true; }
+    else if (_CB_LIST_FUTURE.some(rx => rx.test(low))) return true;
+  }
+  if (/(claim|collect|redeem)[^.?!]{0,30}(reward|rewards|bonus|airdrop|tokens?|prize)/i.test(t)) return true;
+  if (/\bfree\s+(tokens?|coins?|airdrop|qi)\b/i.test(t)) return true;
+  if (/(join|follow|check\s+out)[^.?!]{0,25}signal/i.test(t) || /\bsignal\s*(group|channel|room|chat)\b/i.test(t) || /\bvip\s*signals?\b/i.test(t)) return true;
+  return false;
+}
+let _cbTimer = 0;
+function showChatBlock() {
+  const el = $("chatblock"); if (!el) return;
+  el.classList.add("show");
+  clearTimeout(_cbTimer); _cbTimer = setTimeout(() => el.classList.remove("show"), 2600);
+}
 /* ============ chat ============ */
 function sendChat() {
   const t = chatIn.value.trim(); if (!t || !entered) return;
+  if (chatBlocked(t)) { showChatBlock(); chatIn.value = ""; sfxBad(); return; }
   me.chat = t.slice(0, 300); me.chatId = Date.now(); me.chatAt = performance.now();
   logChat(me.name, me.chat);
   chatIn.value = ""; chatIn.blur(); sfxPop(); publish(true);
@@ -2715,7 +2758,7 @@ function frame(now) {
       a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr;
       if (now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); }
     }
-    const chatAge = a.chatId ? Date.now() - a.chatId : 999999;
+    const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999); /* Q-Bot's bubble ages from when this screen received his answer (his timestamps come from the server's clock), so it lasts the same 5s as a player's own bubble */
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
