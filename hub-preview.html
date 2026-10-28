@@ -1290,7 +1290,7 @@ function sitAtSlot(i) {
 function seatFocusRect() {
   if (!mySeat) return null;
   if (mySeat.game === "bj") return { x: BJT.x - 60, y: BJT.y - 60, w: BJT.w + 120, h: BJT.h + 254 };
-  if (mySeat.game === "rr") return { x: RRT.x - 150, y: RRT.y - 60, w: RRT.w + 300, h: RRT.h + 254 };
+  if (mySeat.game === "rr") return { x: RRT.x - 100, y: RRT.y - 60, w: RRT.w + 200, h: RRT.h + 254 }; /* tighter than the old +300 frame (2026-10-28): on a phone the wide frame shrank the bet board to ~61x18px tap targets — only the double-width GREEN button caught taps reliably */
   if (mySeat.game === "slot") { const mch = SLOTM[mySeat.idx]; if (!mch) return null; return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 190 }; }
   return null;
 }
@@ -1738,7 +1738,7 @@ function drawBtn(x, y, w, h, label, fn, opt) {
   ctx.fillStyle = opt.sel ? "#241a08" : (opt.color || "#ffe9a8");
   ctx.fillText(label, x + w / 2, y + h / 2 + (opt.fs || 24) * 0.36);
   ctx.globalAlpha = 1;
-  if (fn && !opt.dim) uiZones.push({ x, y, w, h, fn });
+  if (fn && !opt.dim) { const pd = opt.pad || 0; uiZones.push({ x: x - pd, y: y - pd, w: w + pd * 2, h: h + pd * 2, fn }); }
 }
 function drawCard(x, y, w, h, c, faceDown) {
   ctx.fillStyle = faceDown ? "#20305e" : "#f6f2e8"; rr(x, y, w, h, 7); ctx.fill();
@@ -1903,13 +1903,13 @@ function drawRouletteTable(t) {
   const mine = myRrSeat(), canBet = !!(st && st.phase === "bet" && mine);
   const types = [["red", "🔴 RED", "#a11d28"], ["black", "⚫ BLACK", "#15151f"], ["even", "EVEN", "#1d2b52"], ["odd", "ODD", "#1d2b52"], ["green", "🟢 GREEN 0 · pays 36×", "#0a8a4a"]];
   types.forEach((tp, k) => {
-    const bw = k === 4 ? 392 : 188, bx = RRT.x + 478 + (k % 2) * 204, by = RRT.y + 122 + Math.floor(k / 2) * 64;
+    const bw = k === 4 ? 392 : 188, bx = RRT.x + 478 + (k % 2) * 204, by = RRT.y + 116 + Math.floor(k / 2) * 76;
     const sel = mine && mine.betType === tp[0];
-    if (canBet) drawBtn(bx, by, bw, 54, tp[1] + (sel ? " · " + mine.bet : ""), () => rouletteBet(tp[0]), { fs: 21, fill: tp[2], sel });
-    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 54, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 54, 12); ctx.stroke(); ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(tp[1] + (sel ? " · " + mine.bet : ""), bx + bw / 2, by + 35); ctx.globalAlpha = 1; }
+    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + mine.bet : ""), () => rouletteBet(tp[0]), { fs: 21, fill: tp[2], sel, pad: 6 });
+    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(tp[1] + (sel ? " · " + mine.bet : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
   });
   if (mySeat && mySeat.game === "rr") {
-    [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(RRT.x + 478 + k * 67, RRT.y + RRT.h - 58, 60, 48, String(amt), () => { rouletteAmt = amt; sfxClick(); }, { fs: 19, sel: rouletteAmt === amt }));
+    [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(RRT.x + 478 + k * 67, RRT.y + RRT.h - 58, 60, 48, String(amt), () => { rouletteAmt = amt; sfxClick(); }, { fs: 19, sel: rouletteAmt === amt, pad: 5 }));
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 664, RRT.y + RRT.h - 76);
   }
   /* seat bets + results */
