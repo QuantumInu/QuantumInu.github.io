@@ -1244,7 +1244,7 @@ function standUpAll() {
   const s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
     /* leaving after the game has started forfeits the spot: the bet stays in and the hand is out */
-    if (g === "bj" && st.phase === "play" && s.bet) noteCasino("🚪 You left mid-hand — your spot and bet are forfeited.");
+    if (g === "bj" && (st.phase === "play" || st.phase === "deal") && s.bet) noteCasino("🚪 You left mid-hand — your spot and bet are forfeited.");
     if (g === "rr" && st.phase === "spin" && s.bet) noteCasino("🚪 You left mid-spin — your spot and bet are forfeited.");
     tblSet(g + "/seats/" + i, null);
   }
@@ -1322,13 +1322,19 @@ function bjHostTick() {
   const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && now - (seats[i].ts || 0) < 25000);
   const bettors = fresh.filter(i => seats[i].bet > 0).sort((a, b) => a - b);
   if (st.phase === "bet") {
-    /* a hand starts only when a seated player presses START GAME — no auto-deal timer */
+    /* a hand starts only when a seated player presses START GAME — no auto-deal timer.
+       Nothing is dealt before that: clear any stale cards left on the table. */
+    if (st.dealer && st.dealer.length) tblUpd("bj", { dealer: [] });
+    fresh.forEach(i => { if (seats[i].hand && seats[i].hand.length) tblUpd("bj/seats/" + i, { hand: [] }); });
     if (bettors.length && st.startReq) {
       const deck = newDeck();
       const dealer = [deck.pop(), deck.pop()];
       bettors.forEach(i => tblUpd("bj/seats/" + i, { hand: [deck.pop(), deck.pop()], stood: false, dbl: false }));
-      tblUpd("bj", { phase: "play", deck, dealer, turn: bettors[0], turnTs: now, results: null, msg: "", startReq: 0 });
+      tblUpd("bj", { phase: "deal", deck, dealer, dealTs: now, results: null, msg: "", startReq: 0 });
     }
+  } else if (st.phase === "deal") {
+    /* the dealer deals AFTER the game starts: a short dealing beat, then play opens */
+    if (now - (st.dealTs || 0) > 1400 && bettors.length) tblUpd("bj", { phase: "play", turn: bettors[0], turnTs: now });
   } else if (st.phase === "play") {
     const active = bettors.filter(i => !seats[i].stood && cardVal(seats[i].hand || []) < 21);
     if (!active.length) {
@@ -1740,10 +1746,10 @@ function drawBJTable(t) {
   /* dealer */
   ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)";
   ctx.fillText("D E A L E R", cx, BJT.y + 88);
-  const dh = (st && st.dealer) || [], hideD = !st || st.phase === "bet" || st.phase === "play";
-  if (dh.length) {
+  const dh = (st && st.dealer) || [], inDeal = !!st && st.phase === "deal", hideD = !st || st.phase === "bet" || st.phase === "play" || inDeal;
+  if (dh.length && st.phase !== "bet") {
     const cw = 54, chh = 76, step = 62, tw = cw + (dh.length - 1) * step;
-    dh.forEach((c, i) => drawCard(cx - tw / 2 + i * step, BJT.y + 100, cw, chh, c, hideD && i === 0));
+    dh.forEach((c, i) => drawCard(cx - tw / 2 + i * step, BJT.y + 100, cw, chh, c, inDeal ? true : (hideD && i === 0)));
     ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
     ctx.fillText(hideD ? "( ? )" : "( " + cardVal(dh) + " )", cx + tw / 2 + 44, BJT.y + 148);
   }
@@ -1752,6 +1758,7 @@ function drawBJTable(t) {
   let status = "Setting up the table…";
   if (st) {
     if (st.phase === "bet") status = st.firstBetTs ? "Place your bets — a seated player taps ▶ START GAME to deal" : "Place your bets — sit down & bet to start";
+    else if (st.phase === "deal") status = "🃏 The dealer is dealing…";
     else if (st.phase === "play") { const ts = st.seats && st.seats[st.turn]; status = (mySeat && mySeat.game === "bj" && st.turn === mySeat.idx) ? "⭐ YOUR TURN ⭐" : ((ts ? ts.name : "A player") + " is playing…"); }
     else if (st.phase === "done") status = st.msg || "Hand over.";
   }
