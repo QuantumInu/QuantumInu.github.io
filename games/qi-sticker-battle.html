@@ -630,8 +630,8 @@ function lbFetch(cb) {
     try {
       var q = fb.fs.query(
         fb.fs.collection(fb.db, "scores"),
-        fb.fs.orderBy("score", "desc"),
-        fb.fs.limit(50)
+        fb.fs.where("game", "==", LB_GAME),
+        fb.fs.limit(200)
       );
       fb.fs.getDocs(q).then(function (snap) {
         var rows = [];
@@ -643,6 +643,7 @@ function lbFetch(cb) {
           if (lbNameBad(nm)) return;
           rows.push({ id: doc.id, name: nm, score: d.score });
         });
+        rows.sort(function (a, b) { return b.score - a.score; });
         cb(rows.slice(0, 10));
       }).catch(function () { cb(null); });
     } catch (e) { cb(null); }

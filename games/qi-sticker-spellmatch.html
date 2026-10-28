@@ -228,10 +228,11 @@ function lbInit(){ if(lbReady) return lbReady;
   return lbReady; }
 function lbEsc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 async function lbFetchTop(){ await lbInit();
-  const q=lbFS.query(lbFS.collection(lbDb,'scores'), lbFS.orderBy('score','desc'), lbFS.limit(50));
+  const q=lbFS.query(lbFS.collection(lbDb,'scores'), lbFS.where('game','==',LB_GAME), lbFS.limit(200));
   const snap=await lbFS.getDocs(q); const rows=[];
   snap.forEach(d=>{ const v=d.data(); if(v&&v.game===LB_GAME&&typeof v.score==='number'&&!lbNameBlocked(v.name))
     rows.push({id:d.id,name:String(v.name==null?'Player':v.name),score:v.score}); });
+  rows.sort((a,b)=>b.score-a.score);
   return rows.slice(0,10); }
 function lbRowsHTML(rows,hlId){ if(!rows.length) return '<div class="lb-note">No scores yet — be the first!</div>';
   return rows.map((r,i)=>'<div class="lb-row'+(hlId&&r.id===hlId?' me':'')+'"><span class="rk">'+(i+1)+'.</span><span class="nm">'+lbEsc(r.name)+'</span><span class="sc">'+r.score.toLocaleString()+'</span></div>').join(''); }
