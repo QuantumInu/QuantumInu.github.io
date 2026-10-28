@@ -1368,7 +1368,7 @@
       function lbFetchBoard() {
         return lbLoad().then(function (ok) {
           if (!ok || !lbDb || !lbFs) return null;
-          var q = lbFs.query(lbFs.collection(lbDb, "scores"), lbFs.orderBy("score", "desc"), lbFs.limit(50));
+          var q = lbFs.query(lbFs.collection(lbDb, "scores"), lbFs.where("game", "==", LB_GAME), lbFs.limit(200));
           return lbFs.getDocs(q).then(function (snap) {
             var rows = [];
             snap.forEach(function (d) {
@@ -1379,6 +1379,7 @@
               if (lbNameBad(nm)) return;
               rows.push({ name: nm, score: v.score });
             });
+            rows.sort(function (a, b) { return b.score - a.score; });
             return rows.slice(0, 10);
           }).catch(function () { return null; });
         }).catch(function () { return null; });
