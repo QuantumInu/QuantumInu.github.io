@@ -1601,7 +1601,7 @@ function casinoHostTick() {
   tableIdleClear("bj", bjState, { phase: "bet", seats: {}, dealer: [], handId: (bjState && bjState.handId) || 0, startReq: 0, ts: Date.now() });
   bjHostTick(); rouletteHostTick();
 }
-/* Jonathan 2026-10-28: a table nobody is sitting at must not sit stuck mid-game saying someone is playing — after 30s with no fresh seat it resets to a clean table. The resting state (bet phase, nothing down) is already clear and is left alone. */
+/* Jonathan 2026-10-28: a table nobody is sitting at must not sit stuck mid-game saying someone is playing — with no fresh seat it resets to a clean table (12s fuse, tightened from 30s the same evening). The resting state (bet phase, nothing down) is already clear and is left alone. */
 function tableIdleClear(game, st, resetVal) {
   if (!st) return;
   const now = Date.now(), seats = st.seats || {};
@@ -1610,7 +1610,7 @@ function tableIdleClear(game, st, resetVal) {
   const dirty = st.phase !== "bet" || Object.keys(seats).some(k => seats[k] && seats[k].bet > 0) || !!st.firstBetTs;
   if (!dirty) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
   if (!st.emptyTs) { tblUpd(game, { emptyTs: now }); return; }
-  if (now - st.emptyTs > 30000) tblSet(game, resetVal);
+  if (now - st.emptyTs > 12000) tblSet(game, resetVal); /* 12s, tightened 2026-10-28: the old 30s fuse (on top of the 25s seat staleness) left empty tables claiming a game was on for about a minute */
 }
 /* ---- slots: the machine itself is the interface ---- */
 const SLOTSYMS = ["🍒", "🍋", "🔔", "💎", "⭐", "⚛"];
@@ -1953,7 +1953,9 @@ function drawBJTable(t) {
   ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)";
   ctx.fillText("D E A L E R", cx, BJT.y + 88);
   const dh = (st && st.dealer) || [], inDeal = !!st && st.phase === "deal", hideD = !st || st.phase === "bet" || st.phase === "play" || inDeal;
-  if (dh.length && st.phase !== "bet") {
+  /* a frozen hand with nobody seated must never present as a live game (Jonathan 2026-10-28: "if no one is sitting at the table it should never say this"): with no fresh seat the table displays as resting — no dealer cards, no playing claims — whatever the stored phase says, until the idle reset clears the state itself */
+  const liveBj = !!(st && st.seats && Object.keys(st.seats).some(k => st.seats[k] && Date.now() - (st.seats[k].ts || 0) < 25000));
+  if (dh.length && st.phase !== "bet" && liveBj) {
     const cw = 54, chh = 76, step = 62, tw = cw + (dh.length - 1) * step;
     dh.forEach((c, i) => drawCard(cx - tw / 2 + i * step, BJT.y + 100, cw, chh, c, inDeal ? true : (hideD && i === 0)));
     ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
@@ -1963,7 +1965,8 @@ function drawBJTable(t) {
   ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
   let status = "Setting up the table…";
   if (st) {
-    if (st.phase === "bet") status = st.firstBetTs ? "Place your bets — a seated player taps ▶ START GAME to deal" : "Place your bets — sit down & bet to start";
+    if (!liveBj && st.phase !== "bet") status = "Place your bets — sit down & bet to start";
+    else if (st.phase === "bet") status = st.firstBetTs ? "Place your bets — a seated player taps ▶ START GAME to deal" : "Place your bets — sit down & bet to start";
     else if (st.phase === "deal") status = "🃏 The dealer is dealing…";
     else if (st.phase === "play") { const ts = st.seats && st.seats[st.turn]; status = (mySeat && mySeat.game === "bj" && st.turn === mySeat.idx) ? "⭐ YOUR TURN ⭐" : ((ts ? ts.name : "A player") + " is playing…"); }
     else if (st.phase === "done") status = st.msg || "Hand over.";
