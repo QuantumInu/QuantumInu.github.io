@@ -952,6 +952,11 @@ function voiceSceneMate(pid) {
   const p = peers.get(pid); if (!p || !entered) return false;
   return p.scene === me.scene;
 }
+function voiceReset() {
+  for (const pid of [...voicePeers.keys()]) voiceClose(pid);
+  voiceBackoff.clear();
+  if (entered) { for (const pid of peers.keys()) { try { vref.child("voice").child(myId).child(pid).remove().catch(() => {}); } catch (e) {} } }
+}
 function detachMic(V) {
   if (!V.pc) return;
   try {
@@ -1020,7 +1025,7 @@ function voiceConnect(pid) {
   catch (e) { voicePeers.delete(pid); return; }
   V.pc = pc;
   pc.addTransceiver("audio", { direction: "sendrecv" });
-  { const p0 = peers.get(pid); if (!micStream || !p0 || Math.hypot(me.x - p0.tx, me.y - p0.ty) <= VOICE_RANGE + 140) attachMic(V); }
+  attachMic(V);
   pc.onicecandidate = e => { if (e.candidate) { try { db.ref("hub/voice/" + pid + "/" + myId + "/ice").push(JSON.stringify(e.candidate)); } catch (err) {} } };
   pc.ontrack = e => {
     if (!V.rstream) { try { V.rstream = new MediaStream(); } catch (err) { return; } }
@@ -1114,9 +1119,8 @@ function voiceTick() {
     if (!p || p.scene !== me.scene) { voiceClose(pid); continue; }
     if (cfIce && !V.usedTurn && V.pc && V.pc.connectionState !== "connected" && Date.now() - V.bornAt > 5000) { voiceClose(pid); voiceConnect(pid); continue; }
     const d = Math.hypot(me.x - p.tx, me.y - p.ty);
-    if (micStream && pttHeld) { if (d <= VOICE_RANGE + 140) attachMic(V); else detachMic(V); }
-    if (V.audio) { const g = Math.max(0, Math.min(1, 1.15 * (1 - d / VOICE_RANGE))); try { V.audio.volume = g; if (V.audio.paused) V.audio.play().catch(() => {}); } catch (e) {} }
-    if (d <= VOICE_RANGE && V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
+    if (V.audio) { try { V.audio.volume = 1; if (V.audio.paused) V.audio.play().catch(() => {}); } catch (e) {} }
+    if (V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
   }
   if (pttHeld && micStream) speakingNow.add(myId); else speakingNow.delete(myId);
   voiceTickN = (voiceTickN + 1) % 3; if (voiceTickN === 0) for (const pid of voicePeers.keys()) voiceReport(pid);
@@ -1136,7 +1140,7 @@ async function pttStart() {
     catch (e) { micDenied = true; flashMicDenied(); }
     if (micStream) {
       micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
-      for (const [pid, V] of voicePeers.entries()) { const p = peers.get(pid); if (p && Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE + 140) { attachMic(V); renegotiate(pid); } }
+      for (const [pid, V] of voicePeers.entries()) { attachMic(V); renegotiate(pid); }
     }
   } else if (micStream) {
     micStream.getAudioTracks().forEach(t => t.enabled = true);
@@ -1413,22 +1417,22 @@ function sendChat() {
 $("sendbtn").onclick = sendChat;
 chatIn.addEventListener("keydown", e => { if (e.key === "Enter") { if (chatIn.value.trim()) sendChat(); else chatIn.blur(); } e.stopPropagation(); });
 /* ============ scenes ============ */
-function toArcade() { stopAllTones(); me.scene = "arcade"; me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
-function toPlaza() { stopAllTones(); me.scene = "plaza"; me.x = 1600; me.y = 566; sfxChime(); publish(true); }
-function toTheatre() { stopAllTones(); me.scene = "theatre"; me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
-function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
-function toClub() { stopAllTones(); me.scene = "club"; me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
-function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
-function toCasino() { stopAllTones(); me.scene = "casino"; me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); }
-function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
+function toArcade() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
+function toPlaza() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 1600; me.y = 566; sfxChime(); publish(true); }
+function toTheatre() { stopAllTones(); me.scene = "theatre"; voiceReset(); me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
+function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
+function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
+function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
+function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); }
+function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 let portalArmed = true;
 function checkPortal(P, go) {
   const d = Math.hypot(me.x - P.x, me.y - P.y);
   if (d > 100) portalArmed = true;
   else if (portalArmed && d < 56) { portalArmed = false; go(); }
 }
-function toHQ() { stopAllTones(); portalArmed = false; me.scene = "hq"; me.x = HQPORTAL.x; me.y = HQPORTAL.y - 130; sfxChime(); publish(true); startHqVideos(); }
-function toPlazaFromHQ() { stopAllTones(); portalArmed = false; me.scene = "plaza"; me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
+function toHQ() { stopAllTones(); portalArmed = false; me.scene = "hq"; voiceReset(); me.x = HQPORTAL.x; me.y = HQPORTAL.y - 130; sfxChime(); publish(true); startHqVideos(); }
+function toPlazaFromHQ() { stopAllTones(); portalArmed = false; me.scene = "plaza"; voiceReset(); me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
