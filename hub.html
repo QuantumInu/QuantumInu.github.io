@@ -801,6 +801,7 @@ cv.addEventListener("pointercancel", () => { holdId = null; holdVec = { x: 0, y:
 /* ============ voice chat (push to talk) ============ */
 const VOICE_RANGE = 600;
 let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
+let voiceArmed = false; /* voice chat only connects after the user taps the mic — a playing voice element makes iPhone kill other apps' music, so nothing voice-related runs before opt-in */
 const voicePeers = new Map();
 let voiceTickN = 0;
 const speakingNow = new Set();
@@ -952,6 +953,7 @@ function voiceClose(pid) {
 }
 function voiceTick() {
   if (!entered || !db) return;
+  if (!voiceArmed) return;
   voiceInit();
   if (!cfIce) fetchCfIce();
   for (const p of peers.values()) if (voiceDesired(p.id)) voiceConnect(p.id);
@@ -972,6 +974,7 @@ function flashMicDenied() {
 }
 async function pttStart() {
   if (pttHeld) return; pttHeld = true;
+  voiceArmed = true;
   me.mic = true; publish(true);
   micBtn.classList.add("on");
   ac();
@@ -990,7 +993,13 @@ function pttEnd() {
   if (!pttHeld) return; pttHeld = false;
   me.mic = false; publish(true);
   micBtn.classList.remove("on");
-  if (micStream) micStream.getAudioTracks().forEach(t => t.enabled = false);
+  // release the microphone COMPLETELY so the phone hands audio back to other apps
+  // (a held-open mic stream keeps iPhone's record session active and other music paused)
+  if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
+  // leaving voice entirely: close every voice connection and element so the
+  // phone hands audio back to the user's other music right away
+  voiceArmed = false;
+  for (const pid of [...voicePeers.keys()]) voiceClose(pid);
 }
 function wireMic(el) {
   if (!el) return;
