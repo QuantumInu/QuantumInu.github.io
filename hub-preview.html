@@ -172,6 +172,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 /* ============ data ============ */
 const HERO_NAMES = ["Red Cape", "Gold Mech", "Jetpack", "Shield Guard", "Rocket Armor", "Flame Vest", "Purple Cape", "Green Gauntlets", "Pink Suit", "Circuit Suit", "Crystal Wings", "Royal Crown", "Pilot", "Steampunk", "Emerald Vest", "Blue Scarf", "Knight", "Gold Armor", "Violet Stars", "Astronaut", "Racer", "Firefighter", "Doctor", "Pirate", "Cowboy", "Samurai", "Viking", "Cyberpunk", "Mountaineer", "Biker", "Surfer", "Boxer", "Ninja", "Deep Diver", "Exosuit", "Arctic", "Space Ranger", "Time Traveler", "Detective", "Magician", "Rockstar", "Disco", "Highlander", "Archer", "Desert Nomad", "Tech Monk", "Retro Hero", "Lifeguard", "Engineer", "Sailor", "Vintage Pilot", "Bandit", "Scientist Scout", "Adventurer", "Lab Scientist", "Cyber Samurai", "Dragon Rider", "Paladin", "Lunar Astronaut", "Ocean King", "Forest Guardian", "Blacksmith", "Winter Champion", "Comic Hero", "Chess Knight", "Monster Hunter", "Mech Pilot", "Dragon Suit", "Grand Champion", "Quantum Guardian"];
 const OWNER_HERO = 71; /* robot QI: owner-only hero — offered as the FIRST picker cell only while signed in with the owner email below; never shown to anyone else (Jonathan 2026-10-28: the old 0510 code is gone, the account is the key) */
+const OWNER_HEROES = [71, 73]; /* 71 robot QI + 73 crowned robo QI (his upload, mirrored + sized to the set 2026-10-28): both selectable ONLY under the owner sign-in, like DreadMark18 itself */
 const OWNER_EMAIL = "jrod11991@icloud.com";
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
@@ -396,23 +397,27 @@ function makeHeroCell(n, nm) {
 }
 HERO_NAMES.forEach((nm, i) => { grid.appendChild(makeHeroCell(i + 1, nm)); });
 /* the owner hero (71) exists as a picker cell ONLY for the owner account, always FIRST in the grid; he still has to tap it himself */
-let ownerCell = null;
+let ownerCells = [];
 function syncOwnerCell() {
-  if (isOwnerAcct() && !ownerCell) { ownerCell = makeHeroCell(OWNER_HERO, "Owner QI"); grid.insertBefore(ownerCell, grid.firstChild); }
-  else if (!isOwnerAcct() && ownerCell) { ownerCell.remove(); ownerCell = null; if (pickedHero === OWNER_HERO) pickedHero = 0; }
+  if (isOwnerAcct() && !ownerCells.length) {
+    const c73 = makeHeroCell(73, "King QI"), c71 = makeHeroCell(OWNER_HERO, "Owner QI");
+    grid.insertBefore(c73, grid.firstChild); grid.insertBefore(c71, grid.firstChild); /* front of the grid, 71 first then 73 */
+    ownerCells = [c71, c73];
+  }
+  else if (!isOwnerAcct() && ownerCells.length) { ownerCells.forEach(c => c.remove()); ownerCells = []; if (OWNER_HEROES.includes(pickedHero)) pickedHero = 0; }
   syncHeroSel();
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
-const HERO_TOTAL = 72;
+const HERO_TOTAL = 73;
 function heroLoaded() { loadedCount++; loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL; checkEnter(); }
-[71, 72].forEach(n => {
+[71, 72, 73].forEach(n => {
   const im = new Image();
   im.onload = () => { heroImgs[n] = im; heroLoaded(); };
   im.onerror = () => { heroLoaded(); };
   im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
 });
 if (profile) nameIn.value = profile.name;
-function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && !isOwnerAcct() && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = pickedHero >= 1 && (pickedHero !== OWNER_HERO || isOwnerAcct()); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
+function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && !isOwnerAcct() && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = pickedHero >= 1 && (!OWNER_HEROES.includes(pickedHero) || isOwnerAcct()); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
@@ -802,7 +807,7 @@ function enterHub() {
   const raw = nameIn.value.trim(); if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
-  if (pickedHero === OWNER_HERO && !isOwnerAcct()) return;
+  if (OWNER_HEROES.includes(pickedHero) && !isOwnerAcct()) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ The Hub is already open in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr;
@@ -829,14 +834,57 @@ function acctSave() {
   if (!acctUser || !db || !profile) return;
   if (!acctLoaded) return; /* not yet reconciled with the account — writing now could clobber it */
   profile.chipsTs = Date.now(); /* this device's balance is current as of this save (post-reconciliation), so stamp it */
-  try { db.ref("hub/users/" + acctUser.uid).set({ name: profile.name, hero: profile.hero, chips: typeof profile.chips === "number" ? profile.chips : 1000, chipsTs: profile.chipsTs, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {}
+  try { db.ref("hub/users/" + acctUser.uid).update({ name: profile.name, hero: profile.hero, chips: typeof profile.chips === "number" ? profile.chips : 1000, chipsTs: profile.chipsTs, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {} /* update, not set: the session claim lives under the same record and must survive profile saves */
 }
-/* cross-device chips rule (Jonathan 2026-10-28): each copy of the balance carries the time it last changed, and at sign-in the NEWER copy is the truth — coins spent on one device stay spent even if another device still holds an older, higher number, and coins won anywhere carry over. Legacy copies with no timestamp at all (written by the old build): the higher figure wins once, then everything is stamped from here on. */
+/* chips rule (Jonathan 2026-10-28, final form): the balance lives on the SERVER and nowhere else. At sign-in the server amount is the balance — a device's local copy NEVER raises it (logging in can never replenish). The amount only changes while playing (every change saves to the server the moment it happens), pullChips() re-reads the server amount when a game is about to be played, and watchChips() keeps the on-screen counter on the server amount live while signed in. The local figure is only ever used for a brand-new account that has no server balance yet. */
 function pickChips(lc, lt, sc, st) {
-  if (typeof sc !== "number") return { chips: typeof lc === "number" ? lc : 1000, ts: lt || 0, local: typeof lc === "number" };
-  if (typeof lc !== "number") return { chips: sc, ts: st || 0, local: false };
-  if (!st && !lt) return lc > sc ? { chips: lc, ts: 0, local: true } : { chips: sc, ts: 0, local: false };
-  return lt > st ? { chips: lc, ts: lt, local: true } : { chips: sc, ts: st, local: false };
+  if (typeof sc === "number") return { chips: sc, ts: st || 0, local: false };
+  return { chips: typeof lc === "number" ? lc : 1000, ts: lt || 0, local: typeof lc === "number" };
+}
+/* pull the server amount right now (entering the Hub, entering the casino, sitting down to play) — the counter switches to the server amount as soon as the read lands */
+function pullChips() {
+  if (!acctUser || !db || !acctLoaded || !profile) return;
+  db.ref("hub/users/" + acctUser.uid).once("value").then(s => {
+    const d = s.val();
+    if (d && typeof d.chips === "number" && profile) {
+      profile.chips = d.chips;
+      if (typeof d.chipsTs === "number") profile.chipsTs = d.chipsTs;
+      try { localStorage.setItem(LS_KEY, JSON.stringify(profile)); } catch (e) {}
+      drawChips();
+    }
+  }).catch(() => {});
+}
+/* live watch on the account record: a NEWER server amount (another device played, a top-up landed) replaces the counter on its own. This device's own saves carry the chipsTs it already holds, so its own echoes never trigger a change. */
+let acctWatchRef = null;
+function watchChips() {
+  if (!acctUser || !db) return;
+  if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
+  acctWatchRef = db.ref("hub/users/" + acctUser.uid);
+  acctWatchRef.on("value", s => {
+    const d = s.val();
+    if (!d || !profile || typeof d.chips !== "number") return;
+    const tsIn = typeof d.chipsTs === "number" ? d.chipsTs : 0, tsMine = typeof profile.chipsTs === "number" ? profile.chipsTs : 0;
+    if (d.chips !== profile.chips && tsIn > tsMine) {
+      profile.chips = d.chips; profile.chipsTs = tsIn;
+      try { localStorage.setItem(LS_KEY, JSON.stringify(profile)); } catch (e) {}
+      drawChips();
+    }
+  });
+}
+/* single-session rule (Jonathan 2026-10-28): one account, one place. Signing in claims the account's session slot under this browser's id; a sign-in from ANOTHER browser/device while the claim is fresh (heartbeat 15s, stale at 90s) is refused. Closing the page releases the claim on disconnect; the same browser always reclaims its own. */
+let sessHeld = false, sessTimer = 0;
+function sessionBeat() { if (acctUser && sessHeld && db) { try { db.ref("hub/users/" + acctUser.uid + "/session").update({ sid: myId, ts: Date.now() }); } catch (e) {} } }
+function claimSession() {
+  if (!acctUser || !db) return;
+  sessHeld = true;
+  try { db.ref("hub/users/" + acctUser.uid + "/session").onDisconnect().remove(); } catch (e) {}
+  sessionBeat();
+  if (!sessTimer) sessTimer = setInterval(sessionBeat, 15000);
+}
+function releaseSession() {
+  if (acctUser && db && sessHeld) { try { const ref = db.ref("hub/users/" + acctUser.uid + "/session"); ref.onDisconnect().cancel(); ref.remove(); } catch (e) {} }
+  sessHeld = false;
+  if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; }
 }
 function acctUi() {
   drawChips(); syncOwnerCell();
@@ -873,25 +921,40 @@ function initAuth() {
     try { await auth.signInWithEmailAndPassword(em, pw); acctMsg(""); }
     catch (e) { acctMsg(friendlyAuthErr(e)); }
   };
-  $("acctsignout").onclick = async () => { try { await auth.signOut(); } catch (e) {} };
+  $("acctsignout").onclick = async () => { releaseSession(); if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; } try { await auth.signOut(); } catch (e) {} };
   auth.onAuthStateChanged(async (u) => {
+    const prevUser = acctUser;
     acctUser = u || null; acctUi();
-    if (!u) { acctLoaded = false; return; }
+    if (!u) {
+      acctLoaded = false;
+      if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
+      if (prevUser && sessHeld && db) { try { const ref = db.ref("hub/users/" + prevUser.uid + "/session"); ref.onDisconnect().cancel(); ref.remove(); } catch (e) {} }
+      sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; }
+      return;
+    }
     if (u && db) {
       try {
         const snap = await db.ref("hub/users/" + u.uid).once("value");
         const d = snap.val();
+        /* one account, one place: a FRESH session claim held by a DIFFERENT browser/device refuses this sign-in (the same browser's id always reclaims its own) */
+        const sess = d && d.session;
+        if (sess && sess.sid && sess.sid !== myId && Date.now() - (sess.ts || 0) < 90000) {
+          acctMsg("⚠️ This account is already signed in on another device. Close it there, then sign in here.");
+          try { await auth.signOut(); } catch (e) {}
+          return;
+        }
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
-          profile = { name: d.name, hero: (d.hero >= 1 && d.hero <= ((u.email || "").toLowerCase() === OWNER_EMAIL ? OWNER_HERO : 70)) ? d.hero : 1, muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && OWNER_HEROES.includes(d.hero))) ? d.hero : 1, muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero;
           syncOwnerCell(); syncHeroSel();
           checkEnter(); drawChips();
           acctLoaded = true;
-          if (pk.local) acctSave(); /* this device's copy was the newer one — push it up so the account matches */
-        } else if (!d) { acctLoaded = true; acctSave(); } /* first sign-in on this account: push this device's profile up as the starting point */
+          if (pk.local) acctSave(); /* the account had no amount yet (legacy record) — the local figure becomes its starting amount, once */
+          claimSession(); watchChips();
+        } else if (!d) { acctLoaded = true; acctSave(); claimSession(); watchChips(); } /* first sign-in on this account: push this device's profile up as the starting point */
         /* a server profile that can't be applied is left exactly as it is — a sign-in NEVER overwrites the account with this device's local defaults */
       } catch (e) {}
     }
@@ -1260,6 +1323,7 @@ function seatBeat() {
   tblUpd(mySeat.game + "/seats/" + mySeat.idx, { ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
 }
 function sitDown(game, idx) {
+  pullChips(); /* about to play: the counter goes on the server amount first */
   if (mySeat && mySeat.game !== game) return false;
   const st = game === "bj" ? bjState : rrState;
   const seats = (st && st.seats) || {};
@@ -1301,6 +1365,7 @@ function standUpAll() {
 /* ---- slot seats: one chair per machine, same shared-seat pattern as the tables ---- */
 function sitAtSlot(i) {
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  pullChips();
   if (mySeat) { if (!(mySeat.game === "slot" && mySeat.idx === i)) noteCasino("Stand up from the other table first."); return; }
   const s = slotSeats && slotSeats[i];
   if (s && s.pid === myId) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; }
@@ -1613,7 +1678,7 @@ function toTheatre() { stopAllTones(); me.scene = "theatre"; voiceReset(); me.x 
 function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
 function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
 function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
-function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); }
+function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); pullChips(); }
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 let portalArmed = true;
 function checkPortal(P, go) {
