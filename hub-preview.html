@@ -675,14 +675,14 @@ const CASINODOOR = { x: 2805, y: 1456, w: 80, h: 34 };
 const CASINOROOM = { w: 3200, h: 2200 };
 const BJT = { x: 430, y: 980, w: 900, h: 430 };
 const RRT = { x: 1870, y: 980, w: 900, h: 430 };
-const BJSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h + 84 }));
+const BJSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h + 150 })); /* seats sit well below the felt (2026-10-28): at +84 the seated players' name plates landed on the table's bottom button row */
 const RRSEATS = [
-  { x: RRT.x + 130, y: RRT.y + RRT.h + 84 }, { x: RRT.x + 350, y: RRT.y + RRT.h + 84 }, { x: RRT.x + 570, y: RRT.y + RRT.h + 84 }, { x: RRT.x + 790, y: RRT.y + RRT.h + 84 },
+  { x: RRT.x + 130, y: RRT.y + RRT.h + 150 }, { x: RRT.x + 350, y: RRT.y + RRT.h + 150 }, { x: RRT.x + 570, y: RRT.y + RRT.h + 150 }, { x: RRT.x + 790, y: RRT.y + RRT.h + 150 },
   { x: RRT.x - 84, y: RRT.y + 215 }, { x: RRT.x + RRT.w + 84, y: RRT.y + 215 }
 ];
 const BJSPOTS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h - 128 }));
 const SLOTM = [0, 1, 2, 3, 4, 5].map(i => ({ x: 270 + i * 480, y: 250, w: 210, h: 330 }));
-const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 40 }));
+const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 120 })); /* pushed down 2026-10-28: at +40 the player's head + name plate covered the SPIN button */
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
 const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 58, w: 124, h: 44 };
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
@@ -1450,7 +1450,7 @@ function seatFocusRect() {
   if (!mySeat) return null;
   if (mySeat.game === "bj") return { x: BJT.x - 60, y: BJT.y - 60, w: BJT.w + 120, h: BJT.h + 254 };
   if (mySeat.game === "rr") return { x: RRT.x - 100, y: RRT.y - 60, w: RRT.w + 200, h: RRT.h + 254 }; /* tighter than the old +300 frame (2026-10-28): on a phone the wide frame shrank the bet board to ~61x18px tap targets — only the double-width GREEN button caught taps reliably */
-  if (mySeat.game === "slot") { const mch = SLOTM[mySeat.idx]; if (!mch) return null; return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 190 }; }
+  if (mySeat.game === "slot") { const mch = SLOTM[mySeat.idx]; if (!mch) return null; return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 250 }; }
   return null;
 }
 /* ---- cards ---- */
@@ -1993,7 +1993,7 @@ function drawBJTable(t) {
   /* my controls, on the felt */
   if (mySeat && mySeat.game === "bj" && st) {
     const mine = st.seats && st.seats[mySeat.idx];
-    const by = BJT.y + BJT.h - 58;
+    const by = BJT.y + BJT.h - 66;
     if (st.phase === "bet" && mine) {
       const anyBet = Object.keys(st.seats || {}).some(k => { const s2 = st.seats[k]; return s2 && s2.bet > 0 && Date.now() - (s2.ts || 0) < 25000; });
       if (anyBet) drawBtn(cx - 150, BJT.y + 246, 300, 52, st.startReq ? "⏳ DEALING…" : "▶ START GAME", st.startReq ? null : bjStartGame, { fs: 23, fill: "#8a6a1f", dim: !!st.startReq });
@@ -2076,8 +2076,8 @@ function drawRouletteTable(t) {
     else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(tp[1] + (sel ? " · " + mine.bet : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
   });
   if (mySeat && mySeat.game === "rr") {
-    [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(RRT.x + 478 + k * 67, RRT.y + RRT.h - 58, 60, 48, String(amt), () => { rouletteAmt = amt; sfxClick(); }, { fs: 19, sel: rouletteAmt === amt, pad: 5 }));
-    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 664, RRT.y + RRT.h - 76);
+    [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(RRT.x + 478 + k * 67, RRT.y + RRT.h - 66, 60, 48, String(amt), () => { rouletteAmt = amt; sfxClick(); }, { fs: 19, sel: rouletteAmt === amt, pad: 5 }));
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 664, RRT.y + RRT.h - 84);
   }
   /* seat bets + results */
   RRSEATS.forEach((sp, i) => {
@@ -2108,7 +2108,8 @@ function drawSlots(t) {
     const st = slotState && slotState[i];
     const syms = spinning ? [0, 1, 2].map(r => SLOTSYMS[Math.floor(Math.random() * SLOTSYMS.length)]) : (a && a.paid ? a.fin : (st && st.syms ? st.syms : ["⚛", "⚛", "⚛"]));
     ctx.font = "42px sans-serif"; ctx.textAlign = "center";
-    syms.forEach((s, r) => ctx.fillText(s, mch.x + mch.w * (0.25 + r * 0.25), mch.y + 80));
+    ctx.fillStyle = "#ffffff"; /* the atom is a text-presentation glyph on some systems and took the window's near-black fill — invisible (his report 2026-10-28); white paint + the emoji form fix it */
+    syms.forEach((s, r) => ctx.fillText(s === "⚛" ? "⚛️" : s, mch.x + mch.w * (0.25 + r * 0.25), mch.y + 80));
     ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
     const lastTxt = a && a.paid ? (a.pay ? "🎉 +" + a.pay : "no luck") : (st && st.amt ? "+" + st.amt + (st.name ? " · " + String(st.name).slice(0, 12) : "") : "SLOTS");
     ctx.fillText(lastTxt, mch.x + mch.w / 2, mch.y + 140);
