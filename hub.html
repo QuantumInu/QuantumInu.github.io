@@ -811,7 +811,8 @@ function voiceDesired(pid) {
   return Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE;
 }
 const CF_TURN_ID = "b7901936772140280f6a49ec67156b9d", CF_TURN_TOKEN = "6648df285f3f9e73a576f9366924eb28162f0464190a752044e30ff53f9ccb72";
-let cfIce = null, cfIceAt = 0, cfFetching = false;
+let cfIce = null, cfIceAt = 0, cfFetching = false, cfSettled = false;
+const voiceBackoff = new Map();
 async function fetchCfIce() {
   if (cfFetching || (cfIce && Date.now() - cfIceAt < 6 * 3600 * 1000)) return;
   cfFetching = true;
@@ -819,7 +820,7 @@ async function fetchCfIce() {
     const r = await fetch("https://rtc.live.cloudflare.com/v1/turn/keys/" + CF_TURN_ID + "/credentials/generate", { method: "POST", headers: { "Authorization": "Bearer " + CF_TURN_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ ttl: 86400 }) });
     if (r.ok) { const j = await r.json(); if (j && j.iceServers) { cfIce = j.iceServers; cfIceAt = Date.now(); } }
   } catch (e) {}
-  cfFetching = false;
+  cfFetching = false; cfSettled = true;
 }
 function voiceInit() {
   if (voiceInitDone || !db || !myId) return; voiceInitDone = true;
@@ -859,7 +860,9 @@ async function renegotiate(pid) {
 }
 function voiceConnect(pid) {
   if (voicePeers.has(pid)) return;
-  const V = { pc: null, sender: null, audio: null, analyser: null, remoteSet: false, iceQ: [], handledOffer: 0, handledAnswer: 0, levelAt: 0, makingOffer: false, iceRef: null };
+  const bo = voiceBackoff.get(pid); if (bo && Date.now() < bo) return;
+  if (!cfIce && !cfSettled) { fetchCfIce(); return; }
+  const V = { pc: null, sender: null, audio: null, analyser: null, remoteSet: false, iceQ: [], handledOffer: 0, handledAnswer: 0, levelAt: 0, makingOffer: false, iceRef: null, usedTurn: !!cfIce, bornAt: Date.now(), iceRestarted: false };
   voicePeers.set(pid, V);
   let pc;
   const servers = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
@@ -878,9 +881,10 @@ function voiceConnect(pid) {
     attachRemote(pid, V.rstream);
   };
   pc.onnegotiationneeded = () => renegotiate(pid);
-  pc.onconnectionstatechange = () => { voiceReport(pid); if (pc.connectionState === "failed") voiceClose(pid); };
-  pc.oniceconnectionstatechange = () => voiceReport(pid);
+  pc.onconnectionstatechange = () => { voiceReport(pid); if (pc.connectionState === "failed") { voiceBackoff.set(pid, Date.now() + 4000); voiceClose(pid); } };
+  pc.oniceconnectionstatechange = () => { voiceReport(pid); if (pc.iceConnectionState === "failed" && !V.iceRestarted) { V.iceRestarted = true; try { pc.restartIce(); } catch (e) {} if (myId < pid) renegotiate(pid); } };
   V.iceRef = db.ref("hub/voice/" + myId + "/" + pid + "/ice");
+  try { V.iceRef.remove(); } catch (e) {}
   V.iceRef.on("child_added", s => {
     const c = s.val(); if (!c) return; let cand; try { cand = JSON.parse(c); } catch (e) { return; }
     if (V.remoteSet) pc.addIceCandidate(cand).catch(() => {}); else V.iceQ.push(cand);
@@ -959,6 +963,7 @@ function voiceTick() {
   for (const [pid, V] of [...voicePeers.entries()]) {
     const p = peers.get(pid);
     if (!p || !voiceDesired(pid)) { voiceClose(pid); continue; }
+    if (cfIce && !V.usedTurn && V.pc && V.pc.connectionState !== "connected" && Date.now() - V.bornAt > 5000) { voiceClose(pid); voiceConnect(pid); continue; }
     const d = Math.hypot(me.x - p.tx, me.y - p.ty);
     if (V.audio) { const g = Math.max(0, Math.min(1, 1.15 * (1 - d / VOICE_RANGE))); try { V.audio.volume = g; if (V.audio.paused) V.audio.play().catch(() => {}); } catch (e) {} }
     if (V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
