@@ -1173,7 +1173,10 @@ function pttEnd() {
   if (!pttHeld) return; pttHeld = false;
   me.mic = false; publish(true);
   micBtn.classList.remove("on");
-  if (micStream) micStream.getAudioTracks().forEach(t => t.enabled = false);
+  // mic off = the recording truly ends: stop the tracks and release the
+  // microphone (the phone's recording session ends with it). Hearing is
+  // untouched — voice connections and players stay exactly as they were.
+  if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
 }
 function wireMic(el) {
   if (!el) return;
