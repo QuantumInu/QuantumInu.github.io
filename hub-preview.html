@@ -1542,7 +1542,7 @@ function bjHostTick() {
       const nxt = active.find(i => i > st.turn); const nt = nxt === undefined ? active[0] : nxt;
       if (nt !== st.turn) tblUpd("bj", { turn: nt, turnTs: now });
     }
-  } else if (st.phase === "done" && now - (st.doneTs || 0) > 7000) {
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
     Object.keys(seats).forEach(i => tblUpd("bj/seats/" + i, { bet: 0, hand: [], stood: false, dbl: false }));
     tblUpd("bj", { phase: "bet", dealer: [], results: null, handId: (st.handId || 0) + 1, firstBetTs: 0, startReq: 0, msg: "" });
   }
@@ -1586,7 +1586,7 @@ function rouletteHostTick() {
       results[i] = { res: amt ? ("🎉 WIN +" + amt) : "no win", amt };
     });
     tblUpd("rr", { phase: "done", results, doneTs: now });
-  } else if (st.phase === "done" && now - (st.doneTs || 0) > 8000) {
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
     Object.keys(seats).forEach(i => tblUpd("rr/seats/" + i, { bet: 0, betType: "" }));
     tblUpd("rr", { phase: "bet", results: null, spinId: (st.spinId || 0) + 1, firstBetTs: 0, msg: "" });
   }
@@ -1605,12 +1605,14 @@ function casinoHostTick() {
 function tableIdleClear(game, st, resetVal) {
   if (!st) return;
   const now = Date.now(), seats = st.seats || {};
-  const fresh = Object.keys(seats).filter(k => seats[k] && now - (seats[k].ts || 0) < 25000);
+  const keys = Object.keys(seats).filter(k => seats[k]);
+  const fresh = keys.filter(k => now - (seats[k].ts || 0) < 25000);
   if (fresh.length) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
-  const dirty = st.phase !== "bet" || Object.keys(seats).some(k => seats[k] && seats[k].bet > 0) || !!st.firstBetTs;
+  const dirty = st.phase !== "bet" || keys.some(k => seats[k].bet > 0) || !!st.firstBetTs;
   if (!dirty) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
+  if (!keys.length) { tblSet(game, resetVal); return; } /* every seat record is gone — the last player actually left (stand-up removes the record; a disconnect removes it too): the game ends and the table resets on the spot, any phase (his rule 2026-10-28) */
   if (!st.emptyTs) { tblUpd(game, { emptyTs: now }); return; }
-  if (now - st.emptyTs > 12000) tblSet(game, resetVal); /* 12s, tightened 2026-10-28: the old 30s fuse (on top of the 25s seat staleness) left empty tables claiming a game was on for about a minute */
+  if (now - st.emptyTs > 6000) tblSet(game, resetVal); /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears */
 }
 /* ---- slots: the machine itself is the interface ---- */
 const SLOTSYMS = ["🍒", "🍋", "🔔", "💎", "⭐", "⚛"];
@@ -1622,12 +1624,12 @@ function spinMachine(i) {
   if (!mySeat || mySeat.game !== "slot" || mySeat.idx !== i) { noteCasino("🪑 Sit at the machine to play."); return; }
   if (!profile || (profile.chips || 0) < slotBet) { noteCasino("Not enough chips for a " + slotBet + " bet."); return; }
   addChips(-slotBet);
-  const bag = ["🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "💎", "💎", "⭐", "⭐", "⚛"];
+  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "💎", "💎", "⭐", "⭐", "⚛"]; /* tuned 2026-10-28: with the in-a-row-only pair rule this mix returns something on 49.8% of spins — his 50% win rate */
   const fin = [0, 1, 2].map(() => bag[Math.floor(Math.random() * bag.length)]);
   let pay = 0;
   if (fin[0] === "⚛" && fin[1] === "⚛" && fin[2] === "⚛") pay = slotBet * 50;
   else if (fin[0] === fin[1] && fin[1] === fin[2]) pay = slotBet * 10;
-  else if (fin[0] === fin[1] || fin[1] === fin[2] || fin[0] === fin[2]) pay = slotBet * 2;
+  else if (fin[0] === fin[1] || fin[1] === fin[2]) pay = slotBet * 2; /* a pair pays only side by side — first and third with a different symbol between them pays nothing (his rule 2026-10-28) */
   else if (fin[0] === "⚛" || fin[1] === "⚛" || fin[2] === "⚛") pay = slotBet;
   slotAnim[i] = { endsAt: performance.now() + 950, fin, bet: slotBet, pay, paid: false };
   sfxClick();
@@ -2020,7 +2022,10 @@ function drawRouletteTable(t) {
   ctx.textAlign = "center"; ctx.font = "700 23px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
   let status = "Setting up the table…";
   if (st) {
-    if (st.phase === "bet") { const ss = st.seats || {}, nowS = Date.now(); const fr = Object.keys(ss).filter(k => ss[k] && nowS - (ss[k].ts || 0) < 25000); const bt = fr.filter(k => ss[k].bet > 0); status = bt.length && bt.length < fr.length ? "Waiting for everyone's bets — " + bt.length + "/" + fr.length + " in" : "Place your bets"; }
+    const ss0 = st.seats || {}, nowS0 = Date.now();
+    const liveRr = Object.keys(ss0).some(k => ss0[k] && nowS0 - (ss0[k].ts || 0) < 25000);
+    if (!liveRr && st.phase !== "bet") status = "Place your bets"; /* nobody seated: never present a leftover spin as live (same display guard as blackjack) */
+    else if (st.phase === "bet") { const ss = st.seats || {}, nowS = Date.now(); const fr = Object.keys(ss).filter(k => ss[k] && nowS - (ss[k].ts || 0) < 25000); const bt = fr.filter(k => ss[k].bet > 0); status = bt.length && bt.length < fr.length ? "Waiting for everyone's bets — " + bt.length + "/" + fr.length + " in" : "Place your bets"; }
     else if (st.phase === "spin") status = "No more bets — the ball is rolling!";
     else if (st.phase === "done") status = "Next spin soon…";
   }
@@ -2080,7 +2085,7 @@ function drawRouletteTable(t) {
   });
   if (mySeat && mySeat.game === "rr") {
     [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(RRT.x + 478 + k * 67, RRT.y + RRT.h - 66, 60, 48, String(amt), () => { rouletteAmt = amt; sfxClick(); }, { fs: 19, sel: rouletteAmt === amt, pad: 5 }));
-    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 664, RRT.y + RRT.h - 84);
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 674, RRT.y + RRT.h - 75); /* centered under the board: x = board center (478 + 392/2); baseline sits in the middle of the 332..364 gap between the green button and the amount row */
   }
   /* seat bets + results */
   RRSEATS.forEach((sp, i) => {
@@ -2114,7 +2119,9 @@ function drawSlots(t) {
     ctx.fillStyle = "#ffffff"; /* the atom is a text-presentation glyph on some systems and took the window's near-black fill — invisible (his report 2026-10-28); white paint + the emoji form fix it */
     syms.forEach((s, r) => ctx.fillText(s === "⚛" ? "⚛️" : s, mch.x + mch.w * (0.25 + r * 0.25), mch.y + 80));
     ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-    const lastTxt = a && a.paid ? (a.pay ? "🎉 +" + a.pay : "no luck") : (st && st.amt ? "+" + st.amt + (st.name ? " · " + String(st.name).slice(0, 12) : "") : "SLOTS");
+    const seatedHere = mySeat && mySeat.game === "slot" && mySeat.idx === i;
+    const spinnerSeated = !!(st && slotSeats && slotSeats[i] && slotSeats[i].pid === st.pid);
+    const lastTxt = a && a.paid && seatedHere ? (a.pay ? "🎉 +" + a.pay : "no luck") : (st && st.amt && spinnerSeated ? "+" + st.amt + (st.name ? " · " + String(st.name).slice(0, 12) : "") : "SLOTS"); /* the win amount and the spinner's name show only while the spinner is still seated there — the last spin's symbols may stay on the reels, the credit line may not (his rule 2026-10-28) */
     ctx.fillText(lastTxt, mch.x + mch.w / 2, mch.y + 140);
     ctx.fillStyle = "#eaf6ff";
     if (mySeat && mySeat.game === "slot" && mySeat.idx === i) {
@@ -3000,7 +3007,7 @@ function frame(now) {
   vx += joyVec.x + holdVec.x; vy += joyVec.y + holdVec.y;
   const m = Math.hypot(vx, vy);
   if (m > 1) { vx /= m; vy /= m; }
-  if (mySeatPos) { vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; }
+  if (mySeatPos) { if (vx > 0.2) me.flip = true; else if (vx < -0.2) me.flip = false; vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; } /* seated: left/right input flips the sprite's facing without moving (his ask 2026-10-28) */
   me.moving = mySeatPos ? false : m > 0.12;
   const sprinting = me.moving && (runBtnHeld || keys.has(" "));
   me.run = sprinting;
