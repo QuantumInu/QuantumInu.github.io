@@ -1439,7 +1439,7 @@ function simCourt(k, dt) {
     b.swishUntil = 0; b.x = -9999; b.y = -9999; b.vx = 0; b.vy = 0; b.freezeUntil = nowp + 900; writeBall(k, b, true); return;
   }
   if (b.freezeUntil && nowp < b.freezeUntil) { writeBall(k, b, false); return; }
-  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; }
+  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotAX = undefined; b.shotAY = undefined; b.shotBX = undefined; b.shotBY = undefined; }
   /* gather the players on this court (me + peers standing in it) */
   const actors = [];
   if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } actors.push({ pid: myId, x: me.x, y: me.y, vx: mvx, vy: mvy, side: mySide }); }
@@ -1458,7 +1458,7 @@ function simCourt(k, dt) {
       const power = Math.min(880, 330 + asp * 0.95);
       b.vx = nx * power + a.vx * 0.30; b.vy = ny * power + a.vy * 0.30;
       b.x = a.x + nx * min; b.y = a.y + ny * min;
-      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0; b.hitX = a.x; b.hitY = a.y; /* shooter's spot, for 2 vs 3 in basketball */
+      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0; if (a.side === "A") { b.shotAX = a.x; b.shotAY = a.y; } else if (a.side === "B") { b.shotBX = a.x; b.shotBY = a.y; } /* each side's last touch spot, for 2 vs 3 in basketball: a defender's deflection never moves the shot's value, a teammate's tip-in does */
       b.hitCoolUntil = nowp + 280;
       if (k === "tn" && a.side) b.crossed = false;
     }
@@ -1471,8 +1471,8 @@ function simCourt(k, dt) {
     if (b.x > r.x + r.w - R) { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; }
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
-    if (Math.abs(b.x - (r.x + 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.hitX !== undefined && Math.hypot(b.hitX - (r.x + 60), b.hitY - cy) > 330) ? 3 : 2; spScore(k, "B", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
-    else if (Math.abs(b.x - (r.x + r.w - 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.hitX !== undefined && Math.hypot(b.hitX - (r.x + r.w - 60), b.hitY - cy) > 330) ? 3 : 2; spScore(k, "A", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
+    if (Math.abs(b.x - (r.x + 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.shotBX !== undefined && Math.hypot(b.shotBX - (r.x + 60), b.shotBY - cy) > 330) ? 3 : 2; spScore(k, "B", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
+    else if (Math.abs(b.x - (r.x + r.w - 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.shotAX !== undefined && Math.hypot(b.shotAX - (r.x + r.w - 60), b.shotAY - cy) > 330) ? 3 : 2; spScore(k, "A", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
   } else if (k === "fb") {
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
