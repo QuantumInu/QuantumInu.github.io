@@ -840,7 +840,7 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
-  if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 110, y: LG.y + 560, w: 220, h: 90 }];
+  if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -1690,13 +1690,14 @@ function drawGym(t) {
     const r = LG, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
     ctx.fillStyle = "#2a1430"; ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.fillStyle = "rgba(255,215,106,0.08)"; ctx.fillRect(r.x, r.y, r.w, 10); ctx.fillRect(r.x, r.y + r.h - 10, r.w, 10);
-    /* rug — now a burgundy carpet with a woven diamond texture, matching the casino (Jonathan 2026-10-29) */
-    ctx.fillStyle = "#57102a"; rr(cx - 430, cy - 240, 860, 560, 26); ctx.fill();
-    ctx.save(); rr(cx - 430, cy - 240, 860, 560, 26); ctx.clip();
-    for (let gx = cx - 390; gx < cx + 430; gx += 86) for (let gy = cy - 200; gy < cy + 240; gy += 86) { ctx.fillStyle = ((gx + gy) / 86) % 2 ? "rgba(255,110,130,0.05)" : "rgba(0,0,0,0.10)"; ctx.beginPath(); ctx.moveTo(gx, gy - 19); ctx.lineTo(gx + 19, gy); ctx.lineTo(gx, gy + 19); ctx.lineTo(gx - 19, gy); ctx.closePath(); ctx.fill(); }
+    /* rug — burgundy carpet with a woven diamond texture, matching the casino; widened so its edges line up with the outer edges of the two TVs (Jonathan 2026-10-29) */
+    const rugX = LGTV[0].x, rugW = LGTV[1].x + LGTV[1].w - LGTV[0].x, rugY = cy - 240, rugH = 560;
+    ctx.fillStyle = "#57102a"; rr(rugX, rugY, rugW, rugH, 26); ctx.fill();
+    ctx.save(); rr(rugX, rugY, rugW, rugH, 26); ctx.clip();
+    for (let gx = rugX + 40; gx < rugX + rugW; gx += 86) for (let gy = cy - 200; gy < cy + 240; gy += 86) { ctx.fillStyle = ((gx + gy) / 86) % 2 ? "rgba(255,110,130,0.05)" : "rgba(0,0,0,0.10)"; ctx.beginPath(); ctx.moveTo(gx, gy - 19); ctx.lineTo(gx + 19, gy); ctx.lineTo(gx, gy + 19); ctx.lineTo(gx - 19, gy); ctx.closePath(); ctx.fill(); }
     ctx.restore();
-    ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 3; rr(cx - 430, cy - 240, 860, 560, 26); ctx.stroke();
-    ctx.strokeStyle = "rgba(255,215,106,0.25)"; rr(cx - 380, cy - 190, 760, 460, 20); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 3; rr(rugX, rugY, rugW, rugH, 26); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,215,106,0.25)"; rr(rugX + 50, rugY + 50, rugW - 100, rugH - 100, 20); ctx.stroke();
     /* fireplace on the top wall */
     const fp = FIREPL;
     const glow = ctx.createRadialGradient(cx, fp.y + 130, 30, cx, fp.y + 130, 330);
@@ -1728,15 +1729,17 @@ function drawGym(t) {
         ctx.fillText("QI SPORTS", tv.x + tv.w / 2, tv.y + tv.h / 2 + 8);
       }
     });
-    /* sofas + coffee table */
-    for (const sx of [r.x + 400, r.x + 820]) {
-      ctx.fillStyle = "#5b2140"; rr(sx, r.y + 330, 300, 110, 20); ctx.fill();
-      ctx.fillStyle = "#6e294e"; rr(sx + 14, r.y + 344, 272, 60, 14); ctx.fill();
-      ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 2; rr(sx, r.y + 330, 300, 110, 20); ctx.stroke();
+    /* chairs — a 3x3 grid inside the rug's inner gold border: the outer columns line up under the TVs, a third row runs down the middle, two more rows below the top one (Jonathan 2026-10-29) */
+    for (const chx of [LGTV[0].x + LGTV[0].w / 2 - 110, cx - 110, LGTV[1].x + LGTV[1].w / 2 - 110]) for (let ri = 0; ri < 3; ri++) {
+      const chy = cy - 150 + ri * 140;
+      ctx.fillStyle = "#5b2140"; rr(chx, chy, 220, 100, 18); ctx.fill();
+      ctx.fillStyle = "#6e294e"; rr(chx + 12, chy + 13, 196, 54, 12); ctx.fill();
+      ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 2; rr(chx, chy, 220, 100, 18); ctx.stroke();
     }
-    ctx.fillStyle = "#3a2415"; rr(cx - 110, r.y + 560, 220, 90, 10); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.4)"; rr(cx - 110, r.y + 560, 220, 90, 10); ctx.stroke();
-    ctx.font = "24px sans-serif"; ctx.fillText("☕", cx - 40, r.y + 616); ctx.fillText("🍩", cx + 24, r.y + 616);
+    /* coffee table — shrunk a little and moved off the rug, in front of the fireplace (Jonathan 2026-10-29) */
+    ctx.fillStyle = "#3a2415"; rr(cx - 90, r.y + 130, 180, 68, 10); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.4)"; rr(cx - 90, r.y + 130, 180, 68, 10); ctx.stroke();
+    ctx.font = "22px sans-serif"; ctx.fillText("☕", cx - 36, r.y + 176); ctx.fillText("🍩", cx + 18, r.y + 176);
     /* trophy shelves along the bottom wall */
     ctx.fillStyle = "#241028"; ctx.fillRect(r.x + 120, r.y + r.h - 92, r.w - 240, 60);
     ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(r.x + 120, r.y + r.h - 92, r.w - 240, 60);
