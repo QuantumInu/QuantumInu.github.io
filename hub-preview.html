@@ -686,6 +686,17 @@ const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 1
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
 const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 58, w: 124, h: 44 };
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
+const GYM_B = { x: 2130, y: 120, w: 1000, h: 340 };
+const GYMDOOR = { x: 2585, y: 420, w: 90, h: 34 };
+const GYMROOM = { w: 3600, h: 2400 };
+const GEXIT = { x: GYMROOM.w / 2 - 62, y: GYMROOM.h - 58, w: 124, h: 44 };
+const BB = { x: 120, y: 120, w: 1520, h: 920 };
+const FB = { x: 1960, y: 120, w: 1520, h: 920 };
+const TN = { x: 120, y: 1360, w: 1520, h: 920 };
+const LG = { x: 1960, y: 1360, w: 1520, h: 920 };
+const COURTS = [["bb", BB], ["fb", FB], ["tn", TN]];
+const FIREPL = { x: LG.x + LG.w / 2 - 170, y: LG.y + 6, w: 340, h: 96 };
+const TN_NET = { x: TN.x + TN.w / 2 - 7, y: TN.y + 16, w: 14, h: TN.h - 32 };
 const ROOM = { w: 2304, h: 1720 };
 const cabinets = [];
 (function buildCabinets() {
@@ -751,13 +762,14 @@ const STAGE_WALLS = [
 const booths = [];
 [520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R];
+  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
+  if (me.scene === "gym") return [TN_NET, FIREPL, { x: LG.x + 240, y: LG.y + 330, w: 300, h: 110 }, { x: LG.x + LG.w - 540, y: LG.y + 330, w: 300, h: 110 }, { x: LG.x + LG.w / 2 - 110, y: LG.y + 560, w: 220, h: 90 }];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -766,6 +778,7 @@ function collide(nx, ny) {
     if (nx > DOOR.x - 6 && nx < DOOR.x + DOOR.w + 6 && ny > BUILDING.y + BUILDING.h - 14 && ny < BUILDING.y + BUILDING.h + 46) return { x: nx, y: ny, door: true };
     if (nx > CLUBDOOR.x - 6 && nx < CLUBDOOR.x + CLUBDOOR.w + 6 && ny > CLUB.y + CLUB.h - 14 && ny < CLUB.y + CLUB.h + 46) return { x: nx, y: ny, clubdoor: true };
     if (nx > CASINODOOR.x - 6 && nx < CASINODOOR.x + CASINODOOR.w + 6 && ny > SIL_R.y + SIL_R.h - 14 && ny < SIL_R.y + SIL_R.h + 46) return { x: nx, y: ny, casinodoor: true };
+    if (nx > GYMDOOR.x - 6 && nx < GYMDOOR.x + GYMDOOR.w + 6 && ny > GYM_B.y + GYM_B.h - 14 && ny < GYM_B.y + GYM_B.h + 46) return { x: nx, y: ny, gymdoor: true };
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
@@ -779,6 +792,9 @@ function collide(nx, ny) {
   } else if (me.scene === "casino") {
     if (nx > CAEXIT.x - 4 && nx < CAEXIT.x + CAEXIT.w + 4 && ny > CASINOROOM.h - 76) return { x: nx, y: ny, casinoexit: true };
     nx = Math.max(56, Math.min(CASINOROOM.w - 56, nx)); ny = Math.max(70, Math.min(CASINOROOM.h - 46, ny));
+  } else if (me.scene === "gym") {
+    if (nx > GEXIT.x - 4 && nx < GEXIT.x + GEXIT.w + 4 && ny > GYMROOM.h - 76) return { x: nx, y: ny, gymexit: true };
+    nx = Math.max(56, Math.min(GYMROOM.w - 56, nx)); ny = Math.max(70, Math.min(GYMROOM.h - 46, ny));
   } else {
     if (nx < 48 && ny > HALL.top && ny < HALL.bot) return { x: nx, y: ny, back: true };
     nx = Math.max(46, Math.min(TH.w - 56, nx)); ny = Math.max(60, Math.min(TH.h - 46, ny));
@@ -1278,6 +1294,356 @@ function wireMic(el) {
 wireMic(micBtn);
 
 /* ============ casino: shared table state (RTDB hub/tables) ============ */
+/* ============ Quantum Sports Complex: shared courts (RTDB hub/tables/sports) ============ */
+/* Free-play bump sports (Jonathan 2026-10-28): step onto a court and your side is the half you are standing on (A = cyan/left, B = pink/right). The earliest-joined player on a court hosts its ball physics. Same leaving rule as the casino tables: the moment a court's last player record is gone, the court resets on the spot. */
+let spState = { bb: null, fb: null, tn: null }, spHooked = false;
+let myCourt = null, mySide = null, spJoinTs = 0;
+let spHostBall = {}, spBallVis = {}, spWriteAt = {}, spScoreSeen = {}, spInitTry = {}, spMyPrev = null, spPeerPrev = {};
+const SP_COL = { A: "#38e1ff", B: "#ff5d8f" };
+const SP_SNAME = { A: "CYAN", B: "PINK" };
+const BALLR = { bb: 26, fb: 24, tn: 16 };
+const sfxBounce = p => tone(140 + p * 70, 65, 0.09, "sine", Math.min(0.17, 0.05 + p * 0.11));
+const sfxSwish = () => { tone(1150, 280, 0.18, "triangle", 0.06); tone(480, 920, 0.1, "sine", 0.04, 0.02); };
+const sfxBuzzer = () => { tone(138, 138, 0.5, "sawtooth", 0.055); tone(146, 146, 0.5, "sawtooth", 0.045); };
+const sfxWhistle = () => { tone(2350, 2350, 0.13, "square", 0.03); tone(2350, 2350, 0.19, "square", 0.03, 0.17); };
+const sfxCheer = () => { [660, 830, 990, 1180].forEach((f, i) => tone(f, f, 0.11, "triangle", 0.028, i * 0.05)); };
+function courtAt(x, y) { for (const pr of COURTS) { const r = pr[1]; if (x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) return { k: pr[0], r }; } return null; }
+function courtCenterBall(k, side) { const r = COURTS.find(c => c[0] === k)[1]; let x = r.x + r.w / 2; if (k === "tn" && side) x = side === "A" ? r.x + r.w / 4 : r.x + (3 * r.w) / 4; return { x, y: r.y + r.h / 2, vx: 0, vy: 0, ts: 0, lastHit: "", lastSide: "", crossed: false, dead: 0 }; }
+function sportsListen() {
+  if (!db || spHooked) return; spHooked = true;
+  for (const pr of COURTS) { const k = pr[0]; db.ref("hub/tables/sports/" + k).on("value", s => { spState[k] = s.val(); spFxCheck(k); }); }
+  setInterval(sportsTick, 900);
+}
+function spSet(k, p, v) { if (db) { if (v === null) db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).remove(); else db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).set(v); } }
+function spUpd(k, v) { if (db) db.ref("hub/tables/sports/" + k).update(v); }
+function spReset(k) { spSet(k, "", { score: { a: 0, b: 0 }, ball: courtCenterBall(k) }); spHostBall[k] = null; }
+function spOD(k, on) { if (!db) return; try { const ref = db.ref("hub/tables/sports/" + k + "/players/" + myId); if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel(); } catch (e) {} }
+function spPlayers(k) { const st = spState[k], out = []; if (st && st.players) for (const pid of Object.keys(st.players)) { const p = st.players[pid]; if (p && Date.now() - (p.ts || 0) < 25000) out.push({ pid, side: p.side, jts: p.jts || 0 }); } return out; }
+function spHost(k) { const ps = spPlayers(k); if (!ps.length) return ""; ps.sort((a, b) => (a.jts - b.jts) || (a.pid < b.pid ? -1 : 1)); return ps[0].pid; }
+function leaveCourtRecord() { if (myCourt) { spSet(myCourt, "players/" + myId, null); spOD(myCourt, false); } myCourt = null; mySide = null; }
+function writeMySpRecord() { if (db && myCourt) db.ref("hub/tables/sports/" + myCourt + "/players/" + myId).set({ side: mySide, name: me.name, hero: me.hero, ts: Date.now(), jts: spJoinTs }); }
+/* score celebrations: driven by the SHARED lastScore, so everyone in the gym sees and hears the same moment (the tableResultFx pattern) */
+function spFxCheck(k) {
+  const st = spState[k]; if (!st || !st.lastScore) return;
+  const ls = st.lastScore;
+  if (spScoreSeen[k] === ls.ts || Date.now() - ls.ts > 6000) { spScoreSeen[k] = ls.ts; return; }
+  spScoreSeen[k] = ls.ts;
+  if (me.scene !== "gym") return;
+  const r = COURTS.find(c => c[0] === k)[1], cy = r.y + r.h / 2;
+  let fx = r.x + r.w / 2, fy = cy;
+  if (k === "bb") fx = ls.side === "A" ? r.x + r.w - 58 : r.x + 58;
+  if (k === "fb") fx = ls.side === "A" ? r.x + r.w - 20 : r.x + 20;
+  if (k === "tn") fy = r.y + 120;
+  fxBurst(fx, fy, true);
+  fxText(fx, fy - 60, "+1 " + SP_SNAME[ls.side], SP_COL[ls.side]);
+  if (k === "bb") sfxSwish(); else if (k === "fb") sfxBuzzer(); else sfxWhistle();
+  sfxCheer();
+}
+function spScore(k, side, b) {
+  const st = spState[k], sc = (st && st.score) || { a: 0, b: 0 };
+  spUpd(k, { score: { a: sc.a + (side === "A" ? 1 : 0), b: sc.b + (side === "B" ? 1 : 0) }, lastScore: { side, ts: Date.now() } });
+  b.freezeUntil = performance.now() + 1500; b.pendingSide = side;
+}
+function simCourt(k, dt) {
+  const r = COURTS.find(c => c[0] === k)[1], R = BALLR[k], cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  const st = spState[k];
+  let b = spHostBall[k];
+  if (!b) { const sb = (st && st.ball) || courtCenterBall(k); b = spHostBall[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "" }; }
+  const nowp = performance.now();
+  if (b.freezeUntil && nowp < b.freezeUntil) { writeBall(k, b, false); return; }
+  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; }
+  /* gather the players on this court (me + peers standing in it) */
+  const actors = [];
+  if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } actors.push({ pid: myId, x: me.x, y: me.y, vx: mvx, vy: mvy, side: mySide }); }
+  for (const p of peers.values()) {
+    if (p.scene !== "gym") continue;
+    const pc = courtAt(p.x, p.y); if (!pc || pc.k !== k) continue;
+    const pv = spPeerPrev[p.id] || { x: p.x, y: p.y };
+    actors.push({ pid: p.id, x: p.x, y: p.y, vx: (p.x - pv.x) / Math.max(dt, 0.001), vy: (p.y - pv.y) / Math.max(dt, 0.001), side: p.x < cx ? "A" : "B" });
+  }
+  /* bump: a sprite running into the ball knocks it away */
+  for (const a of actors) {
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = R + 30;
+    if (d > 0.01 && d < min) {
+      const nx = dx / d, ny = dy / d, asp = Math.hypot(a.vx, a.vy);
+      const power = Math.min(880, 330 + asp * 0.95);
+      b.vx = nx * power + a.vx * 0.30; b.vy = ny * power + a.vy * 0.30;
+      b.x = a.x + nx * min; b.y = a.y + ny * min;
+      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0;
+      if (k === "tn" && a.side) b.crossed = false;
+    }
+  }
+  b.x += b.vx * dt; b.y += b.vy * dt;
+  const fr = k === "tn" ? 0.55 : 1.15;
+  const f = Math.max(0, 1 - fr * dt); b.vx *= f; b.vy *= f;
+  if (k === "bb") {
+    if (b.x < r.x + R) { b.x = r.x + R; b.vx = Math.abs(b.vx) * 0.82; }
+    if (b.x > r.x + r.w - R) { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; }
+    if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
+    if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
+    if (Math.hypot(b.x - (r.x + 58), b.y - cy) < 52) spScore(k, "B", b);
+    else if (Math.hypot(b.x - (r.x + r.w - 58), b.y - cy) < 52) spScore(k, "A", b);
+  } else if (k === "fb") {
+    if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
+    if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
+    if (b.x < r.x + R) { if (Math.abs(b.y - cy) < 120) { spScore(k, "B", b); } else { b.x = r.x + R; b.vx = Math.abs(b.vx) * 0.82; } }
+    else if (b.x > r.x + r.w - R) { if (Math.abs(b.y - cy) < 120) { spScore(k, "A", b); } else { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; } }
+  } else if (k === "tn") {
+    /* the net: a slow ball bounces off it, a driven ball sails over */
+    if (b.px !== undefined && (b.px - cx) * (b.x - cx) < 0) {
+      if (Math.abs(b.vx) < 260) { b.x = cx + (b.px !== undefined && b.px < cx ? -1 : 1) * (R + 3); b.vx = -b.vx * 0.35; }
+      else b.crossed = true;
+    }
+    const out = b.x < r.x - 80 || b.x > r.x + r.w + 80 || b.y < r.y - 80 || b.y > r.y + r.h + 80;
+    if (out) { const loser = (b.x < r.x - 80) ? "A" : (b.x > r.x + r.w + 80) ? "B" : (b.lastSide || (b.x < cx ? "A" : "B")); spScore(k, loser === "A" ? "B" : "A", b); }
+    else if (Math.hypot(b.vx, b.vy) < 30) { b.dead += dt; if (b.dead > 0.9) { const loser = b.x < cx ? "A" : "B"; spScore(k, loser === "A" ? "B" : "A", b); } }
+    else b.dead = 0;
+  }
+  b.px = b.x;
+  writeBall(k, b, false);
+}
+function writeBall(k, b, force) {
+  const now = Date.now();
+  if (!force && now - (spWriteAt[k] || 0) < 110) return;
+  spWriteAt[k] = now;
+  spSet(k, "ball", { x: Math.round(b.x), y: Math.round(b.y), vx: Math.round(b.vx), vy: Math.round(b.vy), ts: now, lastHit: b.lastHit || "", lastSide: b.lastSide || "", crossed: !!b.crossed });
+  spBallVis[k] = { x: b.x, y: b.y, vx: b.vx, vy: b.vy };
+}
+function stepSports(dt) {
+  const ci = courtAt(me.x, me.y);
+  const ck = ci ? ci.k : null;
+  const side = ci ? (me.x < ci.r.x + ci.r.w / 2 ? "A" : "B") : null;
+  if (ck !== myCourt || side !== mySide) {
+    const wasCourt = myCourt;
+    if (myCourt) { spSet(myCourt, "players/" + myId, null); spOD(myCourt, false); }
+    myCourt = ck; mySide = side;
+    if (myCourt) { if (wasCourt !== myCourt) spJoinTs = Date.now(); writeMySpRecord(); spOD(myCourt, true); }
+  }
+  for (const pr of COURTS) {
+    const k = pr[0], st = spState[k];
+    if (spHost(k) === myId && st) simCourt(k, dt);
+    else {
+      /* follow the shared ball, extrapolated a touch so it feels live */
+      const sb = st && st.ball;
+      let v = spBallVis[k];
+      if (sb) {
+        if (!v) v = spBallVis[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, ps: 0 };
+        const age = Math.min((Date.now() - (sb.ts || 0)) / 1000, 0.35);
+        const txp = sb.x + (sb.vx || 0) * age, typ = sb.y + (sb.vy || 0) * age;
+        const prevSp = Math.hypot(v.vx || 0, v.vy || 0);
+        v.x += (txp - v.x) * Math.min(1, dt * 9); v.y += (typ - v.y) * Math.min(1, dt * 9);
+        v.vx = sb.vx || 0; v.vy = sb.vy || 0;
+        const newSp = Math.hypot(v.vx, v.vy);
+        if (newSp - prevSp > 150) { /* somebody just whacked it */
+          let near = myCourt === k && Math.hypot(v.x - me.x, v.y - me.y) < 110;
+          if (!near) for (const p of peers.values()) if (p.scene === "gym" && Math.hypot(v.x - p.x, v.y - p.y) < 110) { near = true; break; }
+          if (near) sfxBounce(Math.min(1, newSp / 800));
+        }
+      } else if (!v) spBallVis[k] = courtCenterBall(k);
+    }
+  }
+  if (spHost(myCourt || "") === myId && myCourt) { /* host hears his own bumps too */
+    const v = spBallVis[myCourt];
+    if (v) { const sp = Math.hypot(v.vx || 0, v.vy || 0); if (sp - (v.ps || 0) > 150) sfxBounce(Math.min(1, sp / 800)); v.ps = sp; }
+  }
+  spMyPrev = { x: me.x, y: me.y };
+  for (const p of peers.values()) if (p.scene === "gym") spPeerPrev[p.id] = { x: p.x, y: p.y };
+}
+function sportsTick() {
+  if (!entered || !db) return;
+  if (myCourt) spSet(myCourt, "players/" + myId + "/ts", Date.now());
+  for (const pr of COURTS) {
+    const k = pr[0], st = spState[k];
+    if (!st) { if (myCourt === k && Date.now() - (spInitTry[k] || 0) > 3000) { spInitTry[k] = Date.now(); spReset(k); } continue; }
+    const fresh = spPlayers(k);
+    const recs = st.players ? Object.keys(st.players).filter(pid => st.players[pid]) : [];
+    const ctr = courtCenterBall(k);
+    const dirty = (st.score && (st.score.a || st.score.b)) || (st.ball && (Math.abs(st.ball.x - ctr.x) > 4 || Math.abs(st.ball.y - ctr.y) > 4 || Math.abs(st.ball.vx || 0) > 1 || Math.abs(st.ball.vy || 0) > 1)) || !!st.lastScore;
+    if (fresh.length) { if (st.emptyTs) spUpd(k, { emptyTs: null }); continue; }
+    if (!dirty) { if (st.emptyTs) spUpd(k, { emptyTs: null }); continue; }
+    if (!recs.length) { spReset(k); continue; } /* last player record gone: reset on the spot, any state (the tables rule) */
+    if (!st.emptyTs) { spUpd(k, { emptyTs: Date.now() }); continue; }
+    if (Date.now() - st.emptyTs > 6000) spReset(k); /* backstop for records lingering stale */
+  }
+}
+function courtFocusRect() {
+  const ci = courtAt(me.x, me.y);
+  const r = ci ? ci.r : (me.x > LG.x && me.x < LG.x + LG.w && me.y > LG.y && me.y < LG.y + LG.h) ? LG : null;
+  if (!r) return null;
+  return { x: r.x - 90, y: r.y - 90, w: r.w + 180, h: r.h + 180 };
+}
+/* ============ inside the Quantum Sports Complex ============ */
+function spScoreboard(k, r, icon, t) {
+  const st = spState[k], sc = (st && st.score) || { a: 0, b: 0 };
+  const x = r.x + r.w / 2 - 210, y = r.y + 18;
+  ctx.fillStyle = "rgba(4,10,8,0.88)"; rr(x, y, 420, 66, 10); ctx.fill();
+  ctx.strokeStyle = "rgba(46,255,140,0.6)"; ctx.lineWidth = 2; rr(x, y, 420, 66, 10); ctx.stroke();
+  ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = SP_COL.A; ctx.fillText("CYAN " + (sc.a || 0), x + 105, y + 44);
+  ctx.fillStyle = "#e8f5ee"; ctx.fillText(icon, x + 210, y + 44);
+  ctx.fillStyle = SP_COL.B; ctx.fillText((sc.b || 0) + " PINK", x + 315, y + 44);
+  if (myCourt === k) { ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = SP_COL[mySide]; ctx.fillText("YOU: " + SP_SNAME[mySide], x + 210, y + 92); }
+}
+function drawSportsBall(k, t) {
+  const v = spBallVis[k]; if (!v) return;
+  const R = BALLR[k];
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(v.x, v.y + R * 0.8, R * 0.9, R * 0.35, 0, 0, 7); ctx.fill();
+  const spd = Math.hypot(v.vx || 0, v.vy || 0);
+  if (spd > 260) { ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = R * 0.7; ctx.beginPath(); ctx.moveTo(v.x - (v.vx || 0) * 0.09, v.y - (v.vy || 0) * 0.09); ctx.lineTo(v.x, v.y); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(v.x, v.y, R, 0, 7);
+  if (k === "bb") { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#ffb066"); g.addColorStop(1, "#e06a1b"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#7a3405"; ctx.lineWidth = 2; ctx.stroke(); ctx.beginPath(); ctx.moveTo(v.x - R, v.y); ctx.lineTo(v.x + R, v.y); ctx.moveTo(v.x, v.y - R); ctx.lineTo(v.x, v.y + R); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x, v.y, R * 0.55, 0, 7); ctx.stroke(); }
+  else if (k === "fb") { ctx.fillStyle = "#f4f7f4"; ctx.fill(); ctx.strokeStyle = "#20302a"; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = "#182420"; [[0, 0], [-0.55, -0.4], [0.55, -0.4], [-0.4, 0.55], [0.45, 0.5]].forEach(o => { ctx.beginPath(); ctx.arc(v.x + o[0] * R, v.y + o[1] * R, R * 0.26, 0, 7); ctx.fill(); }); }
+  else { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#eaff7a"); g.addColorStop(1, "#a8c81e"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(v.x - R * 0.9, v.y, R * 0.75, -0.9, 0.9); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 0.9, v.y, R * 0.75, Math.PI - 0.9, Math.PI + 0.9); ctx.stroke(); }
+}
+function drawGym(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  /* hall floor + walkway cross */
+  ctx.fillStyle = "#0d1f18"; ctx.fillRect(0, 0, GYMROOM.w, GYMROOM.h);
+  ctx.fillStyle = "rgba(255,255,255,0.022)";
+  for (let gx = 0; gx < GYMROOM.w; gx += 150) for (let gy = 0; gy < GYMROOM.h; gy += 150) if ((gx + gy) % 300 === 0) ctx.fillRect(gx, gy, 150, 150);
+  ctx.fillStyle = "#12291e"; ctx.fillRect(1700, 0, 200, GYMROOM.h); ctx.fillRect(0, 1100, GYMROOM.w, 200);
+  ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(1700, 0); ctx.lineTo(1700, GYMROOM.h); ctx.moveTo(1900, 0); ctx.lineTo(1900, GYMROOM.h); ctx.moveTo(0, 1100); ctx.lineTo(GYMROOM.w, 1100); ctx.moveTo(0, 1300); ctx.lineTo(GYMROOM.w, 1300); ctx.stroke();
+  /* center-court atom logo at the cross */
+  ctx.save(); ctx.translate(1800, 1200);
+  ctx.strokeStyle = "rgba(46,255,140,0.35)"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 84, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(56,225,255,0.65)"; ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 62, 22, 0, 0, 7); ctx.stroke(); ctx.restore(); }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(143,255,190,0.9)";
+  ctx.fillText("🏟️ QUANTUM SPORTS COMPLEX", 1800, 1072);
+  /* ---------- basketball (top-left) ---------- */
+  {
+    const r = BB, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (myCourt === "bb") { ctx.fillStyle = mySide === "A" ? "rgba(56,225,255,0.07)" : "rgba(255,93,143,0.07)"; ctx.fillRect(mySide === "A" ? r.x : cx, r.y, r.w / 2, r.h); }
+    const wg = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0);
+    wg.addColorStop(0, "#a5662c"); wg.addColorStop(0.5, "#bd7c36"); wg.addColorStop(1, "#a5662c");
+    ctx.fillStyle = wg; ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeStyle = "rgba(90,50,10,0.35)"; ctx.lineWidth = 2;
+    for (let px = r.x + 95; px < r.x + r.w; px += 95) { ctx.beginPath(); ctx.moveTo(px, r.y); ctx.lineTo(px, r.y + r.h); ctx.stroke(); }
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5; ctx.strokeRect(r.x + 8, r.y + 8, r.w - 16, r.h - 16);
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx, r.y + 8); ctx.lineTo(cx, r.y + r.h - 8); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 120, 0, 7); ctx.stroke();
+    for (const s of [-1, 1]) {
+      const hx = s < 0 ? r.x : r.x + r.w;
+      ctx.strokeRect(s < 0 ? r.x + 8 : r.x + r.w - 248, cy - 150, 240, 300); /* the key */
+      ctx.beginPath(); ctx.arc(s < 0 ? r.x + 248 : r.x + r.w - 248, cy, 92, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s < 0 ? r.x + 60 : r.x + r.w - 60, cy, 330, s < 0 ? -1.15 : Math.PI - 1.15, s < 0 ? 1.15 : Math.PI + 1.15); ctx.stroke(); /* 3pt arc */
+      /* backboard + rim */
+      ctx.fillStyle = "rgba(240,248,255,0.92)"; ctx.fillRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
+      ctx.strokeStyle = "#20302a"; ctx.lineWidth = 3; ctx.strokeRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
+      ctx.strokeStyle = "#ff7a1a"; ctx.lineWidth = 6; ctx.beginPath(); ctx.ellipse(s < 0 ? r.x + 58 : r.x + r.w - 58, cy, 24, 9, 0, 0, 7); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 1.6;
+      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo((s < 0 ? r.x + 58 : r.x + r.w - 58) + i * 9, cy + 6); ctx.lineTo((s < 0 ? r.x + 58 : r.x + r.w - 58) + i * 5, cy + 44); ctx.stroke(); }
+    }
+    /* bleachers */
+    ctx.fillStyle = "#123c28";
+    for (let row = 0; row < 3; row++) ctx.fillRect(r.x + 60, r.y - 66 + row * 20, r.w - 120, 14);
+    ctx.fillStyle = "rgba(143,255,190,0.5)"; ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillText("🏀 BASKETBALL", cx, r.y - 84);
+    spScoreboard("bb", r, "🏀", t);
+    drawSportsBall("bb", t);
+  }
+  /* ---------- football (top-right) ---------- */
+  {
+    const r = FB, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (myCourt === "fb") { ctx.fillStyle = mySide === "A" ? "rgba(56,225,255,0.08)" : "rgba(255,93,143,0.08)"; ctx.fillRect(mySide === "A" ? r.x : cx, r.y, r.w / 2, r.h); }
+    for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? "#1d7a3d" : "#228f47"; ctx.fillRect(r.x + (r.w / 8) * i, r.y, r.w / 8, r.h); }
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5; ctx.strokeRect(r.x + 8, r.y + 8, r.w - 16, r.h - 16);
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx, r.y + 8); ctx.lineTo(cx, r.y + r.h - 8); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 120, 0, 7); ctx.stroke();
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(cx, cy, 7, 0, 7); ctx.fill();
+    for (const s of [-1, 1]) {
+      ctx.strokeRect(s < 0 ? r.x + 8 : r.x + r.w - 308, cy - 210, 300, 420);
+      ctx.strokeRect(s < 0 ? r.x + 8 : r.x + r.w - 148, cy - 110, 140, 220);
+      /* goal + net */
+      const gx = s < 0 ? r.x - 30 : r.x + r.w - 6;
+      ctx.fillStyle = "rgba(240,248,255,0.30)"; ctx.fillRect(s < 0 ? r.x - 34 : r.x + r.w - 2, cy - 120, 36, 240);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.2;
+      for (let ny = cy - 114; ny < cy + 120; ny += 16) { ctx.beginPath(); ctx.moveTo(s < 0 ? r.x - 34 : r.x + r.w - 2, ny); ctx.lineTo(s < 0 ? r.x + 2 : r.x + r.w + 34, ny); ctx.stroke(); }
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(s < 0 ? r.x + 2 : r.x + r.w - 2, cy - 120); ctx.lineTo(s < 0 ? r.x + 2 : r.x + r.w - 2, cy + 120); ctx.stroke();
+      ctx.fillStyle = "#ff5d8f"; ctx.font = "22px sans-serif"; ctx.fillText("🚩", s < 0 ? r.x + 16 : r.x + r.w - 16, r.y + 34); ctx.fillText("🚩", s < 0 ? r.x + 16 : r.x + r.w - 16, r.y + r.h - 14);
+    }
+    ctx.fillStyle = "rgba(230,255,240,0.6)"; ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillText("⚽ FOOTBALL", cx, r.y - 30);
+    spScoreboard("fb", r, "⚽", t);
+    drawSportsBall("fb", t);
+  }
+  /* ---------- tennis (bottom-left) ---------- */
+  {
+    const r = TN, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    if (myCourt === "tn") { ctx.fillStyle = mySide === "A" ? "rgba(56,225,255,0.08)" : "rgba(255,93,143,0.08)"; ctx.fillRect(mySide === "A" ? r.x : cx, r.y, r.w / 2, r.h); }
+    ctx.fillStyle = "#14532d"; ctx.fillRect(r.x - 46, r.y - 46, r.w + 92, r.h + 92);
+    ctx.fillStyle = "#1e5f9e"; ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5; ctx.strokeRect(r.x + 8, r.y + 8, r.w - 16, r.h - 16);
+    ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(r.x + 130, cy - 190); ctx.lineTo(r.x + r.w - 130, cy - 190); ctx.moveTo(r.x + 130, cy + 190); ctx.lineTo(r.x + r.w - 130, cy + 190); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - 190); ctx.lineTo(cx, cy + 190); ctx.stroke();
+    /* net */
+    ctx.fillStyle = "rgba(8,14,20,0.85)"; ctx.fillRect(cx - 7, r.y + 16, 14, r.h - 32);
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(cx - 8, r.y + 14, 16, 8);
+    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1.2;
+    for (let ny = r.y + 30; ny < r.y + r.h - 20; ny += 18) { ctx.beginPath(); ctx.moveTo(cx - 7, ny); ctx.lineTo(cx + 7, ny); ctx.stroke(); }
+    /* umpire chair */
+    ctx.fillStyle = "#0d2b1c"; rr(cx - 30, r.y - 108, 60, 76, 6); ctx.fill();
+    ctx.strokeStyle = "#2eff8c"; ctx.lineWidth = 2; rr(cx - 30, r.y - 108, 60, 76, 6); ctx.stroke();
+    ctx.font = "24px sans-serif"; ctx.fillText("🪑", cx, r.y - 56);
+    ctx.fillStyle = "rgba(230,245,255,0.6)"; ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillText("🎾 TENNIS", cx, r.y - 124);
+    spScoreboard("tn", r, "🎾", t);
+    drawSportsBall("tn", t);
+  }
+  /* ---------- lounge (bottom-right) ---------- */
+  {
+    const r = LG, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    ctx.fillStyle = "#2a1430"; ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = "rgba(255,215,106,0.08)"; ctx.fillRect(r.x, r.y, r.w, 10); ctx.fillRect(r.x, r.y + r.h - 10, r.w, 10);
+    /* rug */
+    ctx.fillStyle = "#3d1a44"; rr(cx - 430, cy - 240, 860, 560, 26); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 3; rr(cx - 430, cy - 240, 860, 560, 26); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,215,106,0.25)"; rr(cx - 380, cy - 190, 760, 460, 20); ctx.stroke();
+    /* fireplace on the top wall */
+    const fp = FIREPL;
+    const glow = ctx.createRadialGradient(cx, fp.y + 130, 30, cx, fp.y + 130, 330);
+    glow.addColorStop(0, "rgba(255,140,40," + (0.30 + 0.06 * Math.sin(t / 300)) + ")"); glow.addColorStop(1, "rgba(255,140,40,0)");
+    ctx.fillStyle = glow; ctx.fillRect(cx - 340, fp.y, 680, 380);
+    ctx.fillStyle = "#4a3a3a"; rr(fp.x - 26, fp.y - 14, fp.w + 52, fp.h + 26, 10); ctx.fill();
+    ctx.fillStyle = "#191012"; rr(fp.x, fp.y + 16, fp.w, fp.h - 6, 8); ctx.fill();
+    ctx.fillStyle = "#5a3a22"; ctx.fillRect(fp.x + 90, fp.y + 76, 160, 20); ctx.fillRect(fp.x + 120, fp.y + 62, 130, 16);
+    for (let i = 0; i < 5; i++) {
+      const fx = cx + (i - 2) * 34, fh = 44 + 20 * Math.sin(t / 190 + i * 1.9) + 10 * Math.sin(t / 97 + i);
+      const fg2 = ctx.createRadialGradient(fx, fp.y + 92, 2, fx, fp.y + 92 - fh / 2, fh);
+      fg2.addColorStop(0, "rgba(255,220,120,0.95)"); fg2.addColorStop(0.55, "rgba(255,130,30,0.8)"); fg2.addColorStop(1, "rgba(200,40,0,0)");
+      ctx.fillStyle = fg2; ctx.beginPath(); ctx.ellipse(fx, fp.y + 92 - fh / 2, 15 + 4 * Math.sin(t / 150 + i * 2.2), fh, 0, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = "#6a4a4a"; ctx.fillRect(fp.x - 40, fp.y - 30, fp.w + 80, 18);
+    ctx.font = "26px sans-serif"; ctx.fillText("🏆", fp.x - 6, fp.y - 36); ctx.fillText("🏆", fp.x + fp.w - 26, fp.y - 36); ctx.fillText("⚛️", cx - 13, fp.y - 36);
+    /* sofas + coffee table */
+    for (const sx of [r.x + 240, r.x + r.w - 540]) {
+      ctx.fillStyle = "#5b2140"; rr(sx, r.y + 330, 300, 110, 20); ctx.fill();
+      ctx.fillStyle = "#6e294e"; rr(sx + 14, r.y + 344, 272, 60, 14); ctx.fill();
+      ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 2; rr(sx, r.y + 330, 300, 110, 20); ctx.stroke();
+    }
+    ctx.fillStyle = "#3a2415"; rr(cx - 110, r.y + 560, 220, 90, 10); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.4)"; rr(cx - 110, r.y + 560, 220, 90, 10); ctx.stroke();
+    ctx.font = "24px sans-serif"; ctx.fillText("☕", cx - 40, r.y + 616); ctx.fillText("🍩", cx + 24, r.y + 616);
+    /* trophy shelves along the bottom wall */
+    ctx.fillStyle = "#241028"; ctx.fillRect(r.x + 120, r.y + r.h - 92, r.w - 240, 60);
+    ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(r.x + 120, r.y + r.h - 92, r.w - 240, 60);
+    ctx.font = "30px sans-serif";
+    for (let i = 0; i < 9; i++) ctx.fillText(["🏆", "🥇", "🏅", "🎖️"][i % 4], r.x + 190 + i * 150, r.y + r.h - 48);
+    ctx.fillStyle = "rgba(255,220,240,0.65)"; ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillText("🔥 THE LOUNGE — warm up by the fire", cx, r.y + r.h - 122);
+    /* lamps */
+    for (const lx of [r.x + 90, r.x + r.w - 90]) { const lg2 = ctx.createRadialGradient(lx, cy, 4, lx, cy, 90); lg2.addColorStop(0, "rgba(255,190,90,0.35)"); lg2.addColorStop(1, "rgba(255,190,90,0)"); ctx.fillStyle = lg2; ctx.beginPath(); ctx.arc(lx, cy, 90, 0, 7); ctx.fill(); ctx.font = "30px sans-serif"; ctx.fillText("🛋️", lx - 15, cy + 10); }
+  }
+  /* exit door */
+  ctx.fillStyle = "#0a1428"; rr(GEXIT.x, GYMROOM.h - 40, GEXIT.w, 40, 6); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GEXIT.x, GYMROOM.h - 40, GEXIT.w, 40, 6); ctx.stroke();
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
+  ctx.fillText("▼ EXIT ▼", GYMROOM.w / 2, GYMROOM.h - 72);
+  drawTableFx(t);
+  ctx.restore();
+}
 let bjState = null, rrState = null, slotState = {}, slotSeats = {}, casinoHooked = false;
 /* ---- table celebrations (Jonathan 2026-10-28): driven by the SHARED table results, so when a hand or spin settles, every client in the casino fires the same burst at the winner's seat — the winner hears the full jingle, everyone else hears it softer ---- */
 let fxParts = [], fxTexts = [], fxFlashBJ = 0, fxFlashRR = 0, fxLastT = 0;
@@ -1754,6 +2120,8 @@ function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUB
 function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
 function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); pullChips(); }
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
+function toGym() { stopAllTones(); leaveCourtRecord(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); }
+function toPlazaFromGym() { stopAllTones(); leaveCourtRecord(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); }
 let portalArmed = true;
 function checkPortal(P, go) {
   const d = Math.hypot(me.x - P.x, me.y - P.y);
@@ -1887,6 +2255,51 @@ function drawCasinoBuilding(t) {
 }
 
 /* ============ inside the casino ============ */
+function drawSportsBuilding(t) {
+  const b = GYM_B, cx = b.x + b.w / 2;
+  /* wide green facade */
+  const fg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+  fg.addColorStop(0, "#0f3524"); fg.addColorStop(1, "#082216");
+  ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(46,255,140,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  /* green roof band with gold trim */
+  ctx.fillStyle = "#0a5c34"; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.stroke();
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(cx, b.y - 56, 7, 0, 7); ctx.fill();
+  ctx.fillRect(cx - 3, b.y - 50, 6, 18);
+  /* chasing green bulbs along the roof edge */
+  for (let i = 0, bx = b.x + 30; bx <= b.x + b.w - 20; bx += 44, i++) {
+    ctx.fillStyle = ((i + Math.floor(t / 420)) % 2) ? "#2eff8c" : "#0f7a44";
+    ctx.beginPath(); ctx.arc(bx, b.y - 12, 5, 0, 7); ctx.fill();
+  }
+  /* marquee */
+  ctx.fillStyle = "#04160d"; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.fill();
+  ctx.strokeStyle = "#2eff8c"; ctx.lineWidth = 3; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.stroke();
+  for (let i = 0; i < 16; i++) {
+    ctx.fillStyle = (Math.floor(t / 420) + i) % 2 ? "#2eff8c" : "#ffd76a";
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 48, 4.5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 124, 4.5, 0, 7); ctx.fill();
+  }
+  ctx.font = "800 37px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#2eff8c" : "#8fffbe";
+  ctx.fillText("🏟️ QUANTUM SPORTS COMPLEX", cx, b.y + 101);
+  /* tall windows with a green glow */
+  ctx.fillStyle = "rgba(46,255,140,0.20)";
+  for (const fx of [0.10, 0.26, 0.60, 0.76]) { rr(b.x + b.w * fx, b.y + 168, 92, 108, 8); ctx.fill(); }
+  ctx.strokeStyle = "rgba(46,255,140,0.4)"; ctx.lineWidth = 1.5;
+  for (const fx of [0.10, 0.26, 0.60, 0.76]) { rr(b.x + b.w * fx, b.y + 168, 92, 108, 8); ctx.stroke(); }
+  /* sport balls over the door */
+  ctx.font = "30px sans-serif"; ctx.fillText("🏀", cx - 90, b.y + b.h - 108); ctx.fillText("⚽", cx + 90, b.y + b.h - 108); ctx.fillText("🎾", cx, b.y + b.h - 128);
+  /* golden door, GREEN light spilling out (his order 2026-10-28) */
+  const gdy = GYM_B.y + GYM_B.h - 40;
+  const gdg = ctx.createLinearGradient(0, gdy, 0, gdy + 104);
+  gdg.addColorStop(0, "rgba(46,255,140,0.55)"); gdg.addColorStop(1, "rgba(46,255,140,0)");
+  ctx.fillStyle = gdg; ctx.fillRect(GYMDOOR.x - 8, gdy - 6, GYMDOOR.w + 16, 104);
+  ctx.fillStyle = "#0a1428"; rr(GYMDOOR.x, GYM_B.y + GYM_B.h - 40, GYMDOOR.w, 40, 6); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GYMDOOR.x, GYM_B.y + GYM_B.h - 40, GYMDOOR.w, 40, 6); ctx.stroke();
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
+  ctx.fillText("▼ ENTER ▼", GYMDOOR.x + GYMDOOR.w / 2, GYM_B.y + GYM_B.h + 62);
+}
 /* ============ casino rendering: the tables are the game ============ */
 let uiZones = [];
 function drawBtn(x, y, w, h, label, fn, opt) {
@@ -2209,6 +2622,8 @@ function drawPlaza(t) {
   ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
+  /* branch path to the Quantum Sports Complex — starts halfway between the arcade door and the east fountain */
+  pathRect(1700, 712, 995, 76); pathRect(2565, 460, 130, 328);
   /* lamp posts along the paths */
   ctx.fillStyle = "#ffd76a";
   function lamp(x, y) {
@@ -2224,6 +2639,7 @@ function drawPlaza(t) {
   for (let y = 560; y <= 1500; y += 188) { lamp(1492, y); lamp(1708, y); }
   for (let x = 660; x <= 1380; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   for (let x = 1880; x <= 2600; x += 240) { lamp(x, 1452); lamp(x, 1668); }
+  lamp(1960, 694); lamp(2360, 694); lamp(1960, 806); lamp(2360, 806); lamp(2548, 580); lamp(2712, 580);
   /* crystals scattered as decor */
   function crystal(x, y, s, col) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
@@ -2317,7 +2733,7 @@ function drawPlaza(t) {
   }
   [[700, 700, 1.0], [2500, 700, 1.0], [430, 1150, 1.0], [2770, 1150, 1.0], [700, 1900, 1.0], [2500, 1900, 1.0],
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
-   [200, 180, 0.9], [900, 180, 1.1], [2300, 180, 0.95], [3000, 180, 1.05], [3100, 800, 0.9], [110, 800, 1.0],
+   [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [3100, 570, 1.05], [3100, 800, 0.9], [110, 800, 1.0],
    [150, 2050, 0.95], [3050, 2050, 1.0]
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
@@ -2333,7 +2749,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ");
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ");
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -3027,6 +3443,8 @@ function frame(now) {
     if (res.clubdoor) toClub();
     if (res.casinodoor) toCasino();
     if (res.casinoexit) toPlazaFromCasino();
+    if (res.gymdoor) toGym();
+    if (res.gymexit) toPlazaFromGym();
     if (res.clubexit) toPlazaFromClub();
     if (res.exit) toPlaza();
     if (res.theatre) toTheatre();
@@ -3034,6 +3452,7 @@ function frame(now) {
     if (me.scene === "plaza") checkPortal(PORTAL, toHQ);
     else if (me.scene === "hq") checkPortal(HQPORTAL, toPlazaFromHQ);
   }
+  if (me.scene === "gym") stepSports(dt);
   publish(false);
   const dims = sceneDims(), roomW = dims.w, roomH = dims.h;
   SCALE = Math.max(0.36, Math.min(VW / 1280, VH / 980, 1.0));
@@ -3052,8 +3471,18 @@ function frame(now) {
     }
   }
   drawStars(camX, camY, SCALE);
+  if (me.scene === "gym") {
+    const f = courtFocusRect();
+    if (f) {
+      SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
+      camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
+      camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
+      if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+      if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+    }
+  }
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
@@ -3088,12 +3517,14 @@ function frame(now) {
       if (now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); }
     }
     const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999); /* Q-Bot's bubble ages from when this screen received his answer (his timestamps come from the server's clock), so it lasts the same 5s as a player's own bubble */
+    if (me.scene === "gym") { const ci2 = courtAt(a.x, a.y); if (ci2) { const sd = a.x < ci2.r.x + ci2.r.w / 2 ? "A" : "B"; ctx.beginPath(); ctx.ellipse(a.x, a.y + 26, 30, 10, 0, 0, 7); ctx.strokeStyle = sd === "A" ? "rgba(56,225,255,0.9)" : "rgba(255,93,143,0.9)"; ctx.lineWidth = 3.5; ctx.stroke(); } }
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
   ctx.restore();
   const cab = nearestCabinet();
-  if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
+  if (me.scene === "gym") { promptBtn.style.display = "none"; promptAction = null; }
+  else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
