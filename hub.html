@@ -2329,18 +2329,20 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 
 
 /* ============ online list ============ */
-/* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot's presence records are actors like any other, so he is listed in whichever room he is in. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
+/* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot is excluded (Jonathan: "Exclude the bots") — neither of his presence records (plaza or Watchtower HQ) is listed or counted, so the roster and the Online button count people only and always agree. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
 const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "hq", "casino", "gym", "speedway"];
 const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway" };
 let onlineSig = "";
 function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
 function onlineListOpen() { const el = $("onlinelist"); return !!(el && el.style.display === "flex"); }
+const NPC_PIDS = new Set([NPC_PID, "qbot-npc-hq"]); /* Q-Bot's presence records: plaza + Watchtower HQ — never listed or counted as online */
 function onlineRoster() {
   const now = Date.now(), rows = [];
   if (entered && me.name) rows.push({ id: myId, name: me.name, scene: me.scene });
   for (const p of peers.values()) {
     if (!p || !p.name) continue;
+    if (NPC_PIDS.has(p.id)) continue;
     if (p.ts && now - p.ts > 45000) continue;
     rows.push({ id: p.id, name: p.name, scene: p.scene });
   }
