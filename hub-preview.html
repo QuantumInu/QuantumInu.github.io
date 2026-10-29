@@ -1418,13 +1418,14 @@ function spFxCheck(k) {
   if (k === "fb") fx = ls.side === "A" ? r.x + r.w - 20 : r.x + 20;
   if (k === "tn") fy = r.y + 120;
   fxBurst(fx, fy, true);
-  fxText(fx, fy - 60, "+1 " + SP_SNAME[ls.side], SP_COL[ls.side]);
+  fxText(fx, fy - 60, "+" + (ls.pts || 1) + " " + SP_SNAME[ls.side], SP_COL[ls.side]);
   if (k === "bb") { hoopAnim[ls.side === "A" ? "R" : "L"] = performance.now(); sfxSwish(); } else if (k === "fb") sfxBuzzer(); else sfxWhistle();
   sfxCheer();
 }
-function spScore(k, side, b) {
+function spScore(k, side, b, pts) {
   const st = spState[k], sc = (st && st.score) || { a: 0, b: 0 };
-  spUpd(k, { score: { a: sc.a + (side === "A" ? 1 : 0), b: sc.b + (side === "B" ? 1 : 0) }, lastScore: { side, ts: Date.now() } });
+  const p = pts || 1;
+  spUpd(k, { score: { a: sc.a + (side === "A" ? p : 0), b: sc.b + (side === "B" ? p : 0) }, lastScore: { side, pts: p, ts: Date.now() } });
   b.freezeUntil = performance.now() + 1500; b.pendingSide = side;
 }
 function simCourt(k, dt) {
@@ -1457,7 +1458,7 @@ function simCourt(k, dt) {
       const power = Math.min(880, 330 + asp * 0.95);
       b.vx = nx * power + a.vx * 0.30; b.vy = ny * power + a.vy * 0.30;
       b.x = a.x + nx * min; b.y = a.y + ny * min;
-      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0;
+      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0; b.hitX = a.x; b.hitY = a.y; /* shooter's spot, for 2 vs 3 in basketball */
       b.hitCoolUntil = nowp + 280;
       if (k === "tn" && a.side) b.crossed = false;
     }
@@ -1470,8 +1471,8 @@ function simCourt(k, dt) {
     if (b.x > r.x + r.w - R) { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; }
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
-    if (Math.abs(b.x - (r.x + 58)) < 17 && Math.abs(b.y - cy) < 15) { spScore(k, "B", b); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
-    else if (Math.abs(b.x - (r.x + r.w - 58)) < 17 && Math.abs(b.y - cy) < 15) { spScore(k, "A", b); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
+    if (Math.abs(b.x - (r.x + 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.hitX !== undefined && Math.hypot(b.hitX - (r.x + 60), b.hitY - cy) > 330) ? 3 : 2; spScore(k, "B", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
+    else if (Math.abs(b.x - (r.x + r.w - 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.hitX !== undefined && Math.hypot(b.hitX - (r.x + r.w - 60), b.hitY - cy) > 330) ? 3 : 2; spScore(k, "A", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
   } else if (k === "fb") {
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
@@ -1623,7 +1624,7 @@ function drawGym(t) {
       const hx = s < 0 ? r.x : r.x + r.w;
       ctx.strokeRect(s < 0 ? r.x + 8 : r.x + r.w - 248, cy - 150, 240, 300); /* the key */
       ctx.beginPath(); ctx.arc(s < 0 ? r.x + 248 : r.x + r.w - 248, cy, 92, 0, 7); ctx.stroke();
-      ctx.beginPath(); ctx.arc(s < 0 ? r.x + 60 : r.x + r.w - 60, cy, 330, s < 0 ? -1.15 : Math.PI - 1.15, s < 0 ? 1.15 : Math.PI + 1.15); ctx.stroke(); /* 3pt arc */
+      ctx.beginPath(); ctx.arc(s < 0 ? r.x + 60 : r.x + r.w - 60, cy, 330, s < 0 ? -Math.PI / 2 : Math.PI / 2, s < 0 ? Math.PI / 2 : Math.PI * 1.5); ctx.stroke(); /* 3pt arc — full half circle */
       /* backboard + rim */
       ctx.fillStyle = "rgba(240,248,255,0.92)"; ctx.fillRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
       ctx.strokeStyle = "#20302a"; ctx.lineWidth = 3; ctx.strokeRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
