@@ -515,6 +515,7 @@ function resumeVideos() {
   if (typeof vid !== "undefined" && vid.dataset && vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (typeof me !== "undefined" && me.scene === "hq" && typeof startHqVideos === "function") startHqVideos();
   if (typeof me !== "undefined" && me.scene === "gym" && typeof startLgVideos === "function") startLgVideos();
+  if (typeof me !== "undefined" && me.scene === "speedway" && typeof startSwVideos === "function") startSwVideos();
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeVideos(); });
 window.addEventListener("focus", resumeVideos);
@@ -708,6 +709,77 @@ function startLgVideos() {
   }, 600);
 }
 function pauseLgVideos() { for (const v of lgVids) if (!v.paused) v.pause(); }
+/* ============ speedway monitors: Daily Life racing feeds, no repeats — the lounge TV system mirrored for the infield (Jonathan 2026-10-29) ============ */
+const swVids = [], swNext = [], swCur = [-1, -1], swNextIdx = [-1, -1], swPrev = [-1, -1], swWait = [false, false];
+function makeSwVid(idx) {
+  const v = document.createElement("video");
+  v.muted = true; v.loop = false; v.playsInline = true; v.preload = "auto";
+  v.addEventListener("ended", () => { if (swVids[idx] === v && me.scene === "speedway") advanceSw(idx); });
+  v.addEventListener("canplay", () => { if (swNext[idx] === v && swWait[idx] && me.scene === "speedway") advanceSw(idx); });
+  v.addEventListener("error", () => {
+    if (swVids[idx] === v) { v.dataset.cur = ""; swCur[idx] = -1; if (me.scene === "speedway") setTimeout(() => pickSw(idx), 900); }
+    else if (swNext[idx] === v) { swNextIdx[idx] = -1; v.dataset.cur = ""; }
+  });
+  return v;
+}
+for (let i = 0; i < 2; i++) { swVids.push(makeSwVid(i)); swNext.push(makeSwVid(i)); }
+function swCatalog() {
+  const racing = dlCatalog.filter(d => (d.label || "").indexOf("Racing") === 0 && d.url);
+  return racing.length >= 2 ? racing : dlCatalog.filter(d => d.url);
+}
+function chooseSw(i) {
+  const cat = swCatalog(); if (!cat.length) return -1;
+  const used = new Set();
+  swCur.forEach(c => { if (c >= 0) used.add(c); });
+  swNextIdx.forEach(c => { if (c >= 0) used.add(c); });
+  if (swPrev[i] >= 0) used.add(swPrev[i]);
+  let opts = cat.map((_, k) => k).filter(k => !used.has(k));
+  if (!opts.length) opts = cat.map((_, k) => k).filter(k => k !== swCur[i] && k !== swNextIdx[i]);
+  if (!opts.length) opts = [Math.floor(Math.random() * cat.length)];
+  return opts[Math.floor(Math.random() * opts.length)];
+}
+function pickSw(i) {
+  const cat = swCatalog(); if (!cat.length) return;
+  const pick = chooseSw(i); if (pick < 0) return;
+  swPrev[i] = swCur[i]; swCur[i] = pick; swWait[i] = false;
+  const v = swVids[i];
+  v.src = cat[pick].url; v.dataset.cur = cat[pick].url;
+  v.play().catch(() => {});
+  if (swNextIdx[i] < 0) queueNextSw(i);
+}
+function queueNextSw(i) {
+  const cat = swCatalog(); if (cat.length < 2) return;
+  const pick = chooseSw(i); if (pick < 0 || pick === swCur[i]) return;
+  swNextIdx[i] = pick;
+  const nv = swNext[i];
+  nv.src = cat[pick].url; nv.dataset.cur = cat[pick].url; nv.load();
+}
+function advanceSw(i) {
+  const nv = swNext[i];
+  if (swNextIdx[i] >= 0 && nv && nv.readyState >= 2) {
+    const old = swVids[i];
+    swVids[i] = nv; swNext[i] = old;
+    swPrev[i] = swCur[i]; swCur[i] = swNextIdx[i]; swNextIdx[i] = -1; swWait[i] = false;
+    old.pause(); old.removeAttribute("src"); old.dataset.cur = ""; old.load();
+    swVids[i].play().catch(() => {});
+    queueNextSw(i);
+  } else {
+    swWait[i] = true;
+    if (swNextIdx[i] < 0) queueNextSw(i);
+  }
+}
+function startSwVideos() {
+  let waited = 0;
+  const tries = setInterval(() => {
+    waited += 600;
+    if (me.scene !== "speedway" || waited > 15000) { clearInterval(tries); return; }
+    if (swCatalog().length >= 2) {
+      clearInterval(tries);
+      for (let i = 0; i < 2; i++) { if (swCur[i] < 0) pickSw(i); else if (swVids[i].paused) swVids[i].play().catch(() => {}); if (swNextIdx[i] < 0) queueNextSw(i); }
+    }
+  }, 600);
+}
+function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
 let clubState = null;
@@ -792,6 +864,11 @@ const SPD_B = { x: 70, y: 170, w: 1000, h: 340 };
 const SPDDOOR = { x: 525, y: 470, w: 90, h: 34 };
 const SWROOM = { w: 3600, h: 2400 };
 const SWEXIT = { x: SWROOM.w / 2 - 62, y: SWROOM.h - 58, w: 124, h: 44 };
+/* infield video monitors (Jonathan 2026-10-29): the lounge TVs' twin — one centred in each half of the infield grass, symmetric about the centre medallion, playing the Daily Life Racing feeds; same screen size as the lounge TVs (336x189, 16:9 for the landscape videos). Solid, like the lounge TVs — see obstacles() */
+const SWTV = [{ x: 1150 - 168, y: 1200 - 94.5, w: 336, h: 189 }, { x: 2450 - 168, y: 1200 - 94.5, w: 336, h: 189 }];
+/* concession stands (Jonathan 2026-10-29): one in each corner of the arena, centred ~200px in from the corner. The room's off-track corner aprons run from the border to the ring's outer edge (300..3300 x, 400..2000 y at the straights); 260x170 centred on the corner points stays on the apron with room to walk around. Solid — see obstacles() */
+const SWSTAND_C = [[200, 200], [3400, 200], [200, 2200], [3400, 2200]];
+const SWSTANDS = SWSTAND_C.map(c => ({ x: c[0] - 130, y: c[1] - 85, w: 260, h: 170 }));
 /* the oval is a stadium ring around the spine segment (SW_CX1..SW_CX2, SW_CY): outer edge radius SW_RO, infield edge SW_RI, 4 lanes of 85 between them */
 const SW_CX1 = 1100, SW_CX2 = 2500, SW_CY = 1200;
 const SW_RO = 800, SW_RI = 460;
@@ -900,7 +977,7 @@ function obstacles() {
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
-  if (me.scene === "speedway") return []; /* on foot you can walk the whole arena — apron, track and infield; the ring clamp only bites while driving */
+  if (me.scene === "speedway") return [...SWTV, ...SWSTANDS]; /* on foot you can walk the whole arena — apron, track and infield; the ring clamp only bites while driving. The only solids are the infield monitors and the corner concession stands (Jonathan 2026-10-29); the benches stay walk-over scenery */
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -1658,6 +1735,19 @@ function drawSportsBall(k, t) {
 let swState = null, swHooked = false;
 let myCar = -1; /* car index I am driving, -1 on foot */
 let carPos = null, carVel = { x: 0, y: 0 }; /* my car's live state while driving */
+/* ---- car smoke (Jonathan 2026-10-29): SUBTLE puffs trailing DRIVEN cars while they accelerate. Emission keys off acceleration effort: for my car, the real velocity gap the physics is closing this frame; for remote cars (the sync record carries position only — format unchanged), the observed speed change of the smoothed car. No smoke at idle, none at steady cruise, none from parked/staged cars. Capped per car, particles integrate in stepSpeedway and render under the cars in drawSpeedway. ---- */
+const SW_SMOKE_MAX = 26; /* live puffs per car — a whisper of smoke, and cheap on phones */
+let swPuffs = [], swEmitAcc = [0, 0, 0, 0], swVisSpd = [0, 0, 0, 0];
+function swEmitSmoke(i, x, y, hd, effort, dt, cvx, cvy) {
+  if (effort < 0.15) { swEmitAcc[i] = 0; return; }
+  swEmitAcc[i] = Math.min(2, swEmitAcc[i] + dt * (3 + 20 * effort));
+  let mine = 0; for (const p of swPuffs) if (p.car === i) mine++;
+  while (swEmitAcc[i] >= 1 && mine < SW_SMOKE_MAX) {
+    swEmitAcc[i] -= 1; mine++;
+    const bx = Math.cos(hd), by = Math.sin(hd), px = -by, py = bx, j = (Math.random() - 0.5) * 12;
+    swPuffs.push({ car: i, x: x - bx * 48 + px * j, y: y - by * 48 + py * j, vx: -bx * (16 + Math.random() * 22) + (cvx || 0) * 0.12 + px * (Math.random() - 0.5) * 14, vy: -by * (16 + Math.random() * 22) + (cvy || 0) * 0.12 + py * (Math.random() - 0.5) * 14, r: 4.5 + Math.random() * 3.5, life: 0, max: 0.8 + Math.random() * 0.5, a: 0.05 + 0.12 * effort });
+  }
+}
 let swCarsVis = [null, null, null, null]; /* smoothed render state per car for other drivers' cars */
 let swWriteAt = 0, swLastWrite = null, swRestageAt = 0;
 const SW_BUMP_DIST = 70; /* bumper-car contact distance between car centres (the drawn body is ~94px long; the physics circle stays 70 — see stepSpeedway) */
@@ -1777,6 +1867,7 @@ function stepSpeedway(dt, ivx, ivy) {
     if (spd > 30) carPos.hd = swTurn(carPos.hd, Math.atan2(carVel.y, carVel.x), 3.6 * dt);
     me.x = carPos.x; me.y = carPos.y; me.moving = false; me.run = false;
     engineUpdate(Math.min(1, spd / SW_SPEED));
+    swEmitSmoke(myCar, carPos.x, carPos.y, carPos.hd, mag > 0.1 ? Math.min(1, dl / SW_SPEED) : 0, dt, carVel.x, carVel.y); /* smoke keys off the same velocity gap the physics is closing: full at launch, zero once speed matches the stick */
     /* share my car: on movement, and at least every 1.5s as a heartbeat so my claim stays fresh */
     const lw = swLastWrite;
     if (now - swWriteAt > 120 && (!lw || Math.hypot(carPos.x - lw.x, carPos.y - lw.y) > 3 || Math.abs(carPos.hd - lw.hd) > 0.03 || now - swWriteAt > 1500)) {
@@ -1797,8 +1888,16 @@ function stepSpeedway(dt, ivx, ivy) {
     if (i === myCar) { swCarsVis[i] = carPos ? { x: carPos.x, y: carPos.y, hd: carPos.hd } : swCarsVis[i]; continue; }
     const v = swCarTarget(i);
     let vis = swCarsVis[i];
-    if (!vis || Math.hypot(v.x - vis.x, v.y - vis.y) > 320) vis = swCarsVis[i] = { x: v.x, y: v.y, hd: v.hd };
-    else { vis.x += (v.x - vis.x) * Math.min(1, dt * 10); vis.y += (v.y - vis.y) * Math.min(1, dt * 10); vis.hd = swTurn(vis.hd, v.hd, 10 * dt); }
+    const pvx = vis ? vis.x : v.x, pvy = vis ? vis.y : v.y;
+    if (!vis || Math.hypot(v.x - vis.x, v.y - vis.y) > 320) { vis = swCarsVis[i] = { x: v.x, y: v.y, hd: v.hd }; swVisSpd[i] = 0; }
+    else {
+      vis.x += (v.x - vis.x) * Math.min(1, dt * 10); vis.y += (v.y - vis.y) * Math.min(1, dt * 10); vis.hd = swTurn(vis.hd, v.hd, 10 * dt);
+      /* remote smoke: the record carries no velocity, so derive effort from the smoothed car's observed speed change (same 1500px/s^2 scale as the local physics) */
+      const dts = Math.max(dt, 0.001), spdN = Math.hypot(vis.x - pvx, vis.y - pvy) / dts;
+      const eff = Math.max(0, Math.min(1, (spdN - swVisSpd[i]) / (1500 * dts)));
+      swVisSpd[i] = spdN;
+      if (v.drv) swEmitSmoke(i, vis.x, vis.y, vis.hd, eff, dt, (vis.x - pvx) / dts, (vis.y - pvy) / dts);
+    }
     vis.drv = v.drv; vis.drvName = v.drvName;
   }
   /* ---- an empty car left off its spot rolls back to staging after ~4s (anyone in the room may write it; the write is identical) ---- */
@@ -1811,6 +1910,15 @@ function stepSpeedway(dt, ivx, ivy) {
       const s = swStage(i);
       if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", ts: Date.now() });
     }
+  }
+  /* ---- smoke particles: drift, expand slightly, fade out, then they're gone ---- */
+  for (let k = swPuffs.length - 1; k >= 0; k--) {
+    const p = swPuffs[k];
+    p.life += dt;
+    if (p.life >= p.max) { swPuffs.splice(k, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    const damp = Math.max(0, 1 - 1.6 * dt); p.vx *= damp; p.vy *= damp;
+    p.r += 14 * dt;
   }
 }
 /* ============ inside the Quantum Speedway ============ */
@@ -1883,7 +1991,7 @@ function drawSwCar(i, t) {
   }
 }
 function drawSwBench(x, y, rot) {
-  /* silver spectator bench: light-grey slats on a darker metal frame, backrest on the side AWAY from the track (the sitter faces +y in local space). Pure scenery \u2014 the arena has no obstacles at all (see obstacles(): speedway returns []), so like everything else in here it is walked right over, never collided with. Cars can't reach it either: the driving clamp keeps them inside the ring. */
+  /* silver spectator bench: light-grey slats on a darker metal frame, backrest on the side AWAY from the track (the sitter faces +y in local space). Pure scenery \u2014 benches are never obstacles (see obstacles(): speedway's only solids are the infield monitors and the corner concession stands), so they are walked right over, never collided with. Cars can't reach them either: the driving clamp keeps them inside the ring. */
   ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
   ctx.fillStyle = "rgba(0,0,0,0.25)"; rr(-78, -18, 156, 48, 8); ctx.fill();
   ctx.fillStyle = "#59626b"; rr(-78, -24, 156, 10, 4); ctx.fill();
@@ -1892,6 +2000,53 @@ function drawSwBench(x, y, rot) {
   ctx.fillStyle = "#ccd4db"; rr(-78, 10, 156, 7, 3); ctx.fill();
   ctx.fillStyle = "#98a3ad"; rr(-78, 20, 156, 6, 3); ctx.fill();
   ctx.fillStyle = "#454e57"; ctx.fillRect(-70, 26, 8, 10); ctx.fillRect(62, 26, 8, 10);
+  ctx.restore();
+}
+function drawSwMonitor(tv, ti) {
+  /* infield video monitor — the lounge TVs' treatment in speedway orange (Jonathan 2026-10-29) */
+  ctx.fillStyle = "#0b1226"; rr(tv.x - 8, tv.y - 8, tv.w + 16, tv.h + 16, 14); ctx.fill();
+  ctx.strokeStyle = "#ff8c1a"; ctx.lineWidth = 3; ctx.shadowColor = "#ff8c1a"; ctx.shadowBlur = 10; rr(tv.x - 8, tv.y - 8, tv.w + 16, tv.h + 16, 14); ctx.stroke(); ctx.shadowBlur = 0;
+  const v = swVids[ti];
+  if (swCur[ti] < 0 && swCatalog().length >= 2) pickSw(ti);
+  if (v && v.dataset.cur && v.readyState >= 2) {
+    const vw = v.videoWidth || 16, vh = v.videoHeight || 9, s = Math.min(tv.w / vw, tv.h / vh);
+    ctx.drawImage(v, tv.x + (tv.w - vw * s) / 2, tv.y + (tv.h - vh * s) / 2, vw * s, vh * s);
+  } else {
+    ctx.fillStyle = "#0a1a33"; ctx.fillRect(tv.x, tv.y, tv.w, tv.h);
+    ctx.fillStyle = "#ffb066"; ctx.font = "bold 24px system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("QI RACING", tv.x + tv.w / 2, tv.y + tv.h / 2 + 8);
+  }
+  /* stand legs down to the grass */
+  ctx.fillStyle = "#2b3440"; ctx.fillRect(tv.x + tv.w / 2 - 52, tv.y + tv.h + 8, 12, 26); ctx.fillRect(tv.x + tv.w / 2 + 40, tv.y + tv.h + 8, 12, 26);
+  ctx.fillRect(tv.x + tv.w / 2 - 66, tv.y + tv.h + 30, 132, 8);
+}
+function drawSwStand(cx, cy) {
+  /* concession stand (Jonathan 2026-10-29): striped awning over a serving counter with warm lights, food silhouettes and a little snack sign — colours ride the speedway's orange theme */
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.fillStyle = "rgba(0,0,0,0.28)"; ctx.beginPath(); ctx.ellipse(0, 88, 138, 16, 0, 0, 7); ctx.fill();
+  /* body + counter */
+  ctx.fillStyle = "#3d2b18"; rr(-120, -30, 240, 116, 8); ctx.fill();
+  ctx.fillStyle = "#54391e"; rr(-132, 30, 264, 26, 6); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; rr(-132, 30, 264, 26, 6); ctx.stroke();
+  /* serving window with a warm inside glow and the snacks on the shelf */
+  ctx.fillStyle = "#ffd9a0"; rr(-104, -18, 208, 42, 5); ctx.fill();
+  ctx.fillStyle = "#c2432e"; ctx.beginPath(); ctx.arc(-66, 12, 10, 0, 7); ctx.fill(); /* popcorn bucket */
+  ctx.fillStyle = "#f2ede2"; ctx.fillRect(-74, -4, 16, 16);
+  ctx.fillStyle = "#e8a33d"; rr(-24, -2, 34, 14, 6); ctx.fill(); /* hot dog */
+  ctx.fillStyle = "#8a5a20"; rr(-28, 2, 42, 6, 3); ctx.fill();
+  ctx.fillStyle = "#38b6ff"; ctx.fillRect(38, -6, 10, 18); ctx.fillRect(58, -6, 10, 18); /* drinks */
+  ctx.fillStyle = "#eaf6ff"; ctx.fillRect(40, -12, 3, 7); ctx.fillRect(60, -12, 3, 7);
+  /* posts + striped awning */
+  ctx.fillStyle = "#2b3440"; ctx.fillRect(-126, -34, 10, 92); ctx.fillRect(116, -34, 10, 92);
+  for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? "#f2ede2" : "#e8641c"; ctx.beginPath(); ctx.moveTo(-136 + i * 34, -38); ctx.lineTo(-102 + i * 34, -38); ctx.lineTo(-94 + i * 34, -72); ctx.lineTo(-120 + i * 34, -72); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = "#e8641c"; ctx.fillRect(-120, -78, 240, 8);
+  for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? "#f2ede2" : "#e8641c"; ctx.beginPath(); ctx.arc(-119 + i * 34, -36, 17, 0, Math.PI); ctx.fill(); }
+  /* hanging bulbs under the awning */
+  for (let i = 0; i < 5; i++) { const bx = -88 + i * 44; ctx.fillStyle = "rgba(255,200,90,0.9)"; ctx.beginPath(); ctx.arc(bx, -26, 4.5, 0, 7); ctx.fill(); }
+  /* sign panel */
+  ctx.fillStyle = "#241a08"; rr(-86, -112, 172, 30, 8); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; rr(-86, -112, 172, 30, 8); ctx.stroke();
+  ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌭 🍿 🥤", 0, -88);
   ctx.restore();
 }
 function drawSpeedway(t) {
@@ -1942,6 +2097,8 @@ function drawSpeedway(t) {
   for (let bx = 732; bx <= 1404; bx += 168) drawSwBench(bx, 2130, Math.PI);
   for (let bx = 2196; bx <= 2868; bx += 168) drawSwBench(bx, 2130, Math.PI);
   for (let by = 780; by <= 1620; by += 168) { drawSwBench(170, by, -Math.PI / 2); drawSwBench(3430, by, Math.PI / 2); }
+  /* concession stands in the arena's four corners (Jonathan 2026-10-29) */
+  for (const sc of SWSTAND_C) drawSwStand(sc[0], sc[1]);
   /* infield centrepiece: the atom mark + the name, sports-complex style */
   ctx.save(); ctx.translate(1800, 1200);
   ctx.strokeStyle = "rgba(255,160,60,0.4)"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 84, 0, 7); ctx.stroke();
@@ -1953,6 +2110,14 @@ function drawSpeedway(t) {
   ctx.fillText("🏁 QUANTUM SPEEDWAY 🏁", 1800, 1092);
   ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,200,0.65)";
   ctx.fillText("walk into a car to drive it — just for fun", 1800, 1330);
+  /* infield monitors — Daily Life racing feeds, one centred in each half of the grass (Jonathan 2026-10-29) */
+  SWTV.forEach((tv, ti) => drawSwMonitor(tv, ti));
+  /* car smoke — under the cars, so a puff reads as trailing behind the tail (Jonathan 2026-10-29) */
+  for (const p of swPuffs) {
+    const f = p.life / p.max, al = p.a * (1 - f) * (f < 0.15 ? f / 0.15 : 1);
+    ctx.fillStyle = "rgba(168,172,180," + (al * 0.45).toFixed(3) + ")"; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * 1.7, p.r * 1.3, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(178,182,190," + al.toFixed(3) + ")"; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.78, 0, 0, 7); ctx.fill();
+  }
   /* the cars */
   for (let i = 0; i < 4; i++) drawSwCar(i, t);
   /* exit plate */
@@ -2683,8 +2848,8 @@ function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = 
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toPlazaFromGym() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
-function toSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "speedway"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); speedwayListen(); }
-function toPlazaFromSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "plaza"; voiceReset(); me.x = 570; me.y = SPD_B.y + SPD_B.h + 60; sfxChime(); publish(true); }
+function toSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "speedway"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); speedwayListen(); startSwVideos(); }
+function toPlazaFromSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "plaza"; voiceReset(); me.x = 570; me.y = SPD_B.y + SPD_B.h + 60; sfxChime(); publish(true); pauseSwVideos(); swPuffs = []; }
 let portalArmed = true;
 function checkPortal(P, go) {
   const d = Math.hypot(me.x - P.x, me.y - P.y);
@@ -3295,7 +3460,16 @@ function drawBuysBoard(t) {
     const usd = "$" + Number(b.usd || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const tm = b.ts ? new Date(b.ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
     boardText(usd + "  ·  " + pfmtInt(Math.round(b.qi || 0)) + " QI", P.x + 22, ry, "700 12.5px 'Segoe UI',sans-serif", "#8dffb0", "left");
-    boardText(shortBuyer(b.buyer) + (tm ? "  ·  " + tm : ""), P.x + BOARD_W - 22, ry, "11px 'Segoe UI',sans-serif", "rgba(210,235,255,0.75)", "right");
+    if (b.nh) {
+      /* NEW HOLDER buy (the bot feed's nh flag — pre-buy balance zero, Jonathan 2026-10-29): the wallet paints CYAN while the " · time" tail stays pale, and the pair keeps the same right edge and baseline — the tail is drawn anchored at the edge and the wallet is anchored where the tail begins (measured in the same font) */
+      const wal = shortBuyer(b.buyer), tail = tm ? "  ·  " + tm : "", rx = P.x + BOARD_W - 22;
+      ctx.font = "11px 'Segoe UI',sans-serif";
+      const tailW = tail ? ctx.measureText(tail).width : 0;
+      if (tail) boardText(tail, rx, ry, "11px 'Segoe UI',sans-serif", "rgba(210,235,255,0.75)", "right");
+      boardText(wal, rx - tailW, ry, "11px 'Segoe UI',sans-serif", "#38e1ff", "right");
+    } else {
+      boardText(shortBuyer(b.buyer) + (tm ? "  ·  " + tm : ""), P.x + BOARD_W - 22, ry, "11px 'Segoe UI',sans-serif", "rgba(210,235,255,0.75)", "right");
+    }
   });
 }
 function drawPlazaBoards(t) { drawStatsBoard(t); drawBuysBoard(t); }
@@ -4230,6 +4404,7 @@ function frame(now) {
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
   if (me.scene !== "gym") pauseLgVideos();
+  if (me.scene !== "speedway") pauseSwVideos();
   else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
   if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
