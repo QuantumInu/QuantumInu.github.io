@@ -1052,15 +1052,25 @@ function sessionBlocked() {
   if (auth) { try { auth.signOut(); } catch (e) {} }
 }
 function releaseSessSlot(uid) {
-  if (!db || !uid) return;
-  try { const ref = db.ref("hub/users/" + uid + "/session"); ref.onDisconnect().cancel(); ref.transaction(cur => (cur && cur.sid === tabId) ? null : undefined); } catch (e) {}
+  /* Returns a promise that ALWAYS resolves (true = this tab's claim was actually removed). The onDisconnect backstop is cancelled ONLY after the release has landed: the old code cancelled it first and fired the transaction un-awaited, so when the write then lost its race (sign-out: auth.signOut() ran first and the database denied the unauthenticated write) nothing was left to free the slot — it sat fresh for its full 90s and refused the same account on the other Hub page (2026-10-29). A failed or aborted release leaves the backstop armed, so closing the tab still frees the slot. */
+  if (!db || !uid) return Promise.resolve(false);
+  const ref = db.ref("hub/users/" + uid + "/session");
+  return new Promise(res => {
+    let done = false;
+    const finish = ok => { if (done) return; done = true; if (ok) { try { ref.onDisconnect().cancel(); } catch (e) {} } res(ok); };
+    try {
+      const p = ref.transaction(cur => (cur && cur.sid === tabId) ? null : undefined, (err, committed) => finish(!err && !!committed));
+      if (p && typeof p.then === "function") p.then(r => finish(!!(r && r.committed)), () => finish(false));
+    } catch (e) { finish(false); }
+  });
 }
 function releaseSession() {
-  if (acctUser && db && sessHeld) releaseSessSlot(acctUser.uid);
+  const rel = (acctUser && db && sessHeld) ? releaseSessSlot(acctUser.uid) : Promise.resolve(false);
   if (acctUser) clearSessLive(acctUser.uid);
   sessHeld = false;
   if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; }
   stopSessLive();
+  return rel; /* the sign-out flow awaits this (with a timeout) BEFORE auth.signOut(); every other caller just lets it run */
 }
 /* clean close (2026-10-29): the tab holding the claim lets go of it on the way out — conditionally, only ever its own — so a reopen is never blocked by its own ghost. A blocked tab holds nothing and clears nothing. The onDisconnect removal stays armed as the crash-proof backstop. */
 function sessPageGone(e) {
@@ -1140,7 +1150,7 @@ function initAuth() {
     try { await auth.signInWithEmailAndPassword(em, pw); acctMsg(""); }
     catch (e) { acctMsg(friendlyAuthErr(e)); }
   };
-  $("acctsignout").onclick = async () => { releaseSession(); if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; } try { await auth.signOut(); } catch (e) {} };
+  $("acctsignout").onclick = async () => { const rel = releaseSession(); try { await Promise.race([rel, new Promise(r => setTimeout(r, 2500))]); } catch (e) {} if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; } try { await auth.signOut(); } catch (e) {} }; /* the slot release lands BEFORE sign-out: once auth is gone the database denies the write and the fresh slot refuses the same account on the other page for 90s (2026-10-29). The 2.5s race keeps a hung write from ever trapping the user in sign-out — on timeout the still-armed onDisconnect and the 90s staleness remain the backstops. */
   auth.onAuthStateChanged(async (u) => {
     const prevUser = acctUser;
     acctUser = u || null; acctUi();
@@ -1496,7 +1506,7 @@ wireMic(micBtn);
 /* Free-play bump sports (Jonathan 2026-10-28): step onto a court and your side is the half you are standing on (A = cyan/left, B = pink/right). The earliest-joined player on a court hosts its ball physics. Same leaving rule as the casino tables: the moment a court's last player record is gone, the court resets on the spot. */
 let spState = { bb: null, fb: null, tn: null }, spHooked = false;
 let myCourt = null, mySide = null, spJoinTs = 0;
-let spHostBall = {}, spBallVis = {}, spWriteAt = {}, spScoreSeen = {}, spInitTry = {}, spMyPrev = null, spPeerPrev = {};
+let spHostBall = {}, spBallVis = {}, spWriteAt = {}, spScoreSeen = {}, spInitTry = {}, spMyPrev = null, spPeerPrev = {}, spWasHost = {};
 const SP_COL = { A: "#38e1ff", B: "#ff5d8f" };
 const SP_SNAME = { A: "CYAN", B: "PINK" };
 const BALLR = { bb: 26, fb: 24, tn: 16 };
@@ -1506,7 +1516,7 @@ const sfxBuzzer = () => { tone(138, 138, 0.5, "sawtooth", 0.055); tone(146, 146,
 const sfxWhistle = () => { tone(2350, 2350, 0.13, "square", 0.03); tone(2350, 2350, 0.19, "square", 0.03, 0.17); };
 const sfxCheer = () => { [660, 830, 990, 1180].forEach((f, i) => tone(f, f, 0.11, "triangle", 0.028, i * 0.05)); };
 function courtAt(x, y) { for (const pr of COURTS) { const r = pr[1]; if (x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) return { k: pr[0], r }; } return null; }
-function courtCenterBall(k, side) { const r = COURTS.find(c => c[0] === k)[1]; return { x: r.x + r.w / 2, y: r.y + r.h / 2, vx: 0, vy: 0, ts: 0, lastHit: "", lastSide: "", crossed: false, dead: 0 }; } /* every ball returns to the exact court center — the tennis quarter-spots are gone at Jonathan's word 2026-10-29 */
+function courtCenterBall(k, side) { const r = COURTS.find(c => c[0] === k)[1]; return { x: r.x + r.w / 2, y: r.y + r.h / 2, vx: 0, vy: 0, ts: 0, lastHit: "", lastSide: "", crossed: false, dead: 0, seq: 0, gen: 0 }; } /* every ball returns to the exact court center — the tennis quarter-spots are gone at Jonathan's word 2026-10-29 */
 const BB3 = { R: 430, AD: 405, A1: 60, DYB: 315, LA: 70, LB: 130 };
 function bbEase(t) { const R = BB3.R, dxB = Math.sqrt(R * R - BB3.DYB * BB3.DYB), u = 1 - t, C2x = dxB - BB3.LB * BB3.DYB / R, C2y = BB3.DYB + BB3.LB * dxB / R; return [u * u * u * BB3.A1 + 3 * u * u * t * (BB3.A1 + BB3.LA) + 3 * u * t * t * C2x + t * t * t * dxB, u * u * u * BB3.AD + 3 * u * u * t * BB3.AD + 3 * u * t * t * C2y + t * t * t * BB3.DYB]; } /* the 3pt corner ease in (rel toward center, dyOff): leaves the straight barely bending and tightens gradually into the 430 arc — no shoulder at the joins (Jonathan 2026-10-29) */
 function bbThree(acx, dir, sx, sy, r, cy) { const rel = (sx - acx) * dir, dy = Math.abs(sy - cy), aD = r.h / 2 - 55, R = BB3.R; if (dy > aD) return true; if (dy <= BB3.DYB) return Math.hypot(rel, dy) > R; let lo = 0, hi = 1; for (let i = 0; i < 32; i++) { const m = (lo + hi) / 2; if (bbEase(m)[1] > dy) lo = m; else hi = m; } return rel > bbEase((lo + hi) / 2)[0]; } /* 2 vs 3 test matching the drawn 3pt line exactly: past the straight ends = 3, behind the curve = outside the 430 arc, in the ease band the drawn ease itself is the threshold */
@@ -1518,7 +1528,7 @@ function sportsListen() {
 }
 function spSet(k, p, v) { if (db) { if (v === null) db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).remove(); else db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).set(v); } }
 function spUpd(k, v) { if (db) db.ref("hub/tables/sports/" + k).update(v); }
-function spReset(k) { spSet(k, "", { score: { a: 0, b: 0 }, ball: courtCenterBall(k) }); spHostBall[k] = null; }
+function spReset(k) { const nb = courtCenterBall(k); nb.gen = ((spState[k] && spState[k].ball && spState[k].ball.gen) || 0) + 1; spSet(k, "", { score: { a: 0, b: 0 }, ball: nb }); spHostBall[k] = null; } /* a reset is a genuine re-placement: gen bumps so every follower snaps to it instead of gliding (see stepSports) */
 function spResetIfEmpty(k) {
   const st = spState[k]; if (!st) return;
   const others = st.players ? Object.keys(st.players).filter(pid => pid !== myId && st.players[pid] && Date.now() - (st.players[pid].ts || 0) < 25000) : [];
@@ -1561,22 +1571,25 @@ function simCourt(k, dt) {
   const r = COURTS.find(c => c[0] === k)[1], R = BALLR[k], cx = r.x + r.w / 2, cy = r.y + r.h / 2;
   const st = spState[k];
   let b = spHostBall[k];
-  if (!b) { const sb = (st && st.ball) || courtCenterBall(k); b = spHostBall[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "", swishUntil: 0, swishX: 0, hitCoolUntil: 0 }; }
+  if (!b) { const sb0 = (st && st.ball) || courtCenterBall(k); const sb = sb0.x > -100 ? sb0 : Object.assign(courtCenterBall(k), { seq: sb0.seq || 0, gen: sb0.gen || 0 }); b = spHostBall[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "", swishUntil: 0, swishX: 0, hitCoolUntil: 0, seq: sb.seq || 0, gen: sb.gen || 0 }; } /* seeding from the latest shared ball, seq/gen included, is what makes a host handover seamless — and a hidden (swish) shared ball seeds at centre with its seq/gen kept, so the chain of custody is unbroken */
   const nowp = performance.now();
   if (b.swishUntil) {
     if (nowp < b.swishUntil) { b.x += (b.swishX - b.x) * Math.min(1, dt * 16); b.y += 330 * dt; b.vx = 0; b.vy = 330; writeBall(k, b, true); return; }
-    b.swishUntil = 0; b.x = -9999; b.y = -9999; b.vx = 0; b.vy = 0; b.freezeUntil = nowp + 900; writeBall(k, b, true); return;
+    b.swishUntil = 0; b.x = -9999; b.y = -9999; b.vx = 0; b.vy = 0; b.gen = (b.gen || 0) + 1; b.freezeUntil = nowp + 900; writeBall(k, b, true); return;
   }
   if (b.freezeUntil && nowp < b.freezeUntil) { writeBall(k, b, false); return; }
-  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotX = undefined; b.shotY = undefined; }
+  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotX = undefined; b.shotY = undefined; b.gen = (b.gen || 0) + 1; } /* the respawn is a genuine re-placement: gen bumps so followers snap to centre with it */
   /* gather the players on this court (me + peers standing in it) */
   const actors = [];
-  if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } actors.push({ pid: myId, x: me.x, y: me.y, vx: mvx, vy: mvy, side: mySide, w: spriteW(me.hero) }); }
+  /* an actor's bump velocity is clamped to the fastest a player can really move (sprint 305 x 1.55): a peer's velocity is estimated from synced render positions, and when those catch up after a presence gap the raw frame-delta reads thousands of px/s for a frame or two — fed uncapped into the bump's a.v * 0.30 term it rocketed the ball across the court in a single write, the third face of the 2-player teleport (2026-10-29). No legitimate bump changes: a real player's speed never exceeds the clamp. */
+  const actorV = (vx, vy) => { const s = Math.hypot(vx, vy), M = 480; if (s > M) { vx = vx * M / s; vy = vy * M / s; } return [vx, vy]; };
+  if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } const av = actorV(mvx, mvy); actors.push({ pid: myId, x: me.x, y: me.y, vx: av[0], vy: av[1], side: mySide, w: spriteW(me.hero) }); }
   for (const p of peers.values()) {
     if (p.scene !== "gym") continue;
     const pc = courtAt(p.x, p.y); if (!pc || pc.k !== k) continue;
     const pv = spPeerPrev[p.id] || { x: p.x, y: p.y };
-    actors.push({ pid: p.id, x: p.x, y: p.y, vx: (p.x - pv.x) / Math.max(dt, 0.001), vy: (p.y - pv.y) / Math.max(dt, 0.001), side: p.x < cx ? "A" : "B", w: spriteW(p.hero) });
+    const av = actorV((p.x - pv.x) / Math.max(dt, 0.001), (p.y - pv.y) / Math.max(dt, 0.001));
+    actors.push({ pid: p.id, x: p.x, y: p.y, vx: av[0], vy: av[1], side: p.x < cx ? "A" : "B", w: spriteW(p.hero) });
   }
   /* bump: a sprite running into the ball knocks it away. A hit locks re-hits for 280ms (Jonathan 2026-10-29: after a shot the ball sometimes "shot by itself" — the hitter was still touching it next frame and bumped it again, and a second player in range could re-bump it in the same pass) */
   for (const a of actors) {
@@ -1630,40 +1643,53 @@ function writeBall(k, b, force) {
   const now = Date.now();
   if (!force && now - (spWriteAt[k] || 0) < 110) return;
   spWriteAt[k] = now;
-  spSet(k, "ball", { x: Math.round(b.x), y: Math.round(b.y), vx: Math.round(b.vx), vy: Math.round(b.vy), ts: now, lastHit: b.lastHit || "", lastSide: b.lastSide || "", crossed: !!b.crossed });
-  spBallVis[k] = { x: b.x, y: b.y, vx: b.vx, vy: b.vy };
+  b.seq = (b.seq || 0) + 1; /* every published state carries a higher seq than the last: followers accept only newer seqs, so a stale, duplicated or reordered write can never drag the ball backwards */
+  spSet(k, "ball", { x: Math.round(b.x), y: Math.round(b.y), vx: Math.round(b.vx), vy: Math.round(b.vy), ts: now, lastHit: b.lastHit || "", lastSide: b.lastSide || "", crossed: !!b.crossed, seq: b.seq, gen: b.gen || 0 });
+  spBallVis[k] = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, seq: b.seq, gen: b.gen || 0 };
 }
 function stepSports(dt) {
   const ci = courtAt(me.x, me.y);
   const ck = ci ? ci.k : null;
   const side = ci ? (me.x < ci.r.x + ci.r.w / 2 ? "A" : "B") : null;
-  if (ck !== myCourt || side !== mySide) {
+  if (ck !== myCourt) {
     const wasCourt = myCourt;
-    if (myCourt) { spSet(myCourt, "players/" + myId, null); spOD(myCourt, false); if (wasCourt && wasCourt !== ck) spResetIfEmpty(wasCourt); }
+    if (wasCourt) { spSet(wasCourt, "players/" + myId, null); spOD(wasCourt, false); spResetIfEmpty(wasCourt); }
     myCourt = ck; mySide = side;
-    if (myCourt) { if (wasCourt !== myCourt) spJoinTs = Date.now(); writeMySpRecord(); spOD(myCourt, true); }
+    if (myCourt) { spJoinTs = Date.now(); writeMySpRecord(); spOD(myCourt, true); }
+  } else if (side !== mySide) {
+    /* side flip only (crossing midcourt): rewrite the record IN PLACE — never remove it first. The old remove+rewrite made the player vanish from spPlayers for a full round trip; when the vanishing player was the host, the other client took over hosting mid-play, and when the record landed again the first host resumed from its frozen local ball and wrote it back over the live one. That flap was the teleport (2026-10-29). */
+    mySide = side;
+    if (myCourt) writeMySpRecord();
   }
   for (const pr of COURTS) {
     const k = pr[0], st = spState[k];
-    if (spHost(k) === myId && st) simCourt(k, dt);
-    else {
-      /* follow the shared ball, extrapolated a touch so it feels live */
+    if (st && spHost(k) === myId) {
+      /* the local sim ball is only valid while this tab hosts CONTINUOUSLY: on (re)gaining the chair it is thrown away and simCourt re-seeds from the latest shared ball. The old code kept the frozen local ball across a host flap and wrote it back over the live ball — the other half of the teleport (2026-10-29). */
+      if (!spWasHost[k]) spHostBall[k] = null;
+      spWasHost[k] = true;
+      simCourt(k, dt);
+    } else {
+      spWasHost[k] = false; spHostBall[k] = null;
+      /* follow the shared ball — only the one host's writes ever move it. A payload counts only when its seq beats the last accepted seq; a gen change means the ball was genuinely re-placed (score respawn, court reset, swish hide), so the render snaps to it. Between writes the render extrapolates from the LOCAL receipt time of the accepted write — never from the writer's ts, whose clock skew against this device used to shove the target around (2026-10-29). */
       const sb = st && st.ball;
       let v = spBallVis[k];
       if (sb) {
-        if (!v) v = spBallVis[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, ps: 0 };
-        const age = Math.min((Date.now() - (sb.ts || 0)) / 1000, 0.35);
-        const txp = sb.x + (sb.vx || 0) * age, typ = sb.y + (sb.vy || 0) * age;
+        if (!v) v = spBallVis[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, ps: 0, seq: -1, gen: -1, rxT: 0, bx: sb.x, by: sb.y, bvx: 0, bvy: 0 };
+        if (v.bx === undefined) { v.bx = v.x; v.by = v.y; v.bvx = v.vx || 0; v.bvy = v.vy || 0; v.rxT = performance.now(); if (v.seq === undefined) v.seq = -1; if (v.gen === undefined) v.gen = -1; v.ps = v.ps || 0; }
+        const sq = sb.seq || 0, gn = sb.gen || 0;
+        if (gn !== v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
+        else if (sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); }
+        const age = Math.min((performance.now() - (v.rxT || 0)) / 1000, 0.35);
+        const txp = v.bx + v.bvx * age, typ = v.by + v.bvy * age;
         const prevSp = Math.hypot(v.vx || 0, v.vy || 0);
         v.x += (txp - v.x) * Math.min(1, dt * 9); v.y += (typ - v.y) * Math.min(1, dt * 9);
-        v.vx = sb.vx || 0; v.vy = sb.vy || 0;
+        v.vx = v.bvx; v.vy = v.bvy;
         const newSp = Math.hypot(v.vx, v.vy);
         if (newSp - prevSp > 150) { /* somebody just whacked it */
           let near = myCourt === k && Math.hypot(v.x - me.x, v.y - me.y) < 110;
           if (!near) for (const p of peers.values()) if (p.scene === "gym" && Math.hypot(v.x - p.x, v.y - p.y) < 110) { near = true; break; }
           if (near) sfxBounce(Math.min(1, newSp / 800));
         }
-        if (sb.x < -100) { v.x = sb.x; v.y = sb.y; }
       } else if (!v) spBallVis[k] = courtCenterBall(k);
     }
   }
@@ -3304,11 +3330,10 @@ function drawPlaza(t) {
       ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(fx, fy, 3.2 * ts, 0, 7); ctx.fill();
     });
   }
-  [[700, 700, 1.0], [430, 1150, 1.0], [2770, 1150, 1.0], [700, 1900, 1.0], [2500, 1900, 1.0],
+  [[430, 1150, 1.0], [2770, 1150, 1.0], [700, 1900, 1.0], [2500, 1900, 1.0],
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
    [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [3100, 800, 0.9], [110, 800, 1.0],
    [150, 2050, 0.95], [3050, 2050, 1.0],
-   [430, 660, 0.9], /* on the HQ portal's old spot, now plain lawn again */
    [500, 2380, 1.0], [1050, 2440, 0.9], [2150, 2420, 1.05], [2750, 2360, 0.95], [250, 2300, 0.9], [2950, 2310, 1.0], [1600, 2470, 0.85] /* the new southern ground from the 2026-10-29 plaza growth */
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
