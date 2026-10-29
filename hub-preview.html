@@ -1626,7 +1626,13 @@ function drawGym(t) {
       ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4; /* reset every end: the previous end's backboard/net styles must not bleed into this end's lines (Jonathan 2026-10-29: right side lines were transparent) */
       ctx.strokeRect(s < 0 ? r.x + 8 : r.x + r.w - 248, cy - 150, 240, 300); /* the key */
       ctx.beginPath(); ctx.arc(s < 0 ? r.x + 248 : r.x + r.w - 248, cy, 92, 0, 7); ctx.stroke();
-      { const acx = s < 0 ? r.x + 60 : r.x + r.w - 60, aR = 414, aD = r.h / 2 - 55, aJ = Math.sqrt(aR * aR - aD * aD), bx = s < 0 ? r.x + 8 : r.x + r.w - 8, jx = s < 0 ? acx + aJ : acx - aJ, aTop = Math.atan2(-aD, jx - acx), aBot = Math.atan2(aD, jx - acx); ctx.beginPath(); if (s < 0) { ctx.moveTo(bx, r.y + 55); ctx.lineTo(jx, r.y + 55); ctx.arc(acx, cy, aR, aTop, aBot, false); ctx.lineTo(bx, r.y + r.h - 55); } else { ctx.moveTo(bx, r.y + r.h - 55); ctx.lineTo(jx, r.y + r.h - 55); ctx.arc(acx, cy, aR, aBot, aTop + Math.PI * 2, false); ctx.lineTo(bx, r.y + 55); } ctx.stroke(); } /* 3pt line — real court shape (Jonathan 2026-10-29, from his court diagram): smaller 414 arc + straight ends running back to the baseline, clear gap from the top/bottom borders; bbThree() scores by this same shape */
+      { const acx = s < 0 ? r.x + 60 : r.x + r.w - 60, dir = s < 0 ? 1 : -1, aR = 414, bx = s < 0 ? r.x + 8 : r.x + r.w - 8, topY = r.y + 55, botY = r.y + r.h - 55, aX = Math.sqrt(aR * aR - 400 * 400);
+        const bl = sg => { const p0x = acx + dir * aX, p0y = cy + sg * 400, sy = sg < 0 ? topY : botY; return { p0x, p0y, cx: p0x - (sy - p0y) * (p0y - cy) / (p0x - acx), p1x: acx + dir * 65 }; };
+        const T = bl(-1), B = bl(1), aT = Math.atan2(T.p0y - cy, T.p0x - acx), aB = Math.atan2(B.p0y - cy, B.p0x - acx);
+        ctx.beginPath();
+        if (s < 0) { ctx.moveTo(bx, topY); ctx.lineTo(T.p1x, topY); ctx.quadraticCurveTo(T.cx, topY, T.p0x, T.p0y); ctx.arc(acx, cy, aR, aT, aB, false); ctx.quadraticCurveTo(B.cx, botY, B.p1x, botY); ctx.lineTo(bx, botY); }
+        else { ctx.moveTo(bx, botY); ctx.lineTo(B.p1x, botY); ctx.quadraticCurveTo(B.cx, botY, B.p0x, B.p0y); ctx.arc(acx, cy, aR, aB, aT + Math.PI * 2, false); ctx.quadraticCurveTo(T.cx, topY, T.p1x, topY); ctx.lineTo(bx, topY); }
+        ctx.stroke(); } /* 3pt line — real court shape (Jonathan 2026-10-29, from his court diagram): smaller 414 arc + straight ends running back to the baseline, clear gap from the top/bottom borders; the arc eases into the straights through tangent blends (his word: smooth curve, still straight at the end — no kink at the joins); bbThree() scores by this same shape */
       /* backboard + rim */
       ctx.fillStyle = "rgba(240,248,255,0.92)"; ctx.fillRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
       ctx.strokeStyle = "#20302a"; ctx.lineWidth = 3; ctx.strokeRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
