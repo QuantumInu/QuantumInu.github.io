@@ -748,10 +748,7 @@ const CASINOROOM = { w: 3200, h: 2200 };
 const BJT = { x: 430, y: 980, w: 900, h: 430 };
 const RRT = { x: 1870, y: 980, w: 900, h: 430 };
 const BJSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h + 150 })); /* seats sit well below the felt (2026-10-28): at +84 the seated players' name plates landed on the table's bottom button row */
-const RRSEATS = [
-  { x: RRT.x + 130, y: RRT.y + RRT.h + 150 }, { x: RRT.x + 350, y: RRT.y + RRT.h + 150 }, { x: RRT.x + 570, y: RRT.y + RRT.h + 150 }, { x: RRT.x + 790, y: RRT.y + RRT.h + 150 },
-  { x: RRT.x - 84, y: RRT.y + 215 }, { x: RRT.x + RRT.w + 84, y: RRT.y + 215 }
-];
+const RRSEATS = [0, 1, 2, 3, 4].map(i => ({ x: RRT.x + 110 + i * 170, y: RRT.y + RRT.h + 150 })); /* 5 chairs below the felt in blackjack's exact arrangement — the 2 end chairs are gone (Jonathan 2026-10-29) */
 const BJSPOTS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h - 128 }));
 const SLOTM = [0, 1, 2, 3, 4, 5].map(i => ({ x: 270 + i * 480, y: 250, w: 210, h: 330 }));
 const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 120 })); /* pushed down 2026-10-28: at +40 the player's head + name plate covered the SPIN button */
@@ -1858,7 +1855,7 @@ function reclaimSeat() {
   };
   if (scan(slotSeats, 6, "slot", SLOTSEATS)) return;
   if (scan(bjState && bjState.seats, 5, "bj", BJSEATS)) return;
-  scan(rrState && rrState.seats, 6, "rr", RRSEATS);
+  scan(rrState && rrState.seats, 5, "rr", RRSEATS);
 }
 function seatBeat() {
   if (!mySeat) { reclaimSeat(); return; }
@@ -1878,7 +1875,7 @@ function sitDown(game, idx) {
   if (mySeat && mySeat.game !== game) return false;
   const st = game === "bj" ? bjState : rrState;
   const seats = (st && st.seats) || {};
-  const n = game === "bj" ? 5 : 6, poss = game === "bj" ? BJSEATS : RRSEATS;
+  const n = 5, poss = game === "bj" ? BJSEATS : RRSEATS;
   for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId) { mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true; } }
   const tryClaim = i => {
     const s = seats[i];
@@ -1928,7 +1925,7 @@ function sitAtSlot(i) {
 function seatFocusRect() {
   if (!mySeat) return null;
   if (mySeat.game === "bj") return { x: BJT.x - 60, y: BJT.y - 60, w: BJT.w + 120, h: BJT.h + 254 };
-  if (mySeat.game === "rr") return { x: RRT.x - 100, y: RRT.y - 60, w: RRT.w + 200, h: RRT.h + 254 }; /* tighter than the old +300 frame (2026-10-28): on a phone the wide frame shrank the bet board to ~61x18px tap targets — only the double-width GREEN button caught taps reliably */
+  if (mySeat.game === "rr") return { x: RRT.x - 60, y: RRT.y - 60, w: RRT.w + 120, h: RRT.h + 254 }; /* blackjack's frame exactly, now that the end chairs are gone (Jonathan 2026-10-29) */
   if (mySeat.game === "slot") { const mch = SLOTM[mySeat.idx]; if (!mch) return null; return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 250 }; }
   return null;
 }
