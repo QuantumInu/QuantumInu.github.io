@@ -441,6 +441,9 @@ $("mutebtn").onclick = () => {
 let db = null, myRef = null, connected = false;
 let myId = localStorage.getItem("quantum-hub-session");
 if (!myId) { myId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); localStorage.setItem("quantum-hub-session", myId); } /* localStorage, not sessionStorage (2026-10-28): the id survives tab closes, so after a reload the game still knows this browser — that is what lets a player reclaim their own casino chair instead of finding it stuck under a stranger-id */
+/* per-TAB id (2026-10-29): sessionStorage, so every tab of a browser gets its own id and a reload of the same tab keeps it. The account session claim below runs on THIS id — myId cannot do that job, being shared by every tab of the browser on purpose (seat reclaim above). Telling tabs apart is what lets a second tab be blocked while the first one stays put. */
+let tabId = null;
+try { tabId = sessionStorage.getItem("quantum-hub-tab"); if (!tabId) { tabId = "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); sessionStorage.setItem("quantum-hub-tab", tabId); } } catch (e) { tabId = "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
 const peers = new Map();
 function setStatus(txt, cls) { statusEl.textContent = txt; statusEl.className = cls || ""; }
 try {
@@ -893,13 +896,13 @@ let lockBeat = null;
 function claimTabLock() {
   try {
     const raw = localStorage.getItem("qh-tab-lock");
-    if (raw) { const L = JSON.parse(raw); if (L && L.id !== myId && Date.now() - L.ts < 9000) return false; }
-    localStorage.setItem("qh-tab-lock", JSON.stringify({ id: myId, ts: Date.now() }));
+    if (raw) { const L = JSON.parse(raw); if (L && L.id !== tabId && Date.now() - L.ts < 9000) return false; }
+    localStorage.setItem("qh-tab-lock", JSON.stringify({ id: tabId, ts: Date.now() }));
     return true;
   } catch (e) { return true; }
 }
 function releaseTabLock() {
-  try { const raw = localStorage.getItem("qh-tab-lock"); if (raw) { const L = JSON.parse(raw); if (L && L.id === myId) localStorage.removeItem("qh-tab-lock"); } } catch (e) {}
+  try { const raw = localStorage.getItem("qh-tab-lock"); if (raw) { const L = JSON.parse(raw); if (L && L.id === tabId) localStorage.removeItem("qh-tab-lock"); } } catch (e) {}
 }
 window.addEventListener("beforeunload", releaseTabLock);
 window.addEventListener("pagehide", e => { if (!e.persisted) releaseTabLock(); });
@@ -908,7 +911,7 @@ function enterHub() {
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
   if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct())) return;
-  if (!claimTabLock()) { $("nameerr").textContent = "⚠️ The Hub is already open in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
+  if (!claimTabLock()) { $("nameerr").textContent = "⚠️ You're already signed in in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr;
   if (profile && typeof profile.chips === "number") {
@@ -919,7 +922,7 @@ function enterHub() {
   localStorage.setItem(LS_KEY, JSON.stringify(profile));
   acctSave(); drawChips();
   if (lockBeat) clearInterval(lockBeat);
-  lockBeat = setInterval(() => { try { localStorage.setItem("qh-tab-lock", JSON.stringify({ id: myId, ts: Date.now() })); } catch (e) {} }, 3000);
+  lockBeat = setInterval(() => { try { localStorage.setItem("qh-tab-lock", JSON.stringify({ id: tabId, ts: Date.now() })); } catch (e) {} }, 3000);
   me.name = nm; me.hero = pickedHero;
   entered = true;
   gate.style.display = "none";
@@ -971,20 +974,93 @@ function watchChips() {
     }
   });
 }
-/* single-session rule (Jonathan 2026-10-28): one account, one place. Signing in claims the account's session slot under this browser's id; a sign-in from ANOTHER browser/device while the claim is fresh (heartbeat 15s, stale at 90s) is refused. Closing the page releases the claim on disconnect; the same browser always reclaims its own. */
-let sessHeld = false, sessTimer = 0;
-function sessionBeat() { if (acctUser && sessHeld && db) { try { db.ref("hub/users/" + acctUser.uid + "/session").update({ sid: myId, ts: Date.now() }); } catch (e) {} } }
+/* single-session rule (Jonathan 2026-10-28; per-tab + blocked newcomer since 2026-10-29): one account, one place. Signing in claims the account's session slot under this TAB's id (tabId — myId is browser-wide and cannot tell tabs apart); a sign-in from another tab or device while the claim is fresh (heartbeat 15s, stale at 90s) is BLOCKED: it never enters, writes no presence, touches no chips, and the session already inside is never kicked by a newcomer. The claim lands through a transaction, so it is taken only when the slot is empty, already this tab's, or stale. Release is conditional the same way — a tab only ever lets go of its OWN claim. */
+const SESS_BLOCK_MSG = "⚠️ You're already signed in in another tab or device. Close it there, then sign in here.";
+let sessHeld = false, sessTimer = 0, sessLiveTimer = 0;
+function sessClaimValue(cur) {
+  if (!cur || !cur.sid || cur.sid === tabId || Date.now() - (cur.ts || 0) >= 90000) return { sid: tabId, ts: Date.now() };
+  return undefined; /* a DIFFERENT tab/device holds a fresh claim: hands off */
+}
+function sessionBeat() {
+  if (!acctUser || !sessHeld || !db) return;
+  try {
+    db.ref("hub/users/" + acctUser.uid + "/session").transaction(sessClaimValue, (err, committed) => {
+      if (!err && !committed && sessHeld) { /* this tab's claim went stale and was taken over: stop claiming and never steal it back */ sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; } stopSessLive(); }
+    });
+  } catch (e) {}
+}
 function claimSession() {
-  if (!acctUser || !db) return;
-  sessHeld = true;
-  try { db.ref("hub/users/" + acctUser.uid + "/session").onDisconnect().remove(); } catch (e) {}
-  sessionBeat();
-  if (!sessTimer) sessTimer = setInterval(sessionBeat, 15000);
+  if (!acctUser || !db || sessHeld) return;
+  const ref = db.ref("hub/users/" + acctUser.uid + "/session");
+  try {
+    ref.transaction(sessClaimValue, (err, committed) => {
+      if (err || !committed) { sessionBlocked(); return; }
+      sessHeld = true;
+      try { ref.onDisconnect().remove(); } catch (e) {}
+      if (!sessTimer) sessTimer = setInterval(sessionBeat, 15000);
+      startSessLive();
+    });
+  } catch (e) {}
+}
+function sessionBlocked() {
+  /* lost the claim race to a fresh session elsewhere: refuse, exactly like the sign-in check — the tab inside is not disturbed in any way */
+  sessHeld = false;
+  acctMsg(SESS_BLOCK_MSG);
+  if (auth) { try { auth.signOut(); } catch (e) {} }
+}
+function releaseSessSlot(uid) {
+  if (!db || !uid) return;
+  try { const ref = db.ref("hub/users/" + uid + "/session"); ref.onDisconnect().cancel(); ref.transaction(cur => (cur && cur.sid === tabId) ? null : undefined); } catch (e) {}
 }
 function releaseSession() {
-  if (acctUser && db && sessHeld) { try { const ref = db.ref("hub/users/" + acctUser.uid + "/session"); ref.onDisconnect().cancel(); ref.remove(); } catch (e) {} }
+  if (acctUser && db && sessHeld) releaseSessSlot(acctUser.uid);
+  if (acctUser) clearSessLive(acctUser.uid);
   sessHeld = false;
   if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; }
+  stopSessLive();
+}
+/* clean close (2026-10-29): the tab holding the claim lets go of it on the way out — conditionally, only ever its own — so a reopen is never blocked by its own ghost. A blocked tab holds nothing and clears nothing. The onDisconnect removal stays armed as the crash-proof backstop. */
+function sessPageGone(e) {
+  if (e && e.persisted) return; /* bfcache freeze, not a close: the heartbeat re-claims on resume if needed */
+  releaseTabLock();
+  if (sessHeld && acctUser) { releaseSessSlot(acctUser.uid); clearSessLive(acctUser.uid); }
+}
+window.addEventListener("pagehide", sessPageGone);
+window.addEventListener("beforeunload", sessPageGone);
+/* same-browser tab guard (2026-10-29): while this tab holds the claim it announces itself two ways — a BroadcastChannel other tabs of this browser can ask, and a localStorage "live" stamp refreshed every 3s for browsers without BroadcastChannel. A tab signing in asks both BEFORE the server slot is read: an answer from a DIFFERENT tab means the account is in the Hub right here, and the newcomer is refused on the spot (a few hundred ms at most). The server slot check remains the cross-device authority; this only makes the same-browser case instant. */
+let sessBC = null;
+try { if ("BroadcastChannel" in window) sessBC = new BroadcastChannel("quantum-hub-session"); } catch (e) { sessBC = null; }
+if (sessBC) {
+  sessBC.onmessage = e => {
+    const m = e && e.data;
+    if (m && m.q === "who" && m.from && m.from !== tabId && acctUser && m.uid === acctUser.uid && sessHeld) {
+      try { sessBC.postMessage({ a: "here", uid: m.uid, from: tabId }); } catch (err) {}
+    }
+  };
+}
+function sessLiveKey(uid) { return "qh-live-" + uid; }
+function startSessLive() {
+  stopSessLive();
+  const stamp = () => { if (acctUser && sessHeld) { try { localStorage.setItem(sessLiveKey(acctUser.uid), JSON.stringify({ id: tabId, ts: Date.now() })); } catch (e) {} } };
+  stamp();
+  sessLiveTimer = setInterval(stamp, 3000);
+}
+function stopSessLive() { if (sessLiveTimer) { clearInterval(sessLiveTimer); sessLiveTimer = 0; } }
+function clearSessLive(uid) {
+  if (!uid) return;
+  try { const raw = localStorage.getItem(sessLiveKey(uid)); if (raw) { const L = JSON.parse(raw); if (L && L.id === tabId) localStorage.removeItem(sessLiveKey(uid)); } } catch (e) {}
+}
+function tabGuardBlocks(uid) {
+  /* the live stamp first: synchronous, and instant when the holding tab is in this browser */
+  try { const raw = localStorage.getItem(sessLiveKey(uid)); if (raw) { const L = JSON.parse(raw); if (L && L.id && L.id !== tabId && Date.now() - (L.ts || 0) < 8000) return Promise.resolve(true); } } catch (e) {}
+  if (!sessBC) return Promise.resolve(false);
+  return new Promise(res => {
+    let done = false;
+    const finish = v => { if (!done) { done = true; try { sessBC.removeEventListener("message", onMsg); } catch (e) {} res(v); } };
+    const onMsg = e => { const m = e && e.data; if (m && m.a === "here" && m.uid === uid && m.from && m.from !== tabId) finish(true); };
+    try { sessBC.addEventListener("message", onMsg); sessBC.postMessage({ q: "who", uid, from: tabId }); } catch (e) { finish(false); return; }
+    setTimeout(() => finish(false), 300);
+  });
 }
 function acctUi() {
   drawChips(); syncOwnerCell();
@@ -1028,18 +1104,21 @@ function initAuth() {
     if (!u) {
       acctLoaded = false;
       if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
-      if (prevUser && sessHeld && db) { try { const ref = db.ref("hub/users/" + prevUser.uid + "/session"); ref.onDisconnect().cancel(); ref.remove(); } catch (e) {} }
-      sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; }
+      if (prevUser && sessHeld && db) releaseSessSlot(prevUser.uid);
+      if (prevUser) clearSessLive(prevUser.uid);
+      sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; } stopSessLive();
       return;
     }
     if (u && db) {
       try {
+        /* same-browser fast path: another tab of THIS browser is in the Hub on this account right now — refuse before anything is read, claimed or saved */
+        if (!sessHeld && await tabGuardBlocks(u.uid)) { acctMsg(SESS_BLOCK_MSG); try { await auth.signOut(); } catch (e) {} return; }
         const snap = await db.ref("hub/users/" + u.uid).once("value");
         const d = snap.val();
-        /* one account, one place: a FRESH session claim held by a DIFFERENT browser/device refuses this sign-in (the same browser's id always reclaims its own) */
+        /* one account, one place: a FRESH session claim held by a DIFFERENT tab or device refuses this sign-in (this tab's own claim always reclaims itself; the first session is never kicked) */
         const sess = d && d.session;
-        if (sess && sess.sid && sess.sid !== myId && Date.now() - (sess.ts || 0) < 90000) {
-          acctMsg("⚠️ This account is already signed in on another device. Close it there, then sign in here.");
+        if (sess && sess.sid && sess.sid !== tabId && Date.now() - (sess.ts || 0) < 90000) {
+          acctMsg(SESS_BLOCK_MSG);
           try { await auth.signOut(); } catch (e) {}
           return;
         }
