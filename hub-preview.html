@@ -769,7 +769,7 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
-  if (me.scene === "gym") return [TN_NET, FIREPL, { x: LG.x + 240, y: LG.y + 330, w: 300, h: 110 }, { x: LG.x + LG.w - 540, y: LG.y + 330, w: 300, h: 110 }, { x: LG.x + LG.w / 2 - 110, y: LG.y + 560, w: 220, h: 90 }];
+  if (me.scene === "gym") return [TN_NET, FIREPL, { x: LG.x + LG.w / 2 - 110, y: LG.y + 560, w: 220, h: 90 }];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -1317,10 +1317,18 @@ function sportsListen() {
 function spSet(k, p, v) { if (db) { if (v === null) db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).remove(); else db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).set(v); } }
 function spUpd(k, v) { if (db) db.ref("hub/tables/sports/" + k).update(v); }
 function spReset(k) { spSet(k, "", { score: { a: 0, b: 0 }, ball: courtCenterBall(k) }); spHostBall[k] = null; }
+function spResetIfEmpty(k) {
+  const st = spState[k]; if (!st) return;
+  const others = st.players ? Object.keys(st.players).filter(pid => pid !== myId && st.players[pid] && Date.now() - (st.players[pid].ts || 0) < 25000) : [];
+  if (others.length) return;
+  const ctr = courtCenterBall(k);
+  const dirty = (st.score && (st.score.a || st.score.b)) || (st.ball && (Math.abs(st.ball.x - ctr.x) > 4 || Math.abs(st.ball.y - ctr.y) > 4 || Math.abs(st.ball.vx || 0) > 1 || Math.abs(st.ball.vy || 0) > 1)) || !!st.lastScore;
+  if (dirty) spReset(k);
+}
 function spOD(k, on) { if (!db) return; try { const ref = db.ref("hub/tables/sports/" + k + "/players/" + myId); if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel(); } catch (e) {} }
 function spPlayers(k) { const st = spState[k], out = []; if (st && st.players) for (const pid of Object.keys(st.players)) { const p = st.players[pid]; if (p && Date.now() - (p.ts || 0) < 25000) out.push({ pid, side: p.side, jts: p.jts || 0 }); } return out; }
 function spHost(k) { const ps = spPlayers(k); if (!ps.length) return ""; ps.sort((a, b) => (a.jts - b.jts) || (a.pid < b.pid ? -1 : 1)); return ps[0].pid; }
-function leaveCourtRecord() { if (myCourt) { spSet(myCourt, "players/" + myId, null); spOD(myCourt, false); } myCourt = null; mySide = null; }
+function leaveCourtRecord() { if (myCourt) { const k = myCourt; spSet(k, "players/" + myId, null); spOD(k, false); spResetIfEmpty(k); } myCourt = null; mySide = null; }
 function writeMySpRecord() { if (db && myCourt) db.ref("hub/tables/sports/" + myCourt + "/players/" + myId).set({ side: mySide, name: me.name, hero: me.hero, ts: Date.now(), jts: spJoinTs }); }
 /* score celebrations: driven by the SHARED lastScore, so everyone in the gym sees and hears the same moment (the tableResultFx pattern) */
 let hoopAnim = { L: 0, R: 0 };
@@ -1420,7 +1428,7 @@ function stepSports(dt) {
   const side = ci ? (me.x < ci.r.x + ci.r.w / 2 ? "A" : "B") : null;
   if (ck !== myCourt || side !== mySide) {
     const wasCourt = myCourt;
-    if (myCourt) { spSet(myCourt, "players/" + myId, null); spOD(myCourt, false); }
+    if (myCourt) { spSet(myCourt, "players/" + myId, null); spOD(myCourt, false); if (wasCourt && wasCourt !== ck) spResetIfEmpty(wasCourt); }
     myCourt = ck; mySide = side;
     if (myCourt) { if (wasCourt !== myCourt) spJoinTs = Date.now(); writeMySpRecord(); spOD(myCourt, true); }
   }
@@ -1497,7 +1505,7 @@ function drawSportsBall(k, t) {
   const spd = Math.hypot(v.vx || 0, v.vy || 0);
   if (spd > 260) { ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = R * 0.7; ctx.beginPath(); ctx.moveTo(v.x - (v.vx || 0) * 0.09, v.y - (v.vy || 0) * 0.09); ctx.lineTo(v.x, v.y); ctx.stroke(); }
   ctx.beginPath(); ctx.arc(v.x, v.y, R, 0, 7);
-  if (k === "bb") { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#ffb066"); g.addColorStop(1, "#e06a1b"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#7a3405"; ctx.lineWidth = 2; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); ctx.strokeStyle = "rgba(90,35,0,0.85)"; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(v.x - R, v.y); ctx.lineTo(v.x + R, v.y); ctx.moveTo(v.x, v.y - R); ctx.lineTo(v.x, v.y + R); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x, v.y, R * 0.5, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x - R * 1.25, v.y, R * 0.95, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 1.25, v.y, R * 0.95, 0, 7); ctx.stroke(); ctx.restore(); }
+  if (k === "bb") { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#ffb066"); g.addColorStop(1, "#e06a1b"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#7a3405"; ctx.lineWidth = 2; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); ctx.strokeStyle = "rgba(90,35,0,0.85)"; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(v.x - R, v.y); ctx.lineTo(v.x + R, v.y); ctx.moveTo(v.x, v.y - R); ctx.lineTo(v.x, v.y + R); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x - R * 1.25, v.y, R * 0.95, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 1.25, v.y, R * 0.95, 0, 7); ctx.stroke(); ctx.restore(); }
   else if (k === "fb") { ctx.fillStyle = "#f7faf7"; ctx.fill(); ctx.strokeStyle = "#20302a"; ctx.lineWidth = 2; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); const pent = (px, py, pr, rot) => { ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = rot + i * (Math.PI * 2 / 5) - Math.PI / 2, X = px + Math.cos(a) * pr, Y = py + Math.sin(a) * pr; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.closePath(); ctx.fillStyle = "#182420"; ctx.fill(); }; pent(v.x, v.y, R * 0.34, 0); for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; pent(v.x + Math.cos(a) * R * 0.98, v.y + Math.sin(a) * R * 0.98, R * 0.30, a + Math.PI / 5); } ctx.strokeStyle = "rgba(24,36,32,0.55)"; ctx.lineWidth = 1.4; for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; ctx.beginPath(); ctx.moveTo(v.x + Math.cos(a) * R * 0.30, v.y + Math.sin(a) * R * 0.30); ctx.lineTo(v.x + Math.cos(a) * R * 0.72, v.y + Math.sin(a) * R * 0.72); ctx.stroke(); } ctx.restore(); }
   else { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#eaff7a"); g.addColorStop(1, "#a8c81e"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(v.x - R * 0.9, v.y, R * 0.75, -0.9, 0.9); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 0.9, v.y, R * 0.75, Math.PI - 0.9, Math.PI + 0.9); ctx.stroke(); }
 }
@@ -1625,7 +1633,7 @@ function drawGym(t) {
     ctx.fillStyle = "#6a4a4a"; ctx.fillRect(fp.x - 40, fp.y - 30, fp.w + 80, 18);
     ctx.font = "26px sans-serif"; ctx.fillText("🏆", fp.x - 6, fp.y - 36); ctx.fillText("🏆", fp.x + fp.w - 26, fp.y - 36); ctx.fillText("⚛️", cx - 13, fp.y - 36);
     /* sofas + coffee table */
-    for (const sx of [r.x + 240, r.x + r.w - 540]) {
+    for (const sx of [r.x + 376, r.x + 844]) {
       ctx.fillStyle = "#5b2140"; rr(sx, r.y + 330, 300, 110, 20); ctx.fill();
       ctx.fillStyle = "#6e294e"; rr(sx + 14, r.y + 344, 272, 60, 14); ctx.fill();
       ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 2; rr(sx, r.y + 330, 300, 110, 20); ctx.stroke();
