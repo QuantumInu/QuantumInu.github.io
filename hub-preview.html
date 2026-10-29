@@ -756,7 +756,7 @@ const BJSPOTS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y +
 const SLOTM = [0, 1, 2, 3, 4, 5].map(i => ({ x: 270 + i * 480, y: 250, w: 210, h: 330 }));
 const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 120 })); /* pushed down 2026-10-28: at +40 the player's head + name plate covered the SPIN button */
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
-const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 58, w: 124, h: 44 };
+const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 80, w: 124, h: 44 }; /* plate raised above the gold border line (Jonathan 2026-10-29) */
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
 const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
 const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
@@ -1693,8 +1693,11 @@ function drawGym(t) {
     const r = LG, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
     ctx.fillStyle = "#2a1430"; ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.fillStyle = "rgba(255,215,106,0.08)"; ctx.fillRect(r.x, r.y, r.w, 10); ctx.fillRect(r.x, r.y + r.h - 10, r.w, 10);
-    /* rug */
-    ctx.fillStyle = "#3d1a44"; rr(cx - 430, cy - 240, 860, 560, 26); ctx.fill();
+    /* rug — now a burgundy carpet with a woven diamond texture, matching the casino (Jonathan 2026-10-29) */
+    ctx.fillStyle = "#57102a"; rr(cx - 430, cy - 240, 860, 560, 26); ctx.fill();
+    ctx.save(); rr(cx - 430, cy - 240, 860, 560, 26); ctx.clip();
+    for (let gx = cx - 390; gx < cx + 430; gx += 86) for (let gy = cy - 200; gy < cy + 240; gy += 86) { ctx.fillStyle = ((gx + gy) / 86) % 2 ? "rgba(255,110,130,0.05)" : "rgba(0,0,0,0.10)"; ctx.beginPath(); ctx.moveTo(gx, gy - 19); ctx.lineTo(gx + 19, gy); ctx.lineTo(gx, gy + 19); ctx.lineTo(gx - 19, gy); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
     ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 3; rr(cx - 430, cy - 240, 860, 560, 26); ctx.stroke();
     ctx.strokeStyle = "rgba(255,215,106,0.25)"; rr(cx - 380, cy - 190, 760, 460, 20); ctx.stroke();
     /* fireplace on the top wall */
@@ -1746,11 +1749,17 @@ function drawGym(t) {
     /* lamps */
     for (const lx of [r.x + 90, r.x + r.w - 90]) { const lg2 = ctx.createRadialGradient(lx, cy, 4, lx, cy, 90); lg2.addColorStop(0, "rgba(255,190,90,0.35)"); lg2.addColorStop(1, "rgba(255,190,90,0)"); ctx.fillStyle = lg2; ctx.beginPath(); ctx.arc(lx, cy, 90, 0, 7); ctx.fill(); ctx.font = "30px sans-serif"; ctx.fillText("🛋️", lx - 15, cy + 10); }
   }
-  /* exit door */
-  ctx.fillStyle = "#0a1428"; rr(GEXIT.x, GYMROOM.h - 40, GEXIT.w, 40, 6); ctx.fill();
-  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GEXIT.x, GYMROOM.h - 40, GEXIT.w, 40, 6); ctx.stroke();
-  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
-  ctx.fillText("▼ EXIT ▼", GYMROOM.w / 2, GYMROOM.h - 72);
+  /* red entrance runner from the exit door up the middle walkway (Jonathan 2026-10-29) */
+  ctx.fillStyle = "#8f1220"; ctx.fillRect(GYMROOM.w / 2 - 100, GYMROOM.h - 720, 200, 660);
+  ctx.fillStyle = "rgba(0,0,0,0.14)";
+  for (let ry = GYMROOM.h - 692; ry < GYMROOM.h - 90; ry += 84) ctx.fillRect(GYMROOM.w / 2 - 100, ry, 200, 3);
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(GYMROOM.w / 2 - 106, GYMROOM.h - 720); ctx.lineTo(GYMROOM.w / 2 - 106, GYMROOM.h - 58); ctx.moveTo(GYMROOM.w / 2 + 106, GYMROOM.h - 720); ctx.lineTo(GYMROOM.w / 2 + 106, GYMROOM.h - 58); ctx.stroke();
+  /* exit door — the casino's 🚪 EXIT plate, raised above the border (Jonathan 2026-10-29) */
+  ctx.fillStyle = "#0a1428"; rr(GEXIT.x, GEXIT.y, GEXIT.w, GEXIT.h, 8); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GEXIT.x, GEXIT.y, GEXIT.w, GEXIT.h, 8); ctx.stroke();
+  ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
+  ctx.fillText("🚪 EXIT", GEXIT.x + GEXIT.w / 2, GEXIT.y + 30);
   drawTableFx(t);
   ctx.restore();
 }
@@ -2666,9 +2675,15 @@ function drawSlots(t) {
 }
 function drawCasino(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  ctx.fillStyle = "#1c0b31"; ctx.fillRect(0, 0, CASINOROOM.w, CASINOROOM.h);
-  ctx.fillStyle = "rgba(255,215,106,0.05)";
-  for (let gx = 120; gx < CASINOROOM.w; gx += 240) for (let gy = 120; gy < CASINOROOM.h; gy += 240) { ctx.beginPath(); ctx.arc(gx, gy, 7, 0, 7); ctx.fill(); }
+  /* burgundy carpet with a woven diamond texture (Jonathan 2026-10-29) */
+  ctx.fillStyle = "#40081b"; ctx.fillRect(0, 0, CASINOROOM.w, CASINOROOM.h);
+  ctx.save(); ctx.beginPath(); ctx.rect(34, 34, CASINOROOM.w - 68, CASINOROOM.h - 68); ctx.clip();
+  for (let gx = 60; gx < CASINOROOM.w; gx += 120) for (let gy = 60; gy < CASINOROOM.h; gy += 120) {
+    ctx.fillStyle = ((gx + gy) / 120) % 2 ? "rgba(255,110,130,0.045)" : "rgba(0,0,0,0.10)";
+    ctx.beginPath(); ctx.moveTo(gx, gy - 26); ctx.lineTo(gx + 26, gy); ctx.lineTo(gx, gy + 26); ctx.lineTo(gx - 26, gy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,215,106,0.05)"; ctx.beginPath(); ctx.arc(gx, gy, 4, 0, 7); ctx.fill();
+  }
+  ctx.restore();
   ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 6; ctx.strokeRect(14, 14, CASINOROOM.w - 28, CASINOROOM.h - 28);
   ctx.strokeStyle = "rgba(168,85,247,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(30, 30, CASINOROOM.w - 60, CASINOROOM.h - 60);
   ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
@@ -2676,6 +2691,21 @@ function drawCasino(t) {
   ctx.fillText("🎰 QUANTUM CASINO 🎰", CASINOROOM.w / 2, 128);
   ctx.font = "700 25px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.8)";
   ctx.fillText("blackjack · roulette · slots — the tables are the game, pull up a seat", CASINOROOM.w / 2, 172);
+  /* redder entrance carpet running in from the exit door, gold-trimmed (Jonathan 2026-10-29) */
+  ctx.fillStyle = "#8f1220"; ctx.fillRect(CASINOROOM.w / 2 - 110, CASINOROOM.h - 800, 220, 740);
+  ctx.fillStyle = "rgba(0,0,0,0.14)";
+  for (let ry = CASINOROOM.h - 772; ry < CASINOROOM.h - 90; ry += 84) ctx.fillRect(CASINOROOM.w / 2 - 110, ry, 220, 3);
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(CASINOROOM.w / 2 - 116, CASINOROOM.h - 800); ctx.lineTo(CASINOROOM.w / 2 - 116, CASINOROOM.h - 58); ctx.moveTo(CASINOROOM.w / 2 + 116, CASINOROOM.h - 800); ctx.lineTo(CASINOROOM.w / 2 + 116, CASINOROOM.h - 58); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; ctx.strokeRect(CASINOROOM.w / 2 - 110, CASINOROOM.h - 800, 220, 742);
+  /* detail: gold medallion inlay at the room's heart, pendant glows over the floor, palms in the corners */
+  ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(CASINOROOM.w / 2, 1180, 330, 190, 0, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,215,106,0.18)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(CASINOROOM.w / 2, 1180, 290, 158, 0, 0, 7); ctx.stroke();
+  ctx.font = "44px sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("⚛", CASINOROOM.w / 2, 1196);
+  for (const px of [420, 1600, 2780]) { const pg = ctx.createRadialGradient(px, 300, 10, px, 300, 260); pg.addColorStop(0, "rgba(255,190,90,0.16)"); pg.addColorStop(1, "rgba(255,190,90,0)"); ctx.fillStyle = pg; ctx.fillRect(px - 260, 40, 520, 520); }
+  ctx.font = "46px sans-serif"; ctx.fillText("🌴", 92, 108); ctx.fillText("🌴", CASINOROOM.w - 92, 108); ctx.fillText("🌴", 92, CASINOROOM.h - 66); ctx.fillText("🌴", CASINOROOM.w - 92, CASINOROOM.h - 66);
   uiZones = [];
   drawSlots(t);
   drawBJTable(t);
