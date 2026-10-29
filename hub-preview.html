@@ -206,6 +206,7 @@ const GAMES = [
 ["QI Quantum Pinball","qi-quantum-pinball.html","qi-quantum-pinball.jpg"]];
 /* the site's full song library: [slug, title, artist, genre, seconds] */
 const SONGS = [
+["holding-through-the-rain","Holding Through The Rain","Phat Boi J","Rock",277],
 ["beyond-the-moment","Beyond The Moment","Phat Boi J","Trance",371],
 ["show-me-dat-shrek","Show Me Dat Shrek","Phat Boi J","Rap",237],
 ["above-the-noise","Above The Noise","Phat Boi J","Rock / Punk",197],
@@ -1382,9 +1383,9 @@ const sfxWhistle = () => { tone(2350, 2350, 0.13, "square", 0.03); tone(2350, 23
 const sfxCheer = () => { [660, 830, 990, 1180].forEach((f, i) => tone(f, f, 0.11, "triangle", 0.028, i * 0.05)); };
 function courtAt(x, y) { for (const pr of COURTS) { const r = pr[1]; if (x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) return { k: pr[0], r }; } return null; }
 function courtCenterBall(k, side) { const r = COURTS.find(c => c[0] === k)[1]; return { x: r.x + r.w / 2, y: r.y + r.h / 2, vx: 0, vy: 0, ts: 0, lastHit: "", lastSide: "", crossed: false, dead: 0 }; } /* every ball returns to the exact court center — the tennis quarter-spots are gone at Jonathan's word 2026-10-29 */
-const BB3 = { R: 480, AD: 405, A1: 105, DYB: 305, LA: 120, LB: 120 };
-function bbEase(t) { const R = BB3.R, dxB = Math.sqrt(R * R - BB3.DYB * BB3.DYB), u = 1 - t, C2x = dxB - BB3.LB * BB3.DYB / R, C2y = BB3.DYB + BB3.LB * dxB / R; return [u * u * u * BB3.A1 + 3 * u * u * t * (BB3.A1 + BB3.LA) + 3 * u * t * t * C2x + t * t * t * dxB, u * u * u * BB3.AD + 3 * u * u * t * BB3.AD + 3 * u * t * t * C2y + t * t * t * BB3.DYB]; } /* the 3pt corner ease in (rel toward center, dyOff): leaves the straight barely bending and tightens gradually into the 480 arc — no shoulder at the joins (Jonathan 2026-10-29) */
-function bbThree(acx, dir, sx, sy, r, cy) { const rel = (sx - acx) * dir, dy = Math.abs(sy - cy), aD = r.h / 2 - 55, R = BB3.R; if (dy > aD) return true; if (dy <= BB3.DYB) return Math.hypot(rel, dy) > R; let lo = 0, hi = 1; for (let i = 0; i < 32; i++) { const m = (lo + hi) / 2; if (bbEase(m)[1] > dy) lo = m; else hi = m; } return rel > bbEase((lo + hi) / 2)[0]; } /* 2 vs 3 test matching the drawn 3pt line exactly: past the straight ends = 3, behind the curve = outside the 480 arc, in the ease band the drawn ease itself is the threshold */
+const BB3 = { R: 430, AD: 405, A1: 60, DYB: 315, LA: 70, LB: 130 };
+function bbEase(t) { const R = BB3.R, dxB = Math.sqrt(R * R - BB3.DYB * BB3.DYB), u = 1 - t, C2x = dxB - BB3.LB * BB3.DYB / R, C2y = BB3.DYB + BB3.LB * dxB / R; return [u * u * u * BB3.A1 + 3 * u * u * t * (BB3.A1 + BB3.LA) + 3 * u * t * t * C2x + t * t * t * dxB, u * u * u * BB3.AD + 3 * u * u * t * BB3.AD + 3 * u * t * t * C2y + t * t * t * BB3.DYB]; } /* the 3pt corner ease in (rel toward center, dyOff): leaves the straight barely bending and tightens gradually into the 430 arc — no shoulder at the joins (Jonathan 2026-10-29) */
+function bbThree(acx, dir, sx, sy, r, cy) { const rel = (sx - acx) * dir, dy = Math.abs(sy - cy), aD = r.h / 2 - 55, R = BB3.R; if (dy > aD) return true; if (dy <= BB3.DYB) return Math.hypot(rel, dy) > R; let lo = 0, hi = 1; for (let i = 0; i < 32; i++) { const m = (lo + hi) / 2; if (bbEase(m)[1] > dy) lo = m; else hi = m; } return rel > bbEase((lo + hi) / 2)[0]; } /* 2 vs 3 test matching the drawn 3pt line exactly: past the straight ends = 3, behind the curve = outside the 430 arc, in the ease band the drawn ease itself is the threshold */
 function sportsListen() {
   if (!db || spHooked) return; spHooked = true;
   for (const pr of COURTS) { const k = pr[0]; db.ref("hub/tables/sports/" + k).on("value", s => { spState[k] = s.val(); spFxCheck(k); }); }
@@ -1442,7 +1443,7 @@ function simCourt(k, dt) {
     b.swishUntil = 0; b.x = -9999; b.y = -9999; b.vx = 0; b.vy = 0; b.freezeUntil = nowp + 900; writeBall(k, b, true); return;
   }
   if (b.freezeUntil && nowp < b.freezeUntil) { writeBall(k, b, false); return; }
-  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotAX = undefined; b.shotAY = undefined; b.shotBX = undefined; b.shotBY = undefined; }
+  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotX = undefined; b.shotY = undefined; }
   /* gather the players on this court (me + peers standing in it) */
   const actors = [];
   if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } actors.push({ pid: myId, x: me.x, y: me.y, vx: mvx, vy: mvy, side: mySide }); }
@@ -1461,7 +1462,7 @@ function simCourt(k, dt) {
       const power = Math.min(880, 330 + asp * 0.95);
       b.vx = nx * power + a.vx * 0.30; b.vy = ny * power + a.vy * 0.30;
       b.x = a.x + nx * min; b.y = a.y + ny * min;
-      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0; if (a.side === "A") { b.shotAX = a.x; b.shotAY = a.y; } else if (a.side === "B") { b.shotBX = a.x; b.shotBY = a.y; } /* each side's last touch spot, for 2 vs 3 in basketball: a defender's deflection never moves the shot's value, a teammate's tip-in does */
+      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0; b.shotX = a.x; b.shotY = a.y; /* the last touch spot, for 2 vs 3 in basketball: the bump that sent the ball in is the shot, wherever it was taken (Jonathan 2026-10-29: the old per-side slots keyed on which half the toucher stood in, so crossing midcourt made an inside shot read a stale outside touch and pay 3) */
       b.hitCoolUntil = nowp + 280;
       if (k === "tn" && a.side) b.crossed = false;
     }
@@ -1474,8 +1475,8 @@ function simCourt(k, dt) {
     if (b.x > r.x + r.w - R) { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; }
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
-    if (Math.abs(b.x - (r.x + 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.shotBX !== undefined && bbThree(r.x + 60, 1, b.shotBX, b.shotBY, r, cy)) ? 3 : 2; spScore(k, "B", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
-    else if (Math.abs(b.x - (r.x + r.w - 58)) < 17 && Math.abs(b.y - cy) < 15) { const pts = (b.shotAX !== undefined && bbThree(r.x + r.w - 60, -1, b.shotAX, b.shotAY, r, cy)) ? 3 : 2; spScore(k, "A", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
+    if (Math.abs(b.x - (r.x + 58)) < 30 && Math.abs(b.y - cy) < 24) { const pts = (b.shotX !== undefined && bbThree(r.x + 60, 1, b.shotX, b.shotY, r, cy)) ? 3 : 2; spScore(k, "B", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
+    else if (Math.abs(b.x - (r.x + r.w - 58)) < 30 && Math.abs(b.y - cy) < 24) { const pts = (b.shotX !== undefined && bbThree(r.x + r.w - 60, -1, b.shotX, b.shotY, r, cy)) ? 3 : 2; spScore(k, "A", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
   } else if (k === "fb") {
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
@@ -1633,7 +1634,7 @@ function drawGym(t) {
         const arc = () => { for (let i = 1; i < 48; i++) { const a = cA - a0 + 2 * a0 * i / 48; pts.push([acx + Math.cos(a) * R, cy + Math.sin(a) * R]); } };
         if (s < 0) { pts.push([bx, topY]); ez(true, false); arc(); ez(false, true); pts.push([bx, botY]); }
         else { pts.push([bx, botY]); ez(false, false); arc(); ez(true, true); pts.push([bx, topY]); }
-        ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); } /* 3pt line (Jonathan 2026-10-29): 480 curve, smaller — clears the center circle; corners connect to the straights through the bbEase ease so the bend ramps gradually in and out with no shoulder at the joins; ends still straight, same gap; bbThree() scores by this exact shape */
+        ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); } /* 3pt line (Jonathan 2026-10-29): the whole circle slid toward the basket — corners cut shorter (the bend starts closer in) and a 430 arc, so the end of the curve sits halfway between the center circle and the free throw circle; corners still connect through the bbEase ease so the bend ramps gradually in and out with no shoulder; ends still straight, same gap; bbThree() scores by this exact shape */
       /* backboard + rim */
       ctx.fillStyle = "rgba(240,248,255,0.92)"; ctx.fillRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
       ctx.strokeStyle = "#20302a"; ctx.lineWidth = 3; ctx.strokeRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
