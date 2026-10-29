@@ -1432,6 +1432,7 @@ function spScore(k, side, b, pts) {
   spUpd(k, { score: { a: sc.a + (side === "A" ? p : 0), b: sc.b + (side === "B" ? p : 0) }, lastScore: { side, pts: p, ts: Date.now() } });
   b.freezeUntil = performance.now() + 1500; b.pendingSide = side;
 }
+function spriteW(hero) { const im = heroImgs[hero]; return 96 * ((im && im.naturalWidth && im.naturalHeight) ? im.naturalWidth / im.naturalHeight : 0.8); }
 function simCourt(k, dt) {
   const r = COURTS.find(c => c[0] === k)[1], R = BALLR[k], cx = r.x + r.w / 2, cy = r.y + r.h / 2;
   const st = spState[k];
@@ -1446,22 +1447,27 @@ function simCourt(k, dt) {
   if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotX = undefined; b.shotY = undefined; }
   /* gather the players on this court (me + peers standing in it) */
   const actors = [];
-  if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } actors.push({ pid: myId, x: me.x, y: me.y, vx: mvx, vy: mvy, side: mySide }); }
+  if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } actors.push({ pid: myId, x: me.x, y: me.y, vx: mvx, vy: mvy, side: mySide, w: spriteW(me.hero) }); }
   for (const p of peers.values()) {
     if (p.scene !== "gym") continue;
     const pc = courtAt(p.x, p.y); if (!pc || pc.k !== k) continue;
     const pv = spPeerPrev[p.id] || { x: p.x, y: p.y };
-    actors.push({ pid: p.id, x: p.x, y: p.y, vx: (p.x - pv.x) / Math.max(dt, 0.001), vy: (p.y - pv.y) / Math.max(dt, 0.001), side: p.x < cx ? "A" : "B" });
+    actors.push({ pid: p.id, x: p.x, y: p.y, vx: (p.x - pv.x) / Math.max(dt, 0.001), vy: (p.y - pv.y) / Math.max(dt, 0.001), side: p.x < cx ? "A" : "B", w: spriteW(p.hero) });
   }
   /* bump: a sprite running into the ball knocks it away. A hit locks re-hits for 280ms (Jonathan 2026-10-29: after a shot the ball sometimes "shot by itself" — the hitter was still touching it next frame and bumped it again, and a second player in range could re-bump it in the same pass) */
   for (const a of actors) {
     if (nowp < (b.hitCoolUntil || 0)) break;
-    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = R + 30;
-    if (d > 0.01 && d < min) {
-      const nx = dx / d, ny = dy / d, asp = Math.hypot(a.vx, a.vy);
+    /* hitbox = the whole sprite (Jonathan 2026-10-29): the ball bumps only when it actually touches the drawn body — as wide as the sprite, from the feet up the full 96px — instead of the little circle (R + 30) around the feet point. The ring under the player is untouched. */
+    const hw = (a.w || 77) / 2, rx0 = a.x - hw, rx1 = a.x + hw, ry0 = a.y - 96, ry1 = a.y;
+    const qx = Math.max(rx0, Math.min(b.x, rx1)), qy = Math.max(ry0, Math.min(b.y, ry1));
+    const dx = b.x - qx, dy = b.y - qy, d = Math.hypot(dx, dy);
+    if (d < R) {
+      let nx, ny;
+      if (d > 0.01) { nx = dx / d; ny = dy / d; b.x = qx + nx * R; b.y = qy + ny * R; }
+      else { const pl = b.x - rx0, pr = rx1 - b.x, pt = b.y - ry0, pb = ry1 - b.y, m2 = Math.min(pl, pr, pt, pb); nx = m2 === pl ? -1 : m2 === pr ? 1 : 0; ny = m2 === pt ? -1 : m2 === pb ? 1 : 0; b.x = nx === -1 ? rx0 - R : nx === 1 ? rx1 + R : b.x; b.y = ny === -1 ? ry0 - R : ny === 1 ? ry1 + R : b.y; }
+      const asp = Math.hypot(a.vx, a.vy);
       const power = Math.min(880, 330 + asp * 0.95);
       b.vx = nx * power + a.vx * 0.30; b.vy = ny * power + a.vy * 0.30;
-      b.x = a.x + nx * min; b.y = a.y + ny * min;
       b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0; b.shotX = a.x; b.shotY = a.y; /* the last touch spot, for 2 vs 3 in basketball: the bump that sent the ball in is the shot, wherever it was taken (Jonathan 2026-10-29: the old per-side slots keyed on which half the toucher stood in, so crossing midcourt made an inside shot read a stale outside touch and pay 3) */
       b.hitCoolUntil = nowp + 280;
       if (k === "tn" && a.side) b.crossed = false;
