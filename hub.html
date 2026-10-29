@@ -1090,13 +1090,23 @@ function friendlyAuthErr(e) {
   if (c.includes("operation-not-allowed")) return "Accounts aren't switched on yet — tell Jonathan.";
   return "Account problem: " + ((e && e.message) || "unknown error");
 }
+/* fragile session model (Jonathan 2026-10-29): a sign-in must never outlive the page instance that made it. Auth persistence is NONE (set in initAuth below), so a load or refresh NEVER resumes a signed-in account \u2014 every visit starts at the sign-in box, and leaving the tab ends the session for good (the pagehide release + the onDisconnect backstop), so another session can always pick the account up. One migration case remains: browsers still holding a session persisted by the OLD build can hand this page a resurrected user at load. That user is a GHOST \u2014 no fresh sign-in happened in this instance \u2014 and onAuthStateChanged signs it straight back out without claiming or loading a profile. The sign-in / create-account handlers mark the fresh sign-in (memory + sessionStorage) immediately before they call Firebase; the record is wiped at every page init, so it can only ever describe THIS instance. */
+const FRESH_AUTH_KEY = "quantum-hub-fresh-auth";
+let freshAuthMem = false;
+function markFreshAuth() { freshAuthMem = true; try { sessionStorage.setItem(FRESH_AUTH_KEY, "1"); } catch (e) {} }
+function freshAuthHere() { if (freshAuthMem) return true; try { return sessionStorage.getItem(FRESH_AUTH_KEY) === "1"; } catch (e) { return false; } }
+function resetFreshAuth() { freshAuthMem = false; try { sessionStorage.removeItem(FRESH_AUTH_KEY); } catch (e) {} }
+
 function initAuth() {
   drawChips();
+  resetFreshAuth(); /* this page instance has no fresh sign-in on record yet \u2014 see the fragile-session note above */
   try { auth = firebase.auth(); } catch (e) { return; }
+  try { const AP = firebase.auth && firebase.auth.Auth && firebase.auth.Auth.Persistence; if (AP && auth.setPersistence) { const pp = auth.setPersistence(AP.NONE); if (pp && pp.catch) pp.catch(() => {}); } } catch (e) {} /* auth persistence NONE: the sign-in lives in this page's memory only, so a reload or a new tab NEVER resumes it */
   $("acctcreate").onclick = async () => {
     const em = $("acctemail").value.trim(), pw = $("acctpass").value;
     if (!em || pw.length < 6) { acctMsg("Enter an email and a password of 6+ characters."); return; }
     acctMsg("Creating your account…");
+    markFreshAuth(); /* this instance's own sign-in: the auth callback must not mistake it for a resurrected ghost */
     try { await auth.createUserWithEmailAndPassword(em, pw); acctMsg(""); }
     catch (e) { acctMsg(friendlyAuthErr(e)); }
   };
@@ -1104,11 +1114,13 @@ function initAuth() {
     const em = $("acctemail").value.trim(), pw = $("acctpass").value;
     if (!em || !pw) { acctMsg("Enter your email and password."); return; }
     acctMsg("Signing you in…");
+    markFreshAuth(); /* this instance's own sign-in: the auth callback must not mistake it for a resurrected ghost */
     try { await auth.signInWithEmailAndPassword(em, pw); acctMsg(""); }
     catch (e) { acctMsg(friendlyAuthErr(e)); }
   };
   $("acctsignout").onclick = async () => { const rel = releaseSession(); try { await Promise.race([rel, new Promise(r => setTimeout(r, 2500))]); } catch (e) {} if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; } try { await auth.signOut(); } catch (e) {} }; /* the slot release lands BEFORE sign-out: once auth is gone the database denies the write and the fresh slot refuses the same account on the other page for 90s (2026-10-29). The 2.5s race keeps a hung write from ever trapping the user in sign-out — on timeout the still-armed onDisconnect and the 90s staleness remain the backstops. */
   auth.onAuthStateChanged(async (u) => {
+    if (u && !freshAuthHere()) { try { await auth.signOut(); } catch (e) {} return; } /* a user with no fresh sign-in in THIS instance is a ghost of the old build's persisted session: sign it back out at once \u2014 no claim, no profile; the visit simply starts at the sign-in box */
     const prevUser = acctUser;
     acctUser = u || null; acctUi();
     if (!u) {
@@ -1463,7 +1475,9 @@ wireMic(micBtn);
 /* Free-play bump sports (Jonathan 2026-10-28): step onto a court and your side is the half you are standing on (A = cyan/left, B = pink/right). The earliest-joined player on a court hosts its ball physics. Same leaving rule as the casino tables: the moment a court's last player record is gone, the court resets on the spot. */
 let spState = { bb: null, fb: null, tn: null }, spHooked = false;
 let myCourt = null, mySide = null, spJoinTs = 0;
-let spHostBall = {}, spBallVis = {}, spWriteAt = {}, spScoreSeen = {}, spInitTry = {}, spMyPrev = null, spPeerPrev = {}, spWasHost = {};
+let spHostBall = {}, spBallVis = {}, spWriteAt = {}, spScoreSeen = {}, spInitTry = {}, spMyPrev = null, spPeerPrev = {}, spWasHost = {}, spSentBall = {};
+const SP_WRITE_MS = 33; /* host ball publish cadence while the ball is in play (~30Hz; was 110ms \u2014 the follower's snapshot stream can only be as smooth as the rate it is fed) */
+const SP_INTERP_MS = 55; /* follower render delay: the ball is drawn this far behind the newest accepted state, interpolated between snapshots on the writer's timeline (see spBufPush / stepSports) */
 const SP_COL = { A: "#38e1ff", B: "#ff5d8f" };
 const SP_SNAME = { A: "CYAN", B: "PINK" };
 const BALLR = { bb: 26, fb: 24, tn: 16 };
@@ -1598,11 +1612,24 @@ function simCourt(k, dt) {
 }
 function writeBall(k, b, force) {
   const now = Date.now();
-  if (!force && now - (spWriteAt[k] || 0) < 110) return;
+  if (!force && now - (spWriteAt[k] || 0) < SP_WRITE_MS) return;
+  const px = Math.round(b.x), py = Math.round(b.y), pvx = Math.round(b.vx), pvy = Math.round(b.vy), gn = b.gen || 0, lh = b.lastHit || "", ls = b.lastSide || "", cr = !!b.crossed;
+  const sent = spSentBall[k];
+  if (!force && sent && sent.x === px && sent.y === py && sent.vx === pvx && sent.vy === pvy && sent.gen === gn && sent.lastHit === lh && sent.lastSide === ls && sent.crossed === cr) return; /* the shared state already says exactly this (ball at rest / frozen): no write and no seq bump \u2014 an unchanged republish would only waste the stream */
   spWriteAt[k] = now;
   b.seq = (b.seq || 0) + 1; /* every published state carries a higher seq than the last: followers accept only newer seqs, so a stale, duplicated or reordered write can never drag the ball backwards */
-  spSet(k, "ball", { x: Math.round(b.x), y: Math.round(b.y), vx: Math.round(b.vx), vy: Math.round(b.vy), ts: now, lastHit: b.lastHit || "", lastSide: b.lastSide || "", crossed: !!b.crossed, seq: b.seq, gen: b.gen || 0 });
-  spBallVis[k] = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, seq: b.seq, gen: b.gen || 0 };
+  spSentBall[k] = { x: px, y: py, vx: pvx, vy: pvy, gen: gn, lastHit: lh, lastSide: ls, crossed: cr };
+  spSet(k, "ball", { x: px, y: py, vx: pvx, vy: pvy, ts: now, lastHit: lh, lastSide: ls, crossed: cr, seq: b.seq, gen: gn });
+  spBallVis[k] = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, seq: b.seq, gen: gn };
+}
+function spBufPush(v, sb) {
+  /* one accepted ball state joins the follower's snapshot buffer (see stepSports). Snapshots are keyed by the WRITER's timestamp \u2014 already in every payload: consecutive stamps from the host's single clock are exact ~33ms spacings, so interpolating between them keeps the ball's speed true even when network jitter bunches or spreads the ARRIVALS (keying by arrival time distorted every segment's duration and the ball surged and stalled). The writer's absolute clock is never trusted: a smoothed offset (EMA of receipt minus stamp, both read in Date.now() terms) maps local time onto the writer's timeline, and any clock skew cancels inside it. */
+  const wts = sb.ts || ((v.wts || 0) + SP_WRITE_MS);
+  v.wts = wts;
+  const off = Date.now() - wts;
+  v.off = (v.off === undefined) ? off : v.off + (off - v.off) * 0.15;
+  v.buf.push({ x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, wts });
+  if (v.buf.length > 14) v.buf.splice(0, v.buf.length - 14);
 }
 function stepSports(dt) {
   const ci = courtAt(me.x, me.y);
@@ -1631,15 +1658,28 @@ function stepSports(dt) {
       const sb = st && st.ball;
       let v = spBallVis[k];
       if (sb) {
-        if (!v) v = spBallVis[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, ps: 0, seq: -1, gen: -1, rxT: 0, bx: sb.x, by: sb.y, bvx: 0, bvy: 0 };
+        if (!v) v = spBallVis[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, ps: 0, seq: -1, gen: -1, rxT: 0, bx: sb.x, by: sb.y, bvx: 0, bvy: 0, buf: [] };
         if (v.bx === undefined) { v.bx = v.x; v.by = v.y; v.bvx = v.vx || 0; v.bvy = v.vy || 0; v.rxT = performance.now(); if (v.seq === undefined) v.seq = -1; if (v.gen === undefined) v.gen = -1; v.ps = v.ps || 0; }
+        if (!v.buf) v.buf = [];
         const sq = sb.seq || 0, gn = sb.gen || 0;
-        if (gn !== v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
-        else if (sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); }
-        const age = Math.min((performance.now() - (v.rxT || 0)) / 1000, 0.35);
-        const txp = v.bx + v.bvx * age, typ = v.by + v.bvy * age;
+        if (gn !== v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
+        else if (sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); spBufPush(v, sb); }
+        /* snapshot interpolation (2026-10-29): the ball is drawn SP_INTERP_MS behind the newest accepted state, walking the snapshot buffer on the WRITER's timeline (mapped onto local time by the smoothed offset in spBufPush). The old render chased the latest point with a fast ease and lurched at the write rate \u2014 the follower's lag; walking the real path is continuous, corrections join it in the past, and a light final ease absorbs the one break interpolation can't hide: a bounce the buffer only learns about after the render has already extrapolated past it. Only a gen change snaps (handled above). Past the newest snapshot the ball extrapolates on its velocity for at most 120ms, then holds. */
+        const wNow = Date.now() - (v.off || 0) - SP_INTERP_MS, sbuf = v.buf;
+        if (sbuf.length) {
+          let ix, iy;
+          if (wNow <= sbuf[0].wts) { ix = sbuf[0].x; iy = sbuf[0].y; }
+          else {
+            let i2 = sbuf.length - 1;
+            while (i2 > 0 && sbuf[i2].wts > wNow) i2--;
+            const s0 = sbuf[i2];
+            if (i2 === sbuf.length - 1) { const ex = Math.min((wNow - s0.wts) / 1000, 0.12); ix = s0.x + s0.vx * ex; iy = s0.y + s0.vy * ex; }
+            else { const s1 = sbuf[i2 + 1], span = Math.max(1, s1.wts - s0.wts), al = Math.min(1, Math.max(0, (wNow - s0.wts) / span)); ix = s0.x + (s1.x - s0.x) * al; iy = s0.y + (s1.y - s0.y) * al; }
+          }
+          const ez = Math.min(1, dt * 20);
+          v.x += (ix - v.x) * ez; v.y += (iy - v.y) * ez;
+        }
         const prevSp = Math.hypot(v.vx || 0, v.vy || 0);
-        v.x += (txp - v.x) * Math.min(1, dt * 9); v.y += (typ - v.y) * Math.min(1, dt * 9);
         v.vx = v.bvx; v.vy = v.bvy;
         const newSp = Math.hypot(v.vx, v.vy);
         if (newSp - prevSp > 150) { /* somebody just whacked it */
