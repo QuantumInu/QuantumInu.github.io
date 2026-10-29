@@ -46,6 +46,15 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .logrow b{color:var(--gold)}
 .logempty{color:rgba(234,246,255,.55);font-size:14.5px;text-align:center;padding:8px 0}
 #logclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
+#onlinelist{position:absolute;inset:52px 0 0 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#onlinepanel{background:var(--panel);border:2px solid rgba(56,225,255,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(56,225,255,.25)}
+#onlinepanel h2{margin:0 0 2px;font-size:21px;color:var(--cyan);text-align:center}
+#onlinecount{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
+#onlinerows{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px;min-height:60px}
+.onlinerow{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.05);border:1px solid rgba(56,225,255,.22);border-radius:12px;padding:9px 11px;font-size:14.5px}
+.onlinerow b{color:#fff;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.onlinerow span{color:#9fd8ea;white-space:nowrap}
+#onlineclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:none}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
@@ -104,7 +113,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <h1>⚛️ <span class="q">Quantum</span> Hub</h1>
   <span id="status">● Connecting…</span>
   <div id="spacer"></div>
-  <span class="chip" id="online">👥 1 online</span>
+  <button type="button" class="chip" id="online" aria-expanded="false" aria-controls="onlinelist">👥 1 online</button>
   <span class="chip" id="chipspill" title="Your chips — saved with your profile, or with your account when signed in">🪙 1,000</span>
   <button class="chip" id="mutebtn" title="Sound on/off">🔊</button>
   <button class="chip" id="changebtn">Change</button>
@@ -126,6 +135,12 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <h2>💬 Chat Log</h2>
     <div id="loglist"></div>
     <button id="logclose">Close</button>
+  </div></div>
+  <div id="onlinelist" aria-hidden="true"><div id="onlinepanel">
+    <h2>👥 Online Now</h2>
+    <p id="onlinecount">0 online</p>
+    <div id="onlinerows"></div>
+    <button id="onlineclose" type="button">Close</button>
   </div></div>
   <div id="chatbar">
     <button id="micbtn" title="Tap to talk — tap again to mute">🎤</button>
@@ -456,18 +471,18 @@ try {
     if (connected && entered) publish(true);
   });
   db.ref("hub/presence").on("value", snap => {
-    const now = Date.now(); let count = entered ? 1 : 0;
+    const now = Date.now();
     const seen = new Set();
     snap.forEach(ch => {
       const v = ch.val(); if (!v || ch.key === myId) return;
       if (now - (v.ts || 0) > 45000) return;
-      seen.add(ch.key); if (ch.key !== NPC_PID) count++;
+      seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
-    onlineEl.textContent = "👥 " + Math.max(count, 1) + " online";
+    onlineEl.textContent = "👥 " + onlineRoster().length + " online"; if (typeof renderOnlineList === "function") renderOnlineList();
   });
 } catch (e) { setStatus("● Offline", "off"); }
 let lastPub = 0, lastPubKey = "";
@@ -1184,7 +1199,7 @@ window.addEventListener("resize", resize); resize();
 const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
-  if (e.key === "Enter" && entered) { e.preventDefault(); chatIn.focus(); return; }
+  if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
 });
@@ -2313,6 +2328,61 @@ function nearRR() { return me.scene === "casino" && (Math.hypot(me.x - (RRT.x + 
 function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < SLOTM.length; i++) { const mch = SLOTM[i]; if (Math.hypot(me.x - (mch.x + mch.w / 2), me.y - (mch.y + mch.h + 40)) < 180) return i; } return -1; }
 
 
+/* ============ online list ============ */
+/* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot's presence records are actors like any other, so he is listed in whichever room he is in. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
+const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "hq", "casino", "gym", "speedway"];
+const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway" };
+let onlineSig = "";
+function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
+function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
+function onlineListOpen() { const el = $("onlinelist"); return !!(el && el.style.display === "flex"); }
+function onlineRoster() {
+  const now = Date.now(), rows = [];
+  if (entered && me.name) rows.push({ id: myId, name: me.name, scene: me.scene });
+  for (const p of peers.values()) {
+    if (!p || !p.name) continue;
+    if (p.ts && now - p.ts > 45000) continue;
+    rows.push({ id: p.id, name: p.name, scene: p.scene });
+  }
+  rows.sort((a, b) => {
+    const ra = ONLINE_ROOM_ORDER.indexOf(a.scene), rb = ONLINE_ROOM_ORDER.indexOf(b.scene);
+    return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb) || String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id));
+  });
+  return rows;
+}
+function renderOnlineList(force) {
+  const wrap = $("onlinelist"); if (!wrap || wrap.style.display !== "flex") return;
+  const rows = onlineRoster();
+  const sig = rows.map(r => r.id + "\u001f" + r.name + "\u001f" + r.scene).join("\u001e");
+  if (!force && sig === onlineSig) return;
+  onlineSig = sig;
+  const countEl = $("onlinecount"); if (countEl) countEl.textContent = rows.length + " online";
+  const list = $("onlinerows"); if (!list) return;
+  list.innerHTML = "";
+  if (!rows.length) { const d = document.createElement("div"); d.className = "logempty"; d.textContent = "Nobody is online right now."; list.appendChild(d); return; }
+  for (const r of rows) {
+    const d = document.createElement("div"); d.className = "onlinerow";
+    const b = document.createElement("b"); b.textContent = r.name;
+    const s = document.createElement("span"); s.textContent = onlineRoomName(r.scene);
+    d.appendChild(b); d.appendChild(s); list.appendChild(d);
+  }
+}
+function openOnlineList() {
+  if (chatBoxOpen()) return;
+  const el = $("onlinelist"); if (!el) return;
+  el.style.display = "flex"; el.setAttribute("aria-hidden", "false"); onlineEl.setAttribute("aria-expanded", "true");
+  onlineSig = ""; renderOnlineList(true);
+}
+function closeOnlineList() {
+  const el = $("onlinelist"); if (!el) return;
+  el.style.display = "none"; el.setAttribute("aria-hidden", "true"); onlineEl.setAttribute("aria-expanded", "false");
+  onlineSig = "";
+}
+function toggleOnlineList() { if (chatBoxOpen()) return; if (onlineListOpen()) closeOnlineList(); else openOnlineList(); }
+onlineEl.onclick = toggleOnlineList;
+$("onlineclose").onclick = closeOnlineList;
+$("onlinelist").addEventListener("click", e => { if (e.target === $("onlinelist")) closeOnlineList(); });
+chatIn.addEventListener("focus", closeOnlineList);
 /* ============ chat log ============ */
 const chatLog = [];
 const loggedChatKeys = new Set();
@@ -2340,9 +2410,11 @@ function renderLog() {
   }
   requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
 }
-$("logbtn").onclick = () => { $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); };
-$("logclose").onclick = () => { $("chatlog").style.display = "none"; };
-$("chatlog").addEventListener("click", e => { if (e.target === $("chatlog")) $("chatlog").style.display = "none"; });
+function openChatLog() { closeOnlineList(); $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); }
+function closeChatLog() { $("chatlog").style.display = "none"; }
+$("logbtn").onclick = openChatLog;
+$("logclose").onclick = closeChatLog;
+$("chatlog").addEventListener("click", e => { if (e.target === $("chatlog")) closeChatLog(); });
 /* ============ chat phrase block — mirrors the Telegram raid bot's rules (2026-10-28) ============ */
 const QI_CA = "8TiMkgvsrat9tM2esko8zVTt99LZLpefUM4SnZaziXaQ";
 const _CB_SEX = ["dm for fun","live cum","cum","no free services","naughty video","naughty dm","naughty girl","naughty calls","naughty fun","escort","escorts","cam girl","camgirl","cam model","cam show","premium snap","selling nudes","sell nudes","selling pics","nudes for sale","sugar daddy","sugar baby","sex chat","sex calls","adult services","onlyfans","fansly","porn","pornstar","hookup","hookups","horny","xxx","18+","🔞","mama warned you about","too hot to ignore","verification selfie","you can see more"];
@@ -3728,6 +3800,7 @@ function frame(now) {
   const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!entered) { drawStars(0, 0, 1); return; }
+  renderOnlineList();
   let vx = 0, vy = 0;
   if (holdId !== null) {
     const c = worldToScreen(me.x, me.y);
