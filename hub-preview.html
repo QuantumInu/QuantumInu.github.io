@@ -1308,7 +1308,7 @@ const sfxBuzzer = () => { tone(138, 138, 0.5, "sawtooth", 0.055); tone(146, 146,
 const sfxWhistle = () => { tone(2350, 2350, 0.13, "square", 0.03); tone(2350, 2350, 0.19, "square", 0.03, 0.17); };
 const sfxCheer = () => { [660, 830, 990, 1180].forEach((f, i) => tone(f, f, 0.11, "triangle", 0.028, i * 0.05)); };
 function courtAt(x, y) { for (const pr of COURTS) { const r = pr[1]; if (x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) return { k: pr[0], r }; } return null; }
-function courtCenterBall(k, side) { const r = COURTS.find(c => c[0] === k)[1]; let x = r.x + r.w / 2; if (k === "tn" && side) x = side === "A" ? r.x + r.w / 4 : r.x + (3 * r.w) / 4; return { x, y: r.y + r.h / 2, vx: 0, vy: 0, ts: 0, lastHit: "", lastSide: "", crossed: false, dead: 0 }; }
+function courtCenterBall(k, side) { const r = COURTS.find(c => c[0] === k)[1]; return { x: r.x + r.w / 2, y: r.y + r.h / 2, vx: 0, vy: 0, ts: 0, lastHit: "", lastSide: "", crossed: false, dead: 0 }; } /* every ball returns to the exact court center — the tennis quarter-spots are gone at Jonathan's word 2026-10-29 */
 function sportsListen() {
   if (!db || spHooked) return; spHooked = true;
   for (const pr of COURTS) { const k = pr[0]; db.ref("hub/tables/sports/" + k).on("value", s => { spState[k] = s.val(); spFxCheck(k); }); }
@@ -1358,7 +1358,7 @@ function simCourt(k, dt) {
   const r = COURTS.find(c => c[0] === k)[1], R = BALLR[k], cx = r.x + r.w / 2, cy = r.y + r.h / 2;
   const st = spState[k];
   let b = spHostBall[k];
-  if (!b) { const sb = (st && st.ball) || courtCenterBall(k); b = spHostBall[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "", swishUntil: 0, swishX: 0 }; }
+  if (!b) { const sb = (st && st.ball) || courtCenterBall(k); b = spHostBall[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "", swishUntil: 0, swishX: 0, hitCoolUntil: 0 }; }
   const nowp = performance.now();
   if (b.swishUntil) {
     if (nowp < b.swishUntil) { b.x += (b.swishX - b.x) * Math.min(1, dt * 16); b.y += 330 * dt; b.vx = 0; b.vy = 330; writeBall(k, b, true); return; }
@@ -1375,8 +1375,9 @@ function simCourt(k, dt) {
     const pv = spPeerPrev[p.id] || { x: p.x, y: p.y };
     actors.push({ pid: p.id, x: p.x, y: p.y, vx: (p.x - pv.x) / Math.max(dt, 0.001), vy: (p.y - pv.y) / Math.max(dt, 0.001), side: p.x < cx ? "A" : "B" });
   }
-  /* bump: a sprite running into the ball knocks it away */
+  /* bump: a sprite running into the ball knocks it away. A hit locks re-hits for 280ms (Jonathan 2026-10-29: after a shot the ball sometimes "shot by itself" — the hitter was still touching it next frame and bumped it again, and a second player in range could re-bump it in the same pass) */
   for (const a of actors) {
+    if (nowp < (b.hitCoolUntil || 0)) break;
     const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = R + 30;
     if (d > 0.01 && d < min) {
       const nx = dx / d, ny = dy / d, asp = Math.hypot(a.vx, a.vy);
@@ -1384,6 +1385,7 @@ function simCourt(k, dt) {
       b.vx = nx * power + a.vx * 0.30; b.vy = ny * power + a.vy * 0.30;
       b.x = a.x + nx * min; b.y = a.y + ny * min;
       b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0;
+      b.hitCoolUntil = nowp + 280;
       if (k === "tn" && a.side) b.crossed = false;
     }
   }
@@ -1519,6 +1521,9 @@ function drawGym(t) {
   ctx.fillStyle = "#12291e"; ctx.fillRect(1700, -900, 200, GYMROOM.h + 1800); ctx.fillRect(0, 1100, GYMROOM.w, 200);
   ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(1700, -900); ctx.lineTo(1700, GYMROOM.h + 900); ctx.moveTo(1900, -900); ctx.lineTo(1900, GYMROOM.h + 900); ctx.moveTo(0, 1100); ctx.lineTo(GYMROOM.w, 1100); ctx.moveTo(0, 1300); ctx.lineTo(GYMROOM.w, 1300); ctx.stroke();
+  /* internal green border, like the other buildings' interiors (Jonathan 2026-10-29) */
+  ctx.strokeStyle = "#2ee66b"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, GYMROOM.w - 8, GYMROOM.h - 8);
+  ctx.strokeStyle = "rgba(46,230,107,0.28)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, GYMROOM.w - 36, GYMROOM.h - 36);
   /* center-court atom logo at the cross */
   ctx.save(); ctx.translate(1800, 1200);
   ctx.strokeStyle = "rgba(46,255,140,0.35)"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 84, 0, 7); ctx.stroke();
