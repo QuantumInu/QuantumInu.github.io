@@ -488,6 +488,7 @@ window.addEventListener("focus", releaseAudio);
 function resumeVideos() {
   if (typeof vid !== "undefined" && vid.dataset && vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (typeof me !== "undefined" && me.scene === "hq" && typeof startHqVideos === "function") startHqVideos();
+  if (typeof me !== "undefined" && me.scene === "gym" && typeof startLgVideos === "function") startLgVideos();
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeVideos(); });
 window.addEventListener("focus", resumeVideos);
@@ -609,6 +610,77 @@ function startHqVideos() {
   }, 600);
 }
 function pauseHqVideos() { for (const v of hqVids) if (!v.paused) v.pause(); }
+/* ============ lounge TVs: Daily Life sports feeds, no repeats — the HQ screen system mirrored for 2 screens (Jonathan 2026-10-29) ============ */
+const lgVids = [], lgNext = [], lgCur = [-1, -1], lgNextIdx = [-1, -1], lgPrev = [-1, -1], lgWait = [false, false];
+function makeLgVid(idx) {
+  const v = document.createElement("video");
+  v.muted = true; v.loop = false; v.playsInline = true; v.preload = "auto";
+  v.addEventListener("ended", () => { if (lgVids[idx] === v && me.scene === "gym") advanceLg(idx); });
+  v.addEventListener("canplay", () => { if (lgNext[idx] === v && lgWait[idx] && me.scene === "gym") advanceLg(idx); });
+  v.addEventListener("error", () => {
+    if (lgVids[idx] === v) { v.dataset.cur = ""; lgCur[idx] = -1; if (me.scene === "gym") setTimeout(() => pickLg(idx), 900); }
+    else if (lgNext[idx] === v) { lgNextIdx[idx] = -1; v.dataset.cur = ""; }
+  });
+  return v;
+}
+for (let i = 0; i < 2; i++) { lgVids.push(makeLgVid(i)); lgNext.push(makeLgVid(i)); }
+function lgCatalog() {
+  const sports = dlCatalog.filter(d => (d.label || "").indexOf("Sports") === 0 && d.url);
+  return sports.length >= 2 ? sports : dlCatalog.filter(d => d.url);
+}
+function chooseLg(i) {
+  const cat = lgCatalog(); if (!cat.length) return -1;
+  const used = new Set();
+  lgCur.forEach(c => { if (c >= 0) used.add(c); });
+  lgNextIdx.forEach(c => { if (c >= 0) used.add(c); });
+  if (lgPrev[i] >= 0) used.add(lgPrev[i]);
+  let opts = cat.map((_, k) => k).filter(k => !used.has(k));
+  if (!opts.length) opts = cat.map((_, k) => k).filter(k => k !== lgCur[i] && k !== lgNextIdx[i]);
+  if (!opts.length) opts = [Math.floor(Math.random() * cat.length)];
+  return opts[Math.floor(Math.random() * opts.length)];
+}
+function pickLg(i) {
+  const cat = lgCatalog(); if (!cat.length) return;
+  const pick = chooseLg(i); if (pick < 0) return;
+  lgPrev[i] = lgCur[i]; lgCur[i] = pick; lgWait[i] = false;
+  const v = lgVids[i];
+  v.src = cat[pick].url; v.dataset.cur = cat[pick].url;
+  v.play().catch(() => {});
+  if (lgNextIdx[i] < 0) queueNextLg(i);
+}
+function queueNextLg(i) {
+  const cat = lgCatalog(); if (cat.length < 2) return;
+  const pick = chooseLg(i); if (pick < 0 || pick === lgCur[i]) return;
+  lgNextIdx[i] = pick;
+  const nv = lgNext[i];
+  nv.src = cat[pick].url; nv.dataset.cur = cat[pick].url; nv.load();
+}
+function advanceLg(i) {
+  const nv = lgNext[i];
+  if (lgNextIdx[i] >= 0 && nv && nv.readyState >= 2) {
+    const old = lgVids[i];
+    lgVids[i] = nv; lgNext[i] = old;
+    lgPrev[i] = lgCur[i]; lgCur[i] = lgNextIdx[i]; lgNextIdx[i] = -1; lgWait[i] = false;
+    old.pause(); old.removeAttribute("src"); old.dataset.cur = ""; old.load();
+    lgVids[i].play().catch(() => {});
+    queueNextLg(i);
+  } else {
+    lgWait[i] = true;
+    if (lgNextIdx[i] < 0) queueNextLg(i);
+  }
+}
+function startLgVideos() {
+  let waited = 0;
+  const tries = setInterval(() => {
+    waited += 600;
+    if (me.scene !== "gym" || waited > 15000) { clearInterval(tries); return; }
+    if (lgCatalog().length >= 2) {
+      clearInterval(tries);
+      for (let i = 0; i < 2; i++) { if (lgCur[i] < 0) pickLg(i); else if (lgVids[i].paused) lgVids[i].play().catch(() => {}); if (lgNextIdx[i] < 0) queueNextLg(i); }
+    }
+  }, 600);
+}
+function pauseLgVideos() { for (const v of lgVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
 let clubState = null;
@@ -696,6 +768,7 @@ const TN = { x: 120, y: 1360, w: 1520, h: 920 };
 const LG = { x: 1960, y: 1360, w: 1520, h: 920 };
 const COURTS = [["bb", BB], ["fb", FB], ["tn", TN]];
 const FIREPL = { x: LG.x + LG.w / 2 - 170, y: LG.y + 6, w: 340, h: 96 };
+const LGTV = [{ x: LG.x + LG.w / 2 - 610, y: LG.y + 6, w: 400, h: 225 }, { x: LG.x + LG.w / 2 + 210, y: LG.y + 6, w: 400, h: 225 }]; /* lounge TVs flanking the fireplace, 40px gaps, symmetric 150px margins (Jonathan 2026-10-29) */
 const TN_NET = { x: TN.x + TN.w / 2 - 7, y: TN.y + 16, w: 14, h: TN.h - 32 };
 const ROOM = { w: 2304, h: 1720 };
 const cabinets = [];
@@ -716,6 +789,7 @@ const EXIT = { x: ROOM.w / 2 - 62, y: ROOM.h - 58, w: 124, h: 44 };
 const TDOOR = { y: ROOM.h / 2, half: 92 };
 const TH = { w: 2600, h: 1920 };
 const HALL = { x1: 620, top: TH.h / 2 - 140, bot: TH.h / 2 + 140 };
+const TEXDOOR = { x: 830, w: 150 }; /* green-sign exit door on the theatre's top wall, left of the screen — out to the plaza at the arcade building's top-right corner (Jonathan 2026-10-29) */
 const SCREEN = { x: 1186, y: 332, w: 848, h: 478 };
 const PEDESTAL = { x: SCREEN.x + SCREEN.w + 56, y: SCREEN.y + SCREEN.h - 88, w: 56, h: 88 };
 const seats = [];
@@ -769,7 +843,7 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
-  if (me.scene === "gym") return [TN_NET, FIREPL, { x: LG.x + LG.w / 2 - 110, y: LG.y + 560, w: 220, h: 90 }];
+  if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 110, y: LG.y + 560, w: 220, h: 90 }];
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -796,6 +870,7 @@ function collide(nx, ny) {
     if (nx > GEXIT.x - 4 && nx < GEXIT.x + GEXIT.w + 4 && ny > GYMROOM.h - 76) return { x: nx, y: ny, gymexit: true };
     nx = Math.max(56, Math.min(GYMROOM.w - 56, nx)); ny = Math.max(70, Math.min(GYMROOM.h - 46, ny));
   } else {
+    if (ny < 66 && nx > TEXDOOR.x && nx < TEXDOOR.x + TEXDOOR.w) return { x: nx, y: ny, theatreexit: true };
     if (nx < 48 && ny > HALL.top && ny < HALL.bot) return { x: nx, y: ny, back: true };
     nx = Math.max(46, Math.min(TH.w - 56, nx)); ny = Math.max(60, Math.min(TH.h - 46, ny));
     if (nx - r < HALL.x1 && (ny - r < HALL.top || ny + r > HALL.bot)) {
@@ -1638,6 +1713,21 @@ function drawGym(t) {
     }
     ctx.fillStyle = "#6a4a4a"; ctx.fillRect(fp.x - 40, fp.y - 30, fp.w + 80, 18);
     ctx.font = "26px sans-serif"; ctx.fillText("🏆", fp.x - 6, fp.y - 36); ctx.fillText("🏆", fp.x + fp.w - 26, fp.y - 36); ctx.fillText("⚛️", cx - 13, fp.y - 36);
+    /* lounge TVs flanking the fireplace — Daily Life sports feeds, HQ screen treatment in green (Jonathan 2026-10-29) */
+    LGTV.forEach((tv, ti) => {
+      ctx.fillStyle = "#0b1226"; rr(tv.x - 8, tv.y - 8, tv.w + 16, tv.h + 16, 14); ctx.fill();
+      ctx.strokeStyle = "#2ee66b"; ctx.lineWidth = 3; ctx.shadowColor = "#2ee66b"; ctx.shadowBlur = 10; rr(tv.x - 8, tv.y - 8, tv.w + 16, tv.h + 16, 14); ctx.stroke(); ctx.shadowBlur = 0;
+      const v = lgVids[ti];
+      if (lgCur[ti] < 0 && lgCatalog().length >= 2) pickLg(ti);
+      if (v && v.dataset.cur && v.readyState >= 2) {
+        const vw = v.videoWidth || 16, vh = v.videoHeight || 9, s = Math.min(tv.w / vw, tv.h / vh);
+        ctx.drawImage(v, tv.x + (tv.w - vw * s) / 2, tv.y + (tv.h - vh * s) / 2, vw * s, vh * s);
+      } else {
+        ctx.fillStyle = "#0a1a33"; ctx.fillRect(tv.x, tv.y, tv.w, tv.h);
+        ctx.fillStyle = "#7dff8a"; ctx.font = "bold 24px system-ui, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("QI SPORTS", tv.x + tv.w / 2, tv.y + tv.h / 2 + 8);
+      }
+    });
     /* sofas + coffee table */
     for (const sx of [r.x + 400, r.x + 820]) {
       ctx.fillStyle = "#5b2140"; rr(sx, r.y + 330, 300, 110, 20); ctx.fill();
@@ -1651,7 +1741,7 @@ function drawGym(t) {
     ctx.fillStyle = "#241028"; ctx.fillRect(r.x + 120, r.y + r.h - 92, r.w - 240, 60);
     ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(r.x + 120, r.y + r.h - 92, r.w - 240, 60);
     ctx.font = "30px sans-serif";
-    for (let i = 0; i < 9; i++) ctx.fillText(["🏆", "🥇", "🏅", "🎖️"][i % 4], r.x + 190 + i * 150, r.y + r.h - 48);
+    for (let i = 0; i < 9; i++) ctx.fillText(["🏆", "🥇", "🏅", "🎖️"][i % 4], r.x + 120 + (i + 0.5) * ((r.w - 240) / 9), r.y + r.h - 48); /* even spacing across the shelf, tightened so the last trophy stays inside the square (Jonathan 2026-10-29) */
     ctx.fillStyle = "rgba(255,220,240,0.65)"; ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillText("🔥 THE LOUNGE — warm up by the fire", cx, r.y + r.h - 108);
     /* lamps */
     for (const lx of [r.x + 90, r.x + r.w - 90]) { const lg2 = ctx.createRadialGradient(lx, cy, 4, lx, cy, 90); lg2.addColorStop(0, "rgba(255,190,90,0.35)"); lg2.addColorStop(1, "rgba(255,190,90,0)"); ctx.fillStyle = lg2; ctx.beginPath(); ctx.arc(lx, cy, 90, 0, 7); ctx.fill(); ctx.font = "30px sans-serif"; ctx.fillText("🛋️", lx - 15, cy + 10); }
@@ -2136,12 +2226,13 @@ function toArcade() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = 
 function toPlaza() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 1600; me.y = 566; sfxChime(); publish(true); }
 function toTheatre() { stopAllTones(); me.scene = "theatre"; voiceReset(); me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
 function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
+function toPlazaFromTheatre() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = BUILDING.x + BUILDING.w + 50; me.y = BUILDING.y - 25; sfxChime(); publish(true); }
 function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
 function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
 function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); pullChips(); }
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
-function toGym() { stopAllTones(); leaveCourtRecord(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); for (const pr of COURTS) spResetIfEmpty(pr[0]); }
-function toPlazaFromGym() { stopAllTones(); leaveCourtRecord(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); }
+function toGym() { stopAllTones(); leaveCourtRecord(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); for (const pr of COURTS) spResetIfEmpty(pr[0]); startLgVideos(); }
+function toPlazaFromGym() { stopAllTones(); leaveCourtRecord(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
 let portalArmed = true;
 function checkPortal(P, go) {
   const d = Math.hypot(me.x - P.x, me.y - P.y);
@@ -3346,6 +3437,20 @@ function drawTheatre(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(68, (HALL.top + HALL.bot) / 2 - 22, 252, 44, 11); ctx.stroke();
   ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("← EXIT · ARCADE", 194, (HALL.top + HALL.bot) / 2 + 7);
+  /* green-sign exit door on the top wall, left of the screen — the gold exit's treatment in green: border break, wash, caps, chevron out, sign plate below the door (Jonathan 2026-10-29) */
+  ctx.fillStyle = "#050914"; ctx.fillRect(TEXDOOR.x, 0, TEXDOOR.w, 12);
+  const tg = ctx.createLinearGradient(0, 0, 0, 90);
+  tg.addColorStop(0, "rgba(46,230,107,0.35)"); tg.addColorStop(1, "rgba(46,230,107,0)");
+  ctx.fillStyle = tg; ctx.fillRect(TEXDOOR.x, 0, TEXDOOR.w, 90);
+  ctx.fillStyle = "#2ee66b";
+  ctx.fillRect(TEXDOOR.x - 6, 0, 16, 10); ctx.fillRect(TEXDOOR.x + TEXDOOR.w - 10, 0, 16, 10);
+  ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#2ee66b";
+  ctx.fillText("▲", TEXDOOR.x + TEXDOOR.w / 2, 58);
+  ctx.save(); ctx.shadowColor = "rgba(46,230,107,0.45)"; ctx.shadowBlur = 10;
+  ctx.fillStyle = "#0b1f12"; rr(TEXDOOR.x + TEXDOOR.w / 2 - 126, 78, 252, 44, 11); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#2ee66b"; ctx.lineWidth = 2.5; rr(TEXDOOR.x + TEXDOOR.w / 2 - 126, 78, 252, 44, 11); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#4ade80";
+  ctx.fillText("EXIT · PLAZA ▲", TEXDOOR.x + TEXDOOR.w / 2, 107);
   /* the big screen */
   ctx.save(); ctx.shadowColor = "rgba(" + glowCols[gIdx] + ",0.5)"; ctx.shadowBlur = 22;
   ctx.fillStyle = "#000"; rr(SCREEN.x - 10, SCREEN.y - 10, SCREEN.w + 20, SCREEN.h + 20, 10); ctx.fill(); ctx.restore();
@@ -3473,6 +3578,7 @@ function frame(now) {
     if (res.exit) toPlaza();
     if (res.theatre) toTheatre();
     if (res.back) toArcadeFromTheatre();
+    if (res.theatreexit) toPlazaFromTheatre();
     if (me.scene === "plaza") checkPortal(PORTAL, toHQ);
     else if (me.scene === "hq") checkPortal(HQPORTAL, toPlazaFromHQ);
   }
@@ -3510,6 +3616,7 @@ function frame(now) {
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
+  if (me.scene !== "gym") pauseLgVideos();
   else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
   if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
