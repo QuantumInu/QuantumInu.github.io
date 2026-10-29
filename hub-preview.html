@@ -686,8 +686,8 @@ const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 1
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
 const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 58, w: 124, h: 44 };
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
-const GYM_B = { x: 2130, y: 120, w: 1000, h: 340 };
-const GYMDOOR = { x: 2585, y: 420, w: 90, h: 34 };
+const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
+const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
 const GYMROOM = { w: 3600, h: 2400 };
 const GEXIT = { x: GYMROOM.w / 2 - 62, y: GYMROOM.h - 58, w: 124, h: 44 };
 const BB = { x: 120, y: 120, w: 1520, h: 920 };
@@ -1323,6 +1323,7 @@ function spHost(k) { const ps = spPlayers(k); if (!ps.length) return ""; ps.sort
 function leaveCourtRecord() { if (myCourt) { spSet(myCourt, "players/" + myId, null); spOD(myCourt, false); } myCourt = null; mySide = null; }
 function writeMySpRecord() { if (db && myCourt) db.ref("hub/tables/sports/" + myCourt + "/players/" + myId).set({ side: mySide, name: me.name, hero: me.hero, ts: Date.now(), jts: spJoinTs }); }
 /* score celebrations: driven by the SHARED lastScore, so everyone in the gym sees and hears the same moment (the tableResultFx pattern) */
+let hoopAnim = { L: 0, R: 0 };
 function spFxCheck(k) {
   const st = spState[k]; if (!st || !st.lastScore) return;
   const ls = st.lastScore;
@@ -1336,7 +1337,7 @@ function spFxCheck(k) {
   if (k === "tn") fy = r.y + 120;
   fxBurst(fx, fy, true);
   fxText(fx, fy - 60, "+1 " + SP_SNAME[ls.side], SP_COL[ls.side]);
-  if (k === "bb") sfxSwish(); else if (k === "fb") sfxBuzzer(); else sfxWhistle();
+  if (k === "bb") { hoopAnim[ls.side === "A" ? "R" : "L"] = performance.now(); sfxSwish(); } else if (k === "fb") sfxBuzzer(); else sfxWhistle();
   sfxCheer();
 }
 function spScore(k, side, b) {
@@ -1348,8 +1349,12 @@ function simCourt(k, dt) {
   const r = COURTS.find(c => c[0] === k)[1], R = BALLR[k], cx = r.x + r.w / 2, cy = r.y + r.h / 2;
   const st = spState[k];
   let b = spHostBall[k];
-  if (!b) { const sb = (st && st.ball) || courtCenterBall(k); b = spHostBall[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "" }; }
+  if (!b) { const sb = (st && st.ball) || courtCenterBall(k); b = spHostBall[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "", swishUntil: 0, swishX: 0 }; }
   const nowp = performance.now();
+  if (b.swishUntil) {
+    if (nowp < b.swishUntil) { b.x += (b.swishX - b.x) * Math.min(1, dt * 16); b.y += 330 * dt; b.vx = 0; b.vy = 330; writeBall(k, b, true); return; }
+    b.swishUntil = 0; b.x = -9999; b.y = -9999; b.vx = 0; b.vy = 0; b.freezeUntil = nowp + 900; writeBall(k, b, true); return;
+  }
   if (b.freezeUntil && nowp < b.freezeUntil) { writeBall(k, b, false); return; }
   if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; }
   /* gather the players on this court (me + peers standing in it) */
@@ -1381,8 +1386,8 @@ function simCourt(k, dt) {
     if (b.x > r.x + r.w - R) { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; }
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
-    if (Math.hypot(b.x - (r.x + 58), b.y - cy) < 52) spScore(k, "B", b);
-    else if (Math.hypot(b.x - (r.x + r.w - 58), b.y - cy) < 52) spScore(k, "A", b);
+    if (Math.abs(b.x - (r.x + 58)) < 17 && Math.abs(b.y - cy) < 15) { spScore(k, "B", b); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
+    else if (Math.abs(b.x - (r.x + r.w - 58)) < 17 && Math.abs(b.y - cy) < 15) { spScore(k, "A", b); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
   } else if (k === "fb") {
     if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
     if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
@@ -1396,7 +1401,7 @@ function simCourt(k, dt) {
     }
     const out = b.x < r.x - 80 || b.x > r.x + r.w + 80 || b.y < r.y - 80 || b.y > r.y + r.h + 80;
     if (out) { const loser = (b.x < r.x - 80) ? "A" : (b.x > r.x + r.w + 80) ? "B" : (b.lastSide || (b.x < cx ? "A" : "B")); spScore(k, loser === "A" ? "B" : "A", b); }
-    else if (Math.hypot(b.vx, b.vy) < 30) { b.dead += dt; if (b.dead > 0.9) { const loser = b.x < cx ? "A" : "B"; spScore(k, loser === "A" ? "B" : "A", b); } }
+    else if (Math.hypot(b.vx, b.vy) < 30) { if (b.lastHit) { b.dead += dt; if (b.dead > 0.9) { const loser = b.x < cx ? "A" : "B"; spScore(k, loser === "A" ? "B" : "A", b); } } }
     else b.dead = 0;
   }
   b.px = b.x;
@@ -1439,6 +1444,7 @@ function stepSports(dt) {
           if (!near) for (const p of peers.values()) if (p.scene === "gym" && Math.hypot(v.x - p.x, v.y - p.y) < 110) { near = true; break; }
           if (near) sfxBounce(Math.min(1, newSp / 800));
         }
+        if (sb.x < -100) { v.x = sb.x; v.y = sb.y; }
       } else if (!v) spBallVis[k] = courtCenterBall(k);
     }
   }
@@ -1485,14 +1491,14 @@ function spScoreboard(k, r, icon, t) {
   if (myCourt === k) { ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = SP_COL[mySide]; ctx.fillText("YOU: " + SP_SNAME[mySide], x + 210, y + 92); }
 }
 function drawSportsBall(k, t) {
-  const v = spBallVis[k]; if (!v) return;
+  const v = spBallVis[k]; if (!v || v.x < -100) return;
   const R = BALLR[k];
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(v.x, v.y + R * 0.8, R * 0.9, R * 0.35, 0, 0, 7); ctx.fill();
   const spd = Math.hypot(v.vx || 0, v.vy || 0);
   if (spd > 260) { ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = R * 0.7; ctx.beginPath(); ctx.moveTo(v.x - (v.vx || 0) * 0.09, v.y - (v.vy || 0) * 0.09); ctx.lineTo(v.x, v.y); ctx.stroke(); }
   ctx.beginPath(); ctx.arc(v.x, v.y, R, 0, 7);
-  if (k === "bb") { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#ffb066"); g.addColorStop(1, "#e06a1b"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#7a3405"; ctx.lineWidth = 2; ctx.stroke(); ctx.beginPath(); ctx.moveTo(v.x - R, v.y); ctx.lineTo(v.x + R, v.y); ctx.moveTo(v.x, v.y - R); ctx.lineTo(v.x, v.y + R); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x, v.y, R * 0.55, 0, 7); ctx.stroke(); }
-  else if (k === "fb") { ctx.fillStyle = "#f4f7f4"; ctx.fill(); ctx.strokeStyle = "#20302a"; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = "#182420"; [[0, 0], [-0.55, -0.4], [0.55, -0.4], [-0.4, 0.55], [0.45, 0.5]].forEach(o => { ctx.beginPath(); ctx.arc(v.x + o[0] * R, v.y + o[1] * R, R * 0.26, 0, 7); ctx.fill(); }); }
+  if (k === "bb") { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#ffb066"); g.addColorStop(1, "#e06a1b"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#7a3405"; ctx.lineWidth = 2; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); ctx.strokeStyle = "rgba(90,35,0,0.85)"; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(v.x - R, v.y); ctx.lineTo(v.x + R, v.y); ctx.moveTo(v.x, v.y - R); ctx.lineTo(v.x, v.y + R); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x, v.y, R * 0.5, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x - R * 1.25, v.y, R * 0.95, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 1.25, v.y, R * 0.95, 0, 7); ctx.stroke(); ctx.restore(); }
+  else if (k === "fb") { ctx.fillStyle = "#f7faf7"; ctx.fill(); ctx.strokeStyle = "#20302a"; ctx.lineWidth = 2; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); const pent = (px, py, pr, rot) => { ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = rot + i * (Math.PI * 2 / 5) - Math.PI / 2, X = px + Math.cos(a) * pr, Y = py + Math.sin(a) * pr; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.closePath(); ctx.fillStyle = "#182420"; ctx.fill(); }; pent(v.x, v.y, R * 0.34, 0); for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; pent(v.x + Math.cos(a) * R * 0.98, v.y + Math.sin(a) * R * 0.98, R * 0.30, a + Math.PI / 5); } ctx.strokeStyle = "rgba(24,36,32,0.55)"; ctx.lineWidth = 1.4; for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; ctx.beginPath(); ctx.moveTo(v.x + Math.cos(a) * R * 0.30, v.y + Math.sin(a) * R * 0.30); ctx.lineTo(v.x + Math.cos(a) * R * 0.72, v.y + Math.sin(a) * R * 0.72); ctx.stroke(); } ctx.restore(); }
   else { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#eaff7a"); g.addColorStop(1, "#a8c81e"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(v.x - R * 0.9, v.y, R * 0.75, -0.9, 0.9); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 0.9, v.y, R * 0.75, Math.PI - 0.9, Math.PI + 0.9); ctx.stroke(); }
 }
 function drawGym(t) {
@@ -1512,7 +1518,7 @@ function drawGym(t) {
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
   ctx.restore();
   ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(143,255,190,0.9)";
-  ctx.fillText("🏟️ QUANTUM SPORTS COMPLEX", 1800, 1072);
+  ctx.fillText("🏟️ QUANTUM SPORTS COMPLEX", 1800, 1148);
   /* ---------- basketball (top-left) ---------- */
   {
     const r = BB, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
@@ -1534,14 +1540,15 @@ function drawGym(t) {
       /* backboard + rim */
       ctx.fillStyle = "rgba(240,248,255,0.92)"; ctx.fillRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
       ctx.strokeStyle = "#20302a"; ctx.lineWidth = 3; ctx.strokeRect(s < 0 ? r.x + 20 : r.x + r.w - 44, cy - 62, 24, 124);
-      ctx.strokeStyle = "#ff7a1a"; ctx.lineWidth = 6; ctx.beginPath(); ctx.ellipse(s < 0 ? r.x + 58 : r.x + r.w - 58, cy, 24, 9, 0, 0, 7); ctx.stroke();
+      const hxx = s < 0 ? r.x + 58 : r.x + r.w - 58;
+      const hAge = t - (hoopAnim[s < 0 ? "L" : "R"] || -9999);
+      const hOn = hAge >= 0 && hAge < 650 ? Math.sin(hAge / 650 * Math.PI) : 0;
+      const rimDip = hOn * 3.5, netSway = hOn * Math.sin(hAge / 36) * 4;
+      ctx.strokeStyle = "#ff7a1a"; ctx.lineWidth = 6; ctx.beginPath(); ctx.ellipse(hxx, cy + rimDip, 24, 9, 0, 0, 7); ctx.stroke();
       ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 1.6;
-      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo((s < 0 ? r.x + 58 : r.x + r.w - 58) + i * 9, cy + 6); ctx.lineTo((s < 0 ? r.x + 58 : r.x + r.w - 58) + i * 5, cy + 44); ctx.stroke(); }
+      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(hxx + i * 9, cy + 6 + rimDip); ctx.lineTo(hxx + i * 5 + netSway * (1 - Math.abs(i) / 3), cy + 44 + rimDip * 0.4); ctx.stroke(); }
     }
-    /* bleachers */
-    ctx.fillStyle = "#123c28";
-    for (let row = 0; row < 3; row++) ctx.fillRect(r.x + 60, r.y - 66 + row * 20, r.w - 120, 14);
-    ctx.fillStyle = "rgba(143,255,190,0.5)"; ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillText("🏀 BASKETBALL", cx, r.y - 84);
+    ctx.fillStyle = "rgba(143,255,190,0.5)"; ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillText("🏀 BASKETBALL", cx, r.y - 30);
     spScoreboard("bb", r, "🏀", t);
     drawSportsBall("bb", t);
   }
@@ -1574,7 +1581,6 @@ function drawGym(t) {
   {
     const r = TN, cx = r.x + r.w / 2, cy = r.y + r.h / 2;
     if (myCourt === "tn") { ctx.fillStyle = mySide === "A" ? "rgba(56,225,255,0.08)" : "rgba(255,93,143,0.08)"; ctx.fillRect(mySide === "A" ? r.x : cx, r.y, r.w / 2, r.h); }
-    ctx.fillStyle = "#14532d"; ctx.fillRect(r.x - 46, r.y - 46, r.w + 92, r.h + 92);
     ctx.fillStyle = "#1e5f9e"; ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5; ctx.strokeRect(r.x + 8, r.y + 8, r.w - 16, r.h - 16);
     ctx.lineWidth = 3.5;
@@ -2282,14 +2288,19 @@ function drawSportsBuilding(t) {
   }
   ctx.font = "800 37px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#2eff8c" : "#8fffbe";
-  ctx.fillText("🏟️ QUANTUM SPORTS COMPLEX", cx, b.y + 101);
+  ctx.fillText("🏟️ QUANTUM SPORTS COMPLEX 🏟️", cx, b.y + 101);
   /* tall windows with a green glow */
+  const winX = [0.10, 0.26].map(fx => b.x + b.w * fx).concat([0.26, 0.10].map(fx => b.x + b.w - b.w * fx - 92));
   ctx.fillStyle = "rgba(46,255,140,0.20)";
-  for (const fx of [0.10, 0.26, 0.60, 0.76]) { rr(b.x + b.w * fx, b.y + 168, 92, 108, 8); ctx.fill(); }
+  for (const wx of winX) { rr(wx, b.y + 168, 92, 108, 8); ctx.fill(); }
   ctx.strokeStyle = "rgba(46,255,140,0.4)"; ctx.lineWidth = 1.5;
-  for (const fx of [0.10, 0.26, 0.60, 0.76]) { rr(b.x + b.w * fx, b.y + 168, 92, 108, 8); ctx.stroke(); }
+  for (const wx of winX) { rr(wx, b.y + 168, 92, 108, 8); ctx.stroke(); }
   /* sport balls over the door */
-  ctx.font = "30px sans-serif"; ctx.fillText("🏀", cx - 90, b.y + b.h - 108); ctx.fillText("⚽", cx + 90, b.y + b.h - 108); ctx.fillText("🎾", cx, b.y + b.h - 128);
+  for (const ixy of [[cx - 90, b.y + b.h - 119], [cx + 90, b.y + b.h - 119], [cx, b.y + b.h - 139]]) {
+    ctx.globalAlpha = 1; ctx.fillStyle = "#06231a"; ctx.beginPath(); ctx.arc(ixy[0], ixy[1], 31, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(ixy[0], ixy[1], 31, 0, 7); ctx.stroke();
+  }
+  ctx.font = "34px sans-serif"; ctx.fillText("🏀", cx - 90, b.y + b.h - 108); ctx.fillText("⚽", cx + 90, b.y + b.h - 108); ctx.fillText("🎾", cx, b.y + b.h - 128);
   /* golden door, GREEN light spilling out (his order 2026-10-28) */
   const gdy = GYM_B.y + GYM_B.h - 40;
   const gdg = ctx.createLinearGradient(0, gdy, 0, gdy + 104);
@@ -2623,7 +2634,10 @@ function drawPlaza(t) {
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
   /* branch path to the Quantum Sports Complex — starts halfway between the arcade door and the east fountain */
-  pathRect(1700, 712, 995, 76); pathRect(2565, 460, 130, 328);
+  ctx.beginPath();
+  ctx.moveTo(1700, 712); ctx.lineTo(2565, 712); ctx.lineTo(2565, 460); ctx.lineTo(2695, 460); ctx.lineTo(2695, 788); ctx.lineTo(1700, 788); ctx.closePath();
+  ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
+  ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   /* lamp posts along the paths */
   ctx.fillStyle = "#ffd76a";
   function lamp(x, y) {
@@ -2636,7 +2650,7 @@ function drawPlaza(t) {
     ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(x - 1.6, y - 1.6, 1.8, 0, 7); ctx.fill();
     ctx.fillStyle = "#ffd76a";
   }
-  for (let y = 560; y <= 1500; y += 188) { lamp(1492, y); lamp(1708, y); }
+  for (let y = 560; y <= 1500; y += 188) { lamp(1492, y); if (y !== 748) lamp(1708, y); }
   for (let x = 660; x <= 1380; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   for (let x = 1880; x <= 2600; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   lamp(1960, 694); lamp(2360, 694); lamp(1960, 806); lamp(2360, 806); lamp(2548, 580); lamp(2712, 580);
@@ -2733,7 +2747,7 @@ function drawPlaza(t) {
   }
   [[700, 700, 1.0], [2500, 700, 1.0], [430, 1150, 1.0], [2770, 1150, 1.0], [700, 1900, 1.0], [2500, 1900, 1.0],
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
-   [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [3100, 570, 1.05], [3100, 800, 0.9], [110, 800, 1.0],
+   [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [3100, 800, 0.9], [110, 800, 1.0],
    [150, 2050, 0.95], [3050, 2050, 1.0]
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
