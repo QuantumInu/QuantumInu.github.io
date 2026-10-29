@@ -1530,15 +1530,13 @@ wireMic(micBtn);
 
 /* ============ casino: shared table state (RTDB hub/tables) ============ */
 /* ============ Quantum Sports Complex: shared courts (RTDB hub/tables/sports) ============ */
-/* Free-play bump sports (Jonathan 2026-10-28): step onto a court and your side is the half you are standing on (A = cyan/left, B = pink/right). The earliest-joined player on a court hosts its ball physics. Same leaving rule as the casino tables: the moment a court's last player record is gone, the court resets on the spot. */
-/* Ball authority ROAMS (Jonathan 2026-10-29): the earliest joiner is the court's REFEREE — scoring, resets and court lifecycle stay with that chair — but the ball itself is simulated by whoever touched it last. A touch claims the ball through a transaction on its record (the owner/ownTs fields); the toucher simulates from their own rendered ball, so the player playing the ball always plays it locally with no stream delay, and everyone else (the referee included) follows that stream until the next touch. A fresh owner is locked in for SP_OWN_LOCK_MS so two players fighting over the ball can't flap it back and forth, a non-referee owner reaching a would-be score freezes the ball for the referee's ruling (rw) instead of scoring it themselves, a score respawn returns the ball to the referee, and if the owner leaves the court the referee takes the ball back at once. */
+/* Free-play bump sports (Jonathan 2026-10-28): step onto a court and your side is the half you are standing on (A = cyan/left, B = pink/right). */
+/* Q-BOT REFEREE (2026-10-29): the sports balls are refereed by a server-side Q-Bot, the ONLY writer of hub/tables/sports/<court> = { ball: {x,y,vx,vy,ts,seq,gen,host:"qbot",lastHit,lastSide,crossed,shotX,shotY}, score: {a,b}, lastScore: {side,pts,ts} }. seq is monotonic per court; gen bumps on every respawn/reset. This page is a PURE FOLLOWER: it subscribes to the referee's stream, renders it by snapshot interpolation, and derives my court/side locally from where I stand. It NEVER writes to hub/tables/sports — if the referee is down, the ball simply rests at its last state; no client resurrects hosting. Scores and celebrations arrive through score/lastScore (see spFxCheck). */
 let spState = { bb: null, fb: null, tn: null }, spHooked = false;
-let myCourt = null, mySide = null, spJoinTs = 0;
-let spHostBall = {}, spBallVis = {}, spWriteAt = {}, spScoreSeen = {}, spInitTry = {}, spMyPrev = null, spPeerPrev = {}, spWasOwner = {}, spSentBall = {}, spClaimPend = {}, spClaimCool = {}, spAssert = {}, spRuled = {}, spYieldGen = {}, spEntryPend = {}, spEmptyEv = {};
-const SP_WRITE_MS = 33; /* host ball publish cadence while the ball is in play (~30Hz; was 110ms \u2014 the follower's snapshot stream can only be as smooth as the rate it is fed) */
+let myCourt = null, mySide = null;
+let spBallVis = {}, spScoreSeen = {};
+const SP_WRITE_MS = 33; /* the referee's ball publish cadence (~30Hz) — used only as the fallback snapshot spacing in spBufPush when a payload carries no writer timestamp */
 const SP_INTERP_MS = 55; /* follower render delay: the ball is drawn this far behind the newest accepted state, interpolated between snapshots on the writer's timeline (see spBufPush / stepSports) */
-const SP_OWN_LOCK_MS = 400; /* anti-flap lock: a roaming owner keeps the ball at least this long — a touch against a younger owner cannot take it (see spTryTouch) */
-const SP_GRACE_MS = 3000; /* court reset grace: an emptied sports court waits this long for a player to step back on before it resets (backstop for stale records stays 6s — see sportsTick) */
 const SP_COL = { A: "#38e1ff", B: "#ff5d8f" };
 const SP_SNAME = { A: "CYAN", B: "PINK" };
 const BALLR = { bb: 26, fb: 24, tn: 16 };
@@ -1555,50 +1553,7 @@ function bbThree(acx, dir, sx, sy, r, cy) { const rel = (sx - acx) * dir, dy = M
 function sportsListen() {
   if (!db || spHooked) return; spHooked = true;
   for (const pr of COURTS) { const k = pr[0]; db.ref("hub/tables/sports/" + k).on("value", s => { spState[k] = s.val(); spFxCheck(k); }); }
-  setInterval(sportsTick, 900);
-  setTimeout(() => { for (const pr of COURTS) spResetIfEmpty(pr[0]); }, 1500);
 }
-function spSet(k, p, v) { if (db) { if (v === null) db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).remove(); else db.ref("hub/tables/sports/" + k + (p ? "/" + p : "")).set(v); } }
-function spUpd(k, v) { if (db) db.ref("hub/tables/sports/" + k).update(v); }
-function spReset(k) { const nb = courtCenterBall(k); nb.gen = ((spState[k] && spState[k].ball && spState[k].ball.gen) || 0) + 1; spSet(k, "", { score: { a: 0, b: 0 }, ball: nb }); spHostBall[k] = null; } /* a reset is a genuine re-placement: gen bumps so every follower snaps to it instead of gliding (see stepSports) */
-function spEntryResetCheck(k) {
-  /* stepping onto a court (Jonathan 2026-10-29: the ball "should always refresh after 3 seconds" of the last player stepping out or the room emptying): if the game state here is a CORPSE — the shared reset deadline (emptyTs) already expired, or every other trace is a stale record / no trace at all (a refresh or a closed tab whose occupants never came back, and nobody was present to land the reset) — reset it on sight instead of inheriting it. A live other player (heartbeat inside the 6s backstop window) or a still-running grace from a clean step-off is always honoured: join that game, never reset it. */
-  const st = spState[k]; if (!st) return;
-  const ctr = courtCenterBall(k);
-  const dirty = (st.score && (st.score.a || st.score.b)) || (st.ball && (Math.abs(st.ball.x - ctr.x) > 4 || Math.abs(st.ball.y - ctr.y) > 4 || Math.abs(st.ball.vx || 0) > 1 || Math.abs(st.ball.vy || 0) > 1)) || !!st.lastScore;
-  if (!dirty) return;
-  const now = Date.now();
-  const others = st.players ? Object.keys(st.players).filter(pid => pid !== myId && st.players[pid]) : [];
-  if (others.some(pid => now - (st.players[pid].ts || 0) < 6000)) return; /* a live game with a present player: join it */
-  if (st.emptyTs) { if (now - st.emptyTs >= SP_GRACE_MS) spReset(k); return; } /* an expired shared deadline lands on sight; a running grace is left alone */
-  /* no live other and no stamped deadline: the previous game ended without a witness (everyone refreshed/closed at once). Judge it from the last sign of life — the ball's own write stamp and any roster heartbeat; a live game refreshes both constantly, a corpse has neither fresh. Past the grace: reset on sight. Inside it: stamp the deadline FROM that evidence so the tick lands it exactly on time — a returning player inside his 3 seconds never loses the game early. */
-  let last = st.ball && st.ball.ts ? st.ball.ts : 0;
-  if (st.players) for (const pid of Object.keys(st.players)) if (st.players[pid]) last = Math.max(last, st.players[pid].ts || 0);
-  if (last && now - last >= SP_GRACE_MS) { spReset(k); return; }
-  if (last) spUpd(k, { emptyTs: last });
-}
-function spResetIfEmpty(k) {
-  const st = spState[k]; if (!st) return;
-  const others = st.players ? Object.keys(st.players).filter(pid => pid !== myId && st.players[pid] && Date.now() - (st.players[pid].ts || 0) < 6000) : [];
-  if (others.length) return;
-  const ctr = courtCenterBall(k);
-  const dirty = (st.score && (st.score.a || st.score.b)) || (st.ball && (Math.abs(st.ball.x - ctr.x) > 4 || Math.abs(st.ball.y - ctr.y) > 4 || Math.abs(st.ball.vx || 0) > 1 || Math.abs(st.ball.vy || 0) > 1)) || !!st.lastScore;
-  if (!dirty) return;
-  /* COURT RESET GRACE (Jonathan 2026-10-29): an emptied court no longer resets on the spot — the shared emptyTs starts a 3-second countdown and only a court still empty when it runs out resets (sportsTick lands it). Stepping back on inside the grace cancels the countdown: a fresh player record makes every observer clear emptyTs instead. */
-  if (!st.emptyTs) { spUpd(k, { emptyTs: Date.now() }); return; }
-  if (Date.now() - st.emptyTs >= SP_GRACE_MS) spReset(k);
-}
-function spOD(k, on) { if (!db) return; try { const ref = db.ref("hub/tables/sports/" + k + "/players/" + myId); if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel(); } catch (e) {} }
-function spPlayers(k) { const st = spState[k], out = []; if (st && st.players) for (const pid of Object.keys(st.players)) { const p = st.players[pid]; if (p && Date.now() - (p.ts || 0) < 25000) out.push({ pid, side: p.side, jts: p.jts || 0 }); } return out; }
-function spHost(k) { const ps = spPlayers(k); if (!ps.length) return ""; ps.sort((a, b) => (a.jts - b.jts) || (a.pid < b.pid ? -1 : 1)); return ps[0].pid; }
-function spOwner(k) { /* the ball's effective authority right now: the player named in the ball record while they are actually on the court; the referee whenever the record names nobody present — a fresh/reset ball and a ball whose owner just stepped off both land on the referee */
-  const st = spState[k]; if (!st) return "";
-  const o = (st.ball && st.ball.owner) || "";
-  if (o && spPlayers(k).some(p => p.pid === o)) return o;
-  return spHost(k);
-}
-function leaveCourtRecord() { if (myCourt) { const k = myCourt; spSet(k, "players/" + myId, null); spOD(k, false); spResetIfEmpty(k); } myCourt = null; mySide = null; }
-function writeMySpRecord() { if (db && myCourt) db.ref("hub/tables/sports/" + myCourt + "/players/" + myId).set({ side: mySide, name: me.name, hero: me.hero, ts: Date.now(), jts: spJoinTs }); }
 /* score celebrations: driven by the SHARED lastScore, so everyone in the gym sees and hears the same moment (the tableResultFx pattern) */
 let hoopAnim = { L: 0, R: 0 };
 function spFxCheck(k) {
@@ -1617,143 +1572,6 @@ function spFxCheck(k) {
   if (k === "bb") { hoopAnim[ls.side === "A" ? "R" : "L"] = performance.now(); sfxSwish(); } else if (k === "fb") sfxBuzzer(); else sfxWhistle();
   sfxCheer();
 }
-function spScore(k, side, b, pts) {
-  const st = spState[k], sc = (st && st.score) || { a: 0, b: 0 };
-  const p = pts || 1;
-  spUpd(k, { score: { a: sc.a + (side === "A" ? p : 0), b: sc.b + (side === "B" ? p : 0) }, lastScore: { side, pts: p, ts: Date.now() } });
-  b.freezeUntil = performance.now() + 1500; b.pendingSide = side;
-}
-function spRefWait(k, b) { /* a roaming (non-referee) owner reached a would-be score: freeze the ball exactly where it lies and flag it rw — the referee rules on it from the shared record (spRefCheck) and owns the respawn; scoring itself never travels with the ball */
-  b.rw = 1; b.vx = 0; b.vy = 0; b.refWaitUntil = performance.now() + 1500; writeBall(k, b, true);
-}
-function spRefScore(k, side, pts, sb) {
-  /* the referee's ruling on a frozen ball: the point is written exactly like a referee-simmed one (score + lastScore, so the celebration fires for everyone), and the respawn is a fresh centre ball under the referee's own authority — a genuine re-placement (gen + 1) so every follower snaps to it and the roaming owner drops back to following */
-  const st = spState[k], sc = (st && st.score) || { a: 0, b: 0 };
-  spUpd(k, { score: { a: sc.a + (side === "A" ? pts : 0), b: sc.b + (side === "B" ? pts : 0) }, lastScore: { side, pts, ts: Date.now() } });
-  const nb = courtCenterBall(k); nb.gen = (sb.gen || 0) + 1; nb.seq = (sb.seq || 0) + 1; nb.owner = myId; nb.ownTs = 0; nb.ts = Date.now();
-  spSet(k, "ball", nb);
-  spHostBall[k] = null;
-  spSentBall[k] = { x: nb.x, y: nb.y, vx: 0, vy: 0, gen: nb.gen, lastHit: "", lastSide: "", crossed: false, owner: myId, ownTs: 0, shotX: null, shotY: null, rw: 0 };
-  spWriteAt[k] = Date.now();
-}
-function spRefCheck(k) {
-  /* referee only, while somebody else holds the ball: if the shared ball is frozen awaiting a ruling (rw), rule on it from the record — the same predicates the owner's sim used, widened a hair so a rounded write can never strand a frozen ball. One ruling per gen: spRuled latches the gen so the frames before the respawn echoes back can't rule twice. */
-  const st = spState[k]; if (!st || !st.ball) return;
-  const sb = st.ball; if (!sb.rw) return;
-  if (spRuled[k] === (sb.gen || 0)) return;
-  const r = COURTS.find(c => c[0] === k)[1], cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-  if (k === "bb") {
-    if (Math.abs(sb.x - (r.x + 58)) < 31 && Math.abs(sb.y - cy) < 25) { spRuled[k] = sb.gen || 0; spRefScore(k, "B", (sb.shotX != null && bbThree(r.x + 60, 1, sb.shotX, sb.shotY, r, cy)) ? 3 : 2, sb); }
-    else if (Math.abs(sb.x - (r.x + r.w - 58)) < 31 && Math.abs(sb.y - cy) < 25) { spRuled[k] = sb.gen || 0; spRefScore(k, "A", (sb.shotX != null && bbThree(r.x + r.w - 60, -1, sb.shotX, sb.shotY, r, cy)) ? 3 : 2, sb); }
-  } else if (k === "fb") {
-    if (sb.x < r.x + BALLR.fb + 1 && Math.abs(sb.y - cy) < 120) { spRuled[k] = sb.gen || 0; spRefScore(k, "B", 1, sb); }
-    else if (sb.x > r.x + r.w - BALLR.fb - 1 && Math.abs(sb.y - cy) < 120) { spRuled[k] = sb.gen || 0; spRefScore(k, "A", 1, sb); }
-  } else if (k === "tn") {
-    spRuled[k] = sb.gen || 0;
-    const out = sb.x < r.x - 80 || sb.x > r.x + r.w + 80 || sb.y < r.y - 80 || sb.y > r.y + r.h + 80;
-    if (out) { const loser = (sb.x < r.x - 80) ? "A" : (sb.x > r.x + r.w + 80) ? "B" : (sb.lastSide || (sb.x < cx ? "A" : "B")); spRefScore(k, loser === "A" ? "B" : "A", 1, sb); }
-    else { const loser = sb.x < cx ? "A" : "B"; spRefScore(k, loser === "A" ? "B" : "A", 1, sb); } /* frozen dead mid-court: the side it died on loses the point */
-  }
-}
-function spriteW(hero) { const im = heroImgs[hero]; return 96 * ((im && im.naturalWidth && im.naturalHeight) ? im.naturalWidth / im.naturalHeight : 0.8); }
-function spSeedBall(k, sb0) { /* a fresh local sim ball from a shared one — position/velocity plus the full chain of custody (seq, gen, owner, ownTs and the last-touch spot the 2-vs-3 pricing reads), so a handover continues the same ball instead of restarting it */
-  const sb = sb0.x > -100 ? sb0 : Object.assign(courtCenterBall(k), { seq: sb0.seq || 0, gen: sb0.gen || 0, owner: sb0.owner || "", ownTs: sb0.ownTs || 0 });
-  return { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, lastHit: sb.lastHit || "", lastSide: sb.lastSide || "", crossed: !!sb.crossed, dead: 0, freezeUntil: 0, pendingSide: "", swishUntil: 0, swishX: 0, hitCoolUntil: 0, seq: sb.seq || 0, gen: sb.gen || 0, owner: sb.owner || "", ownTs: sb.ownTs || 0, rw: 0, refWaitUntil: 0, shotX: sb.shotX == null ? undefined : sb.shotX, shotY: sb.shotY == null ? undefined : sb.shotY };
-}
-function simCourt(k, dt) {
-  const r = COURTS.find(c => c[0] === k)[1], R = BALLR[k], cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-  const st = spState[k];
-  let b = spHostBall[k];
-  if (!b) b = spHostBall[k] = spSeedBall(k, (st && st.ball) || courtCenterBall(k)); /* seeding from the latest shared ball makes an authority handover seamless — and a hidden (swish) shared ball seeds at centre with its seq/gen kept, so the chain of custody is unbroken */
-  b.owner = myId; /* the simulating client signs its writes: the record always names the live authority */
-  const isRef = spHost(k) === myId; /* the REFEREE's sim scores exactly as always; a roaming owner's sim only plays the ball — at a would-be score it freezes the ball for the referee's ruling (spRefWait) instead of scoring it itself */
-  const nowp = performance.now();
-  if (b.swishUntil) {
-    if (nowp < b.swishUntil) { b.x += (b.swishX - b.x) * Math.min(1, dt * 16); b.y += 330 * dt; b.vx = 0; b.vy = 330; writeBall(k, b, true); return; }
-    b.swishUntil = 0; b.x = -9999; b.y = -9999; b.vx = 0; b.vy = 0; b.gen = (b.gen || 0) + 1; b.freezeUntil = nowp + 900; writeBall(k, b, true); return;
-  }
-  if (b.freezeUntil && nowp < b.freezeUntil) { writeBall(k, b, false); return; }
-  if (b.freezeUntil) { b.freezeUntil = 0; const nb = courtCenterBall(k, k === "tn" ? (b.pendingSide === "A" ? "B" : "A") : null); b.x = nb.x; b.y = nb.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotX = undefined; b.shotY = undefined; b.gen = (b.gen || 0) + 1; } /* the respawn is a genuine re-placement: gen bumps so followers snap to centre with it */
-  if (b.refWaitUntil) {
-    if (isRef) { b.refWaitUntil = 0; b.rw = 0; } /* the referee chair reached me mid-ruling (the old referee left): fall through and let the ordinary scoring branches rule on the frozen ball below */
-    else if (nowp < b.refWaitUntil) { writeBall(k, b, false); return; }
-    else { /* the referee never ruled and is gone: take the respawn myself and hand the ball back to the (new) referee — gen + 1, then yield: the record trails this write for a frame or two and I must not re-sim the stale ball over it (stepSports honours spYieldGen) */
-      b.refWaitUntil = 0; const nb2 = courtCenterBall(k); b.x = nb2.x; b.y = nb2.y; b.vx = 0; b.vy = 0; b.crossed = false; b.dead = 0; b.lastHit = ""; b.lastSide = ""; b.shotX = undefined; b.shotY = undefined; b.rw = 0; b.gen = (b.gen || 0) + 1; b.owner = spHost(k); b.ownTs = 0;
-      writeBall(k, b, true); spYieldGen[k] = b.gen; spHostBall[k] = null; return;
-    }
-  }
-  /* gather the players on this court (me + peers standing in it) */
-  const actors = [];
-  /* an actor's bump velocity is clamped to the fastest a player can really move (sprint 305 x 1.55): a peer's velocity is estimated from synced render positions, and when those catch up after a presence gap the raw frame-delta reads thousands of px/s for a frame or two — fed uncapped into the bump's a.v * 0.30 term it rocketed the ball across the court in a single write, the third face of the 2-player teleport (2026-10-29). No legitimate bump changes: a real player's speed never exceeds the clamp. */
-  const actorV = (vx, vy) => { const s = Math.hypot(vx, vy), M = 480; if (s > M) { vx = vx * M / s; vy = vy * M / s; } return [vx, vy]; };
-  if (myCourt === k) { let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); } const av = actorV(mvx, mvy); actors.push({ pid: myId, x: me.x, y: me.y, vx: av[0], vy: av[1], side: mySide, w: spriteW(me.hero) }); }
-  for (const p of peers.values()) {
-    if (p.scene !== "gym") continue;
-    const pc = courtAt(p.x, p.y); if (!pc || pc.k !== k) continue;
-    const pv = spPeerPrev[p.id] || { x: p.x, y: p.y };
-    const av = actorV((p.x - pv.x) / Math.max(dt, 0.001), (p.y - pv.y) / Math.max(dt, 0.001));
-    actors.push({ pid: p.id, x: p.x, y: p.y, vx: av[0], vy: av[1], side: p.x < cx ? "A" : "B", w: spriteW(p.hero) });
-  }
-  /* bump: a sprite running into the ball knocks it away. A hit locks re-hits for 280ms (Jonathan 2026-10-29: after a shot the ball sometimes "shot by itself" — the hitter was still touching it next frame and bumped it again, and a second player in range could re-bump it in the same pass) */
-  for (const a of actors) {
-    if (nowp < (b.hitCoolUntil || 0)) break;
-    /* hitbox = the whole sprite (Jonathan 2026-10-29): the ball bumps only when it actually touches the drawn body — as wide as the sprite, from the feet up the full 96px — instead of the little circle (R + 30) around the feet point. The ring under the player is untouched. */
-    const hw = (a.w || 77) / 2 - 14, rx0 = a.x - hw, rx1 = a.x + hw, ry0 = a.y - 96 + 14, ry1 = a.y - 14; /* box inset 14px on EVERY side (Jonathan 2026-10-29): bottom stops above the shadow, and top/left/right are pulled in so balls only bounce on real body contact instead of hitting from far */
-    const qx = Math.max(rx0, Math.min(b.x, rx1)), qy = Math.max(ry0, Math.min(b.y, ry1));
-    const dx = b.x - qx, dy = b.y - qy, d = Math.hypot(dx, dy);
-    if (d < R) {
-      let nx, ny;
-      if (d > 0.01) { nx = dx / d; ny = dy / d; b.x = qx + nx * R; b.y = qy + ny * R; }
-      else { const pl = b.x - rx0, pr = rx1 - b.x, pt = b.y - ry0, pb = ry1 - b.y, m2 = Math.min(pl, pr, pt, pb); nx = m2 === pl ? -1 : m2 === pr ? 1 : 0; ny = m2 === pt ? -1 : m2 === pb ? 1 : 0; b.x = nx === -1 ? rx0 - R : nx === 1 ? rx1 + R : b.x; b.y = ny === -1 ? ry0 - R : ny === 1 ? ry1 + R : b.y; }
-      const asp = Math.hypot(a.vx, a.vy);
-      const power = Math.min(880, 330 + asp * 0.95);
-      b.vx = nx * power + a.vx * 0.30; b.vy = ny * power + a.vy * 0.30;
-      b.lastHit = a.pid; b.lastSide = a.side; b.dead = 0; b.shotX = a.x; b.shotY = a.y; /* the last touch spot, for 2 vs 3 in basketball: the bump that sent the ball in is the shot, wherever it was taken (Jonathan 2026-10-29: the old per-side slots keyed on which half the toucher stood in, so crossing midcourt made an inside shot read a stale outside touch and pay 3) */
-      b.hitCoolUntil = nowp + 280;
-      if (k === "tn" && a.side) b.crossed = false;
-    }
-  }
-  b.x += b.vx * dt; b.y += b.vy * dt;
-  const fr = k === "tn" ? 0.55 : 1.15;
-  const f = Math.max(0, 1 - fr * dt); b.vx *= f; b.vy *= f;
-  if (k === "bb") {
-    if (b.x < r.x + R) { b.x = r.x + R; b.vx = Math.abs(b.vx) * 0.82; }
-    if (b.x > r.x + r.w - R) { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; }
-    if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
-    if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
-    if (Math.abs(b.x - (r.x + 58)) < 30 && Math.abs(b.y - cy) < 24) { if (!isRef) { spRefWait(k, b); return; } const pts = (b.shotX != null && bbThree(r.x + 60, 1, b.shotX, b.shotY, r, cy)) ? 3 : 2; spScore(k, "B", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + 58; b.freezeUntil = 0; }
-    else if (Math.abs(b.x - (r.x + r.w - 58)) < 30 && Math.abs(b.y - cy) < 24) { if (!isRef) { spRefWait(k, b); return; } const pts = (b.shotX != null && bbThree(r.x + r.w - 60, -1, b.shotX, b.shotY, r, cy)) ? 3 : 2; spScore(k, "A", b, pts); b.swishUntil = nowp + 450; b.swishX = r.x + r.w - 58; b.freezeUntil = 0; }
-  } else if (k === "fb") {
-    if (b.y < r.y + R) { b.y = r.y + R; b.vy = Math.abs(b.vy) * 0.82; }
-    if (b.y > r.y + r.h - R) { b.y = r.y + r.h - R; b.vy = -Math.abs(b.vy) * 0.82; }
-    if (b.x < r.x + R) { if (Math.abs(b.y - cy) < 120) { if (!isRef) { spRefWait(k, b); return; } spScore(k, "B", b); } else { b.x = r.x + R; b.vx = Math.abs(b.vx) * 0.82; } }
-    else if (b.x > r.x + r.w - R) { if (Math.abs(b.y - cy) < 120) { if (!isRef) { spRefWait(k, b); return; } spScore(k, "A", b); } else { b.x = r.x + r.w - R; b.vx = -Math.abs(b.vx) * 0.82; } }
-  } else if (k === "tn") {
-    /* the net: a slow ball bounces off it, a driven ball sails over */
-    if (b.px !== undefined && (b.px - cx) * (b.x - cx) < 0) {
-      if (Math.abs(b.vx) < 260) { b.x = cx + (b.px !== undefined && b.px < cx ? -1 : 1) * (R + 3); b.vx = -b.vx * 0.35; }
-      else b.crossed = true;
-    }
-    const out = b.x < r.x - 80 || b.x > r.x + r.w + 80 || b.y < r.y - 80 || b.y > r.y + r.h + 80;
-    if (out) { const loser = (b.x < r.x - 80) ? "A" : (b.x > r.x + r.w + 80) ? "B" : (b.lastSide || (b.x < cx ? "A" : "B")); if (!isRef) { spRefWait(k, b); return; } spScore(k, loser === "A" ? "B" : "A", b); }
-    else if (Math.hypot(b.vx, b.vy) < 30) { if (b.lastHit) { b.dead += dt; if (b.dead > 0.9) { if (!isRef) { spRefWait(k, b); return; } const loser = b.x < cx ? "A" : "B"; spScore(k, loser === "A" ? "B" : "A", b); } } }
-    else b.dead = 0;
-  }
-  b.px = b.x;
-  writeBall(k, b, false);
-}
-function writeBall(k, b, force) {
-  const now = Date.now();
-  if (!force && now - (spWriteAt[k] || 0) < SP_WRITE_MS) return;
-  const px = Math.round(b.x), py = Math.round(b.y), pvx = Math.round(b.vx), pvy = Math.round(b.vy), gn = b.gen || 0, lh = b.lastHit || "", ls = b.lastSide || "", cr = !!b.crossed, ow = b.owner || "", ot = b.ownTs || 0, sx = b.shotX == null ? null : Math.round(b.shotX), sy = b.shotY == null ? null : Math.round(b.shotY), rwf = b.rw ? 1 : 0;
-  const sent = spSentBall[k];
-  if (!force && sent && sent.x === px && sent.y === py && sent.vx === pvx && sent.vy === pvy && sent.gen === gn && sent.lastHit === lh && sent.lastSide === ls && sent.crossed === cr && sent.owner === ow && sent.ownTs === ot && sent.shotX === sx && sent.shotY === sy && sent.rw === rwf) return; /* the shared state already says exactly this (ball at rest / frozen): no write and no seq bump — an unchanged republish would only waste the stream */
-  spWriteAt[k] = now;
-  b.seq = (b.seq || 0) + 1; /* every published state carries a higher seq than the last: followers accept only newer seqs, so a stale, duplicated or reordered write can never drag the ball backwards */
-  spSentBall[k] = { x: px, y: py, vx: pvx, vy: pvy, gen: gn, lastHit: lh, lastSide: ls, crossed: cr, owner: ow, ownTs: ot, shotX: sx, shotY: sy, rw: rwf };
-  spSet(k, "ball", { x: px, y: py, vx: pvx, vy: pvy, ts: now, lastHit: lh, lastSide: ls, crossed: cr, seq: b.seq, gen: gn, owner: ow, ownTs: ot, shotX: sx, shotY: sy, rw: rwf });
-  spBallVis[k] = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, seq: b.seq, gen: gn };
-}
 function spBufPush(v, sb) {
   /* one accepted ball state joins the follower's snapshot buffer (see stepSports). Snapshots are keyed by the WRITER's timestamp \u2014 already in every payload: consecutive stamps from the host's single clock are exact ~33ms spacings, so interpolating between them keeps the ball's speed true even when network jitter bunches or spreads the ARRIVALS (keying by arrival time distorted every segment's duration and the ball surged and stalled). The writer's absolute clock is never trusted: a smoothed offset (EMA of receipt minus stamp, both read in Date.now() terms) maps local time onto the writer's timeline, and any clock skew cancels inside it. */
   const wts = sb.ts || ((v.wts || 0) + SP_WRITE_MS);
@@ -1763,178 +1581,47 @@ function spBufPush(v, sb) {
   v.buf.push({ x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, wts });
   if (v.buf.length > 14) v.buf.splice(0, v.buf.length - 14);
 }
-function spTryTouch(k, dt) {
-  /* roaming claim: a follower whose sprite overlaps the rendered ball has TOUCHED it — they take the ball over. The takeover state is built from MY rendered ball (my interpolated position, the last accepted velocity) with MY bump applied (the same box and power maths simCourt bumps with), and it is claimed through a transaction on the ball record: the claim only lands if the record is still the gen my touch was based on, nobody is frozen awaiting a ruling, and the current owner's tenure has passed the anti-flap lock (owners who hold the ball by default — a reset, a respawn, a referee fallback — carry ownTs 0 and can be taken from instantly). On commit I seed my sim from the committed state and ASSERT ownership until the room state catches up, because the displaced owner's last in-flight writes can still land after the transaction and overwrite the record's owner for a few frames — my continued gen-current writes are what settle it. */
-  if (!db || myCourt !== k) return;
-  const st = spState[k]; if (!st || !st.ball) return;
-  const sb = st.ball;
-  if (sb.rw || sb.x < -100) return; /* frozen for a ruling, or hidden mid-swish: hands off */
-  if ((sb.owner || "") === myId) return;
-  const v = spBallVis[k]; if (!v || v.x < -100) return;
-  if (spClaimPend[k]) return;
-  const nowp = performance.now();
-  if (nowp < (spClaimCool[k] || 0)) return;
-  /* overlap: the whole-sprite box simCourt bumps with, against my rendered ball */
-  const R = BALLR[k], w = spriteW(me.hero), hw = w / 2 - 14, rx0 = me.x - hw, rx1 = me.x + hw, ry0 = me.y - 96 + 14, ry1 = me.y - 14;
-  const qx = Math.max(rx0, Math.min(v.x, rx1)), qy = Math.max(ry0, Math.min(v.y, ry1));
-  const dx = v.x - qx, dy = v.y - qy, d = Math.hypot(dx, dy);
-  if (d >= R) return;
-  if (sb.ownTs && Date.now() - sb.ownTs < SP_OWN_LOCK_MS) return; /* anti-flap lock: this owner is still fresh (the transaction re-checks this authoritatively) */
-  let nx, ny, bx = v.x, by = v.y;
-  if (d > 0.01) { nx = dx / d; ny = dy / d; bx = qx + nx * R; by = qy + ny * R; }
-  else { const pl = v.x - rx0, pr = rx1 - v.x, pt = v.y - ry0, pb = ry1 - v.y, m2 = Math.min(pl, pr, pt, pb); nx = m2 === pl ? -1 : m2 === pr ? 1 : 0; ny = m2 === pt ? -1 : m2 === pb ? 1 : 0; bx = nx === -1 ? rx0 - R : nx === 1 ? rx1 + R : v.x; by = ny === -1 ? ry0 - R : ny === 1 ? ry1 + R : v.y; }
-  let mvx = 0, mvy = 0; if (spMyPrev) { mvx = (me.x - spMyPrev.x) / Math.max(dt, 0.001); mvy = (me.y - spMyPrev.y) / Math.max(dt, 0.001); }
-  const asp = Math.hypot(mvx, mvy), M = 480; if (asp > M) { mvx = mvx * M / asp; mvy = mvy * M / asp; }
-  const power = Math.min(880, 330 + Math.hypot(mvx, mvy) * 0.95);
-  const claimGen = sb.gen || 0;
-  const nb = { x: Math.round(bx), y: Math.round(by), vx: Math.round(nx * power + mvx * 0.30), vy: Math.round(ny * power + mvy * 0.30), ts: Date.now(), lastHit: myId, lastSide: mySide, crossed: k === "tn" ? false : !!sb.crossed, shotX: Math.round(me.x), shotY: Math.round(me.y), owner: myId, ownTs: Date.now(), rw: 0 };
-  spClaimPend[k] = true;
-  let myVal = null;
-  try {
-    db.ref("hub/tables/sports/" + k + "/ball").transaction(cur => {
-      if (!cur || cur.owner === myId) return undefined;
-      if ((cur.gen || 0) !== claimGen) return undefined; /* the ball moved on (a transfer, a ruling, a reset) since my touch */
-      if (cur.rw) return undefined; /* a ruling started in the meantime */
-      if (cur.ownTs && Date.now() - cur.ownTs < SP_OWN_LOCK_MS) return undefined; /* the anti-flap lock, checked against the live record */
-      myVal = Object.assign({}, nb, { seq: (cur.seq || 0) + 1, gen: claimGen + 1 });
-      return myVal;
-    }, (err, committed) => {
-      spClaimPend[k] = false;
-      spClaimCool[k] = performance.now() + 350;
-      if (!err && committed && myVal) {
-        const b = spSeedBall(k, myVal); b.owner = myId; b.ownTs = myVal.ownTs;
-        spHostBall[k] = b; spWasOwner[k] = true;
-        spAssert[k] = { gen: myVal.gen, until: performance.now() + 3000 };
-        spSentBall[k] = null; spWriteAt[k] = 0;
-      }
-    });
-  } catch (e) { spClaimPend[k] = false; }
-}
 function stepSports(dt) {
+  /* my court and side are purely local: the half of the court I am standing on (the referee reads the same geometry from my presence position) */
   const ci = courtAt(me.x, me.y);
-  const ck = ci ? ci.k : null;
-  const side = ci ? (me.x < ci.r.x + ci.r.w / 2 ? "A" : "B") : null;
-  if (ck !== myCourt) {
-    const wasCourt = myCourt;
-    if (wasCourt) { spSet(wasCourt, "players/" + myId, null); spOD(wasCourt, false); spResetIfEmpty(wasCourt); }
-    myCourt = ck; mySide = side;
-    if (myCourt) { spJoinTs = Date.now(); writeMySpRecord(); spOD(myCourt, true); spEntryPend[myCourt] = true; if (spState[myCourt] && spState[myCourt].emptyTs && Date.now() - spState[myCourt].emptyTs < SP_GRACE_MS) spUpd(myCourt, { emptyTs: null }); /* stepping on cancels a RUNNING reset grace at once — an already-expired deadline is not cancelled: it is owed, and the entry check below lands it */ }
-  } else if (side !== mySide) {
-    /* side flip only (crossing midcourt): rewrite the record IN PLACE — never remove it first. The old remove+rewrite made the player vanish from spPlayers for a full round trip; when the vanishing player was the host, the other client took over hosting mid-play, and when the record landed again the first host resumed from its frozen local ball and wrote it back over the live one. That flap was the teleport (2026-10-29). */
-    mySide = side;
-    if (myCourt) writeMySpRecord();
-  }
+  myCourt = ci ? ci.k : null;
+  mySide = ci ? (me.x < ci.r.x + ci.r.w / 2 ? "A" : "B") : null;
   for (const pr of COURTS) {
     const k = pr[0], st = spState[k];
-    if (k === myCourt && spEntryPend[k] && st) { spEntryPend[k] = false; spEntryResetCheck(k); }
-    const ref = st ? spHost(k) : "";
-    const rawO = (st && st.ball && st.ball.owner) || "";
-    let own = (rawO && spPlayers(k).some(p => p.pid === rawO)) ? rawO : ref; /* the named owner while they are on the court, else the referee */
-    const asrt = spAssert[k];
-    if (asrt) { /* a claim I committed (spTryTouch), asserted until the room state catches up */
-      if (myCourt !== k || performance.now() > asrt.until || (st && st.ball && ((st.ball.gen || 0) > asrt.gen || (((st.ball.owner) || "") === myId && (st.ball.gen || 0) === asrt.gen)))) spAssert[k] = null;
-      else own = myId;
-    }
-    if (st && ref === myId && rawO !== myId && myCourt === k) spRefCheck(k); /* the referee rules on a frozen ball before anything else moves it — only while actually ON the court: a referee who just stepped off still sees a stale roster for a round trip, and ruling (or seizing, below) from that stale view would move a ball the grace is supposed to leave untouched */
-    if (spYieldGen[k] && st && st.ball && (st.ball.gen || 0) >= spYieldGen[k]) spYieldGen[k] = 0;
-    const yielding = !!(spYieldGen[k] && own === myId);
-    let iOwn = !!(st && own === myId && myCourt === k);
-    if (iOwn && spHostBall[k] && st.ball) { /* reconcile against the shared record before simming: if a placement (reset, respawn, seizure, a rival claim) has minted at or beyond my gen, or another writer is live on my own gen, my local ball is a dead chain — step down and follow the record instead of writing the dead ball back over the live one (one half of the permanent split-screen, 2026-10-29) */
-      const rb = st.ball, rg = rb.gen || 0, lg = spHostBall[k].gen || 0;
-      if (rg > lg || (rg === lg && (rb.owner || "") !== "" && (rb.owner || "") !== myId && (rb.seq || 0) > (spHostBall[k].seq || 0))) { spHostBall[k] = null; spWasOwner[k] = false; spAssert[k] = null; iOwn = false; }
-    }
-    if (yielding) { /* a respawn I handed back to the referee is still echoing — the record trails my own write, and re-simming from it would resurrect the stale ball over the respawn; my renderer already holds the state I published */ }
-    else if (iOwn) {
-      /* the local sim ball is only valid while this tab owns CONTINUOUSLY: on (re)gaining the ball it is thrown away and simCourt re-seeds from the latest shared ball (a committed claim pre-seeds its own — spWasOwner is already true then). Keeping a frozen local ball across an ownership flap and writing it back over the live one was the other half of the teleport (2026-10-29). */
-      if (!spWasOwner[k]) {
-        if (rawO && rawO !== myId && ref === myId && !(st.ball && st.ball.rw)) {
-          /* the named owner is GONE (stepped off the court, disconnected) and I am the referee: take the ball back at once — seed from the last shared state, gen + 1 so every follower re-buffers onto my stream, signed with no lock (ownTs 0) so the next honest touch can take it straight back */
-          const sbz = st.ball, bz = spSeedBall(k, sbz); bz.gen = (sbz.gen || 0) + 1; bz.owner = myId; bz.ownTs = 0; spHostBall[k] = bz; spWasOwner[k] = true; spSentBall[k] = null; writeBall(k, bz, true);
-        } else if (st.ball && st.ball.rw && ref === myId && rawO !== myId) {
-          /* a ruling of mine is still echoing (spRefCheck above already fired it): don't sim the frozen ball — the respawn lands within a frame or two and the normal seed path picks it up */
-        } else { spHostBall[k] = null; spWasOwner[k] = true; }
+    /* follow the referee's shared ball — this page never writes it. Acceptance is deliberately simple: a HIGHER gen means the ball was genuinely re-placed (respawn/reset), so the render snaps to it and re-buffers; within the same gen only a HIGHER seq is accepted into the snapshot buffer; anything else (a stale gen, a duplicated or reordered seq) is ignored whole, and the ball rests at its last accepted state. */
+    const sb = st && st.ball;
+    let v = spBallVis[k];
+    if (sb) {
+      if (!v) v = spBallVis[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, ps: 0, seq: -1, gen: -1, rxT: 0, bx: sb.x, by: sb.y, bvx: 0, bvy: 0, buf: [] };
+      if (v.bx === undefined) { v.bx = v.x; v.by = v.y; v.bvx = v.vx || 0; v.bvy = v.vy || 0; v.rxT = performance.now(); if (v.seq === undefined) v.seq = -1; if (v.gen === undefined) v.gen = -1; v.ps = v.ps || 0; }
+      if (!v.buf) v.buf = [];
+      const sq = sb.seq || 0, gn = sb.gen || 0;
+      if (gn > v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
+      else if (gn === v.gen && sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); spBufPush(v, sb); }
+      /* snapshot interpolation (2026-10-29): the ball is drawn SP_INTERP_MS behind the newest accepted state, walking the snapshot buffer on the WRITER's timeline (mapped onto local time by the smoothed offset in spBufPush). The old render chased the latest point with a fast ease and lurched at the write rate — the follower's lag; walking the real path is continuous, corrections join it in the past, and a light final ease absorbs the one break interpolation can't hide: a bounce the buffer only learns about after the render has already extrapolated past it. Only a gen change snaps (handled above). Past the newest snapshot the ball extrapolates on its velocity for at most 120ms, then holds. */
+      const wNow = Date.now() - (v.off || 0) - SP_INTERP_MS, sbuf = v.buf; /* the buffer only ever holds accepted states, so the walk is always on the live chain */
+      if (sbuf.length) {
+        let ix, iy;
+        if (wNow <= sbuf[0].wts) { ix = sbuf[0].x; iy = sbuf[0].y; }
+        else {
+          let i2 = sbuf.length - 1;
+          while (i2 > 0 && sbuf[i2].wts > wNow) i2--;
+          const s0 = sbuf[i2];
+          if (i2 === sbuf.length - 1) { const ex = Math.min((wNow - s0.wts) / 1000, 0.12); ix = s0.x + s0.vx * ex; iy = s0.y + s0.vy * ex; }
+          else { const s1 = sbuf[i2 + 1], span = Math.max(1, s1.wts - s0.wts), al = Math.min(1, Math.max(0, (wNow - s0.wts) / span)); ix = s0.x + (s1.x - s0.x) * al; iy = s0.y + (s1.y - s0.y) * al; }
+        }
+        const ez = Math.min(1, dt * 20);
+        v.x += (ix - v.x) * ez; v.y += (iy - v.y) * ez;
       }
-      if (spWasOwner[k]) simCourt(k, dt);
-    } else {
-      spWasOwner[k] = false; spHostBall[k] = null;
-      /* follow the shared ball — only the current owner's writes ever move it. A payload counts only when its seq beats the last accepted seq within the same gen; a HIGHER gen means the ball was genuinely re-placed (score respawn, court reset, swish hide, an authority transfer), so the render snaps to it, and a LOWER gen is a displaced owner's late write — ignored whole, or it would drag the ball back across the transfer. Between writes the render extrapolates from the LOCAL receipt time of the accepted write — never from the writer's ts, whose clock skew against this device used to shove the target around (2026-10-29). */
-      const sb = st && st.ball;
-      let v = spBallVis[k];
-      if (sb) {
-        if (!v) v = spBallVis[k] = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, ps: 0, seq: -1, gen: -1, rxT: 0, bx: sb.x, by: sb.y, bvx: 0, bvy: 0, buf: [] };
-        if (v.bx === undefined) { v.bx = v.x; v.by = v.y; v.bvx = v.vx || 0; v.bvy = v.vy || 0; v.rxT = performance.now(); if (v.seq === undefined) v.seq = -1; if (v.gen === undefined) v.gen = -1; v.ps = v.ps || 0; }
-        if (!v.buf) v.buf = [];
-        const sq = sb.seq || 0, gn = sb.gen || 0;
-        let acc = false;
-        if (gn > v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; acc = true; }
-        else if (gn === v.gen && sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); spBufPush(v, sb); acc = true; }
-        if (acc) { v.accTs = sb.ts || 0; v.accAt = performance.now(); v.cand = null; }
-        else if (sb.x > -100) {
-          /* rejected by gen/seq — but watch the payload as a RIVAL CHAIN. Gens are minted from lagging local views (a reset, respawn or seizure writes local-gen + 1), so after a claim war the live record chain can sit AT or BEHIND the gen I accepted — and then the strict gates above reject the true ball forever and my screen renders a ball the record abandoned long ago (the other half of the split-screen, 2026-10-29). The live chain betrays itself: it keeps advancing with FRESH writer timestamps while my accepted chain has gone quiet. A displaced owner's single late write can never pass these gates — its ts is older than my chain's newest, my chain is not quiet when it lands, and it never advances twice. */
-          const cts = sb.ts || 0;
-          let cd = v.cand;
-          if (!cd || cd.gen !== gn) { cd = v.cand = { gen: gn, seq: sq, ts: cts, n: 1 }; }
-          else if (sq > cd.seq || cts > cd.ts) { cd.seq = Math.max(cd.seq, sq); cd.ts = Math.max(cd.ts, cts); cd.n++; }
-          if (cd.ts > (v.accTs || 0) && performance.now() - (v.accAt || 0) > 450 && (cd.n >= 2 || cd.seq <= 2 || !sb.owner)) {
-            v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy;
-            v.accTs = cts; v.accAt = performance.now(); v.cand = null;
-          }
-        }
-        /* snapshot interpolation (2026-10-29): the ball is drawn SP_INTERP_MS behind the newest accepted state, walking the snapshot buffer on the WRITER's timeline (mapped onto local time by the smoothed offset in spBufPush). The old render chased the latest point with a fast ease and lurched at the write rate \u2014 the follower's lag; walking the real path is continuous, corrections join it in the past, and a light final ease absorbs the one break interpolation can't hide: a bounce the buffer only learns about after the render has already extrapolated past it. Only a gen change snaps (handled above). Past the newest snapshot the ball extrapolates on its velocity for at most 120ms, then holds. */
-        const wNow = Date.now() - (v.off || 0) - SP_INTERP_MS, sbuf = gn < v.gen ? [] : v.buf; /* a stale-gen payload leaves the buffer untouched: the render holds its line until the live owner's next state lands */
-        if (sbuf.length) {
-          let ix, iy;
-          if (wNow <= sbuf[0].wts) { ix = sbuf[0].x; iy = sbuf[0].y; }
-          else {
-            let i2 = sbuf.length - 1;
-            while (i2 > 0 && sbuf[i2].wts > wNow) i2--;
-            const s0 = sbuf[i2];
-            if (i2 === sbuf.length - 1) { const ex = Math.min((wNow - s0.wts) / 1000, 0.12); ix = s0.x + s0.vx * ex; iy = s0.y + s0.vy * ex; }
-            else { const s1 = sbuf[i2 + 1], span = Math.max(1, s1.wts - s0.wts), al = Math.min(1, Math.max(0, (wNow - s0.wts) / span)); ix = s0.x + (s1.x - s0.x) * al; iy = s0.y + (s1.y - s0.y) * al; }
-          }
-          const ez = Math.min(1, dt * 20);
-          v.x += (ix - v.x) * ez; v.y += (iy - v.y) * ez;
-        }
-        const prevSp = Math.hypot(v.vx || 0, v.vy || 0);
-        v.vx = v.bvx; v.vy = v.bvy;
-        const newSp = Math.hypot(v.vx, v.vy);
-        if (newSp - prevSp > 150) { /* somebody just whacked it */
-          let near = myCourt === k && Math.hypot(v.x - me.x, v.y - me.y) < 110;
-          if (!near) for (const p of peers.values()) if (p.scene === "gym" && Math.hypot(v.x - p.x, v.y - p.y) < 110) { near = true; break; }
-          if (near) sfxBounce(Math.min(1, newSp / 800));
-        }
-      } else if (!v) spBallVis[k] = courtCenterBall(k);
-      if (myCourt === k) spTryTouch(k, dt); /* roaming: my sprite on the ball is a touch — claim it and the ball is mine until the next touch */
-    }
-  }
-  if (myCourt && spOwner(myCourt) === myId) { /* the ball's owner hears their own bumps too (the followers' block above only covers non-owners) */
-    const v = spBallVis[myCourt];
-    if (v) { const sp = Math.hypot(v.vx || 0, v.vy || 0); if (sp - (v.ps || 0) > 150) sfxBounce(Math.min(1, sp / 800)); v.ps = sp; }
-  }
-  spMyPrev = { x: me.x, y: me.y };
-  for (const p of peers.values()) if (p.scene === "gym") spPeerPrev[p.id] = { x: p.x, y: p.y };
-}
-function sportsTick() {
-  if (!entered || !db) return;
-  if (myCourt) spSet(myCourt, "players/" + myId + "/ts", Date.now());
-  for (const pr of COURTS) {
-    const k = pr[0], st = spState[k];
-    if (!st) { if (myCourt === k && Date.now() - (spInitTry[k] || 0) > 3000) { spInitTry[k] = Date.now(); spReset(k); } continue; }
-    const recs = st.players ? Object.keys(st.players).filter(pid => st.players[pid]) : [];
-    /* occupancy for the reset clock is judged on the backstop's own freshness — a record whose heartbeat is 6s old is a stale seat (the casino tables' rule), not a player. Judging by spPlayers' 25s roster window let a vanished (refreshed-out) player's record hold the reset off for half a minute, and with nobody left to tick it never landed at all (Jonathan 2026-10-29) */
-    const fresh = recs.filter(pid => Date.now() - (st.players[pid].ts || 0) < 6000).map(pid => ({ pid }));
-    if (fresh.length) { let fev = 0; for (const pid of recs) fev = Math.max(fev, st.players[pid].ts || 0); if (fev) spEmptyEv[k] = fev; } /* witness memory: the freshest heartbeat this client has seen on this court while it was live — the honest "when did this court empty" evidence for the stamp below. A record that ARRIVES already stale (a ghost) was never witnessed live, so it can never pull a deadline backwards. */
-    const ctr = courtCenterBall(k);
-    const ballDirty = !!(st.ball && (Math.abs(st.ball.x - ctr.x) > 4 || Math.abs(st.ball.y - ctr.y) > 4 || Math.abs(st.ball.vx || 0) > 1 || Math.abs(st.ball.vy || 0) > 1));
-    const dirty = (st.score && (st.score.a || st.score.b)) || ballDirty || !!st.lastScore;
-    if (fresh.length) { if (st.emptyTs) spUpd(k, { emptyTs: null }); continue; }
-    if (!dirty) { if (st.emptyTs) spUpd(k, { emptyTs: null }); continue; }
-    if (!st.emptyTs) { /* start the clock from the witnessed evidence (spEmptyEv: the last heartbeat seen live on this court) rather than from whenever some survivor's tick happened to notice — a disconnect's 6s backstop runs from the seat's last heartbeat, not from first-notice plus six more seconds. With no witnessed evidence (nobody here saw this court alive), the clock starts at the stamp, as it always did. The deadline itself rides in the shared record, so it binds whoever ticks or enters next. */
-      const ev = (spEmptyEv[k] && spEmptyEv[k] < Date.now()) ? spEmptyEv[k]
-        : (ballDirty && st.ball && st.ball.ts && st.ball.ts < Date.now() ? st.ball.ts : Date.now()); /* no witnessed evidence (this client is the first to look since the court died): if the game died MID-PLAY — the ball itself is off-centre, moving or hidden — the ball's stamp is the death time; a pristine centre ball says nothing about when anyone left, so the clock starts at the stamp */
-      spUpd(k, { emptyTs: ev }); continue; }
-    /* empty and dirty: the reset lands only when the countdown runs out — SP_GRACE_MS (3s) when the last player record is simply gone (a connected player stepped off; spResetIfEmpty usually started the clock at the step-off itself), the 6s backstop while records linger stale (a disconnect whose record never cleared). Records present = backstop terms, exactly as before, so the grace can never keep a court alive longer than the backstop would. */
-    if (Date.now() - st.emptyTs > (recs.length ? 6000 : SP_GRACE_MS)) { spReset(k); spEmptyEv[k] = 0; }
+      const prevSp = Math.hypot(v.vx || 0, v.vy || 0);
+      v.vx = v.bvx; v.vy = v.bvy;
+      const newSp = Math.hypot(v.vx, v.vy);
+      if (newSp - prevSp > 150) { /* somebody just whacked it */
+        let near = myCourt === k && Math.hypot(v.x - me.x, v.y - me.y) < 110;
+        if (!near) for (const p of peers.values()) if (p.scene === "gym" && Math.hypot(v.x - p.x, v.y - p.y) < 110) { near = true; break; }
+        if (near) sfxBounce(Math.min(1, newSp / 800));
+      }
+    } else if (!v) spBallVis[k] = courtCenterBall(k); /* no referee record yet: the local default visual at court centre (never written anywhere) */
   }
 }
 function courtFocusRect() {
@@ -2994,8 +2681,8 @@ function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUB
 function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
 function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); pullChips(); }
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
-function toGym() { stopAllTones(); leaveCourtRecord(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); for (const pr of COURTS) spResetIfEmpty(pr[0]); startLgVideos(); }
-function toPlazaFromGym() { stopAllTones(); leaveCourtRecord(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
+function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
+function toPlazaFromGym() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
 function toSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "speedway"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); speedwayListen(); }
 function toPlazaFromSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "plaza"; voiceReset(); me.x = 570; me.y = SPD_B.y + SPD_B.h + 60; sfxChime(); publish(true); }
 let portalArmed = true;
@@ -3667,7 +3354,7 @@ function drawPlaza(t) {
     ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(x - 1.6, y - 1.6, 1.8, 0, 7); ctx.fill();
     ctx.fillStyle = "#ffd76a";
   }
-  for (let y = 560; y <= 1500; y += 188) { lamp(1492, y); if (y !== 748) lamp(1708, y); }
+  for (let y = 560; y <= 1500; y += 188) { if (y !== 748) { lamp(1492, y); lamp(1708, y); } }
   for (let x = 660; x <= 1380; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   for (let x = 1880; x <= 2600; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   lamp(1960, 642); lamp(2360, 642); lamp(1960, 858); lamp(2360, 858); lamp(2532, 580); lamp(2728, 580);
