@@ -2001,6 +2001,16 @@ function swBoostBarRect(i, v) {
   if (!v || !v.drvName) return null;
   return { x: v.x - 32, y: v.y - 69, w: 64, h: 7, lvl: swBoostLvl[i] || 0, col: SW_CARS[i].col };
 }
+function swDriverChat(v) {
+  /* the chat state of whoever is driving the car drawn from state v, resolved
+     exactly the way the frame loop resolves a walking actor's bubble: my own
+     record for my car, the driver's presence record for anyone else's */
+  if (!v || !v.drv) return null;
+  const a = v.drv === myId ? me : peers.get(v.drv);
+  if (!a || !a.chat) return null;
+  const age = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999);
+  return { text: a.chat, age };
+}
 function drawSwCar(i, t) {
   const v = i === myCar && carPos ? { x: carPos.x, y: carPos.y, hd: carPos.hd, drv: myId, drvName: me.name } : swCarsVis[i];
   if (!v) return;
@@ -2080,6 +2090,12 @@ function drawSwCar(i, t) {
     ctx.strokeStyle = SW_CARS[i].dark; ctx.lineWidth = 1.5; rr(bbar.x, bbar.y, bbar.w, bbar.h, 3.5); ctx.stroke();
     if (bbar.lvl > 0.01) { ctx.fillStyle = bbar.col; rr(bbar.x, bbar.y, Math.max(7, bbar.w * bbar.lvl), bbar.h, 3.5); ctx.fill(); }
   }
+  /* chat bubble for the driver (Jonathan 2026-10-29): drivers never pass through
+     drawPlayer, so their chat used to be invisible — the same bubble as on foot,
+     anchored above the whole stack: the box bottom sits at v.y - 86, so its tail
+     tip (9px below the box) ends 8px clear of the boost bar's top (v.y - 69) */
+  const dc = swDriverChat(v);
+  if (dc && dc.age < 5000) drawChatBubble(v.x, v.y - 86, dc.text);
 }
 function drawSwBench(x, y, rot) {
   /* silver spectator bench: light-grey slats on a darker metal frame, backrest on the side AWAY from the track (the sitter faces +y in local space). Pure scenery \u2014 benches are never obstacles (see obstacles(): speedway's only solids are the infield monitors and the corner concession stands), so they are walked right over, never collided with. Cars can't reach them either: the driving clamp keeps them inside the ring. */
@@ -3015,6 +3031,20 @@ function drawStars(camX, camY, S) {
   }
 }
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function drawChatBubble(cx, boxBottom, chat) {
+  /* the speech bubble, shared by drawPlayer (on foot) and drawSwCar (drivers):
+     the box's bottom edge sits at boxBottom, the tail points down from its centre,
+     and the text is the chat wrapped at 24 chars a line, at most 6 lines */
+  ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  const words = chat.split(" "); let lines = [], line = "";
+  for (const w of words) { if ((line + " " + w).trim().length > 24) { lines.push(line.trim()); line = w; } else line += " " + w; }
+  lines.push(line.trim()); lines = lines.slice(0, 6);
+  const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 26, bh = lines.length * 26 + 16;
+  const bx = cx - bw / 2, by = boxBottom - bh;
+  ctx.fillStyle = "rgba(255,255,255,0.97)"; rr(bx, by, bw, bh, 12); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx - 7, by + bh); ctx.lineTo(cx + 7, by + bh); ctx.lineTo(cx, by + bh + 9); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, cx, by + 26 + i * 26));
+}
 function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving) {
   const img = heroImgs[hero];
   if (!img) { ensureHero(hero);
@@ -3036,17 +3066,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
   ctx.strokeText(name, wx, ny); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, ny);
   ctx.restore();
-  if (chat && chatAge < 5000) {
-    ctx.font = "700 21px 'Segoe UI',sans-serif";
-    const words = chat.split(" "); let lines = [], line = "";
-    for (const w of words) { if ((line + " " + w).trim().length > 24) { lines.push(line.trim()); line = w; } else line += " " + w; }
-    lines.push(line.trim()); lines = lines.slice(0, 6);
-    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 26, bh = lines.length * 26 + 16;
-    const bx = wx - bw / 2, by = ny - bh - 26;
-    ctx.fillStyle = "rgba(255,255,255,0.97)"; rr(bx, by, bw, bh, 12); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(wx - 7, by + bh); ctx.lineTo(wx + 7, by + bh); ctx.lineTo(wx, by + bh + 9); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, wx, by + 26 + i * 26));
-  }
+  if (chat && chatAge < 5000) drawChatBubble(wx, ny - 26, chat);
 }
 let camX = 0, camY = 0, SCALE = 0.6;
 let drawnScene = "";
@@ -3999,10 +4019,16 @@ function drawClub(t) {
 }
 function drawArcade(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  ctx.fillStyle = "#0a1030"; ctx.fillRect(0, 0, ROOM.w, ROOM.h);
+  /* wide screens: the floor runs on past both side walls all the way to the screen
+     edges, so no outer space shows beside the room (Jonathan 2026-10-29) — the apron
+     is pure scenery in the room's own floor colour + grid: at least a full room width
+     on each side and never less than the visible world width, so any viewport at any
+     camera position stays covered. The room's bounds, border and cabinets are untouched. */
+  const extW = Math.max(ROOM.w, Math.ceil(VW / SCALE));
+  ctx.fillStyle = "#0a1030"; ctx.fillRect(-extW, 0, ROOM.w + extW * 2, ROOM.h);
   ctx.strokeStyle = "rgba(168,85,247,0.16)"; ctx.lineWidth = 2;
-  for (let x = 0; x <= ROOM.w; x += 84) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ROOM.h); ctx.stroke(); }
-  for (let y = 0; y <= ROOM.h; y += 84) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(ROOM.w, y); ctx.stroke(); }
+  for (let x = -Math.ceil(extW / 84) * 84; x <= ROOM.w + extW; x += 84) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ROOM.h); ctx.stroke(); }
+  for (let y = 0; y <= ROOM.h; y += 84) { ctx.beginPath(); ctx.moveTo(-extW, y); ctx.lineTo(ROOM.w + extW, y); ctx.stroke(); }
   /* the clear path: a lit runner from the entrance/exit straight up the middle */
   const px0 = ROOM.w / 2 - 88;
   ctx.fillStyle = "rgba(88,40,160,0.35)"; ctx.fillRect(px0, 268, 176, ROOM.h - 268 - 64);
