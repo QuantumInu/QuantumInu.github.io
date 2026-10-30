@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>QI Quantum Crossy</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; touch-action:manipulation; }
+  body {
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:#e8f4ff;
+    background: radial-gradient(1100px 750px at 50% -12%, #131040 0%, #070d24 46%, #010208 100%);
+    height:100vh; height:100dvh; overflow:hidden; padding:52px 12px calc(10px + env(safe-area-inset-bottom));
+    text-align:center; position:relative; display:flex; flex-direction:column;
+  }
+  #spaceBg { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  .wrap { position:relative; z-index:1; max-width:540px; width:100%; margin:0 auto; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  h1 { font-size:clamp(22px,5.8vw,34px); letter-spacing:2px; font-weight:900; color:#7fdcff;
+       text-shadow:0 0 14px rgba(41,182,255,.85), 0 0 42px rgba(41,182,255,.45); }
+  h1 .q { color:#ffd964; text-shadow:0 0 14px rgba(245,197,66,.8), 0 0 42px rgba(245,197,66,.4); }
+  .sub { opacity:.85; margin-top:2px; font-size:13.5px; }
+  .stats { display:flex; gap:8px; justify-content:center; margin:8px 0; flex-wrap:wrap; }
+  .stat { background:rgba(120,200,255,.06); border:1px solid rgba(120,200,255,.18); border-radius:12px; padding:4px 12px; min-width:70px; }
+  .stat b { display:block; font-size:17px; color:#7fdcff; }
+  .stat b.gold { color:#ffd964; }
+  .stat span { font-size:11px; text-transform:uppercase; letter-spacing:1px; opacity:.75; }
+  #stage { position:relative; flex:1 1 auto; min-height:0; width:100%; margin:0 auto;
+           display:flex; align-items:center; justify-content:center; }
+  canvas#game { display:block; touch-action:none; background:#04140f; border-radius:14px;
+           box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 1px rgba(41,182,255,.35), 0 0 26px rgba(160,107,255,.22); }
+  body.playing h1, body.playing .sub, body.playing .howto { display:none; }
+  .card-overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+                  gap:7px; background:rgba(2,6,16,.88); padding:12px 14px; overflow-y:auto; z-index:5; border-radius:14px; }
+  .card-overlay > * { flex:none; }
+  .card-overlay.show { display:flex; }
+  @supports (justify-content: safe center) { .card-overlay { justify-content:safe center; } }
+  .card-overlay .big { font-size:clamp(20px,5.6vw,29px); font-weight:900; letter-spacing:1px; color:#7fdcff;
+                       text-shadow:0 0 16px rgba(41,182,255,.7); }
+  .card-overlay .big.gold { color:#ffd964; text-shadow:0 0 16px rgba(245,197,66,.65); }
+  .card-overlay .detail { font-size:14px; line-height:1.5; max-width:420px; }
+  .card-overlay .detail b { color:#ffd964; }
+  .newbest { font-size:13px; font-weight:800; letter-spacing:1.5px; color:#7dfcd4; text-transform:uppercase; }
+  #loadStatus { font-size:12.5px; letter-spacing:1px; opacity:.85; min-height:16px; }
+  .controls { margin-top:9px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; align-items:stretch; }
+  button.ctl { font:inherit; font-weight:700; color:#03101f; background:linear-gradient(180deg,#8fe3ff,#29b6ff);
+    border:none; border-radius:999px; padding:11px 22px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+  button.ctl.ghost { background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25); box-shadow:none; }
+  button.ctl:active { transform:scale(.96); }
+  button.ctl:disabled { opacity:.55; cursor:default; }
+  .like-btn { font:inherit; font-weight:700; background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25);
+    border-radius:999px; padding:11px 18px; cursor:pointer; }
+  .like-btn:active { transform:scale(.96); }
+  .like-btn .like-count { margin-left:5px; color:#ffd964; }
+  .howto { margin:9px auto 0; max-width:480px; font-size:12.5px; line-height:1.45; opacity:.78; }
+  @media (max-height:880px) { .howto { display:none; } }
+  @media (max-height:520px) { .sub { display:none; } }
+  .lb-form { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; width:100%; }
+  .lb-form input { font:inherit; font-size:15px; color:#e8f4ff; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.3); border-radius:999px; padding:10px 16px; width:210px; max-width:72vw; text-align:center; }
+  .lb-form input::placeholder { color:rgba(232,244,255,.5); }
+  .lb-form input:focus-visible { outline:2px solid #7fdcff; outline-offset:1px; }
+  .lb-msg { min-height:20px; font-size:14px; color:#ffd964; }
+  .lb-msg.err { color:#ff9db0; } .lb-msg.ok { color:#7dfcd4; }
+  #overBoard, #lbPanelBody { width:100%; }
+  #overBoard { flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+  table.board { width:100%; max-width:340px; margin:4px auto 0; border-collapse:collapse; font-size:14.5px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:12px; }
+  table.board th { text-align:left; font-size:11px; letter-spacing:.12em; text-transform:uppercase; opacity:.7; padding:7px 10px; }
+  table.board th.r, table.board td.r { text-align:right; }
+  table.board td { padding:6px 10px; border-top:1px solid rgba(255,255,255,.09); font-weight:700; text-align:left; }
+  table.board tr.me td { color:#ffd964; background:rgba(245,197,66,.1); }
+  .board-note { text-align:center; font-size:14px; opacity:.85; padding:8px 4px; }
+  #lbPanel { position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(2,4,12,.85); z-index:60; padding:16px; }
+  #lbPanel.show { display:flex; }
+  .lb-card { background:#071426; border:1px solid rgba(127,220,255,.3); border-radius:16px; padding:22px 18px;
+    width:100%; max-width:380px; max-height:88vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; align-items:center;
+    box-shadow:0 12px 40px rgba(0,0,0,.6); }
+  .lb-card .lb-title { font-size:20px; font-weight:800; color:#7fdcff; }
+  .lb-card table.board { max-width:none; }
+</style>
+</head>
+<body>
+ <a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
+
+<canvas id="spaceBg" aria-hidden="true"></canvas>
+<div class="wrap">
+  <h1><span class="q">QI</span> QUANTUM CROSSY</h1>
+  <div class="sub">Hop the pup across the lowrider lanes and log rivers — don't dawdle, the night scrolls on.</div>
+  <div class="stats">
+    <div class="stat"><b id="hudScore">0</b><span>Score</span></div>
+    <div class="stat"><b id="hudRows">0</b><span>Rows</span></div>
+    <div class="stat"><b class="gold" id="hudAtoms">0</b><span>Atoms ⚛</span></div>
+    <div class="stat"><b id="hudBest">0</b><span>Best</span></div>
+  </div>
+
+  <div id="stage">
+    <canvas id="game" width="360" height="480"></canvas>
+
+    <div class="card-overlay show" id="startCard">
+      <div class="big">🐶 QI QUANTUM CROSSY</div>
+      <div class="detail">The pup starts at the bottom — hop <b>up</b> forever across an endless night city.<br>
+      <b>Tap</b> to hop forward · <b>Swipe</b> to hop sideways or back<br>
+      🚗 Dodge the <b>lowriders and trucks</b> — one hit ends it.<br>
+      🪵 Rivers are safe only <b>on a log</b> — and don't get carried off the edge!<br>
+      ⚛ Golden atoms on the grass are worth <b>+10</b>. The view keeps scrolling — fall off the bottom and it's over.</div>
+      <button class="ctl" id="startBtn" disabled>▶ Start Hopping</button>
+      <div id="loadStatus">LOADING STICKERS…</div>
+    </div>
+
+    <div class="card-overlay" id="overCard">
+      <div class="big gold" id="overTitle">💥 Wrecked!</div>
+      <div class="detail">Score <b id="finalScore">0</b> · Rows <b id="finalRows">0</b> · Atoms <b id="finalAtoms">0</b> · Best <b id="finalBest">0</b></div>
+      <div class="newbest" id="newBest" style="display:none">✦ New Best! ✦</div>
+      <form class="lb-form" id="lbForm">
+        <input id="lbName" type="text" maxlength="16" placeholder="Name for the leaderboard" autocomplete="off">
+        <button class="ctl" id="lbSubmit" type="submit">Submit Score</button>
+      </form>
+      <div class="lb-msg" id="lbMsg"></div>
+      <div id="overBoard"></div>
+      <button class="ctl" id="againBtn" type="button">▶ Hop Again</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl ghost" id="lbBtn" type="button">🏆 Leaderboard</button>
+    <button class="ctl ghost" id="soundBtn" type="button" aria-label="Toggle sound">🔊 Sound On</button>
+    <button class="like-btn" id="likeBtn" type="button" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count" id="likeCount">–</span></button>
+  </div>
+
+  <p class="howto">How to play: tap to hop forward one square, swipe to hop sideways or back.
+  Every new row is +1 point and every golden atom is +10. Roads kill on contact, water kills unless you're riding a log, logs can carry you off the screen edge, and the steadily scrolling view will leave a dawdling pup behind. Your pup's face is drawn from the full 106-sticker Quantum Inu pack — a new pup every run.</p>
+</div>
+
+<div id="lbPanel">
+  <div class="lb-card">
+    <div class="lb-title">🏆 QI Quantum Crossy Leaderboard</div>
+    <div id="lbPanelBody"><div class="board-note">Loading…</div></div>
+    <button class="ctl" id="lbClose" type="button">Close</button>
+  </div>
+</div>
+
+<script>
+/* stop double-tap zoom + pinch gestures hijacking the game */
+var lastTouchEnd = 0;
+document.addEventListener('touchend', function(e){
+  var now = Date.now();
+  if (now - lastTouchEnd <= 350) { e.preventDefault(); }
+  lastTouchEnd = now;
+}, { passive: false });
+document.addEventListener('touchstart', function(e){
+  if (e.touches.length > 1) { e.preventDefault(); }
+}, { passive: false });
+document.addEventListener('dblclick', function(e){ e.preventDefault(); }, { passive: false });
+
+function $(id){ return document.getElementById(id); }
+
+/* ================= sticker roster (full 106 pack) ================= */
+var STICKER_IDS = ["wave","gm","gn","lfg","hodl","cool","laugh","love","thumbsup","salute","knight","wizard","astronaut","ramen","coffee","rich","chart","dance","buff","chill","detective","party","king","pirate","ninja","hero","zen","gamer","dj","chef","float","bone","jetpack","rain","hug","mindblown","ok","stop","facepalm","shrug","thinking","silly","dreaming","thumbsdown","clap","pray","fine","run","swim","bath","snow","guitar","sing","book","phone","laptop","jackpot","telescope","fishing","skateboard","bike","racecar","popcorn","pizza","icecream","birthday","gift","trophy","flag","idea","dizzy","sick","firefighter","painter","construction","cowboy","viking","magician","director","robot","alien","ghost","santa","cupid","fortune","beekeeper","mail","boxer","soccer","basketball","baseball","surfer","scuba","parachute","balloon","train","climber","kayak","gardener","photographer","violin","drummer","pumpkin","camper","umbrella","bubbles"];
+
+/* ================= sticker loader =================
+   Family loader: gate on the load event (never decode()), a stall
+   watchdog per attempt, retries with backoff until the face lands,
+   faces baked to offscreen canvases, live loaded count while loading,
+   and an 8-second failsafe that unlocks Start no matter what. */
+var FACE = {}; /* id -> baked canvas */
+var IMG = {};  /* id -> loaded Image (fallback draw source) */
+var facesTotal = STICKER_IDS.length;
+var facesSettled = 0;
+var facesBaked = 0;
+var facesReady = false;
+function updateLoadStatus() {
+  var el = $("loadStatus");
+  if (!el) return;
+  el.textContent = facesBaked >= facesTotal
+    ? "STICKERS LOADED ✦ " + facesBaked + "/" + facesTotal
+    : "LOADING STICKERS… " + facesBaked + "/" + facesTotal;
+}
+function finishLoading() {
+  if (facesReady) return;
+  facesReady = true;
+  updateLoadStatus();
+  var btn = $("startBtn");
+  if (btn) btn.disabled = false;
+}
+function settleFace() {
+  facesSettled++;
+  if (facesReady) return;
+  if (facesSettled >= facesTotal) finishLoading();
+  else updateLoadStatus();
+}
+function bakeFace(id, im) {
+  try {
+    var w = 168;
+    var h = Math.max(1, Math.round(w * im.naturalHeight / im.naturalWidth));
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    c.getContext("2d").drawImage(im, 0, 0, w, h);
+    FACE[id] = c;
+  } catch (e) { /* the raw Image stays in IMG[id] as the draw source */ }
+}
+var faceSt = {};
+function stFor(id) { return faceSt[id] || (faceSt[id] = { gate: false, ok: false }); }
+/* Concurrency-limited starts: at most MAX_INFLIGHT face requests are
+   ever in the air at once, so a 106-image burst can't swamp the
+   asset server; every settle starts the next queued face. */
+var loadQueue = [];
+var inFlight = 0;
+var MAX_INFLIGHT = 14;
+function releaseSlot(id) {
+  var st = stFor(id);
+  if (st.counted) return;
+  st.counted = true;
+  inFlight = Math.max(0, inFlight - 1);
+  pumpQueue();
+}
+function pumpQueue() {
+  while (inFlight < MAX_INFLIGHT && loadQueue.length) {
+    var id = loadQueue.shift();
+    inFlight++;
+    loadFace(id, 0);
+  }
+}
+function markFaceOk(id, im) {
+  var st = stFor(id);
+  if (st.ok) return;
+  st.ok = true;
+  IMG[id] = im;
+  bakeFace(id, im);
+  if (FACE[id]) facesBaked++;
+  if (!st.gate) { st.gate = true; settleFace(); }
+  releaseSlot(id);
+  updateLoadStatus();
+}
+function loadFace(id, attempt) {
+  var st = stFor(id);
+  if (st.ok) return;
+  var im = new Image();
+  var settled = false;
+  var timer = setTimeout(function () {
+    if (settled) return;
+    settled = true;
+    retryFace(id, attempt);
+  }, 3000);
+  im.onload = function () {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    markFaceOk(id, im);
+  };
+  im.onerror = function () {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    retryFace(id, attempt);
+  };
+  im.src = "assets/faces/" + id + ".webp";
+  if (im.complete && im.naturalWidth) {
+    settled = true;
+    clearTimeout(timer);
+    markFaceOk(id, im);
+  }
+}
+function retryFace(id, attempt) {
+  var st = stFor(id);
+  if (st.ok) return;
+  if (attempt >= 5) {
+    if (!st.gate) { st.gate = true; settleFace(); }
+    releaseSlot(id);
+    setTimeout(function () { loadFace(id, attempt + 1); }, 5000);
+    return;
+  }
+  setTimeout(function () { loadFace(id, attempt + 1); }, 300);
+}
+function loadImages() {
+  loadQueue = STICKER_IDS.slice();
+  pumpQueue();
+  setTimeout(finishLoading, 8000);
+  updateLoadStatus();
+}
+
+/* ================= sound effects (WebAudio, generated — no files) ================= */
+var AC = null, soundOn = true;
+function audio() {
+  if (!soundOn) return null;
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  }
+  if (AC.state === "suspended") { AC.resume(); }
+  return AC;
+}
+function tone(freq, dur, type, vol, delay, slideTo) {
+  var ac = audio(); if (!ac) return;
+  var t0 = ac.currentTime + (delay || 0);
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square";
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+  g.gain.setValueAtTime(vol || 0.06, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function noiseBurst(dur, vol, fromFreq, toFreq) {
+  var ac = audio(); if (!ac) return;
+  var n = Math.floor(ac.sampleRate * dur);
+  var buf = ac.createBuffer(1, n, ac.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  var src = ac.createBufferSource(); src.buffer = buf;
+  var f = ac.createBiquadFilter(); f.type = "lowpass";
+  f.frequency.setValueAtTime(fromFreq || 2600, ac.currentTime);
+  f.frequency.exponentialRampToValueAtTime(toFreq || 120, ac.currentTime + dur);
+  var g = ac.createGain();
+  g.gain.setValueAtTime(vol || 0.16, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start();
+}
+function sfxHop()    { tone(520, 0.09, "square", 0.045, 0, 880); }
+function sfxAtom() {
+  [1047, 1319, 1568, 2093].forEach(function (f, i) { tone(f, 0.11, "sine", 0.06, i * 0.05); });
+  tone(2637, 0.22, "sine", 0.045, 0.21);
+}
+function sfxSplash() {
+  noiseBurst(0.45, 0.2, 1800, 200);
+  tone(420, 0.4, "sine", 0.09, 0, 70);
+}
+function sfxCrash() {
+  noiseBurst(0.42, 0.24, 3200, 90);
+  tone(220, 0.4, "sawtooth", 0.1, 0, 38);
+  tone(110, 0.55, "triangle", 0.12, 0.02, 30);
+}
+function sfxScroll() { /* left behind by the scroll */
+  tone(660, 0.5, "triangle", 0.1, 0, 90);
+  noiseBurst(0.3, 0.08, 900, 150);
+}
+function sfxWin() {
+  [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.16, "square", 0.06, i * 0.09); });
+  tone(1319, 0.3, "square", 0.05, 0.38);
+}
+$("soundBtn").addEventListener("click", function () {
+  soundOn = !soundOn;
+  this.textContent = soundOn ? "🔊 Sound On" : "🔇 Sound Off";
+  if (soundOn) sfxHop();
+});
+</script>
+<script>
+/* ================= QI Quantum Crossy =================
+   Endless vertical hopper. The world is a stack of lanes indexed by
+   row (row 0 = the start grass, growing upward forever). Three lane
+   kinds: grass (safe, sometimes a golden atom), road (lowriders and
+   trucks stream across — contact kills), river (logs drift across —
+   ride one or splash). The camera scrolls up at a steady, slowly
+   growing pace; a pup that falls off the bottom is left behind. */
+var COLS = 9, ROWS_VIS = 12;
+var canvas = $("game"), ctx = canvas.getContext("2d");
+var stage = $("stage");
+var cell = 40, viewW = 360, viewH = 480, dpr = 1;
+
+var state = "menu"; /* menu | play | over */
+var lanes = {};     /* row -> lane */
+var player = null;
+var camY = 0;       /* world row shown at the bottom edge of the view */
+var maxRow = 0, score = 0, atomsGot = 0, best = 0, submitted = false;
+var particles = [], popups = [];
+var lastT = 0, elapsed = 0;
+var CAR_COLORS = ["#29b6ff", "#a06bff", "#f5c542", "#ff5da2", "#2eff7a", "#ff8c42"];
+
+function difficulty() { return 1 + Math.min(1.1, maxRow / 110); }
+function scrollSpeed() { return 0.42 + Math.min(0.5, maxRow * 0.0038); } /* rows per second */
+
+/* ---------- lane generation ---------- */
+function makeLane(row) {
+  if (row <= 2) return { type: "grass", atom: -1, taken: false, ph: Math.random() * 6.28 };
+  var prev = lanes[row - 1], prev2 = lanes[row - 2];
+  var roll = Math.random();
+  var type;
+  if (prev && prev.type === "river" && prev2 && prev2.type === "river") type = Math.random() < 0.6 ? "grass" : "road";
+  else if (roll < 0.30) type = "grass";
+  else if (roll < 0.66) type = "road";
+  else type = "river";
+  /* Traffic and logs must run both ways: every hazard lane moves
+     opposite to the previous hazard lane, so the screen always
+     shows some things going left and some going right. */
+  var dir = (row % 2 === 0) ? 1 : -1;
+  if (type === "road" || type === "river") {
+    for (var pr = row - 1; pr >= 0 && pr > row - 8; pr--) {
+      var pl = lanes[pr];
+      if (pl && (pl.type === "road" || pl.type === "river")) { dir = -pl.dir; break; }
+    }
+  }
+  var lane = { type: type, dir: dir, ph: Math.random() * 6.28, atom: -1, taken: false };
+  var diff = difficulty();
+  if (type === "grass") {
+    if (Math.random() < 0.32) lane.atom = (Math.random() * COLS) | 0;
+  } else if (type === "road") {
+    lane.speed = (1.15 + Math.random() * 1.5) * diff;
+    lane.items = [];
+    var trucks = Math.random() < 0.4;
+    var n = 2 + ((Math.random() * 2) | 0); /* 2-3 vehicles */
+    for (var i = 0; i < n; i++) {
+      var isTruck = trucks && i === 0;
+      var w = isTruck ? 2.5 : 1.7;
+      lane.items.push({
+        x: (COLS + 4) * (i / n) + Math.random() * 2.2 - 2,
+        w: w, truck: isTruck,
+        color: CAR_COLORS[(Math.random() * CAR_COLORS.length) | 0]
+      });
+    }
+  } else { /* river */
+    lane.speed = (0.75 + Math.random() * 0.85) * diff;
+    lane.items = [];
+    var n2 = 2 + ((Math.random() * 2) | 0); /* 2-3 logs */
+    /* Spread logs evenly around a wide cycle so two logs on the
+       same river are never close: each log gets an equal segment
+       and its width is capped so at least ~2.6 cells of open water
+       always remain between the end of one log and the next. */
+    var cycle = COLS + 9; /* 18 cells around the loop */
+    var seg = cycle / n2;
+    var baseOff = -3.5 + Math.random() * 1.2;
+    for (var j = 0; j < n2; j++) {
+      var lw = 2.6 + Math.random() * 1.1;
+      if (lw > seg - 3.1) lw = seg - 3.1;
+      lane.items.push({ x: baseOff + j * seg + Math.random() * 0.5, w: lw });
+    }
+  }
+  return lane;
+}
+function laneAt(row) {
+  if (!lanes[row]) lanes[row] = makeLane(row);
+  return lanes[row];
+}
+
+/* ---------- game flow ---------- */
+function resetGame() {
+  lanes = {};
+  for (var r = 0; r < ROWS_VIS + 4; r++) laneAt(r);
+  player = {
+    px: COLS >> 1, gy: 1,               /* px = float column, gy = world row */
+    fromX: COLS >> 1, fromY: 1, toX: COLS >> 1, toY: 1,
+    hopT: 1, face: STICKER_IDS[(Math.random() * STICKER_IDS.length) | 0],
+    dead: false, sink: 0
+  };
+  camY = 0; maxRow = 1; score = 0; atomsGot = 0; submitted = false;
+  particles = []; popups = [];
+  updateHUD();
+}
+function startGame() {
+  resetGame();
+  state = "play";
+  document.body.classList.add("playing");
+  $("startCard").classList.remove("show");
+  $("overCard").classList.remove("show");
+  requestAnimationFrame(function () { sizeCanvas(); });
+}
+function endGame(kind) {
+  if (state !== "play") return;
+  state = "over";
+  player.dead = true;
+  var title, snd;
+  if (kind === "car")        { title = "🚗 Splat!"; snd = sfxCrash; burst(player.px, player.gy, "#ff5da2", 16); }
+  else if (kind === "water") { title = "🌊 Splash!"; snd = sfxSplash; burst(player.px, player.gy, "#4fc3ff", 18); }
+  else if (kind === "edge")  { title = "🌀 Swept Away!"; snd = sfxSplash; }
+  else                       { title = "🐢 Left Behind!"; snd = sfxScroll; }
+  snd();
+  var isBest = score > best;
+  if (isBest) best = score;
+  $("overTitle").textContent = title;
+  $("finalScore").textContent = score;
+  $("finalRows").textContent = maxRow;
+  $("finalAtoms").textContent = atomsGot;
+  $("finalBest").textContent = best;
+  $("newBest").style.display = isBest && score > 0 ? "" : "none";
+  $("lbMsg").textContent = "";
+  $("lbSubmit").disabled = false;
+  $("lbSubmit").textContent = "Submit Score";
+  $("overBoard").innerHTML = "";
+  updateHUD();
+  setTimeout(function () {
+    document.body.classList.remove("playing");
+    $("overCard").classList.add("show");
+    sizeCanvas();
+  }, 650);
+}
+function updateHUD() {
+  $("hudScore").textContent = score;
+  $("hudRows").textContent = maxRow;
+  $("hudAtoms").textContent = atomsGot;
+  $("hudBest").textContent = best;
+}
+
+/* ---------- hopping ---------- */
+function hop(dx, dy) {
+  if (state !== "play" || !player || player.dead) return;
+  if (player.hopT < 0.55) return; /* let the current hop mostly land first */
+  var nx = Math.round(player.px) + dx;
+  var ny = player.gy + dy;
+  if (nx < 0 || nx >= COLS || ny < 0) return;
+  player.fromX = player.px; player.fromY = player.gy;
+  player.toX = nx; player.toY = ny;
+  player.hopT = 0;
+  sfxHop();
+}
+function landHop() {
+  player.px = player.toX;
+  player.gy = player.toY;
+  if (player.gy > maxRow) {
+    score += player.gy - maxRow;
+    maxRow = player.gy;
+    for (var r = maxRow; r < maxRow + ROWS_VIS + 4; r++) laneAt(r);
+    /* drop lanes far below the camera to keep the map small */
+    var floorRow = Math.floor(camY) - 3;
+    for (var k in lanes) if (+k < floorRow) delete lanes[k];
+  }
+  var lane = laneAt(player.gy);
+  if (lane.type === "grass" && lane.atom === Math.round(player.px) && !lane.taken) {
+    lane.taken = true;
+    atomsGot++;
+    score += 10;
+    sfxAtom();
+    popup(player.px, player.gy, "+10 ⚛", "#ffd964");
+    burst(player.px, player.gy, "#ffd964", 10);
+  }
+  updateHUD();
+}
+
+/* ---------- particles & popups ---------- */
+function burst(cx, cy, color, n) {
+  for (var i = 0; i < n; i++) {
+    var a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 2.4;
+    particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + 0.6, life: 0.55, color: color, r: 0.05 + Math.random() * 0.07 });
+  }
+}
+function popup(cx, cy, text, color) {
+  popups.push({ x: cx, y: cy, text: text, color: color, life: 0.9 });
+}
+
+/* ---------- update ---------- */
+function update(dt) {
+  elapsed += dt;
+  if (state !== "play") return;
+  /* move every visible lane's traffic / logs */
+  var lo = Math.floor(camY) - 1, hi = Math.floor(camY) + ROWS_VIS + 2;
+  for (var r = lo; r <= hi; r++) {
+    var lane = laneAt(r);
+    if (!lane.items) continue;
+    for (var i = 0; i < lane.items.length; i++) {
+      var it = lane.items[i];
+      it.x += lane.dir * lane.speed * dt;
+      if (lane.type === "river") {
+        /* Logs recycle behind the trailing log — never at a fixed
+           edge point — so a wrapped log can't land right next to
+           (or on top of) another log on the same river. The gap
+           is always at least 3 cells of open water. */
+        if (lane.dir > 0 && it.x > COLS + 2.5) {
+          var trailR = Infinity;
+          for (var oi = 0; oi < lane.items.length; oi++) {
+            if (oi !== i) trailR = Math.min(trailR, lane.items[oi].x);
+          }
+          var gapR = 3 + Math.random() * 1.4;
+          it.x = (trailR === Infinity) ? -it.w - 2.5 : trailR - it.w - gapR;
+        } else if (lane.dir < 0 && it.x + it.w < -2.5) {
+          var trailL = -Infinity;
+          for (var oj = 0; oj < lane.items.length; oj++) {
+            if (oj !== i) trailL = Math.max(trailL, lane.items[oj].x + lane.items[oj].w);
+          }
+          var gapL = 3 + Math.random() * 1.4;
+          it.x = (trailL === -Infinity) ? COLS + 2.5 : trailL + gapL;
+        }
+      } else {
+        if (lane.dir > 0 && it.x > COLS + 2.5) it.x = -it.w - 2.5;
+        if (lane.dir < 0 && it.x + it.w < -2.5) it.x = COLS + 2.5;
+      }
+    }
+  }
+  /* hop animation */
+  if (player.hopT < 1) {
+    player.hopT = Math.min(1, player.hopT + dt / 0.15);
+    if (player.hopT >= 1) landHop();
+  }
+  /* steady upward scroll */
+  camY += scrollSpeed() * dt;
+  if (player.gy - camY > ROWS_VIS - 2.4) camY = player.gy - (ROWS_VIS - 2.4);
+  if (state !== "play") return;
+  /* standing checks (only while not mid-hop) */
+  if (player.hopT >= 1 && !player.dead) {
+    var lane2 = laneAt(player.gy);
+    var pc = player.px + 0.5; /* pup center, in cell units */
+    if (lane2.type === "river") {
+      var log = null;
+      for (var j = 0; j < lane2.items.length; j++) {
+        var lg = lane2.items[j];
+        if (pc > lg.x - 0.08 && pc < lg.x + lg.w + 0.08) { log = lg; break; }
+      }
+      if (!log) { endGame("water"); return; }
+      player.px += lane2.dir * lane2.speed * dt;
+      if (pc < -0.2 || pc > COLS + 0.2) { endGame("edge"); return; }
+    } else if (lane2.type === "road") {
+      for (var m = 0; m < lane2.items.length; m++) {
+        var v = lane2.items[m];
+        if (pc + 0.3 > v.x + 0.06 && pc - 0.3 < v.x + v.w - 0.06) { endGame("car"); return; }
+      }
+    }
+  }
+  /* left behind by the scroll */
+  if (player.gy - camY < -0.15) { endGame("scroll"); return; }
+  /* particles */
+  for (var p = particles.length - 1; p >= 0; p--) {
+    var pt = particles[p];
+    pt.life -= dt;
+    pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vy -= 1.6 * dt;
+    if (pt.life <= 0) particles.splice(p, 1);
+  }
+  for (var q = popups.length - 1; q >= 0; q--) {
+    popups[q].life -= dt; popups[q].y += dt * 0.9;
+    if (popups[q].life <= 0) popups.splice(q, 1);
+  }
+}
+
+/* ---------- drawing helpers ---------- */
+function rr(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function rowTopY(row) { return viewH - (row - camY + 1) * cell; } /* screen y of a row's top edge */
+function drawFaceTile(id, cx, cy, size, radius) {
+  var src = FACE[id] || IMG[id];
+  var x = cx - size / 2, y = cy - size / 2;
+  ctx.save();
+  rr(x, y, size, size, radius);
+  ctx.fillStyle = "#12263f";
+  ctx.fill();
+  ctx.clip();
+  if (src) {
+    var sw = src.width || src.naturalWidth, sh = src.height || src.naturalHeight;
+    var scale = Math.max(size / sw, size / sh) * 1.22; /* family 1.22x face zoom */
+    var dw = sw * scale, dh = sh * scale;
+    ctx.drawImage(src, cx - dw / 2, cy - dh / 2, dw, dh);
+  } else {
+    ctx.fillStyle = "#ffd964";
+    ctx.font = "900 " + Math.round(size * 0.4) + "px sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("QI", cx, cy + 1);
+  }
+  ctx.restore();
+  ctx.save();
+  rr(x, y, size, size, radius);
+  ctx.strokeStyle = "rgba(255,255,255,.85)";
+  ctx.lineWidth = Math.max(2, size * 0.055);
+  ctx.stroke();
+  ctx.restore();
+}
+function drawAtom(cx, cy, t) {
+  var pulse = 1 + 0.1 * Math.sin(t * 4);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(pulse, pulse);
+  var glow = ctx.createRadialGradient(0, 0, 0, 0, 0, cell * 0.42);
+  glow.addColorStop(0, "rgba(255,217,100,.55)");
+  glow.addColorStop(1, "rgba(255,217,100,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0, 0, cell * 0.42, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#ffd964";
+  ctx.lineWidth = Math.max(1.6, cell * 0.045);
+  for (var i = 0; i < 3; i++) {
+    ctx.save();
+    ctx.rotate(t * 1.6 + i * Math.PI / 3);
+    ctx.beginPath(); ctx.ellipse(0, 0, cell * 0.26, cell * 0.11, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = "#ffe98a";
+  ctx.beginPath(); ctx.arc(0, 0, cell * 0.085, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawVehicle(v, lane, yTop) {
+  var x = v.x * cell, w = v.w * cell;
+  var h = cell * (v.truck ? 0.72 : 0.6);
+  var y = yTop + (cell - h) / 2;
+  var dir = lane.dir;
+  ctx.save();
+  /* under-glow */
+  ctx.fillStyle = "rgba(0,0,0,.35)";
+  rr(x + 2, y + h - cell * 0.1, w - 4, cell * 0.16, cell * 0.08); ctx.fill();
+  /* body */
+  var grad = ctx.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, v.color);
+  grad.addColorStop(1, "rgba(0,0,0,.28)");
+  ctx.fillStyle = grad;
+  rr(x, y, w, h, cell * 0.16); ctx.fill();
+  ctx.fillStyle = v.color;
+  rr(x, y, w, h, cell * 0.16); ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1;
+  if (v.truck) {
+    /* cargo box + cab */
+    var cabW = w * 0.26;
+    var boxX = dir > 0 ? x : x + cabW;
+    var cabX = dir > 0 ? x + w - cabW : x;
+    ctx.fillStyle = "rgba(10,16,34,.85)";
+    rr(boxX + 3, y + 4, w - cabW - 6, h - 8, 4); ctx.fill();
+    ctx.fillStyle = "#bdeaff";
+    rr(cabX + (dir > 0 ? cabW * 0.32 : cabW * 0.12), y + h * 0.18, cabW * 0.55, h * 0.34, 3); ctx.fill();
+  } else {
+    /* lowrider cabin + windshield */
+    ctx.fillStyle = "rgba(10,16,34,.8)";
+    rr(x + w * 0.3, y + h * 0.1, w * 0.4, h * 0.42, cell * 0.08); ctx.fill();
+    ctx.fillStyle = "#bdeaff";
+    rr(x + w * 0.36, y + h * 0.16, w * 0.28, h * 0.3, 3); ctx.fill();
+    /* gold trim line */
+    ctx.fillStyle = "#ffd964";
+    ctx.fillRect(x + 4, y + h * 0.68, w - 8, Math.max(2, cell * 0.05));
+  }
+  /* wheels */
+  ctx.fillStyle = "#0a0d18";
+  var wr = cell * 0.13;
+  [x + w * 0.2, x + w * 0.8].forEach(function (wx) {
+    ctx.beginPath(); ctx.arc(wx, y + h - wr * 0.4, wr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#cfd8ff";
+    ctx.beginPath(); ctx.arc(wx, y + h - wr * 0.4, wr * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#0a0d18";
+  });
+  /* headlights at the front */
+  var hx = dir > 0 ? x + w - 3 : x + 3;
+  var hg = ctx.createRadialGradient(hx, y + h * 0.42, 0, hx, y + h * 0.42, cell * 0.5);
+  hg.addColorStop(0, "rgba(255,246,190,.9)");
+  hg.addColorStop(1, "rgba(255,246,190,0)");
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.arc(hx, y + h * 0.42, cell * 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawLog(lg, yTop, t) {
+  var x = lg.x * cell, w = lg.w * cell;
+  var h = cell * 0.56;
+  var y = yTop + (cell - h) / 2 + Math.sin(t * 2 + lg.x) * cell * 0.03;
+  ctx.save();
+  var grad = ctx.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, "#a06a35");
+  grad.addColorStop(0.5, "#7c4f24");
+  grad.addColorStop(1, "#5d3a18");
+  ctx.fillStyle = grad;
+  rr(x, y, w, h, h / 2); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,.3)";
+  ctx.lineWidth = 1.5;
+  for (var i = 1; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + (w * i) / 4, y + 3);
+    ctx.lineTo(x + (w * i) / 4, y + h - 3);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#c89a5e";
+  ctx.beginPath(); ctx.ellipse(x + h / 2, y + h / 2, h * 0.3, h * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + w - h / 2, y + h / 2, h * 0.3, h * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- render ---------- */
+function draw(now) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, viewW, viewH);
+  var t = now / 1000;
+  var lo = Math.floor(camY) - 1, hi = Math.floor(camY) + ROWS_VIS + 1;
+  for (var r = lo; r <= hi; r++) {
+    if (r < 0) continue;
+    var lane = laneAt(r);
+    var yTop = rowTopY(r);
+    if (lane.type === "grass") {
+      ctx.fillStyle = (r % 2 === 0) ? "#0e3d2c" : "#0b3527";
+      ctx.fillRect(0, yTop, viewW, cell + 1);
+      ctx.fillStyle = "rgba(255,255,255,.045)";
+      for (var c = 0; c < COLS; c++) if ((c + r) % 2 === 0) ctx.fillRect(c * cell, yTop, cell, cell + 1);
+      if (lane.atom >= 0 && !lane.taken) drawAtom(lane.atom * cell + cell / 2, yTop + cell / 2, t + lane.ph);
+    } else if (lane.type === "road") {
+      ctx.fillStyle = "#131722";
+      ctx.fillRect(0, yTop, viewW, cell + 1);
+      ctx.fillStyle = "rgba(245,197,66,.75)";
+      ctx.fillRect(0, yTop, viewW, 2);
+      ctx.fillStyle = "rgba(160,107,255,.5)";
+      ctx.fillRect(0, yTop + cell - 2, viewW, 2);
+      ctx.fillStyle = "rgba(255,255,255,.28)";
+      var dashOff = (r * 37) % (cell * 1.6);
+      for (var dx = -dashOff; dx < viewW; dx += cell * 1.6) ctx.fillRect(dx, yTop + cell / 2 - 1.5, cell * 0.8, 3);
+      for (var i = 0; i < lane.items.length; i++) drawVehicle(lane.items[i], lane, yTop);
+    } else { /* river */
+      var wg = ctx.createLinearGradient(0, yTop, 0, yTop + cell);
+      wg.addColorStop(0, "#0a3a5c");
+      wg.addColorStop(1, "#062741");
+      ctx.fillStyle = wg;
+      ctx.fillRect(0, yTop, viewW, cell + 1);
+      ctx.strokeStyle = "rgba(127,220,255,.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (var wx = -10; wx <= viewW + 10; wx += 14) {
+        var wy = yTop + cell * 0.5 + Math.sin((wx + t * 60 * lane.dir + r * 40) * 0.05) * cell * 0.16;
+        if (wx === -10) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+      }
+      ctx.stroke();
+      for (var j = 0; j < lane.items.length; j++) drawLog(lane.items[j], yTop, t);
+    }
+  }
+  /* particles */
+  particles.forEach(function (pt) {
+    ctx.globalAlpha = Math.max(0, pt.life / 0.55);
+    ctx.fillStyle = pt.color;
+    var sx = pt.x * cell + cell / 2, sy = rowTopY(Math.floor(pt.y)) - (pt.y - Math.floor(pt.y)) * cell + cell / 2;
+    ctx.beginPath(); ctx.arc(sx, sy, pt.r * cell, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  /* the pup */
+  if (player && state !== "menu") {
+    var hopArc = player.hopT < 1 ? Math.sin(player.hopT * Math.PI) : 0;
+    var ix = player.fromX + (player.toX - player.fromX) * Math.min(1, player.hopT);
+    var iy = player.fromY + (player.toY - player.fromY) * Math.min(1, player.hopT);
+    if (player.hopT >= 1) { ix = player.px; iy = player.gy; }
+    var pcx = ix * cell + cell / 2;
+    var pTop = rowTopY(Math.floor(iy)) - (iy - Math.floor(iy)) * cell;
+    var pcy = pTop + cell / 2 - hopArc * cell * 0.34;
+    /* shadow */
+    ctx.fillStyle = "rgba(0,0,0,.35)";
+    ctx.beginPath(); ctx.ellipse(pcx, pTop + cell * 0.86, cell * 0.3 * (1 - hopArc * 0.3), cell * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+    var size = cell * 0.92 * (1 + hopArc * 0.1);
+    if (player.dead) { ctx.save(); ctx.globalAlpha = 0.55; }
+    drawFaceTile(player.face, pcx, pcy, size, size * 0.26);
+    if (player.dead) ctx.restore();
+  }
+  /* popups */
+  popups.forEach(function (pp) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, pp.life / 0.5));
+    ctx.fillStyle = pp.color;
+    ctx.font = "900 " + Math.round(cell * 0.42) + "px 'Segoe UI', sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var sx = pp.x * cell + cell / 2;
+    var sy = rowTopY(Math.floor(pp.y)) - (pp.y - Math.floor(pp.y)) * cell;
+    ctx.fillText(pp.text, sx, sy);
+  });
+  ctx.globalAlpha = 1;
+  /* danger vignette when the pup is near the bottom edge */
+  if (state === "play" && player && player.gy - camY < 1.6) {
+    var vg = ctx.createLinearGradient(0, viewH - cell * 1.6, 0, viewH);
+    vg.addColorStop(0, "rgba(255,60,80,0)");
+    vg.addColorStop(1, "rgba(255,60,80,.34)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, viewH - cell * 1.6, viewW, cell * 1.6);
+  }
+}
+
+/* ---------- main loop ---------- */
+function loop(ts) {
+  var dt = Math.min(0.05, lastT ? (ts - lastT) / 1000 : 0.016);
+  lastT = ts;
+  update(dt);
+  draw(ts);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- sizing ---------- */
+function sizeCanvas() {
+  var r = stage.getBoundingClientRect();
+  cell = Math.max(26, Math.floor(Math.min(r.width / COLS, r.height / ROWS_VIS)));
+  viewW = cell * COLS; viewH = cell * ROWS_VIS;
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.style.width = viewW + "px";
+  canvas.style.height = viewH + "px";
+  canvas.width = Math.round(viewW * dpr);
+  canvas.height = Math.round(viewH * dpr);
+}
+window.addEventListener("resize", sizeCanvas);
+
+/* ---------- input: tap = forward hop, swipe for other directions, keys too ---------- */
+var touchStart = null;
+canvas.addEventListener("touchstart", function (e) {
+  var t = e.changedTouches[0];
+  touchStart = { x: t.clientX, y: t.clientY };
+}, { passive: true });
+canvas.addEventListener("touchend", function (e) {
+  if (!touchStart) return;
+  var t = e.changedTouches[0];
+  var dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
+  touchStart = null;
+  var adx = Math.abs(dx), ady = Math.abs(dy);
+  if (Math.max(adx, ady) < 22) {
+    /* tap: always hop forward */
+    hop(0, 1);
+  } else if (adx > ady) hop(dx > 0 ? 1 : -1, 0);
+  else hop(0, dy < 0 ? 1 : -1);
+}, { passive: true });
+canvas.addEventListener("mousedown", function (e) {
+  /* click: always hop forward, same as a tap */
+  hop(0, 1);
+});
+document.addEventListener("keydown", function (e) {
+  var k = e.key;
+  if (k === "ArrowUp" || k === "w" || k === "W") { hop(0, 1); e.preventDefault(); }
+  else if (k === "ArrowDown" || k === "s" || k === "S") { hop(0, -1); e.preventDefault(); }
+  else if (k === "ArrowLeft" || k === "a" || k === "A") { hop(-1, 0); e.preventDefault(); }
+  else if (k === "ArrowRight" || k === "d" || k === "D") { hop(1, 0); e.preventDefault(); }
+});
+$("startBtn").addEventListener("click", startGame);
+$("againBtn").addEventListener("click", startGame);
+</script>
+<script>
+/* ================= page space background =================
+   A fixed starfield canvas behind the whole page: deep-space
+   nebula washes, a few hundred stars that gently twinkle, and a
+   slow parallax drift. Static (no twinkle/drift) when the player
+   prefers reduced motion. */
+(function () {
+  var cv = document.getElementById("spaceBg");
+  if (!cv) return;
+  var g = cv.getContext("2d");
+  var W = 0, H = 0, stars = [];
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var seed = 4242;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  function build() {
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seed = 4242;
+    stars = [];
+    var n = Math.round((W * H) / 5500);
+    for (var i = 0; i < n; i++) {
+      stars.push({
+        x: rnd() * W, y: rnd() * H,
+        r: rnd() < 0.1 ? 1.7 : (rnd() < 0.38 ? 1.1 : 0.65),
+        a: 0.3 + rnd() * 0.7,
+        ph: rnd() * Math.PI * 2,
+        sp: 0.4 + rnd() * 1.1,
+        tint: rnd()
+      });
+    }
+  }
+  function paint(now) {
+    g.clearRect(0, 0, W, H);
+    var t = now / 1000;
+    var nebs = [
+      [0.16 + 0.02 * Math.sin(t * 0.05), 0.20, 0.62, "rgba(52,32,140,0.26)"],
+      [0.88, 0.72 + 0.02 * Math.cos(t * 0.04), 0.55, "rgba(8,80,120,0.22)"],
+      [0.55, 0.95, 0.48, "rgba(110,26,100,0.14)"],
+      [0.72, 0.08, 0.40, "rgba(20,60,150,0.18)"]
+    ];
+    nebs.forEach(function (nb) {
+      var gx = nb[0] * W, gy = nb[1] * H, gr = nb[2] * Math.max(W, H);
+      var grad = g.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      grad.addColorStop(0, nb[3]);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+    });
+    stars.forEach(function (s) {
+      var tw = reduced ? 1 : 0.72 + 0.28 * Math.sin(s.ph + t * s.sp);
+      g.globalAlpha = s.a * tw;
+      g.fillStyle = s.tint < 0.16 ? "#aee6ff" : (s.tint < 0.26 ? "#ffe9b8" : "#ffffff");
+      g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
+      if (s.r > 1.5) {
+        g.globalAlpha = s.a * tw * 0.5;
+        g.fillRect(s.x - s.r * 3.2, s.y - 0.5, s.r * 6.4, 1);
+        g.fillRect(s.x - 0.5, s.y - s.r * 3.2, 1, s.r * 6.4);
+      }
+    });
+    g.globalAlpha = 1;
+  }
+  build();
+  paint(0);
+  window.addEventListener("resize", function () { build(); paint(0); });
+  if (!reduced) {
+    (function tick(now) { paint(now || 0); requestAnimationFrame(tick); })(0);
+  }
+})();
+</script>
+<script>
+/* ================= leaderboard + likes (Firebase, lazy) ================= */
+var FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+var fbPromise = null;
+function loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+function loadFirebase() {
+  if (!fbPromise) {
+    fbPromise = loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js")
+      .then(function () { return loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"); })
+      .then(function () {
+        var app = firebase.initializeApp(FB_CONFIG);
+        return firebase.firestore(app);
+      });
+  }
+  return fbPromise;
+}
+var BLOCKED = ["fuck","shit","bitch","cunt","dick","cock","pussy","porn","sex","nude","naked","boob","tits","cum","anal","whore","slut","fag","nigger","nigga","vagina","penis","dildo","horny","hentai","onlyfans","wank","jizz","boner","rape","pedo","incest","blowjob","asshole","twat"];
+var LEET = {"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s","!":"i"};
+function nameBlocked(name) {
+  var n = String(name).toLowerCase().split("").map(function (ch) { return LEET[ch] || ch; }).join("").replace(/[^a-z]/g, "");
+  return BLOCKED.some(function (w) { return n.indexOf(w) !== -1; });
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (ch) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+  });
+}
+function boardHTML(rows, myName, myScore) {
+  if (!rows.length) return "<div class='board-note'>No scores yet — be the first on the board!</div>";
+  var marked = false;
+  var html = "<table class='board'><tr><th>#</th><th>Name</th><th class='r'>Score</th></tr>";
+  rows.forEach(function (r, i) {
+    var me = !marked && myName != null && r.name === myName && r.score === myScore;
+    if (me) marked = true;
+    html += "<tr" + (me ? " class='me'" : "") + "><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td class='r'>" + r.score + "</td></tr>";
+  });
+  return html + "</table>";
+}
+async function fetchBoard() {
+  var db = await loadFirebase();
+  var snap = await db.collection("scores").where("game", "==", "crossy").limit(200).get();
+  var rows = [];
+  snap.forEach(function (d) {
+    var v = d.data();
+    if (v && v.game === "crossy" && typeof v.score === "number" && typeof v.name === "string" && !nameBlocked(v.name)) {
+      rows.push({ name: v.name, score: v.score });
+    }
+  });
+  rows.sort(function (a, b) { return b.score - a.score; });
+  return rows.slice(0, 10);
+}
+$("lbForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  if (submitted) return;
+  var name = $("lbName").value.trim();
+  var msg = $("lbMsg");
+  if (!name) { msg.textContent = "Type a name first"; msg.className = "lb-msg err"; return; }
+  if (nameBlocked(name)) {
+    msg.textContent = "That name isn't allowed — pick another";
+    msg.className = "lb-msg err"; tone(160, 0.15, "sawtooth", 0.08); return;
+  }
+  var btn = $("lbSubmit"); btn.disabled = true; btn.textContent = "Submitting…";
+  try {
+    var db = await loadFirebase();
+    await db.collection("scores").add({
+      name: name, score: score, game: "crossy", ts: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    submitted = true;
+    msg.textContent = "Score submitted!"; msg.className = "lb-msg ok";
+    btn.textContent = "Submitted ✓";
+    sfxWin();
+    try { $("overBoard").innerHTML = boardHTML(await fetchBoard(), name, score); }
+    catch (err) { $("overBoard").innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+  } catch (err) {
+    msg.textContent = "Leaderboard unavailable right now"; msg.className = "lb-msg err";
+    btn.disabled = false; btn.textContent = "Submit Score";
+  }
+});
+$("lbBtn").addEventListener("click", async function () {
+  $("lbPanel").classList.add("show");
+  var body = $("lbPanelBody");
+  body.innerHTML = "<div class='board-note'>Loading…</div>";
+  try { body.innerHTML = boardHTML(await fetchBoard(), null, null); }
+  catch (e) { body.innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+});
+$("lbClose").addEventListener("click", function () { $("lbPanel").classList.remove("show"); });
+$("lbPanel").addEventListener("click", function (e) { if (e.target === $("lbPanel")) $("lbPanel").classList.remove("show"); });
+
+/* ================= like button ================= */
+/* Same heart as the site game cards: one doc per game in the
+   `likes` collection, count moved in ±1 steps only. The player's
+   own like is held for this visit only. */
+var likeBusy = false;
+var liked = false;
+function paintLike(count) {
+  $("likeBtn").querySelector(".heart").textContent = liked ? "❤️" : "🤍";
+  if (typeof count === "number") $("likeCount").textContent = count;
+}
+async function loadLike() {
+  paintLike();
+  try {
+    var db = await loadFirebase();
+    var snap = await db.collection("likes").doc("crossy").get();
+    paintLike(snap.exists ? (snap.data().count || 0) : 0);
+  } catch (e) { $("likeCount").textContent = "–"; }
+}
+$("likeBtn").addEventListener("click", async function () {
+  if (likeBusy) return;
+  likeBusy = true;
+  var was = liked;
+  var delta = was ? -1 : 1;
+  try {
+    var db = await loadFirebase();
+    var ref = db.collection("likes").doc("crossy");
+    try {
+      await ref.update({ count: firebase.firestore.FieldValue.increment(delta) });
+    } catch (e1) {
+      await ref.set({ count: Math.max(0, delta) }, { merge: true });
+    }
+    var snap = await ref.get();
+    var c = snap.exists ? (snap.data().count || 0) : 0;
+    liked = !was;
+    paintLike(Math.max(0, c));
+  } catch (e) { /* leave the heart as it was */ }
+  likeBusy = false;
+});
+
+/* ================= init ================= */
+loadImages();
+loadLike();
+sizeCanvas();
+updateHUD();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
