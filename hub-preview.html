@@ -1349,8 +1349,8 @@ function watchTransfers() {
     addChips(amt); /* crediting my OWN record — the one balance this client may ever raise */
     const from = String(note.from || "Someone");
     sfxCoin();
-    fxBurst(me.x, me.y - 46, true, me.scene);
-    fxText(me.x, me.y - 104, "+🪙 " + amt.toLocaleString(), "#ffd76a", me.scene);
+    genBurst(me.x, me.y - 46, true); /* the plus-money effect belongs to the PLAYER, not the room: it renders around them in every scene (Jonathan 2026-10-30) */
+    genText(me.x, me.y - 104, "+🪙 " + amt.toLocaleString(), "#ffd76a");
     logChat("🪙 " + from, "sent you " + amt.toLocaleString() + " tokens");
   });
 }
@@ -1699,7 +1699,7 @@ function voiceDesired(pid) {
   return Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE;
 }
 function voiceSceneMate(pid) {
-  if (pid === NPC_PID) return false;
+  if (NPC_PIDS.has(pid)) return false; /* both Q-Bot records (plaza + HQ): voice never connects to Q-Bot */
   const p = peers.get(pid); if (!p || !entered) return false;
   return p.scene === me.scene;
 }
@@ -1877,6 +1877,50 @@ function voiceTick() {
   voiceTickN = (voiceTickN + 1) % 3; if (voiceTickN === 0) for (const pid of voicePeers.keys()) voiceReport(pid);
 }
 setInterval(voiceTick, 800);
+/* ============ voice watchdog (Jonathan 2026-10-30) ============
+   His dropped call: the connection to two people in his room died — he
+   could see them but not hear them, and nothing recovered until a room
+   change ran voiceReset. So every 5 seconds this reconciles the room.
+   The DESIRED set is the fresh presence in my current scene (Q-Bot is
+   never desired — voice never connects to it): a desired peer with no
+   connection gets one through the normal connect path; a connection in
+   a terminal state (failed / closed) is torn down and rebuilt at once;
+   a merely "disconnected" one gets a grace pass and is rebuilt only if
+   it is still disconnected at the next check, so a blip that would heal
+   itself is never thrashed; a connection born over 20s ago that never
+   reached "connected" is rebuilt too. A connection to someone no
+   longer in the room is closed. Healthy connections are NEVER touched,
+   and the microphone is NEVER re-grabbed — no getUserMedia here: an
+   existing mic stream is simply re-attached by the connect path, and
+   with the mic off the rebuild still restores hearing. Every rebuild
+   re-checks the room at the moment it happens, so it can never
+   resurrect a connection to a room just left. */
+function voiceWatchdog() {
+  if (!entered || !db) return;
+  voiceInit();
+  const sc = me.scene;
+  for (const pid of [...voicePeers.keys()]) {
+    if (pid === myId || NPC_PIDS.has(pid) || !voiceSceneMate(pid)) voiceClose(pid); /* gone, wrong room, or a bot: this connection should not exist */
+  }
+  for (const p of peers.values()) {
+    const pid = p.id;
+    if (pid === myId || NPC_PIDS.has(pid) || !voiceSceneMate(pid)) continue;
+    const V = voicePeers.get(pid);
+    if (!V) { voiceConnect(pid); continue; } /* should be connected but has no connection at all */
+    if (!V.pc) continue;
+    const cs = V.pc.connectionState, is = V.pc.iceConnectionState;
+    const dead = cs === "failed" || cs === "closed" || is === "failed" || is === "closed";
+    const stuck = cs === "disconnected" || is === "disconnected";
+    const stillborn = (cs === "new" || cs === "connecting") && Date.now() - (V.bornAt || 0) > 20000;
+    if (dead || stillborn || (stuck && V.badAt && Date.now() - V.badAt >= 4000)) {
+      voiceBackoff.delete(pid); /* a watchdog rebuild is a fresh start, never gated by the failure backoff */
+      voiceClose(pid);
+      if (me.scene === sc && voiceSceneMate(pid)) voiceConnect(pid); /* re-check the room at the moment of the rebuild */
+    } else if (stuck) { if (!V.badAt) V.badAt = Date.now(); }
+    else V.badAt = 0;
+  }
+}
+setInterval(voiceWatchdog, 5000);
 const micBtn = $("micbtn");
 function flashMicDenied() {
   const old = micBtn.textContent; micBtn.textContent = "🚫"; setTimeout(() => { micBtn.textContent = old; }, 1300);
@@ -2755,6 +2799,29 @@ let bjFxDone = 0, rrFxDone = 0, lastBjCards = -1, slotFxTs = {}, lastTickSpin = 
 function fxBurst(x, y, big, sc) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, grey: false, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: sc || me.scene }); } }
 function fxPuff(x, y, sc) { for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, sp = 24 + Math.random() * 70; fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 26, life: 0, max: 0.7 + Math.random() * 0.4, coin: false, grey: true, r: 6 + Math.random() * 7, rot: 0, sc: sc || me.scene }); } }
 function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc: sc || me.scene }); }
+/* ---- general fx: the same coin bursts and floating texts, but painted by frame()'s actor pass in EVERY scene (Jonathan 2026-10-30: the send-tokens receive animation only showed in the casino, because the room pool above is drawn solely by the casino/gym/track scene draws). Entries carry their origin scene and paint only while the player is still in it — the room pool's leak lock — and casino win fx keep using the room pool exactly as before; this list is for effects that belong to the PLAYER, not the room. ---- */
+let genParts = [], genTexts = [];
+function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
+function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
+function drawGenFx(dt) {
+  genParts = genParts.filter(p => { p.life += dt; if (p.life >= p.max) return false; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 620 * dt; p.rot += dt * 6; return true; });
+  genParts.forEach(p => {
+    if (p.sc !== me.scene) return; /* spawned in another room: it ages out above but never paints here */
+    const a = Math.max(0, 1 - p.life / p.max);
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    if (p.coin) { ctx.fillStyle = "#ffd76a"; ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, p.r, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#a86e00"; ctx.font = "800 " + Math.round(p.r * 1.25) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("★", 0, p.r * 0.45); }
+    else { ctx.fillStyle = "#ffe9a8"; ctx.font = (p.r * 2.2) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("✦", 0, p.r * 0.7); }
+    ctx.restore();
+  });
+  genTexts = genTexts.filter(ft => { ft.life += dt; return ft.life < 1.5; });
+  genTexts.forEach(ft => {
+    if (ft.sc !== me.scene) return;
+    const a = ft.life < 1.05 ? 1 : Math.max(0, 1 - (ft.life - 1.05) / 0.45), y = ft.y - ft.life * 36;
+    ctx.save(); ctx.globalAlpha = a; ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.strokeStyle = "rgba(0,0,0,0.65)"; ctx.lineWidth = 4; ctx.strokeText(ft.txt, ft.x, y);
+    ctx.fillStyle = ft.col; ctx.fillText(ft.txt, ft.x, y); ctx.restore();
+  });
+}
 function tableResultFx(game, st, seatsList) {
   if (!st || !st.results || !st.seats) return;
   Object.keys(st.results).forEach(k => {
@@ -5875,6 +5942,7 @@ function frame(now) {
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now)); /* a DJ standing behind the booth: repaint the counter over their lower body so their head pokes up behind it. Actors are y-sorted, so anyone in FRONT of the booth has a larger y and is drawn after this — they paint over the booth as normal. Applies to my sprite and to remote players alike (a.x/a.y are the smoothed positions everyone sees) */
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
+  drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
   ctx.restore();
   const cab = nearestCabinet();
   if (me.scene === "gym") { promptBtn.style.display = "none"; promptAction = null; }
