@@ -386,7 +386,7 @@ const HQ_CHORDS = [
   [110.0, 130.8, 164.8, 220.0], [87.3, 130.8, 174.6, 220.0]
 ];
 /* ---- room themes (Jonathan 2026-10-29): the Sports Complex and the Casino each get their own procedural WebAudio theme, family to the speedway's room tone. The startMusic interval below schedules a little at a time for whichever scene I am in, so a theme starts on entry, stops on exit (every room change runs stopAllTones, which cuts anything still sounding), can never stack on re-entry or bleed into another room, and hushes under the global mute / focus-hold like every hub sound ---- */
-/* filtered-noise burst — crowd wash, brush, hat. Registered in liveOscs exactly like a tone, so a room change cuts it with everything else */
+/* filtered-noise burst — brush, hat. Registered in liveOscs exactly like a tone, so a room change cuts it with everything else */
 let noiseBuf = null;
 function noiseBurst(dur, fType, f0, f1, vol, when) {
   if (muted || audioHeld) return; const c = ac(); if (!c) return;
@@ -404,21 +404,20 @@ function noiseBurst(dur, fType, f0, f1, vol, when) {
   src.start(t, Math.random() * 1.5); src.stop(t + dur + 0.05);
   liveOscs.add(src); src.onended = () => liveOscs.delete(src);
 }
-/* gym: I–V–vi–IV stadium pop — a constant crowd wash under a driving bass + arp groove */
+/* gym: I–V–vi–IV stadium pop — a driving bass + arp groove. The constant crowd wash that used to run under it (a lowpass noise burst every tick, overlapping into one continuous chant) was removed at Jonathan's word (2026-10-30, "remove the crowd chant in the sports building"): the theme is the groove alone now — pad, kick, bass, hat and arp exactly as they were */
 const GYM_CHORDS = [
   [130.8, 164.8, 196.0, 261.6], [98.0, 123.5, 146.8, 196.0],
   [110.0, 130.8, 164.8, 220.0], [87.3, 110.0, 130.8, 174.6]
 ];
 function gymThemeTick(tick) {
   const bar = Math.floor(tick / 8) % 4, ch = GYM_CHORDS[bar], step = tick % 8;
-  noiseBurst(1.15, "lowpass", 480, 430, 0.016); /* crowd hum — the overlapping bursts make one continuous wash */
   if (step === 0) padChord(ch, 4.6, 0.006);
   if (step === 0 || step === 4) tone(120, 45, 0.13, "sine", 0.05); /* soft kick thump */
   tone(ch[[0, 0, 2, 0, 0, 0, 2, 3][step]], 0, 0.17, "sine", 0.045); /* driving bass pulse */
   if (step % 2 === 1) noiseBurst(0.05, "highpass", 6000, 6000, 0.006); /* hat tick */
   if (step % 2 === 0) tone(ch[[0, 2, 3, 2][step / 2]] * 4, 0, 0.22, "triangle", 0.010); /* arp sparkle */
 }
-/* the score-triggered crowd swell that used to answer a point here (gymCrowdSwell — a bandpass sweep 500→1100Hz, added with the room themes) was removed at Jonathan's word (2026-10-29, "just remove the recently added swish"): a point keeps its original sting + cheer and the steady crowd hum in gymThemeTick carries on, but the swell never fires */
+/* the score-triggered crowd swell that used to answer a point here (gymCrowdSwell — a bandpass sweep 500→1100Hz, added with the room themes) was removed at Jonathan's word (2026-10-29, "just remove the recently added swish"): a point keeps its original sting + cheer, but the swell never fires */
 /* casino: Dm9 – G13 – Cmaj9 – A7 lounge changes — a gentle root/third bass walk, brush ticks on the off-steps, one soft sparkle per chord. The long sustained string pad that used to swell under it was removed at Jonathan's word (2026-10-29, "remove the long string instrument") — the pad layer is gone from this theme only; the other rooms' pads are untouched */
 const CASINO_CHORDS = [
   [146.8, 174.6, 261.6, 329.6], [98.0, 123.5, 174.6, 329.6],
