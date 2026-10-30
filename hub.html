@@ -58,9 +58,13 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:none}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
+#gatetop{display:flex;gap:20px;align-items:flex-start;justify-content:center;width:min(1000px,96vw)}
+#gatewelcome{flex:1 1 auto;max-width:540px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;background:rgba(13,23,48,.66);border:1px solid rgba(56,225,255,.25);border-radius:16px;padding:14px 16px}
+#gatewelcome #namein{width:min(420px,100%)}
+@media (max-width:820px){#gatetop{flex-direction:column;align-items:center}#gatewelcome{width:100%;max-width:520px}#acctbox{flex:none;width:100%}}
 #namein{width:min(420px,92vw);background:rgba(255,255,255,.06);border:1px solid rgba(56,225,255,.4);border-radius:12px;color:#fff;padding:12px 14px;font-size:17px;outline:none;text-align:center}
 #nameerr{display:none;color:#ff8fa3;font-size:14px;margin-top:9px}
-#acctbox{margin:20px auto 4px;max-width:420px;background:rgba(13,23,48,.66);border:1px solid rgba(56,225,255,.25);border-radius:16px;padding:14px 16px;text-align:left}
+#acctbox{margin:0;flex:0 1 420px;box-sizing:border-box;max-width:420px;background:rgba(13,23,48,.66);border:1px solid rgba(56,225,255,.25);border-radius:16px;padding:14px 16px;text-align:left}
 #acctbox h3{margin:0 0 4px;font-size:15px;color:#cfeaff}
 #acctbox p{margin:0 0 10px;font-size:12.5px;color:#9db8d9;line-height:1.45}
 #acctbox input{display:block;width:100%;box-sizing:border-box;margin:0 0 8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(56,225,255,.3);background:rgba(5,10,24,.8);color:#eaf6ff;font-size:16px}
@@ -150,32 +154,36 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   </div>
 </div>
 <div id="gate">
+  <div id="gatetop">
+  <div id="gatewelcome">
   <h2>⚛️ Welcome to the Quantum Hub</h2>
   <p class="sub">Pick a name and a hero sticker, then walk the galaxy plaza and meet the pack. Your name and hero are saved in this browser.</p>
   <input id="namein" maxlength="24" placeholder="Your display name" autocomplete="off">
   <div id="nameerr">That name isn't allowed — pick another one.</div>
   <div id="loadline">loading stickers…</div>
   <button class="enterbtn" id="enterbtn-top" disabled>Enter the Hub</button>
-  <div id="grid"></div>
-  <div id="acctbox">
-    <h3>👤 Account <span style="font-weight:400;color:#9db8d9">(optional)</span></h3>
-    <p>Guests just enter above — nothing else needed. Create an account only if you want your name, hero and 🪙 chips saved to YOU, so they follow you on any device.</p>
-    <div id="acctout">
-      <input id="acctemail" type="email" placeholder="Email" autocomplete="email">
-      <input id="acctpass" type="password" placeholder="Password (6+ characters)" autocomplete="current-password">
-      <div class="acctrow">
-        <button id="acctcreate" type="button">Create account</button>
-        <button id="acctsignin" type="button">Sign in</button>
-      </div>
-    </div>
-    <div id="acctin" style="display:none">
-      <p id="acctwho" style="margin-bottom:8px"></p>
-      <div class="acctrow">
-        <button id="acctsignout" type="button">Sign out</button>
-      </div>
-    </div>
-    <div id="acctmsg"></div>
   </div>
+  <div id="acctbox">
+      <h3>👤 Account <span style="font-weight:400;color:#9db8d9">(optional)</span></h3>
+      <p>Guests just enter above — nothing else needed. Create an account only if you want your name, hero and 🪙 chips saved to YOU, so they follow you on any device.</p>
+      <div id="acctout">
+        <input id="acctemail" type="email" placeholder="Email" autocomplete="email">
+        <input id="acctpass" type="password" placeholder="Password (6+ characters)" autocomplete="current-password">
+        <div class="acctrow">
+          <button id="acctcreate" type="button">Create account</button>
+          <button id="acctsignin" type="button">Sign in</button>
+        </div>
+      </div>
+      <div id="acctin" style="display:none">
+        <p id="acctwho" style="margin-bottom:8px"></p>
+        <div class="acctrow">
+          <button id="acctsignout" type="button">Sign out</button>
+        </div>
+      </div>
+      <div id="acctmsg"></div>
+    </div>
+  </div>
+  <div id="grid"></div>
   <button class="enterbtn" id="enterbtn" disabled>Enter the Hub</button>
   <button id="cancelbtn">Cancel</button>
 </div>
@@ -398,6 +406,11 @@ function startMusic() {
       if (tick % 4 === 0) tone(HQ_CHORDS[ci][[0, 2, 3, 2][Math.floor(tick / 4) % 4]] * 4, 0, 2.4, "triangle", 0.010);
       tick++; return;
     }
+    if (sc === "speedway") {
+      /* very light arena room tone under the engine — a soft pad swell every few seconds */
+      if (tick % 16 === 0) padChord([98.0, 146.8, 196.0, 293.7], 8.6, 0.0075);
+      tick++; return;
+    }
     tone(seq[tick % seq.length], 0, 0.5, "sine", 0.022);
     if (tick % 4 === 0) tone(seq[tick % seq.length] / 2, 0, 1.6, "triangle", 0.016);
     tick++;
@@ -500,7 +513,7 @@ function publish(force) {
 setInterval(() => { if (entered) publish(false); }, 2500);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) publish(true); });
 /* all hub sound mutes while the tab/window is out of focus, and returns when it is focused again */
-function holdAudio() { audioHeld = true; try { if (!jukeAudio.paused) jukeAudio.pause(); } catch (e) {} }
+function holdAudio() { audioHeld = true; try { if (!jukeAudio.paused) jukeAudio.pause(); } catch (e) {} try { engineStop(); } catch (e) {} }
 function releaseAudio() { audioHeld = false; }
 document.addEventListener("visibilitychange", () => { if (document.hidden) holdAudio(); else releaseAudio(); });
 window.addEventListener("blur", holdAudio);
@@ -510,6 +523,7 @@ function resumeVideos() {
   if (typeof vid !== "undefined" && vid.dataset && vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (typeof me !== "undefined" && me.scene === "hq" && typeof startHqVideos === "function") startHqVideos();
   if (typeof me !== "undefined" && me.scene === "gym" && typeof startLgVideos === "function") startLgVideos();
+  if (typeof me !== "undefined" && me.scene === "speedway" && typeof startSwVideos === "function") startSwVideos();
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) resumeVideos(); });
 window.addEventListener("focus", resumeVideos);
@@ -703,6 +717,77 @@ function startLgVideos() {
   }, 600);
 }
 function pauseLgVideos() { for (const v of lgVids) if (!v.paused) v.pause(); }
+/* ============ speedway monitors: Daily Life racing feeds, no repeats — the lounge TV system mirrored for the infield (Jonathan 2026-10-29) ============ */
+const swVids = [], swNext = [], swCur = [-1, -1], swNextIdx = [-1, -1], swPrev = [-1, -1], swWait = [false, false];
+function makeSwVid(idx) {
+  const v = document.createElement("video");
+  v.muted = true; v.loop = false; v.playsInline = true; v.preload = "auto";
+  v.addEventListener("ended", () => { if (swVids[idx] === v && me.scene === "speedway") advanceSw(idx); });
+  v.addEventListener("canplay", () => { if (swNext[idx] === v && swWait[idx] && me.scene === "speedway") advanceSw(idx); });
+  v.addEventListener("error", () => {
+    if (swVids[idx] === v) { v.dataset.cur = ""; swCur[idx] = -1; if (me.scene === "speedway") setTimeout(() => pickSw(idx), 900); }
+    else if (swNext[idx] === v) { swNextIdx[idx] = -1; v.dataset.cur = ""; }
+  });
+  return v;
+}
+for (let i = 0; i < 2; i++) { swVids.push(makeSwVid(i)); swNext.push(makeSwVid(i)); }
+function swCatalog() {
+  const racing = dlCatalog.filter(d => (d.label || "").indexOf("Racing") === 0 && d.url);
+  return racing.length >= 2 ? racing : dlCatalog.filter(d => d.url);
+}
+function chooseSw(i) {
+  const cat = swCatalog(); if (!cat.length) return -1;
+  const used = new Set();
+  swCur.forEach(c => { if (c >= 0) used.add(c); });
+  swNextIdx.forEach(c => { if (c >= 0) used.add(c); });
+  if (swPrev[i] >= 0) used.add(swPrev[i]);
+  let opts = cat.map((_, k) => k).filter(k => !used.has(k));
+  if (!opts.length) opts = cat.map((_, k) => k).filter(k => k !== swCur[i] && k !== swNextIdx[i]);
+  if (!opts.length) opts = [Math.floor(Math.random() * cat.length)];
+  return opts[Math.floor(Math.random() * opts.length)];
+}
+function pickSw(i) {
+  const cat = swCatalog(); if (!cat.length) return;
+  const pick = chooseSw(i); if (pick < 0) return;
+  swPrev[i] = swCur[i]; swCur[i] = pick; swWait[i] = false;
+  const v = swVids[i];
+  v.src = cat[pick].url; v.dataset.cur = cat[pick].url;
+  v.play().catch(() => {});
+  if (swNextIdx[i] < 0) queueNextSw(i);
+}
+function queueNextSw(i) {
+  const cat = swCatalog(); if (cat.length < 2) return;
+  const pick = chooseSw(i); if (pick < 0 || pick === swCur[i]) return;
+  swNextIdx[i] = pick;
+  const nv = swNext[i];
+  nv.src = cat[pick].url; nv.dataset.cur = cat[pick].url; nv.load();
+}
+function advanceSw(i) {
+  const nv = swNext[i];
+  if (swNextIdx[i] >= 0 && nv && nv.readyState >= 2) {
+    const old = swVids[i];
+    swVids[i] = nv; swNext[i] = old;
+    swPrev[i] = swCur[i]; swCur[i] = swNextIdx[i]; swNextIdx[i] = -1; swWait[i] = false;
+    old.pause(); old.removeAttribute("src"); old.dataset.cur = ""; old.load();
+    swVids[i].play().catch(() => {});
+    queueNextSw(i);
+  } else {
+    swWait[i] = true;
+    if (swNextIdx[i] < 0) queueNextSw(i);
+  }
+}
+function startSwVideos() {
+  let waited = 0;
+  const tries = setInterval(() => {
+    waited += 600;
+    if (me.scene !== "speedway" || waited > 15000) { clearInterval(tries); return; }
+    if (swCatalog().length >= 2) {
+      clearInterval(tries);
+      for (let i = 0; i < 2; i++) { if (swCur[i] < 0) pickSw(i); else if (swVids[i].paused) swVids[i].play().catch(() => {}); if (swNextIdx[i] < 0) queueNextSw(i); }
+    }
+  }, 600);
+}
+function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
 let clubState = null;
@@ -757,7 +842,7 @@ $("jukeclose").onclick = closeJuke;
 $("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
 if (db) db.ref("hub/club").on("value", s => { clubState = s.val(); syncJuke(); updateJukePanel(); });
 /* ============ player / world ============ */
-const WORLD = { w: 3200, h: 2133 };
+const WORLD = { w: 3200, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
 const me = { name: "", hero: 0, scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
 let entered = false;
@@ -781,6 +866,43 @@ const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
 const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
 const GYMROOM = { w: 3600, h: 2400 };
 const GEXIT = { x: GYMROOM.w / 2 - 62, y: GYMROOM.h - 58, w: 124, h: 44 };
+/* ============ Quantum Speedway (Jonathan 2026-10-29, preview) ============ */
+/* the building mirrors the Sports Complex to the plaza's other side: same 1000x340, bottom edge on the arcade's bottom line (y=510); orange theme, green light becomes orange */
+const SPD_B = { x: 70, y: 170, w: 1000, h: 340 };
+const SPDDOOR = { x: 525, y: 470, w: 90, h: 34 };
+const SWROOM = { w: 3600, h: 2400 };
+const SWEXIT = { x: SWROOM.w / 2 - 62, y: SWROOM.h - 58, w: 124, h: 44 };
+/* infield video monitors (Jonathan 2026-10-29): the lounge TVs' twin — one centred in each half of the infield grass, symmetric about the centre medallion, playing the Daily Life Racing feeds; same screen size as the lounge TVs (336x189, 16:9 for the landscape videos). Solid, like the lounge TVs — see obstacles() */
+const SWTV = [{ x: 1150 - 168, y: 1200 - 94.5, w: 336, h: 189 }, { x: 2450 - 168, y: 1200 - 94.5, w: 336, h: 189 }];
+/* concession stands (Jonathan 2026-10-29): one in each corner of the arena, centred ~200px in from the corner. The room's off-track corner aprons run from the border to the ring's outer edge (300..3300 x, 400..2000 y at the straights); 260x170 centred on the corner points stays on the apron with room to walk around. Solid — see obstacles() */
+const SWSTAND_C = [[200, 200], [3400, 200], [200, 2200], [3400, 2200]];
+const SWSTANDS = SWSTAND_C.map(c => ({ x: c[0] - 130, y: c[1] - 85, w: 260, h: 170 }));
+/* the oval is a stadium ring around the spine segment (SW_CX1..SW_CX2, SW_CY): outer edge radius SW_RO, infield edge SW_RI, 4 lanes of 85 between them */
+const SW_CX1 = 1100, SW_CX2 = 2500, SW_CY = 1200;
+const SW_RO = 800, SW_RI = 460;
+const SW_LANES = [SW_RI + 42.5, SW_RI + 127.5, SW_RI + 212.5, SW_RI + 297.5]; /* lane centres, inside out */
+const SW_SPEED = 671; /* drive speed: walk 305 x 2.2 — same stick, just faster (his spec) */
+const SW_CARS = [
+  { col: "#e33b3b", dark: "#8f1f1f", name: "RED" },
+  { col: "#3b6fe3", dark: "#1f3f8f", name: "BLUE" },
+  { col: "#f2c531", dark: "#9a7a14", name: "YELLOW" },
+  { col: "#35c24a", dark: "#1c7029", name: "GREEN" }
+];
+function swStage(i) { return { x: 1800, y: SW_CY + SW_LANES[i], hd: 0 }; } /* staged across the start line on the bottom straight, one per lane in order, facing +x */
+function swSpine(x, y) { return { x: Math.max(SW_CX1, Math.min(SW_CX2, x)), y: SW_CY }; }
+function swRingClamp(x, y, m) {
+  const q = swSpine(x, y); let dx = x - q.x, dy = y - q.y; const d = Math.hypot(dx, dy);
+  const hi = SW_RO - m, lo = SW_RI + m;
+  if (d > hi) { const s = hi / d; return { x: q.x + dx * s, y: q.y + dy * s, hit: 1 }; }
+  if (d < lo) { let dd = d; if (dd < 0.001) { dx = 0; dy = 1; dd = 1; } const s = lo / dd; return { x: q.x + dx * s, y: q.y + dy * s, hit: -1 }; }
+  return { x: x, y: y, hit: 0 };
+}
+function swTurn(a, b, maxStep) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + Math.max(-maxStep, Math.min(maxStep, d));
+}
 const BB = { x: 120, y: 120, w: 1520, h: 920 };
 const FB = { x: 1960, y: 120, w: 1520, h: 920 };
 const TN = { x: 120, y: 1360, w: 1520, h: 920 };
@@ -826,7 +948,7 @@ const JUKE = { x: 296, y: 1170, w: 104, h: 148 };
 const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
-const PORTAL = { x: 430, y: 620 };
+const PORTAL = { x: 1600, y: 2080 }; /* moved 2026-10-29: from the west lawn (430,620) to its own circle directly below the spawn roundabout, on a new purple spur path */
 const HQPORTAL = { x: HQROOM.w / 2, y: HQROOM.h - 150 };
 const HQTABLE = { x: HQROOM.w / 2 - 330, y: HQROOM.h / 2 - 150, w: 660, h: 300 };
 const HQSTATIONS = [ { sx: 340, sy: 360 }, { sx: 2020, sy: 360 }, { sx: 340, sy: 1300 }, { sx: 2020, sy: 1300 } ];
@@ -855,14 +977,15 @@ const STAGE_WALLS = [
 const booths = [];
 [520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B];
+  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B, SPD_B];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
+  if (me.scene === "speedway") return [...SWTV, ...SWSTANDS]; /* on foot you can walk the whole arena — apron, track and infield; the ring clamp only bites while driving. The only solids are the infield monitors and the corner concession stands (Jonathan 2026-10-29); the benches stay walk-over scenery */
   return [SCREEN, PEDESTAL];
 }
 function collide(nx, ny) {
@@ -872,6 +995,7 @@ function collide(nx, ny) {
     if (nx > CLUBDOOR.x - 6 && nx < CLUBDOOR.x + CLUBDOOR.w + 6 && ny > CLUB.y + CLUB.h - 14 && ny < CLUB.y + CLUB.h + 46) return { x: nx, y: ny, clubdoor: true };
     if (nx > CASINODOOR.x - 6 && nx < CASINODOOR.x + CASINODOOR.w + 6 && ny > SIL_R.y + SIL_R.h - 14 && ny < SIL_R.y + SIL_R.h + 46) return { x: nx, y: ny, casinodoor: true };
     if (nx > GYMDOOR.x - 6 && nx < GYMDOOR.x + GYMDOOR.w + 6 && ny > GYM_B.y + GYM_B.h - 14 && ny < GYM_B.y + GYM_B.h + 46) return { x: nx, y: ny, gymdoor: true };
+    if (nx > SPDDOOR.x - 6 && nx < SPDDOOR.x + SPDDOOR.w + 6 && ny > SPD_B.y + SPD_B.h - 14 && ny < SPD_B.y + SPD_B.h + 46) return { x: nx, y: ny, spddoor: true };
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
@@ -888,6 +1012,10 @@ function collide(nx, ny) {
   } else if (me.scene === "gym") {
     if (nx > GEXIT.x - 4 && nx < GEXIT.x + GEXIT.w + 4 && ny > GYMROOM.h - 76) return { x: nx, y: ny, gymexit: true };
     nx = Math.max(56, Math.min(GYMROOM.w - 56, nx)); ny = Math.max(70, Math.min(GYMROOM.h - 46, ny));
+  } else if (me.scene === "speedway") {
+    /* on foot only — driving never passes through collide (stepSpeedway owns the car and clamps it to the ring) */
+    if (nx > SWEXIT.x - 4 && nx < SWEXIT.x + SWEXIT.w + 4 && ny > SWROOM.h - 76) return { x: nx, y: ny, swexit: true };
+    nx = Math.max(56, Math.min(SWROOM.w - 56, nx)); ny = Math.max(70, Math.min(SWROOM.h - 46, ny));
   } else {
     if (ny < 66 && nx > TEXDOOR.x && nx < TEXDOOR.x + TEXDOOR.w) return { x: nx, y: ny, theatreexit: true };
     if (nx < 48 && ny > HALL.top && ny < HALL.bot) return { x: nx, y: ny, back: true };
@@ -1610,6 +1738,416 @@ function drawSportsBall(k, t) {
   else if (k === "fb") { ctx.fillStyle = "#f7faf7"; ctx.fill(); ctx.strokeStyle = "#20302a"; ctx.lineWidth = 2; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); const pent = (px, py, pr, rot) => { ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = rot + i * (Math.PI * 2 / 5) - Math.PI / 2, X = px + Math.cos(a) * pr, Y = py + Math.sin(a) * pr; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.closePath(); ctx.fillStyle = "#182420"; ctx.fill(); }; pent(v.x, v.y, R * 0.34, 0); for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; pent(v.x + Math.cos(a) * R * 0.98, v.y + Math.sin(a) * R * 0.98, R * 0.30, a + Math.PI / 5); } ctx.strokeStyle = "rgba(24,36,32,0.55)"; ctx.lineWidth = 1.4; for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; ctx.beginPath(); ctx.moveTo(v.x + Math.cos(a) * R * 0.30, v.y + Math.sin(a) * R * 0.30); ctx.lineTo(v.x + Math.cos(a) * R * 0.72, v.y + Math.sin(a) * R * 0.72); ctx.stroke(); } ctx.restore(); }
   else { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#eaff7a"); g.addColorStop(1, "#a8c81e"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(110,140,20,0.6)"; ctx.lineWidth = 1.6; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(v.x - R * 1.05, v.y, R * 0.72, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 1.05, v.y, R * 0.72, 0, 7); ctx.stroke(); ctx.restore(); }
 }
+/* ============ Quantum Speedway: shared cars (RTDB hub/tables/speedway) ============ */
+/* Free driving, just for fun (Jonathan 2026-10-29): 4 cars staged on the start line, one per lane — RED, BLUE, YELLOW, GREEN. Walk into a free car to sit in it; the stick drives it around the oval at 2.2x walk speed, clamped to the track ring. One driver per car; an empty car returns to its staging spot after ~4 seconds. Car state is shared, so everyone in the room sees the same cars. */
+let swState = null, swHooked = false;
+let myCar = -1; /* car index I am driving, -1 on foot */
+let carPos = null, carVel = { x: 0, y: 0 }; /* my car's live state while driving */
+/* ---- car smoke (Jonathan 2026-10-29): SUBTLE puffs trailing DRIVEN cars while they accelerate. Emission keys off acceleration effort: for my car, the real velocity gap the physics is closing this frame; for remote cars (the sync record carries position only — format unchanged), the observed speed change of the smoothed car. No smoke at idle, none at steady cruise, none from parked/staged cars. Capped per car, particles integrate in stepSpeedway and render under the cars in drawSpeedway. ---- */
+const SW_SMOKE_MAX = 26; /* live puffs per car — a whisper of smoke, and cheap on phones */
+let swPuffs = [], swEmitAcc = [0, 0, 0, 0], swVisSpd = [0, 0, 0, 0];
+function swEmitSmoke(i, x, y, hd, effort, dt, cvx, cvy) {
+  if (effort < 0.15) { swEmitAcc[i] = 0; return; }
+  swEmitAcc[i] = Math.min(2, swEmitAcc[i] + dt * (3 + 20 * effort));
+  let mine = 0; for (const p of swPuffs) if (p.car === i) mine++;
+  while (swEmitAcc[i] >= 1 && mine < SW_SMOKE_MAX) {
+    swEmitAcc[i] -= 1; mine++;
+    const bx = Math.cos(hd), by = Math.sin(hd), px = -by, py = bx, j = (Math.random() - 0.5) * 12;
+    swPuffs.push({ car: i, x: x - bx * 48 + px * j, y: y - by * 48 + py * j, vx: -bx * (16 + Math.random() * 22) + (cvx || 0) * 0.12 + px * (Math.random() - 0.5) * 14, vy: -by * (16 + Math.random() * 22) + (cvy || 0) * 0.12 + py * (Math.random() - 0.5) * 14, r: 4.5 + Math.random() * 3.5, life: 0, max: 0.8 + Math.random() * 0.5, a: 0.05 + 0.12 * effort });
+  }
+}
+let swCarsVis = [null, null, null, null]; /* smoothed render state per car for other drivers' cars */
+let swWriteAt = 0, swLastWrite = null, swRestageAt = 0;
+const SW_BUMP_DIST = 70; /* bumper-car contact distance between car centres (the drawn body is ~94px long; the physics circle stays 70 — see stepSpeedway) */
+const swBumpAt = [-10000, -10000, -10000, -10000]; /* per-car last velocity-bounce time: a resting overlap must not retrigger the bounce every frame */
+function swSet(p, v) { if (db) { if (v === null) db.ref("hub/tables/speedway/" + p).remove(); else db.ref("hub/tables/speedway/" + p).set(v); } }
+function speedwayListen() {
+  if (!db || swHooked) return; swHooked = true;
+  db.ref("hub/tables/speedway").on("value", s => { swState = s.val(); });
+}
+function swOD(on) { if (!db || myCar < 0) return; try { const ref = db.ref("hub/tables/speedway/cars/" + myCar + "/drv"); if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel(); } catch (e) {} }
+function swCarRec(i) { return (swState && swState.cars && swState.cars[i]) || null; }
+function swCarTarget(i) {
+  /* the spot everyone agrees car i is at: its shared record when one exists, its staging spot otherwise; a driver only counts while their record is fresh */
+  const rec = swCarRec(i);
+  if (rec && typeof rec.x === "number") return { x: rec.x, y: rec.y, hd: rec.hd || 0, drv: (rec.drv && Date.now() - (rec.ts || 0) < 12000) ? rec.drv : "", drvName: rec.drvName || "" };
+  const s = swStage(i); return { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "" };
+}
+function swCarOfDriver(pid) { for (let i = 0; i < 4; i++) if (swCarTarget(i).drv === pid && pid) return i; return -1; }
+/* ---- engine sound: two detuned oscillators through a lowpass, pitch and bite rise with speed; a soft putter at idle. Follows the hub's mute + focus-hold rules like every other sound. ---- */
+let engOsc = null, engOsc2 = null, engGain = null, engFilter = null;
+const ENG_IDLE_GAIN = 0.045; /* the seated idle hum level: a FLOOR that never dips while a driver sits in the car (Jonathan 2026-10-29 — the hum must never cut at standstill) */
+const ENG_ACC_GAIN = 0.022; /* the speed-linked part of the engine level (was 0.055 — acceleration noise turned down at Jonathan's word, 2026-10-29) */
+function engineStop() {
+  if (!engOsc) return;
+  try { engOsc.stop(); engOsc2.stop(); } catch (e) {}
+  try { engGain.disconnect(); } catch (e) {}
+  engOsc = engOsc2 = engGain = engFilter = null;
+}
+function engineUpdate(frac) {
+  const seated = myCar >= 0 && me.scene === "speedway";
+  if (!seated || muted || audioHeld || !entered) { engineStop(); return; }
+  const c = ac(); if (!c) return;
+  if (!engOsc) {
+    engOsc = c.createOscillator(); engOsc.type = "sawtooth";
+    engOsc2 = c.createOscillator(); engOsc2.type = "square";
+    engFilter = c.createBiquadFilter(); engFilter.type = "lowpass"; engFilter.frequency.value = 340; engFilter.Q.value = 2;
+    engGain = c.createGain(); engGain.gain.value = 0;
+    engOsc.connect(engFilter); engOsc2.connect(engFilter); engFilter.connect(engGain); engGain.connect(c.destination);
+    engOsc.start(); engOsc2.start();
+  }
+  const t = c.currentTime;
+  const base = 52 + frac * 175; /* idle growl to full-throttle */
+  engOsc.frequency.setTargetAtTime(base, t, 0.06);
+  engOsc2.frequency.setTargetAtTime(base * 0.5 + 1.5, t, 0.06);
+  engFilter.frequency.setTargetAtTime(300 + frac * 480, t, 0.08);
+  /* gain staging (Jonathan 2026-10-29): the idle term is a floor, never a multiplier — a seated car hums at ENG_IDLE_GAIN the whole time it is occupied, so the hum cannot cut at standstill; only the SPEED term was turned down (0.055 -> ENG_ACC_GAIN), making full throttle quieter than the old build (0.067 vs 0.085). The old idle "putter" multiplied the WHOLE level by as little as 0.44 (0.72 - 0.28), dragging standstill down to ~0.013 through a 300Hz lowpass — on a phone speaker that read as the engine cutting out. It survives only as a gentle +/-10% shimmer on the idle floor. */
+  const idle = frac < 0.03 ? ENG_IDLE_GAIN * (0.95 + 0.05 * Math.sin(t * 29)) : ENG_IDLE_GAIN;
+  engGain.gain.setTargetAtTime(idle + frac * ENG_ACC_GAIN, t, 0.05);
+}
+function sitInCar(i) {
+  const v = swCarTarget(i);
+  myCar = i;
+  carPos = { x: v.x, y: v.y, hd: v.hd || 0 }; carVel = { x: 0, y: 0 };
+  me.x = carPos.x; me.y = carPos.y;
+  swWriteAt = 0; swLastWrite = null;
+  swSet("cars/" + i, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, ts: Date.now() });
+  swOD(true);
+  sfxChime(); publish(true);
+}
+function stepOutOfCar(silent) {
+  if (myCar < 0) return;
+  const i = myCar;
+  swSet("cars/" + i + "/drv", null); swSet("cars/" + i + "/drvName", null);
+  swOD(false);
+  myCar = -1; engineStop();
+  if (carPos) {
+    /* step out onto the apron: the nearest point just outside the track's outer edge */
+    const q = swSpine(carPos.x, carPos.y);
+    let dx = carPos.x - q.x, dy = carPos.y - q.y; const d = Math.hypot(dx, dy);
+    if (d < 0.001) { dx = 0; dy = 1; } else { dx /= d; dy /= d; }
+    me.x = Math.max(56, Math.min(SWROOM.w - 56, q.x + dx * (SW_RO + 90)));
+    me.y = Math.max(70, Math.min(SWROOM.h - 46, q.y + dy * (SW_RO + 90)));
+  }
+  carPos = null; carVel = { x: 0, y: 0 }; swLastWrite = null;
+  if (!silent) { sfxClick(); publish(true); }
+}
+function stepSpeedway(dt, ivx, ivy) {
+  const now = performance.now();
+  /* if another driver's claim on my car landed after mine, I lost it — step out in place */
+  if (myCar >= 0) { const rec = swCarRec(myCar); if (rec && rec.drv && rec.drv !== myId && Date.now() - (rec.ts || 0) < 12000) { myCar = -1; carPos = null; carVel = { x: 0, y: 0 }; engineStop(); } }
+  if (myCar >= 0 && carPos) {
+    /* ---- driving ---- */
+    const mag = Math.hypot(ivx, ivy);
+    let txv = 0, tyv = 0;
+    if (mag > 0.1) { const sp = SW_SPEED * Math.min(1, mag); txv = ivx / mag * sp; tyv = ivy / mag * sp; }
+    const ACC = mag > 0.1 ? 1500 : 2300;
+    const dvx = txv - carVel.x, dvy = tyv - carVel.y, dl = Math.hypot(dvx, dvy), mx = ACC * dt;
+    if (dl > mx && dl > 0.001) { carVel.x += dvx / dl * mx; carVel.y += dvy / dl * mx; } else { carVel.x = txv; carVel.y = tyv; }
+    const cl = swRingClamp(carPos.x + carVel.x * dt, carPos.y + carVel.y * dt, 40);
+    if (cl.hit) {
+      /* scrape along the wall: kill the radial part of the velocity, keep the tangent */
+      const q = swSpine(cl.x, cl.y);
+      let rx = cl.x - q.x, ry = cl.y - q.y; const rd = Math.hypot(rx, ry) || 1; rx /= rd; ry /= rd;
+      const vr = carVel.x * rx + carVel.y * ry;
+      if ((cl.hit > 0 && vr > 0) || (cl.hit < 0 && vr < 0)) { carVel.x -= vr * rx; carVel.y -= vr * ry; }
+    }
+    carPos.x = cl.x; carPos.y = cl.y;
+    /* ---- bumper cars (Jonathan 2026-10-29): a DRIVEN car is a solid circle, a driverless one is a ghost — drive straight through it. I only ever move MY car: on overlap I push myself out along the centre line and, if I was closing, bounce my velocity off it; the other driver's client runs the mirror image for their car, so both cars bounce. Positional de-penetration runs every frame (a resting overlap settles instead of jittering); the velocity bounce has a per-car cooldown so resting contact cannot keep retriggering it. ---- */
+    for (let j = 0; j < 4; j++) {
+      if (j === myCar) continue;
+      const ov = (swCarsVis[j] && swCarsVis[j].drv) ? swCarsVis[j] : swCarTarget(j);
+      if (!ov || !ov.drv) continue; /* parked / staged / re-staging cars are not obstacles at all */
+      let nx = carPos.x - ov.x, ny = carPos.y - ov.y;
+      const bd = Math.hypot(nx, ny);
+      if (bd >= SW_BUMP_DIST) continue;
+      if (bd < 0.01) { nx = 1; ny = 0; } else { nx /= bd; ny /= bd; }
+      carPos.x = ov.x + nx * SW_BUMP_DIST; carPos.y = ov.y + ny * SW_BUMP_DIST;
+      const vn = carVel.x * nx + carVel.y * ny;
+      if (vn < 0 && now - (swBumpAt[j] || 0) > 180) {
+        swBumpAt[j] = now;
+        carVel.x -= 1.95 * vn * nx; carVel.y -= 1.95 * vn * ny; /* reflect the closing component, nearly elastic... */
+        carVel.x += nx * 60; carVel.y += ny * 60; /* ...plus a spring shove so the cars separate with intent */
+      }
+      const cl2 = swRingClamp(carPos.x, carPos.y, 40); carPos.x = cl2.x; carPos.y = cl2.y; /* the push-out must never shove me through a wall */
+    }
+    const spd = Math.hypot(carVel.x, carVel.y);
+    if (spd > 30) carPos.hd = swTurn(carPos.hd, Math.atan2(carVel.y, carVel.x), 3.6 * dt);
+    me.x = carPos.x; me.y = carPos.y; me.moving = false; me.run = false;
+    engineUpdate(Math.min(1, spd / SW_SPEED));
+    swEmitSmoke(myCar, carPos.x, carPos.y, carPos.hd, mag > 0.1 ? Math.min(1, dl / SW_SPEED) : 0, dt, carVel.x, carVel.y); /* smoke keys off the same velocity gap the physics is closing: full at launch, zero once speed matches the stick */
+    /* share my car: on movement, and at least every 1.5s as a heartbeat so my claim stays fresh */
+    const lw = swLastWrite;
+    if (now - swWriteAt > 120 && (!lw || Math.hypot(carPos.x - lw.x, carPos.y - lw.y) > 3 || Math.abs(carPos.hd - lw.hd) > 0.03 || now - swWriteAt > 1500)) {
+      swWriteAt = now; swLastWrite = { x: carPos.x, y: carPos.y, hd: carPos.hd };
+      swSet("cars/" + myCar, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, ts: Date.now() });
+    }
+  } else {
+    engineUpdate(0);
+    /* ---- on foot: walking into a free car sits me in it ---- */
+    for (let i = 0; i < 4; i++) {
+      const v = swCarTarget(i);
+      if (v.drv) continue;
+      if (Math.hypot(me.x - v.x, me.y - v.y) < 56) { sitInCar(i); break; }
+    }
+  }
+  /* ---- smooth the other cars toward their shared spots ---- */
+  for (let i = 0; i < 4; i++) {
+    if (i === myCar) { swCarsVis[i] = carPos ? { x: carPos.x, y: carPos.y, hd: carPos.hd } : swCarsVis[i]; continue; }
+    const v = swCarTarget(i);
+    let vis = swCarsVis[i];
+    const pvx = vis ? vis.x : v.x, pvy = vis ? vis.y : v.y;
+    if (!vis || Math.hypot(v.x - vis.x, v.y - vis.y) > 320) { vis = swCarsVis[i] = { x: v.x, y: v.y, hd: v.hd }; swVisSpd[i] = 0; }
+    else {
+      vis.x += (v.x - vis.x) * Math.min(1, dt * 10); vis.y += (v.y - vis.y) * Math.min(1, dt * 10); vis.hd = swTurn(vis.hd, v.hd, 10 * dt);
+      /* remote smoke: the record carries no velocity, so derive effort from the smoothed car's observed speed change (same 1500px/s^2 scale as the local physics) */
+      const dts = Math.max(dt, 0.001), spdN = Math.hypot(vis.x - pvx, vis.y - pvy) / dts;
+      const eff = Math.max(0, Math.min(1, (spdN - swVisSpd[i]) / (1500 * dts)));
+      swVisSpd[i] = spdN;
+      if (v.drv) swEmitSmoke(i, vis.x, vis.y, vis.hd, eff, dt, (vis.x - pvx) / dts, (vis.y - pvy) / dts);
+    }
+    vis.drv = v.drv; vis.drvName = v.drvName;
+  }
+  /* ---- an empty car left off its spot rolls back to staging after ~4s (anyone in the room may write it; the write is identical) ---- */
+  if (now - swRestageAt > 800) {
+    swRestageAt = now;
+    for (let i = 0; i < 4; i++) {
+      if (i === myCar) continue;
+      const rec = swCarRec(i); if (!rec) continue;
+      const v = swCarTarget(i); if (v.drv) continue;
+      const s = swStage(i);
+      if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", ts: Date.now() });
+    }
+  }
+  /* ---- smoke particles: drift, expand slightly, fade out, then they're gone ---- */
+  for (let k = swPuffs.length - 1; k >= 0; k--) {
+    const p = swPuffs[k];
+    p.life += dt;
+    if (p.life >= p.max) { swPuffs.splice(k, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    const damp = Math.max(0, 1 - 1.6 * dt); p.vx *= damp; p.vy *= damp;
+    p.r += 14 * dt;
+  }
+}
+/* ============ inside the Quantum Speedway ============ */
+function stadiumPath(r) {
+  ctx.beginPath();
+  ctx.moveTo(SW_CX1, SW_CY - r); ctx.lineTo(SW_CX2, SW_CY - r);
+  ctx.arc(SW_CX2, SW_CY, r, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(SW_CX1, SW_CY + r);
+  ctx.arc(SW_CX1, SW_CY, r, Math.PI / 2, Math.PI * 1.5);
+  ctx.closePath();
+}
+function drawSwCar(i, t) {
+  const v = i === myCar && carPos ? { x: carPos.x, y: carPos.y, hd: carPos.hd, drv: myId, drvName: me.name } : swCarsVis[i];
+  if (!v) return;
+  const C = SW_CARS[i];
+  ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(v.x + 3, v.y + 8, 48, 18, v.hd, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(v.x, v.y); ctx.rotate(v.hd);
+  /* ---- F1 restyle (Jonathan 2026-10-29): the GT front is gone — a wide flat front wing (slightly wider than the body) on a slim nose cone, exposed front wheels at the wing's ends, and a rear wing clearly BIGGER than the front one, in proper F1 proportion. Colours, stripes, glasshouse, intakes and tail light are the GT car's; pure drawing — the footprint, staging and bumper physics are unchanged (SW_BUMP_DIST stays 70). ---- */
+  /* wheels: rears tucked at the tail corners; fronts EXPOSED at the front wing's ends, ahead of the body, on slim angled suspension arms (F1 style) */
+  ctx.fillStyle = "#0a0a0c";
+  rr(-33, -26, 20, 8, 3); ctx.fill(); rr(-33, 18, 20, 8, 3); ctx.fill(); rr(29, -27, 20, 8, 3); ctx.fill(); rr(29, 19, 20, 8, 3); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.fillRect(-25, -24.5, 4, 5); ctx.fillRect(-25, 19.5, 4, 5); ctx.fillRect(37, -25.5, 4, 5); ctx.fillRect(37, 20.5, 4, 5);
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.beginPath(); ctx.moveTo(14, -6); ctx.lineTo(35, -25); ctx.lineTo(38, -22.5); ctx.lineTo(17, -3.8); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(14, 6); ctx.lineTo(35, 25); ctx.lineTo(38, 22.5); ctx.lineTo(17, 3.8); ctx.closePath(); ctx.fill();
+  /* body: one tapered silhouette — wide mid shoulders, pinched tail, squared front where the nose cone mounts */
+  const bg = ctx.createLinearGradient(0, -23, 0, 23);
+  bg.addColorStop(0, C.col); bg.addColorStop(1, C.dark);
+  ctx.beginPath();
+  ctx.moveTo(18, -18);
+  ctx.quadraticCurveTo(-8, -23, -30, -20);
+  ctx.quadraticCurveTo(-43, -18, -43, -9);
+  ctx.lineTo(-43, 9);
+  ctx.quadraticCurveTo(-43, 18, -30, 20);
+  ctx.quadraticCurveTo(-8, 23, 18, 18);
+  ctx.quadraticCurveTo(22, 0, 18, -18);
+  ctx.closePath();
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 2; ctx.stroke();
+  /* slim F1 nose cone: tapers from the chassis front forward to the front wing (replaces the GT nose + hood wedge) */
+  ctx.beginPath();
+  ctx.moveTo(45, -2.4);
+  ctx.lineTo(15, -6);
+  ctx.lineTo(15, 6);
+  ctx.lineTo(45, 2.4);
+  ctx.closePath();
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 2; ctx.stroke();
+  /* racing stripes down the centre, running UNDER the glasshouse */
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  ctx.fillRect(-43, -6.5, 61, 4.6); ctx.fillRect(-43, 1.9, 61, 4.6);
+  /* side air intakes, just behind the cabin */
+  ctx.fillStyle = "rgba(0,0,0,0.42)";
+  ctx.beginPath(); ctx.moveTo(-13, -20); ctx.lineTo(-26, -17); ctx.lineTo(-26, -13); ctx.lineTo(-13, -14.5); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-13, 20); ctx.lineTo(-26, 17); ctx.lineTo(-26, 13); ctx.lineTo(-13, 14.5); ctx.closePath(); ctx.fill();
+  /* glasshouse in the rear third: raked windshield, solid roof, rear glass */
+  ctx.fillStyle = "rgba(170,225,255,0.92)";
+  ctx.beginPath(); ctx.moveTo(13, -10); ctx.lineTo(3, -12.5); ctx.lineTo(3, 12.5); ctx.lineTo(13, 10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = C.dark; rr(-13, -12.5, 16, 25, 6); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.15)"; rr(-13, -12.5, 16, 11, 6); ctx.fill();
+  ctx.fillStyle = "rgba(140,200,240,0.85)";
+  ctx.beginPath(); ctx.moveTo(-13, -11); ctx.lineTo(-21, -8.5); ctx.lineTo(-21, 8.5); ctx.lineTo(-13, 11); ctx.closePath(); ctx.fill();
+  /* rear spoiler: the BIG wing of the car (F1 proportion — clearly wider than the front wing):
+     a wider, thicker plane on beefier struts, with tall body-colour endplates */
+  ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-44, -14, 5, 8); ctx.fillRect(-44, 6, 5, 8);
+  ctx.fillStyle = C.dark; rr(-48, -30, 8, 60, 3); ctx.fill();
+  ctx.fillStyle = C.col; rr(-48, -30, 8, 13, 2); ctx.fill(); rr(-48, 17, 8, 13, 2); ctx.fill();
+  /* F1 front wing: a wide flat slab ahead of the nose — slightly wider than the body (52 across
+     vs the body's 46), with a slim flap behind it and body-colour endplate caps, the rear
+     wing's treatment in miniature */
+  ctx.fillStyle = C.dark; rr(35, -21, 3.5, 42, 2); ctx.fill();
+  ctx.fillStyle = C.dark; rr(40, -26, 7, 52, 3); ctx.fill();
+  ctx.fillStyle = C.col; ctx.fillRect(40, -26, 7, 5); ctx.fillRect(40, 21, 7, 5);
+  /* mirrors + full-width tail light (the GT headlights went with the old nose) */
+  ctx.fillStyle = C.col; rr(7, -23.5, 5, 3.5, 1.5); ctx.fill(); rr(7, 20, 5, 3.5, 1.5); ctx.fill();
+  ctx.fillStyle = "rgba(255,60,60,0.9)"; ctx.fillRect(-44.5, -11, 2.5, 22);
+  ctx.restore();
+  if (v.drvName) {
+    ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
+    ctx.strokeText(v.drvName, v.x, v.y - 44); ctx.fillStyle = v.drv === myId ? "#ffd76a" : "#eaf6ff"; ctx.fillText(v.drvName, v.x, v.y - 44);
+    ctx.restore();
+  }
+}
+function drawSwBench(x, y, rot) {
+  /* silver spectator bench: light-grey slats on a darker metal frame, backrest on the side AWAY from the track (the sitter faces +y in local space). Pure scenery \u2014 benches are never obstacles (see obstacles(): speedway's only solids are the infield monitors and the corner concession stands), so they are walked right over, never collided with. Cars can't reach them either: the driving clamp keeps them inside the ring. */
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.fillStyle = "rgba(0,0,0,0.25)"; rr(-78, -18, 156, 48, 8); ctx.fill();
+  ctx.fillStyle = "#59626b"; rr(-78, -24, 156, 10, 4); ctx.fill();
+  ctx.fillStyle = "#c7cfd7"; rr(-78, -12, 156, 7, 3); ctx.fill();
+  ctx.fillStyle = "#aeb8c1"; rr(-78, 0, 156, 7, 3); ctx.fill();
+  ctx.fillStyle = "#ccd4db"; rr(-78, 10, 156, 7, 3); ctx.fill();
+  ctx.fillStyle = "#98a3ad"; rr(-78, 20, 156, 6, 3); ctx.fill();
+  ctx.fillStyle = "#454e57"; ctx.fillRect(-70, 26, 8, 10); ctx.fillRect(62, 26, 8, 10);
+  ctx.restore();
+}
+function drawSwMonitor(tv, ti) {
+  /* infield video monitor — the lounge TVs' treatment in speedway orange (Jonathan 2026-10-29) */
+  ctx.fillStyle = "#0b1226"; rr(tv.x - 8, tv.y - 8, tv.w + 16, tv.h + 16, 14); ctx.fill();
+  ctx.strokeStyle = "#ff8c1a"; ctx.lineWidth = 3; ctx.shadowColor = "#ff8c1a"; ctx.shadowBlur = 10; rr(tv.x - 8, tv.y - 8, tv.w + 16, tv.h + 16, 14); ctx.stroke(); ctx.shadowBlur = 0;
+  const v = swVids[ti];
+  if (swCur[ti] < 0 && swCatalog().length >= 2) pickSw(ti);
+  if (v && v.dataset.cur && v.readyState >= 2) {
+    const vw = v.videoWidth || 16, vh = v.videoHeight || 9, s = Math.min(tv.w / vw, tv.h / vh);
+    ctx.drawImage(v, tv.x + (tv.w - vw * s) / 2, tv.y + (tv.h - vh * s) / 2, vw * s, vh * s);
+  } else {
+    ctx.fillStyle = "#0a1a33"; ctx.fillRect(tv.x, tv.y, tv.w, tv.h);
+    ctx.fillStyle = "#ffb066"; ctx.font = "bold 24px system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("QI RACING", tv.x + tv.w / 2, tv.y + tv.h / 2 + 8);
+  }
+  /* stand legs down to the grass */
+  ctx.fillStyle = "#2b3440"; ctx.fillRect(tv.x + tv.w / 2 - 52, tv.y + tv.h + 8, 12, 26); ctx.fillRect(tv.x + tv.w / 2 + 40, tv.y + tv.h + 8, 12, 26);
+  ctx.fillRect(tv.x + tv.w / 2 - 66, tv.y + tv.h + 30, 132, 8);
+}
+function drawSwStand(cx, cy) {
+  /* concession stand (Jonathan 2026-10-29): striped awning over a serving counter with warm lights, food silhouettes and a little snack sign — colours ride the speedway's orange theme */
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.fillStyle = "rgba(0,0,0,0.28)"; ctx.beginPath(); ctx.ellipse(0, 88, 138, 16, 0, 0, 7); ctx.fill();
+  /* body + counter */
+  ctx.fillStyle = "#3d2b18"; rr(-120, -30, 240, 116, 8); ctx.fill();
+  ctx.fillStyle = "#54391e"; rr(-132, 30, 264, 26, 6); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; rr(-132, 30, 264, 26, 6); ctx.stroke();
+  /* serving window with a warm inside glow and the snacks on the shelf */
+  ctx.fillStyle = "#ffd9a0"; rr(-104, -18, 208, 42, 5); ctx.fill();
+  ctx.fillStyle = "#c2432e"; ctx.beginPath(); ctx.arc(-66, 12, 10, 0, 7); ctx.fill(); /* popcorn bucket */
+  ctx.fillStyle = "#f2ede2"; ctx.fillRect(-74, -4, 16, 16);
+  ctx.fillStyle = "#e8a33d"; rr(-24, -2, 34, 14, 6); ctx.fill(); /* hot dog */
+  ctx.fillStyle = "#8a5a20"; rr(-28, 2, 42, 6, 3); ctx.fill();
+  ctx.fillStyle = "#38b6ff"; ctx.fillRect(38, -6, 10, 18); ctx.fillRect(58, -6, 10, 18); /* drinks */
+  ctx.fillStyle = "#eaf6ff"; ctx.fillRect(40, -12, 3, 7); ctx.fillRect(60, -12, 3, 7);
+  /* posts + striped awning */
+  ctx.fillStyle = "#2b3440"; ctx.fillRect(-126, -34, 10, 92); ctx.fillRect(116, -34, 10, 92);
+  for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? "#f2ede2" : "#e8641c"; ctx.beginPath(); ctx.moveTo(-136 + i * 34, -38); ctx.lineTo(-102 + i * 34, -38); ctx.lineTo(-94 + i * 34, -72); ctx.lineTo(-120 + i * 34, -72); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = "#e8641c"; ctx.fillRect(-120, -78, 240, 8);
+  for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? "#f2ede2" : "#e8641c"; ctx.beginPath(); ctx.arc(-119 + i * 34, -36, 17, 0, Math.PI); ctx.fill(); }
+  /* hanging bulbs under the awning */
+  for (let i = 0; i < 5; i++) { const bx = -88 + i * 44; ctx.fillStyle = "rgba(255,200,90,0.9)"; ctx.beginPath(); ctx.arc(bx, -26, 4.5, 0, 7); ctx.fill(); }
+  /* sign panel */
+  ctx.fillStyle = "#241a08"; rr(-86, -112, 172, 30, 8); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; rr(-86, -112, 172, 30, 8); ctx.stroke();
+  ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌭 🍿 🥤", 0, -88);
+  ctx.restore();
+}
+function drawSpeedway(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  /* hall floor */
+  ctx.fillStyle = "#17110c"; ctx.fillRect(0, -900, SWROOM.w, SWROOM.h + 1800);
+  ctx.fillStyle = "rgba(255,255,255,0.02)";
+  for (let gx = 0; gx < SWROOM.w; gx += 150) for (let gy = -900; gy < SWROOM.h + 900; gy += 150) if (((gx + gy) % 300 + 300) % 300 === 0) ctx.fillRect(gx, gy, 150, 150);
+  /* internal orange border, like the other buildings' interiors */
+  ctx.strokeStyle = "#ff8c1a"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, SWROOM.w - 8, SWROOM.h - 8);
+  ctx.strokeStyle = "rgba(255,140,26,0.28)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, SWROOM.w - 36, SWROOM.h - 36);
+  /* the track ring: asphalt between the outer edge and the infield (one path, two subpaths, even-odd) */
+  ctx.beginPath();
+  ctx.moveTo(SW_CX1, SW_CY - SW_RO); ctx.lineTo(SW_CX2, SW_CY - SW_RO); ctx.arc(SW_CX2, SW_CY, SW_RO, -Math.PI / 2, Math.PI / 2); ctx.lineTo(SW_CX1, SW_CY + SW_RO); ctx.arc(SW_CX1, SW_CY, SW_RO, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
+  ctx.moveTo(SW_CX1, SW_CY - SW_RI); ctx.lineTo(SW_CX2, SW_CY - SW_RI); ctx.arc(SW_CX2, SW_CY, SW_RI, -Math.PI / 2, Math.PI / 2); ctx.lineTo(SW_CX1, SW_CY + SW_RI); ctx.arc(SW_CX1, SW_CY, SW_RI, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
+  ctx.fillStyle = "#26222b"; ctx.fill("evenodd");
+  ctx.save(); stadiumPath(SW_RO); ctx.clip("evenodd"); /* faint rubber streaks along the lanes */
+  ctx.strokeStyle = "rgba(0,0,0,0.20)"; ctx.lineWidth = 30;
+  for (const r of SW_LANES) { stadiumPath(r); ctx.stroke(); }
+  ctx.restore();
+  /* infield \u2014 GRASS (Jonathan 2026-10-29): the blue ground is gone. Mow stripes and speckle in the soccer pitch's greens, clipped to the infield shape; the track ring, lanes and lines are untouched. */
+  ctx.save(); stadiumPath(SW_RI); ctx.clip();
+  ctx.fillStyle = "#228f47"; ctx.fillRect(SW_CX1 - SW_RI, SW_CY - SW_RI, SW_CX2 - SW_CX1 + SW_RI * 2, SW_RI * 2);
+  ctx.fillStyle = "#1d7a3d";
+  for (let gx = SW_CX1 - SW_RI; gx < SW_CX2 + SW_RI; gx += 240) ctx.fillRect(gx, SW_CY - SW_RI, 120, SW_RI * 2);
+  ctx.fillStyle = "rgba(10,50,18,0.16)";
+  for (let gx = SW_CX1 - SW_RI + 23; gx < SW_CX2 + SW_RI; gx += 47) for (let gy = SW_CY - SW_RI + 31; gy < SW_CY + SW_RI; gy += 47) { const hh = Math.abs(Math.sin(gx * 12.9898 + gy * 78.233) * 43758.5453) % 1; if (hh > 0.45) ctx.fillRect(gx + hh * 22, gy + hh * 17, 7, 3); }
+  ctx.fillStyle = "rgba(190,255,190,0.10)";
+  for (let gx = SW_CX1 - SW_RI + 9; gx < SW_CX2 + SW_RI; gx += 61) for (let gy = SW_CY - SW_RI + 13; gy < SW_CY + SW_RI; gy += 59) { const hh = Math.abs(Math.sin(gx * 26.651 + gy * 41.31) * 24634.6345) % 1; if (hh > 0.5) ctx.fillRect(gx + hh * 30, gy + hh * 25, 5, 2); }
+  ctx.restore();
+  ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 5; stadiumPath(SW_RO); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.75)"; stadiumPath(SW_RI); ctx.stroke();
+  /* lane dividers */
+  ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = 3; ctx.setLineDash([30, 24]);
+  for (const r of [SW_RI + 85, SW_RI + 170, SW_RI + 255]) { stadiumPath(r); ctx.stroke(); }
+  ctx.setLineDash([]);
+  /* start / finish line across the bottom straight */
+  for (let k = 0; k < 16; k++) {
+    const ry = SW_CY + SW_RI + k * ((SW_RO - SW_RI) / 16);
+    ctx.fillStyle = k % 2 ? "#e8ecf2" : "#14161c"; ctx.fillRect(1790, ry, 10, (SW_RO - SW_RI) / 16 + 1);
+    ctx.fillStyle = k % 2 ? "#14161c" : "#e8ecf2"; ctx.fillRect(1800, ry, 10, (SW_RO - SW_RI) / 16 + 1);
+  }
+  /* staging boxes */
+  ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) { const s = swStage(i); ctx.strokeRect(s.x - 48, s.y - 27, 96, 54); }
+  /* silver spectator benches on all four sides of the oval (Jonathan 2026-10-29): inside the arena, OFF the track surface (outer edge: y 400 top / y 2000 bottom / x 300 left / x 3300 right), facing the racing. The bottom row splits around the centre so the entry spawn (1800,2240), the step-out spot below the staged cars and the walk down to the exit plate stay clear. */
+  for (let bx = 700; bx <= 2900; bx += 168) drawSwBench(bx, 270, 0);
+  for (let bx = 732; bx <= 1404; bx += 168) drawSwBench(bx, 2130, Math.PI);
+  for (let bx = 2196; bx <= 2868; bx += 168) drawSwBench(bx, 2130, Math.PI);
+  for (let by = 780; by <= 1620; by += 168) { drawSwBench(170, by, -Math.PI / 2); drawSwBench(3430, by, Math.PI / 2); }
+  /* concession stands in the arena's four corners (Jonathan 2026-10-29) */
+  for (const sc of SWSTAND_C) drawSwStand(sc[0], sc[1]);
+  /* infield centrepiece: the atom mark + the name, sports-complex style */
+  ctx.save(); ctx.translate(1800, 1200);
+  ctx.strokeStyle = "rgba(255,160,60,0.4)"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 84, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(56,225,255,0.65)"; ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 62, 22, 0, 0, 7); ctx.stroke(); ctx.restore(); }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,196,120,0.9)";
+  ctx.fillText("🏁 QUANTUM SPEEDWAY 🏁", 1800, 1092);
+  ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,200,0.65)";
+  ctx.fillText("walk into a car to drive it — just for fun", 1800, 1330);
+  /* infield monitors — Daily Life racing feeds, one centred in each half of the grass (Jonathan 2026-10-29) */
+  SWTV.forEach((tv, ti) => drawSwMonitor(tv, ti));
+  /* car smoke — under the cars, so a puff reads as trailing behind the tail (Jonathan 2026-10-29) */
+  for (const p of swPuffs) {
+    const f = p.life / p.max, al = p.a * (1 - f) * (f < 0.15 ? f / 0.15 : 1);
+    ctx.fillStyle = "rgba(168,172,180," + (al * 0.45).toFixed(3) + ")"; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * 1.7, p.r * 1.3, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(178,182,190," + al.toFixed(3) + ")"; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.78, 0, 0, 7); ctx.fill();
+  }
+  /* the cars */
+  for (let i = 0; i < 4; i++) drawSwCar(i, t);
+  /* exit plate */
+  ctx.fillStyle = "#0a1428"; rr(SWEXIT.x, SWEXIT.y, SWEXIT.w, SWEXIT.h, 8); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(SWEXIT.x, SWEXIT.y, SWEXIT.w, SWEXIT.h, 8); ctx.stroke();
+  ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
+  ctx.fillText("🚪 EXIT", SWEXIT.x + SWEXIT.w / 2, SWEXIT.y + 30);
+  ctx.restore();
+}
 function drawGym(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* hall floor + walkway cross */
@@ -2331,6 +2869,8 @@ function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = 
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toPlazaFromGym() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
+function toSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "speedway"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); speedwayListen(); startSwVideos(); }
+function toPlazaFromSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "plaza"; voiceReset(); me.x = 570; me.y = SPD_B.y + SPD_B.h + 60; sfxChime(); publish(true); pauseSwVideos(); swPuffs = []; }
 let portalArmed = true;
 function checkPortal(P, go) {
   const d = Math.hypot(me.x - P.x, me.y - P.y);
@@ -2513,6 +3053,63 @@ function drawSportsBuilding(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GYMDOOR.x, GYM_B.y + GYM_B.h - 40, GYMDOOR.w, 40, 6); ctx.stroke();
   ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("▼ ENTER ▼", GYMDOOR.x + GYMDOOR.w / 2, GYM_B.y + GYM_B.h + 62);
+}
+/* ============ the Quantum Speedway building (plaza, west side — the Sports Complex mirrored, in orange) ============ */
+function drawSpeedwayBuilding(t) {
+  const b = SPD_B, cx = b.x + b.w / 2;
+  /* wide orange facade */
+  const fg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+  fg.addColorStop(0, "#3a1e08"); fg.addColorStop(1, "#201003");
+  ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(255,150,40,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  /* roof (Jonathan 2026-10-29): an arched cap with bold white racing stripes over a checkered-flag band \u2014 pure speedway, nothing like the Sports Complex roof or the plain band that was here. Footprint, marquee, door and door light are untouched. */
+  const capG = ctx.createLinearGradient(0, b.y - 112, 0, b.y - 28);
+  capG.addColorStop(0, "#ff9a26"); capG.addColorStop(1, "#c05e06");
+  ctx.beginPath(); ctx.moveTo(b.x - 18, b.y - 28); ctx.quadraticCurveTo(cx, b.y - 192, b.x + b.w + 18, b.y - 28); ctx.closePath();
+  ctx.fillStyle = capG; ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = "rgba(255,255,255,0.88)"; ctx.lineWidth = 17;
+  ctx.beginPath(); ctx.moveTo(b.x + 72, b.y - 30); ctx.quadraticCurveTo(cx, b.y - 176, b.x + b.w - 72, b.y - 30); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(b.x + 176, b.y - 30); ctx.quadraticCurveTo(cx, b.y - 148, b.x + b.w - 176, b.y - 30); ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(b.x - 18, b.y - 28); ctx.quadraticCurveTo(cx, b.y - 192, b.x + b.w + 18, b.y - 28); ctx.stroke();
+  /* checkered-flag band across the old roof band's slot — PURE checkerboard, nothing on it: the chasing bulbs that used to run along this band were removed at Jonathan's word (2026-10-29, "so its just the checkerboard there") */
+  ctx.save(); rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.clip();
+  for (let r2 = 0; r2 < 2; r2++) for (let c2 = 0, wx2 = b.x - 18; wx2 < b.x + b.w + 18; c2++, wx2 += 22) { ctx.fillStyle = (c2 + r2) % 2 ? "#14161c" : "#e8ecf2"; ctx.fillRect(wx2, b.y - 34 + r2 * 22, 22, 22); }
+  ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.stroke();
+  /* marquee */
+  ctx.fillStyle = "#160b02"; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.fill();
+  ctx.strokeStyle = "#ffa02e"; ctx.lineWidth = 3; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.stroke();
+  for (let i = 0; i < 16; i++) {
+    ctx.fillStyle = (Math.floor(t / 420) + i) % 2 ? "#ffa02e" : "#ffd76a";
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 48, 4.5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 124, 4.5, 0, 7); ctx.fill();
+  }
+  ctx.font = "800 37px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#ffa02e" : "#ffc98a";
+  ctx.fillText("🏁 QUANTUM SPEEDWAY 🏁", cx, b.y + 101);
+  /* ONE wide window per side (Jonathan 2026-10-29): each side's pair of tall windows merged into a single wide pane spanning exactly what the pair spanned \u2014 same wall, same band (y +168, 108 tall), same orange glow */
+  const winWide = [b.x + b.w * 0.10, b.x + b.w - b.w * 0.10 - 252];
+  ctx.fillStyle = "rgba(255,150,40,0.20)";
+  for (const wx of winWide) { rr(wx, b.y + 168, 252, 108, 8); ctx.fill(); }
+  ctx.strokeStyle = "rgba(255,150,40,0.4)"; ctx.lineWidth = 1.5;
+  for (const wx of winWide) { rr(wx, b.y + 168, 252, 108, 8); ctx.stroke(); }
+  /* racing icons over the door */
+  for (const ixy of [[cx - 90, b.y + b.h - 119], [cx + 90, b.y + b.h - 119], [cx, b.y + b.h - 139]]) {
+    ctx.globalAlpha = 1; ctx.fillStyle = "#231102"; ctx.beginPath(); ctx.arc(ixy[0], ixy[1], 31, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(ixy[0], ixy[1], 31, 0, 7); ctx.stroke();
+  }
+  ctx.font = "34px sans-serif"; ctx.fillText("🏎️", cx - 90, b.y + b.h - 108); ctx.fillText("🏁", cx + 90, b.y + b.h - 108); ctx.fillText("🚦", cx, b.y + b.h - 128);
+  /* golden door, ORANGE light spilling out (the gym's green light, in speedway orange) */
+  const gdy = SPD_B.y + SPD_B.h - 40;
+  const gdg = ctx.createLinearGradient(0, gdy, 0, gdy + 104);
+  gdg.addColorStop(0, "rgba(255,150,40,0.55)"); gdg.addColorStop(1, "rgba(255,150,40,0)");
+  ctx.fillStyle = gdg; ctx.fillRect(SPDDOOR.x - 8, gdy - 6, SPDDOOR.w + 16, 104);
+  ctx.fillStyle = "#0a1428"; rr(SPDDOOR.x, SPD_B.y + SPD_B.h - 40, SPDDOOR.w, 40, 6); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(SPDDOOR.x, SPD_B.y + SPD_B.h - 40, SPDDOOR.w, 40, 6); ctx.stroke();
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
+  ctx.fillText("▼ ENTER ▼", SPDDOOR.x + SPDDOOR.w / 2, SPD_B.y + SPD_B.h + 62);
 }
 /* ============ casino rendering: the tables are the game ============ */
 let uiZones = [];
@@ -2816,6 +3413,87 @@ function drawCasino(t) {
   ctx.restore();
 }
 
+/* ============ plaza boards (PREVIEW ONLY, Jonathan 2026-10-29): two physical sign boards — the live $QI stats board on the left of the plaza, the live buys board on the right. Pure scenery in the plaza's decor layer: no collision entries (obstacles() untouched), players walk right past them, and nothing else in the plaza moves. ============ */
+const BOARD_STATS_POS = { x: 1150, y: 1386 }; /* the stats board's base point: BELOW the LEFT fountain (centre 1150,1000; basin bottom edge y 1062), centred in the open plaza strip between the fountain and the purple road below (top edge y 1480). The board's drawn box (panel top = base−250, ground-shadow bottom = base+20; 270 tall) sits with equal 74px clearances: top 1136, bottom 1406 — (1062 + 74) and (1480 − 74) */
+const BOARD_BUYS_POS = { x: 2050, y: 1386 }; /* the mirror image on the right: same base y under the RIGHT fountain (centre 2050,1000), same 74px clearances to its fountain and the road */
+const BOARD_W = 340, BOARD_H = 224;
+let plazaStats = { holders: null, price: null, change: null, mcap: null, vol: null, liq: null };
+let plazaBuys = []; /* newest first, from hub/buys */
+let boardBooted = false, buysHooked = false;
+/* the homepage's exact formatters (index.html, LIVE HOLDERS + MARKET STATS), namespaced so nothing collides */
+function pfmtInt(n) { return n.toLocaleString("en-US"); }
+function pfmtUsd(n) { if (n == null || isNaN(n)) return "…"; if (n >= 1e9) return "$" + (n / 1e9).toFixed(2) + "B"; if (n >= 1e6) return "$" + (n / 1e6).toFixed(2) + "M"; if (n >= 1e3) return "$" + (n / 1e3).toFixed(1) + "K"; return "$" + n.toFixed(2); }
+function pfmtPrice(p) { if (p == null || isNaN(p)) return "…"; return "$" + parseFloat(Number(p).toPrecision(3)).toString(); }
+function boardBoot() {
+  if (boardBooted) return; boardBooted = true;
+  boardLoadStats(); boardLoadHolders();
+  setInterval(boardLoadStats, 60000); setInterval(boardLoadHolders, 120000); /* the homepage's own refresh cadences */
+}
+/* the homepage's exact market fetch: Dexscreener, deepest-liquidity pair for the mint */
+async function boardLoadStats() { try { const r = await fetch("https://api.dexscreener.com/latest/dex/tokens/" + QI_CA); if (!r.ok) return; const d = await r.json(); const pairs = (d.pairs || []).filter(p => p.baseToken && p.baseToken.address === QI_CA && p.priceUsd); if (!pairs.length) return; pairs.sort((a, b) => ((b.liquidity && b.liquidity.usd) || 0) - ((a.liquidity && a.liquidity.usd) || 0)); const p = pairs[0]; plazaStats.price = p.priceUsd; plazaStats.change = (p.priceChange && p.priceChange.h24 != null) ? p.priceChange.h24 : null; plazaStats.mcap = p.marketCap; plazaStats.vol = p.volume && p.volume.h24; plazaStats.liq = p.liquidity && p.liquidity.usd; } catch (e) {} }
+/* the homepage's exact holder count: getProgramAccounts over the SPL token program, distinct owners with a nonzero balance — same endpoints, same decode */
+const BOARD_RPCS = ['https://mainnet.helius-rpc.com/?api-key=c2ce8d1f-72e8-499e-8c5e-5c7f2eb9300d','https://api.mainnet-beta.solana.com','https://solana-rpc.publicnode.com'];
+async function boardHoldersOnce(url, body) { const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 30000); try { const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: ctl.signal }); if (!r.ok) return 0; const d = await r.json(); if (!d.result) return 0; const owners = new Set(); for (const a of d.result) { try { const raw = atob(a.account.data[0]); let nz = false; for (let i = 32; i < 40; i++) { if (raw.charCodeAt(i) !== 0) { nz = true; break; } } if (nz) owners.add(raw.slice(0, 32)); } catch (e) {} } return owners.size; } catch (e) { return 0; } finally { clearTimeout(to); } }
+async function boardLoadHolders() { const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getProgramAccounts", params: ["TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", { encoding: "base64", dataSlice: { offset: 32, length: 40 }, filters: [{ memcmp: { offset: 0, bytes: QI_CA } }] }] }); for (const url of BOARD_RPCS) { const n = await boardHoldersOnce(url, body); if (n > 0) { plazaStats.holders = n; return; } } }
+/* live buys: the raid bot writes every valued buy to hub/buys ({usd, sol, qi, buyer, ts, sig}); the board keeps the newest ~20, newest first */
+function buysListen() {
+  if (buysHooked || !db || !db.ref) return;
+  const r = db.ref("hub/buys");
+  if (!r || typeof r.limitToLast !== "function") return;
+  buysHooked = true;
+  try { r.limitToLast(20).on("value", sn => { plazaBuysSet(sn.val() || {}); }); } catch (e) { buysHooked = false; }
+}
+function plazaBuysSet(v) { plazaBuys = Object.keys(v || {}).map(k => v[k]).filter(b => b && typeof b === "object" && typeof b.ts === "number").sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 20); }
+function shortBuyer(w) { w = String(w || ""); return w.length > 10 ? w.slice(0, 4) + "…" + w.slice(-4) : (w || "—"); }
+function boardPanel(x, y) { /* (x, y) is the board's base point on the ground; the panel rises above it on two posts */
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, y + 4, 150, 16, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#241a08"; ctx.fillRect(x - 130, y - 26, 14, 30); ctx.fillRect(x + 116, y - 26, 14, 30);
+  const px = x - BOARD_W / 2, py = y - 26 - BOARD_H;
+  ctx.fillStyle = "rgba(10,18,51,0.94)"; rr(px, py, BOARD_W, BOARD_H, 14); ctx.fill();
+  ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 2.5; rr(px, py, BOARD_W, BOARD_H, 14); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.2; rr(px + 6, py + 6, BOARD_W - 12, BOARD_H - 12, 10); ctx.stroke();
+  return { x: px, y: py };
+}
+function boardText(txt, x, y, font, col, align) { ctx.font = font; ctx.fillStyle = col; ctx.textAlign = align || "center"; ctx.fillText(txt, x, y); }
+function drawStatsBoard(t) {
+  boardBoot(); buysListen();
+  const P = boardPanel(BOARD_STATS_POS.x, BOARD_STATS_POS.y), cx = BOARD_STATS_POS.x;
+  boardText("✦ HOLDERS ✦", cx, P.y + 32, "800 20px 'Segoe UI',sans-serif", "#ffd76a");
+  boardText(plazaStats.holders == null ? "…" : pfmtInt(plazaStats.holders), cx, P.y + 80, "800 42px 'Segoe UI',sans-serif", "#eaf6ff");
+  boardText("wallets holding $QI right now — counted live from the", cx, P.y + 104, "11px 'Segoe UI',sans-serif", "rgba(210,235,255,0.75)");
+  boardText("Solana blockchain, refreshes automatically", cx, P.y + 119, "11px 'Segoe UI',sans-serif", "rgba(210,235,255,0.75)");
+  ctx.strokeStyle = "rgba(56,225,255,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(P.x + 22, P.y + 132); ctx.lineTo(P.x + BOARD_W - 22, P.y + 132); ctx.stroke();
+  const rows = [
+    ["Price", plazaStats.price == null ? "…" : pfmtPrice(plazaStats.price) + (plazaStats.change == null ? "" : " (" + (plazaStats.change >= 0 ? "+" : "") + plazaStats.change + "% 24h)")],
+    ["Market Cap", pfmtUsd(plazaStats.mcap)],
+    ["24h Volume", pfmtUsd(plazaStats.vol)],
+    ["Liquidity", pfmtUsd(plazaStats.liq)]
+  ];
+  rows.forEach((rw, i) => { const ry = P.y + 148 + i * 21; boardText(rw[0], P.x + 22, ry, "600 12px 'Segoe UI',sans-serif", "rgba(210,235,255,0.8)", "left"); boardText(rw[1], P.x + BOARD_W - 22, ry, "700 12px 'Segoe UI',sans-serif", "#eaf6ff", "right"); });
+}
+function drawBuysBoard(t) {
+  buysListen();
+  const P = boardPanel(BOARD_BUYS_POS.x, BOARD_BUYS_POS.y), cx = BOARD_BUYS_POS.x;
+  boardText("✦ LIVE BUYS ✦", cx, P.y + 32, "800 20px 'Segoe UI',sans-serif", "#ffd76a");
+  if (!plazaBuys.length) { boardText("No buys yet — the next one lands here.", cx, P.y + 120, "13px 'Segoe UI',sans-serif", "rgba(210,235,255,0.6)"); return; }
+  plazaBuys.slice(0, 7).forEach((b, i) => {
+    const ry = P.y + 62 + i * 23;
+    const usd = "$" + Number(b.usd || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const tm = b.ts ? new Date(b.ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+    boardText(usd + "  ·  " + pfmtInt(Math.round(b.qi || 0)) + " QI", P.x + 22, ry, "700 12.5px 'Segoe UI',sans-serif", "#8dffb0", "left");
+    if (b.nh) {
+      /* NEW HOLDER buy (the bot feed's nh flag — pre-buy balance zero, Jonathan 2026-10-29): the wallet paints CYAN while the " · time" tail stays pale, and the pair keeps the same right edge and baseline — the tail is drawn anchored at the edge and the wallet is anchored where the tail begins (measured in the same font) */
+      const wal = shortBuyer(b.buyer), tail = tm ? "  ·  " + tm : "", rx = P.x + BOARD_W - 22;
+      ctx.font = "11px 'Segoe UI',sans-serif";
+      const tailW = tail ? ctx.measureText(tail).width : 0;
+      if (tail) boardText(tail, rx, ry, "11px 'Segoe UI',sans-serif", "rgba(210,235,255,0.75)", "right");
+      boardText(wal, rx - tailW, ry, "11px 'Segoe UI',sans-serif", "#38e1ff", "right");
+    } else {
+      boardText(shortBuyer(b.buyer) + (tm ? "  ·  " + tm : ""), P.x + BOARD_W - 22, ry, "11px 'Segoe UI',sans-serif", "rgba(210,235,255,0.75)", "right");
+    }
+  });
+}
+function drawPlazaBoards(t) { drawStatsBoard(t); drawBuysBoard(t); }
 function drawPlaza(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const CX = 1600, CY = 1010;
@@ -2846,9 +3524,15 @@ function drawPlaza(t) {
   ctx.lineTo(1680, 1560 - D);
   ctx.arc(CX, 1560, 205, Math.atan2(-D, 80), Math.atan2(-80, D));
   ctx.lineTo(3200, 1480); ctx.lineTo(3200, 1640); ctx.lineTo(CX + D, 1640);
-  ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(80, -D));
+  /* the HQ portal spur (2026-10-29): a 240-wide path runs off the roundabout's bottom to the portal's own circle below spawn */
+  const PD = Math.sqrt(205 * 205 - 120 * 120); /* 166.2 — where the spur's edges meet the roundabout */
+  ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(PD, 120));
+  ctx.lineTo(1720, 2080); ctx.arc(1600, 2080, 120, 0, Math.PI); ctx.lineTo(1480, 1560 + PD);
+  ctx.arc(CX, 1560, 205, Math.atan2(PD, -120), Math.atan2(80, -D));
   ctx.lineTo(0, 1640); ctx.lineTo(0, 1480); ctx.lineTo(CX - D, 1480);
   ctx.arc(CX, 1560, 205, Math.atan2(-80, -D), Math.atan2(-D, -80));
+  /* the Speedway branch (2026-10-29): the gym branch mirrored — same height off the main walkway, the other way, with its apron up to the orange door */
+  ctx.lineTo(1520, 830); ctx.lineTo(490, 830); ctx.lineTo(490, 460); ctx.lineTo(650, 460); ctx.lineTo(650, 670); ctx.lineTo(1520, 670);
   ctx.lineTo(1520, 510); ctx.closePath();
   ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
@@ -2869,6 +3553,8 @@ function drawPlaza(t) {
   for (let x = 660; x <= 1380; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   for (let x = 1880; x <= 2600; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   lamp(1960, 642); lamp(2360, 642); lamp(1960, 858); lamp(2360, 858); lamp(2532, 580); lamp(2728, 580);
+  lamp(1240, 642); lamp(840, 642); lamp(1240, 858); lamp(840, 858); lamp(668, 580); lamp(472, 580); /* the Speedway branch's lamps, mirrored from the gym branch */
+  lamp(1448, 1900); lamp(1752, 1900); lamp(1448, 2160); lamp(1752, 2160); /* flanking the portal spur and its circle */
   /* crystals scattered as decor */
   function crystal(x, y, s, col) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
@@ -2923,6 +3609,7 @@ function drawPlaza(t) {
     }
   }
   fountain(1150, 1000, t); fountain(2050, 1000, t);
+  drawPlazaBoards(t); /* the two sign boards, standing below the fountains in the open strips between each fountain and the purple road — drawn with the ground decor, so everyone walks right past them */
   crystal(360, 1980, 26, "rgba(255,215,106,0.25)"); crystal(2840, 1980, 26, "rgba(255,215,106,0.25)");
   crystal(1050, 260, 20, "rgba(56,225,255,0.25)"); crystal(2150, 260, 20, "rgba(168,85,247,0.25)");
   /* quantum trees — floating in the space around the plaza, atom fruit in the canopy */
@@ -2960,10 +3647,11 @@ function drawPlaza(t) {
       ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(fx, fy, 3.2 * ts, 0, 7); ctx.fill();
     });
   }
-  [[700, 700, 1.0], [430, 1150, 1.0], [2770, 1150, 1.0], [700, 1900, 1.0], [2500, 1900, 1.0],
+  [[430, 1150, 1.0], [2770, 1150, 1.0], [700, 1900, 1.0], [2500, 1900, 1.0],
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
    [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [3100, 800, 0.9], [110, 800, 1.0],
-   [150, 2050, 0.95], [3050, 2050, 1.0]
+   [150, 2050, 0.95], [3050, 2050, 1.0],
+   [500, 2380, 1.0], [1050, 2440, 0.9], [2150, 2420, 1.05], [2750, 2360, 0.95], [250, 2300, 0.9], [2950, 2310, 1.0], [1600, 2470, 0.85] /* the new southern ground from the 2026-10-29 plaza growth */
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
   function silhouette(b) {
@@ -2978,7 +3666,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ");
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ");
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -3109,7 +3797,11 @@ function drawClub(t) {
   }
   /* curtains: valance + side drapes with folds */
   ctx.fillStyle = "#8e1f42";
+  /* the valance is clipped to the stage's own width: the last scallop's arc is wider than
+     the space left for it and spilled a flap past the stage's top-right corner (Jonathan 2026-10-29) */
+  ctx.save(); ctx.beginPath(); ctx.rect(st.x, st.y - 2, st.w, 44); ctx.clip();
   for (let x = st.x; x < st.x + st.w; x += 44) { ctx.beginPath(); ctx.arc(x + 22, st.y + 14, 23, 0, Math.PI); ctx.fill(); }
+  ctx.restore();
   for (const cx0 of [st.x, st.x + st.w - 58]) {
     ctx.fillStyle = "#7f1d3a"; rr(cx0, st.y + 8, 58, st.h - 16, 8); ctx.fill();
     ctx.fillStyle = "rgba(0,0,0,0.28)";
@@ -3346,18 +4038,14 @@ function drawHQ(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const W = HQROOM.w, H = HQROOM.h;
   ctx.fillStyle = "#070d1d"; ctx.fillRect(0, 0, W, H);
-  /* deep-space backdrop: nebulas, spiral galaxies, scattered stars */
-  for (let i = 0; i < 7; i++) {
-    const gx = (i * 613.7 + 200) % W, gy = (i * 389.3 + 140) % H;
-    const gg = ctx.createRadialGradient(gx, gy, 8, gx, gy, 200 + (i % 3) * 70);
-    gg.addColorStop(0, i % 2 ? "rgba(168,85,247,0.10)" : "rgba(56,150,255,0.10)"); gg.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = gg; ctx.fillRect(gx - 290, gy - 290, 580, 580);
-  }
+  /* deep-space backdrop: scattered stars + the four corner fans (the seven circular
+     nebula glows were removed 2026-10-29 — the room's only glows now are the
+     rectangular floor pools under the table and the screens, see hqRectGlow) */
   for (let i = 0; i < 4; i++) {
     const gx = [250, W - 250, 250, W - 250][i], gy = [290, 290, H - 250, H - 250][i];
     ctx.save(); ctx.translate(gx, gy); ctx.rotate(0.6 + i * 0.9);
     for (let a = 0; a < 3; a++) {
-      ctx.save(); ctx.rotate(a * 2.1 + t / 2600);
+      ctx.save(); ctx.rotate(a * 2.1 + t / 850);
       ctx.fillStyle = "rgba(190,220,255,0.10)";
       ctx.beginPath(); ctx.ellipse(27, 0, 36, 9, 0, 0, 7); ctx.fill(); ctx.restore();
     }
@@ -3375,6 +4063,25 @@ function drawHQ(t) {
   for (let y = 0; y <= H; y += 96) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
   ctx.fillStyle = "rgba(56,225,255,0.10)";
   ctx.fillRect(0, 880, W, 5); ctx.fillRect(0, 1270, W, 5);
+  /* rectangular floor glows — the ONLY glows in the room (Jonathan 2026-10-29): soft-edged cyan
+     light pools under the conference table and under each station screen. Each pool is three
+     layered rounded rects (largest + faintest first) filled with a vertical cyan gradient that
+     fades downward, so the shape stays rectangular while the edges melt into the floor. Drawn
+     here, on the bare floor, so the stations and the table paint over them. */
+  function hqRectGlow(x, y, w, h, r) {
+    const layers = [[0, 0.040], [9, 0.058], [18, 0.082]];
+    for (const [inset, a] of layers) {
+      const gy = y + inset, gh = h - inset * 2;
+      const lg = ctx.createLinearGradient(0, gy, 0, gy + gh);
+      lg.addColorStop(0, "rgba(56,225,255," + a + ")");
+      lg.addColorStop(0.55, "rgba(56,182,255," + (a * 0.72) + ")");
+      lg.addColorStop(1, "rgba(56,225,255," + (a * 0.3) + ")");
+      ctx.fillStyle = lg;
+      rr(x + inset, gy, w - inset * 2, gh, Math.max(8, r - inset)); ctx.fill();
+    }
+  }
+  hqRectGlow(HQTABLE.x - 26, HQTABLE.y - 26, HQTABLE.w + 52, HQTABLE.h + 52, 66);
+  for (const st of HQSTATIONS) hqRectGlow(st.sx - 8, st.sy + 292, 536, 120, 18);
   /* shuttle windows along the upper wall — space streaming past */
   for (let i = 0; i < 4; i++) {
     const wx = 120 + i * 690, wy = 44, ww = 540, wh = 160;
@@ -3668,8 +4375,10 @@ function frame(now) {
   vx += joyVec.x + holdVec.x; vy += joyVec.y + holdVec.y;
   const m = Math.hypot(vx, vy);
   if (m > 1) { vx /= m; vy /= m; }
+  const drvIn = { x: vx, y: vy }; /* raw stick for the speedway car, captured before the seated/driving overrides zero the walk vector */
   if (mySeatPos) { if (vx > 0.2) me.flip = true; else if (vx < -0.2) me.flip = false; vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; } /* seated: left/right input flips the sprite's facing without moving (his ask 2026-10-28) */
   me.moving = mySeatPos ? false : m > 0.12;
+  if (myCar >= 0) { vx = 0; vy = 0; me.moving = false; } /* driving: stepSpeedway owns my position (the car) — the walk block must not move me */
   const sprinting = me.moving && (runBtnHeld || keys.has(" "));
   me.run = sprinting;
   if (sprinting) sprintPhase += dt * 4.8;
@@ -3689,6 +4398,8 @@ function frame(now) {
     if (res.casinoexit) toPlazaFromCasino();
     if (res.gymdoor) toGym();
     if (res.gymexit) toPlazaFromGym();
+    if (res.spddoor) toSpeedway();
+    if (res.swexit) toPlazaFromSpeedway();
     if (res.clubexit) toPlazaFromClub();
     if (res.exit) toPlaza();
     if (res.theatre) toTheatre();
@@ -3698,6 +4409,7 @@ function frame(now) {
     else if (me.scene === "hq") checkPortal(HQPORTAL, toPlazaFromHQ);
   }
   if (me.scene === "gym") stepSports(dt);
+  if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   publish(false);
   const dims = sceneDims(), roomW = dims.w, roomH = dims.h;
   SCALE = Math.max(0.36, Math.min(VW / 1280, VH / 980, 1.0));
@@ -3727,11 +4439,12 @@ function frame(now) {
     }
   }
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
   if (me.scene !== "gym") pauseLgVideos();
+  if (me.scene !== "speedway") pauseSwVideos();
   else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
   if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
   ctx.restore();
@@ -3756,6 +4469,7 @@ function frame(now) {
   }
   for (const a of actors) {
     const isMe = a === me;
+    if (me.scene === "speedway" && (isMe ? myCar >= 0 : swCarOfDriver(a.id) >= 0)) continue; /* drivers render inside their cars (drawn with the track, name tags included), never as loose sprites */
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
     let phase = isMe ? sprintPhase : a.bob * 7;
     if (!isMe && a.run && moving) {
@@ -3770,6 +4484,8 @@ function frame(now) {
   ctx.restore();
   const cab = nearestCabinet();
   if (me.scene === "gym") { promptBtn.style.display = "none"; promptAction = null; }
+  else if (me.scene === "speedway" && myCar >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => stepOutOfCar(false); }
+  else if (me.scene === "speedway") { promptBtn.style.display = "none"; promptAction = null; }
   else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
