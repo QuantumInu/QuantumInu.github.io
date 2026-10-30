@@ -461,7 +461,7 @@ nameIn.addEventListener("input", checkEnter); checkEnter();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
   muted = !muted; $("mutebtn").textContent = muted ? "🔇" : "🔊";
-  jukeAudio.volume = muted ? 0 : 0.5;
+  jukeApplyVol();
   if (profile) { profile.muted = muted; localStorage.setItem(LS_KEY, JSON.stringify(profile)); }
   if (!muted) sfxClick();
 };
@@ -790,6 +790,25 @@ function startSwVideos() {
 function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
+/* iOS Safari ignores .volume on media elements, so the club's 50% runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
+let jukeGain = null;
+function jukeWireGain() {
+  if (jukeGain) return true;
+  try {
+    const c = ac(); if (!c) return false;
+    const srcNode = c.createMediaElementSource(jukeAudio);
+    const g = c.createGain();
+    g.gain.value = muted ? 0 : 0.5;
+    g.connect(c.destination); srcNode.connect(g);
+    jukeGain = g;
+    jukeAudio.volume = 1; /* the gain node does the 50% now */
+    return true;
+  } catch (e) { return false; }
+}
+function jukeApplyVol() {
+  if (jukeGain) { jukeAudio.volume = 1; try { jukeGain.gain.value = muted ? 0 : 0.5; } catch (e) {} }
+  else jukeAudio.volume = muted ? 0 : 0.5;
+}
 let clubState = null;
 function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
 function syncJuke() {
@@ -798,13 +817,13 @@ function syncJuke() {
   if (jukeAudio.dataset.k !== key) {
     jukeAudio.dataset.k = key;
     jukeAudio.src = "assets/music/" + SONGS[clubState.idx][0] + ".mp3";
-    jukeAudio.volume = muted ? 0 : 0.5;
+    jukeApplyVol();
     jukeAudio.onloadedmetadata = () => {
       const pos = (Date.now() - (clubState.ts || Date.now())) / 1000;
       if (pos > 0.5 && pos < jukeAudio.duration - 1) { try { jukeAudio.currentTime = pos; } catch (e) {} }
-      if (me.scene === "club") jukeAudio.play().catch(() => {});
+      if (me.scene === "club") { jukeWireGain(); jukeAudio.play().catch(() => {}); }
     };
-  } else if (me.scene === "club" && jukeAudio.paused) jukeAudio.play().catch(() => {});
+  } else if (me.scene === "club" && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
 }
 function pickSong(i) {
   if (!db) return;
