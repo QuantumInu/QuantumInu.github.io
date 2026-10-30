@@ -3679,7 +3679,8 @@ function drawSlots(t) {
     ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
     const a = slotAnim[i], spinning = a && performance.now() < a.endsAt;
     const st = slotState && slotState[mch.id];
-    const syms = spinning ? [0, 1, 2].map(r => SLOTSYMS[Math.floor(Math.random() * SLOTSYMS.length)]) : (a && a.paid ? a.fin : (st && st.syms ? st.syms : ["⚛", "⚛", "⚛"]));
+    let syms = spinning ? [0, 1, 2].map(r => SLOTSYMS[Math.floor(Math.random() * SLOTSYMS.length)]) : (a && a.paid ? a.fin : (st && st.syms ? st.syms : ["⚛", "⚛", "⚛"]));
+    if (!Array.isArray(syms) || syms.length !== 3 || syms.some(s => !s)) syms = ["⚛", "⚛", "⚛"]; /* display guard (Jonathan 2026-10-30): a stored line from the old blank-strip build can still hold "" — or lose a symbol — so never draw an empty reel slot; show the neutral idle line instead. Display only: spinMachine, the bag, pay logic and the stored state are all untouched */
     ctx.font = "42px sans-serif"; ctx.textAlign = "center";
     ctx.fillStyle = "#ffffff"; /* the atom is a text-presentation glyph on some systems and took the window's near-black fill — invisible (his report 2026-10-28); white paint + the emoji form fix it */
     syms.forEach((s, r) => ctx.fillText(s === "⚛" ? "⚛️" : s, mch.x + mch.w * (0.25 + r * 0.25), mch.y + 80));
