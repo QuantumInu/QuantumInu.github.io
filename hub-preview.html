@@ -430,19 +430,16 @@ function gymThemeTick(tick) {
   if (step % 2 === 0) tone(ch[[0, 2, 3, 2][step / 2]] * 4, 0, 0.22, "triangle", 0.010); /* arp sparkle */
 }
 /* the score-triggered crowd swell that used to answer a point here (gymCrowdSwell — a bandpass sweep 500→1100Hz, added with the room themes) was removed at Jonathan's word (2026-10-29, "just remove the recently added swish"): a point keeps its original sting + cheer, but the swell never fires */
-/* casino: Dm9 – G13 – Cmaj9 – A7 lounge changes — a gentle root/third bass walk, brush ticks on the off-steps, one soft sparkle per chord, and (added at Jonathan's word 2026-10-30, "add a string that makes sense") a short bowed-string line: a little phrase of soft detuned-sawtooth notes across the bar, every note taken from the current chord so it always fits the changes, with rests between phrases — it livens the loop without ever becoming a bed. The long sustained string pad that used to swell under it was removed at Jonathan's word (2026-10-29, "remove the long string instrument") and STAYS removed — no padChord in this theme; the other rooms' pads are untouched */
+/* casino: Dm9 – G13 – Cmaj9 – A7 lounge changes — a gentle root/third bass walk, brush ticks on the off-steps, one soft sparkle per chord. The long sustained string pad that used to swell under it was removed at Jonathan's word (2026-10-29, "remove the long string instrument") — the pad layer is gone from this theme only; the other rooms' pads are untouched */
 const CASINO_CHORDS = [
   [146.8, 174.6, 261.6, 329.6], [98.0, 123.5, 174.6, 329.6],
   [130.8, 164.8, 246.9, 293.7], [110.0, 138.6, 196.0, 329.6]
 ];
-const CASINO_STR = { 0: 2, 3: 3, 6: 1, 10: 3, 13: 2 }; /* the string line's phrase map: step -> chord-tone index (notes sound on these steps only, rests between) */
 function casinoThemeTick(tick) {
   const ci = Math.floor(tick / 16) % 4, ch = CASINO_CHORDS[ci], step = tick % 16;
   if (step % 4 === 0) tone(ch[[0, 1, 0, 2][step / 4]], 0, 1.7, "triangle", 0.020); /* slow bass walk */
   if (step % 4 === 2) noiseBurst(0.09, "highpass", 5000, 5000, 0.005); /* brush chick */
   if (step === 8) tone(ch[3] * 4, 0, 1.4, "sine", 0.006); /* one soft high sparkle per chord */
-  const si = CASINO_STR[step]; /* bowed-string line: one chord tone an octave up, voiced as a detuned sawtooth pair so it reads as a string; ~1.5s per note so consecutive notes overlap slightly, legato-style, well under the bass */
-  if (si !== undefined) { const sf = ch[si] * 2; tone(sf * 0.998, 0, 1.5, "sawtooth", 0.0035); tone(sf * 1.002, 0, 1.5, "sawtooth", 0.0035); }
 }
 function startMusic() {
   if (musicOn) return; musicOn = true;
@@ -2660,6 +2657,7 @@ function drawTableFx(t, sc) {
   });
 }
 let mySeat = null, mySeatPos = null;
+let leftSeat = null; /* the seat standUpAll just freed ({game, idx}): until its removal has echoed back into the local snapshot, reclaimSeat must not adopt that record again — it is a chair the player deliberately left, not one a reload lost (ghost-seat fix, 2026-10-30) */
 const settledKeys = new Set();
 function casinoListen() {
   if (!db || casinoHooked) return; casinoHooked = true;
@@ -2688,12 +2686,17 @@ function seatOD(game, idx, on) {
 function reclaimSeat() {
   /* after a reload the in-page seat is forgotten but the seat record may still carry this browser's id: adopt it back automatically — same chair, same table, bet untouched */
   if (!db || !entered || me.scene !== "casino") return;
+  if (leftSeat) { /* the leave-guard lives only while the record I removed is still echoing: once the snapshot shows that chair gone or in other hands, the guard has done its job */
+    const lst = leftSeat.game === "bj" ? bjState : leftSeat.game === "rr" ? rrState : null;
+    const lrec = leftSeat.game === "slot" ? (slotSeats && slotSeats[slotKey(leftSeat.idx)]) : (lst && lst.seats && lst.seats[leftSeat.idx]);
+    if (!lrec || lrec.pid !== myId) leftSeat = null;
+  }
   const scan = (seats, n, game, poss) => {
     if (!seats) return false;
-    for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId && Date.now() - (s.ts || 0) <= 25000) { mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true; } }
+    for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId && !(leftSeat && leftSeat.game === game && leftSeat.idx === i) && Date.now() - (s.ts || 0) <= 25000) { mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true; } }
     return false;
   };
-  for (let i = 0; i < SLOTM.length; i++) { const s = slotSeats && slotSeats[slotKey(i)]; if (s && s.pid === myId && Date.now() - (s.ts || 0) <= 25000) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; } } /* slot seat records are keyed by machine id, not draw index */
+  for (let i = 0; i < SLOTM.length; i++) { const s = slotSeats && slotSeats[slotKey(i)]; if (s && s.pid === myId && !(leftSeat && leftSeat.game === "slot" && leftSeat.idx === i) && Date.now() - (s.ts || 0) <= 25000) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; } } /* slot seat records are keyed by machine id, not draw index */
   if (scan(bjState && bjState.seats, 5, "bj", BJSEATS)) return;
   scan(rrState && rrState.seats, 5, "rr", RRSEATS);
 }
@@ -2702,16 +2705,17 @@ function seatBeat() {
   if (mySeat.game === "slot") {
     const s = slotSeats && slotSeats[slotKey(mySeat.idx)];
     if (!s || s.pid !== myId) { mySeat = null; mySeatPos = null; return; }
-    tblUpd("slotseats/" + slotKey(mySeat.idx), { ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+    tblUpd("slotseats/" + slotKey(mySeat.idx), { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* the heartbeat carries my full identity, not just ts/chips: if a removal lands server-side just before this update, the update recreates a COMPLETE record that still names me — never a pid-less husk that renders occupied yet matches nobody (ghost-seat fix, 2026-10-30) */
     return;
   }
   const st = mySeat.game === "bj" ? bjState : rrState;
   const s = st && st.seats && st.seats[mySeat.idx];
   if (!s || s.pid !== myId) { mySeat = null; mySeatPos = null; return; }
-  tblUpd(mySeat.game + "/seats/" + mySeat.idx, { ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+  tblUpd(mySeat.game + "/seats/" + mySeat.idx, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* same full-identity heartbeat as slots (update merges, so bet/hand/ready on the record are untouched) */
 }
 function sitDown(game, idx) {
   pullChips(); /* about to play: the counter goes on the server amount first */
+  leftSeat = null; /* an explicit sit ends any leave-guard: the player is choosing a chair now */
   if (mySeat && mySeat.game !== game) return false;
   const st = game === "bj" ? bjState : rrState;
   const seats = (st && st.seats) || {};
@@ -2719,22 +2723,24 @@ function sitDown(game, idx) {
   for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId) { mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true; } }
   const tryClaim = i => {
     const s = seats[i];
-    if (s && Date.now() - (s.ts || 0) <= 25000) return false;
+    if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) return false; /* only a pid-bearing fresh record is a player: a pid-less husk never blocks a claim (ghost-seat fix, 2026-10-30) */
     tblSet(game + "/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
     mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true;
   };
   if (idx !== undefined && idx !== null) return tryClaim(idx);
   /* no forced chair: the free chair nearest to where the player is standing */
   let best = -1, bestD = 1e12;
-  for (let i = 0; i < n; i++) { const s = seats[i]; if (!s || Date.now() - (s.ts || 0) > 25000) { const d = Math.hypot(me.x - poss[i].x, me.y - poss[i].y); if (d < bestD) { bestD = d; best = i; } } }
+  for (let i = 0; i < n; i++) { const s = seats[i]; if (!s || !s.pid || Date.now() - (s.ts || 0) > 25000) { const d = Math.hypot(me.x - poss[i].x, me.y - poss[i].y); if (d < bestD) { bestD = d; best = i; } } }
   return best >= 0 ? tryClaim(best) : false;
 }
 function standUpAll() {
   if (!mySeat) return;
   const g = mySeat.game, i = mySeat.idx;
+  leftSeat = { game: g, idx: i }; /* mark the chair BEFORE anything else: until the removal echoes back, reclaimSeat must not hand this seat straight back (ghost-seat fix, 2026-10-30) */
   if (g === "slot") {
     const s = slotSeats && slotSeats[slotKey(i)];
-    if (s && s.pid === myId) tblSet("slotseats/" + slotKey(i), null);
+    /* free the chair for real: remove the record unless the freshest snapshot proves a DIFFERENT player holds it fresh right now. The old code removed it only when the local snapshot happened to show my pid at that instant, so any snapshot lag — or a pid-less leftover record — silently skipped the removal while mySeat cleared and the disconnect release was cancelled: the chair stayed "taken" under a ghost */
+    if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet("slotseats/" + slotKey(i), null);
     seatOD("slot", i, false);
     mySeat = null; mySeatPos = null;
     return;
@@ -2745,8 +2751,8 @@ function standUpAll() {
     /* leaving after the game has started forfeits the spot: the bet stays in and the hand is out */
     if (g === "bj" && (st.phase === "play" || st.phase === "deal") && s.bet) noteCasino("🚪 You left mid-hand — your spot and bet are forfeited.");
     if (g === "rr" && st.phase === "spin" && s.bet) noteCasino("🚪 You left mid-spin — your spot and bet are forfeited.");
-    tblSet(g + "/seats/" + i, null);
   }
+  if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet(g + "/seats/" + i, null); /* same unconditional free as slots: only a snapshot-proven fresh record in somebody else's name survives my stand-up */
   seatOD(g, i, false);
   mySeat = null; mySeatPos = null;
 }
@@ -2754,10 +2760,11 @@ function standUpAll() {
 function sitAtSlot(i) {
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   pullChips();
+  leftSeat = null; /* an explicit sit ends any leave-guard: the player is choosing a chair now */
   if (mySeat) { if (!(mySeat.game === "slot" && mySeat.idx === i)) noteCasino("Stand up from the other table first."); return; }
   const s = slotSeats && slotSeats[slotKey(i)];
   if (s && s.pid === myId) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; }
-  if (s && Date.now() - (s.ts || 0) <= 25000) { noteCasino("That machine is taken."); return; }
+  if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteCasino("That machine is taken."); return; } /* only a pid-bearing fresh record is a player — a pid-less husk never blocks, and a record carrying MY pid was already re-seated by the branch above, so my own chair can never tell me it is taken (ghost-seat fix, 2026-10-30) */
   tblSet("slotseats/" + slotKey(i), { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
   mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true);
 }
@@ -2819,8 +2826,8 @@ function bjHostTick() {
   if (!bjState) { tblSet("bj", { phase: "bet", seats: {}, dealer: [], handId: 0, startReq: 0, ts: Date.now() }); return; }
   const hi = bjHostSeat(); if (hi < 0 || bjState.seats[hi].pid !== myId) return;
   const st = bjState, now = Date.now(), seats = st.seats || {};
-  Object.keys(seats).forEach(k => { if (now - (seats[k].ts || 0) > 25000 && !seats[k].bet) tblSet("bj/seats/" + k, null); });
-  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && now - (seats[i].ts || 0) < 25000);
+  Object.keys(seats).forEach(k => { if (!seats[k].pid || (now - (seats[k].ts || 0) > 25000 && !seats[k].bet)) tblSet("bj/seats/" + k, null); }); /* a pid-less husk is reaped on sight, not after 25s (ghost-seat fix, 2026-10-30) */
+  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
   const bettors = fresh.filter(i => seats[i].bet > 0).sort((a, b) => a - b);
   if (st.phase === "bet") {
     /* a hand starts only when a seated player presses START GAME — no auto-deal timer.
@@ -2905,8 +2912,8 @@ function rouletteHostTick() {
   if (!rrState) { tblSet("rr", { phase: "bet", seats: {}, spinId: 0, ts: Date.now() }); return; }
   const hi = rouletteHostSeat(); if (hi < 0 || rrState.seats[hi].pid !== myId) return;
   const st = rrState, now = Date.now(), seats = st.seats || {};
-  Object.keys(seats).forEach(k => { if (now - (seats[k].ts || 0) > 25000 && !seats[k].bet) tblSet("rr/seats/" + k, null); });
-  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && now - (seats[i].ts || 0) < 25000);
+  Object.keys(seats).forEach(k => { if (!seats[k].pid || (now - (seats[k].ts || 0) > 25000 && !seats[k].bet)) tblSet("rr/seats/" + k, null); }); /* a pid-less husk is reaped on sight, not after 25s (ghost-seat fix, 2026-10-30) */
+  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000); /* pid-less husks never count toward the all-ready gate (ghost-seat fix, 2026-10-30) */
   const bettors = fresh.filter(i => seats[i].bet > 0);
   const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0); /* rdy alone never counts: readiness requires holding a bet, so a stale flag on an empty seat can't fire the wheel */
   if (st.phase === "bet") {
@@ -2947,7 +2954,7 @@ function tableIdleClear(game, st, resetVal) {
   if (!st) return;
   const now = Date.now(), seats = st.seats || {};
   const keys = Object.keys(seats).filter(k => seats[k]);
-  const fresh = keys.filter(k => now - (seats[k].ts || 0) < 25000);
+  const fresh = keys.filter(k => seats[k].pid && now - (seats[k].ts || 0) < 25000); /* pid-less husks are not seated players: they must not hold a table open (ghost-seat fix, 2026-10-30) */
   if (fresh.length) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
   const dirty = st.phase !== "bet" || keys.some(k => seats[k].bet > 0) || !!st.firstBetTs;
   if (!dirty) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
@@ -2965,8 +2972,9 @@ function spinMachine(i) {
   if (!mySeat || mySeat.game !== "slot" || mySeat.idx !== i) { noteCasino("🪑 Sit at the machine to play."); return; }
   if (!profile || (profile.chips || 0) < slotBet) { noteCasino("Not enough chips for a " + slotBet + " bet."); return; }
   addChips(-slotBet);
-  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⚛"]; /* retuned 2026-10-29 at his word — option 1: pay rules frozen byte-identical (side-by-side pairs only, trips 10x, atom trips 50x, any atom returns the bet); the bag is now the balanced mix cherry/lemon/bell/gem/star x40 + atom x1 (N=201): exactly 36.9505% any-credit, RTP 1.0414x (was 39.1477% / 1.0505x on the 13/13/12/12/11/1 bag, and 49.7942% / 1.2774x on the original bag) */
-  const fin = [0, 1, 2].map(() => bag[Math.floor(Math.random() * bag.length)]);
+  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⚛"]; /* reels 1-2 draw from this bag: the balanced mix cherry/lemon/bell/gem/star x40 + atom x1 (N=201), set 2026-10-29 (option 1). Reel 3 draws from a 266-stop strip (the same 201 paying stops + 65 blanks), added at his word 2026-10-30 to lower the hit rate and make three in a row rarer. Pay branches below are unchanged (side-by-side pairs only, trips 10x, atom trips 50x, any atom returns the bet). Exact enumerated figures for the strip model: any-credit 33.0025%, trips 2.9777%, RTP 0.8862x (from 36.9505% / 3.9406% / 1.0414x when all three reels drew from this bag) */
+  const strip3 = bag.concat(new Array(65).fill("")); /* reel 3 only: a longer 266-stop strip — the same 201 paying stops plus 65 blanks; a blank ("") cannot pair, cannot trip and is not an atom, so the third reel completes a line less often */
+  const fin = [bag[Math.floor(Math.random() * bag.length)], bag[Math.floor(Math.random() * bag.length)], strip3[Math.floor(Math.random() * strip3.length)]];
   let pay = 0;
   if (fin[0] === "⚛" && fin[1] === "⚛" && fin[2] === "⚛") pay = slotBet * 50;
   else if (fin[0] === fin[1] && fin[1] === fin[2]) pay = slotBet * 10;
@@ -3439,7 +3447,7 @@ function feltBase(tb, label) {
 }
 function drawSeatsRow(list, st, game) {
   list.forEach((s, i) => {
-    const occ = st && st.seats && st.seats[i] && Date.now() - (st.seats[i].ts || 0) < 25000;
+    const occ = st && st.seats && st.seats[i] && st.seats[i].pid && Date.now() - (st.seats[i].ts || 0) < 25000; /* a chair is occupied only by a pid-bearing fresh record: a pid-less husk paints free and stays tappable (ghost-seat fix, 2026-10-30) */
     /* a free chair is a tap target: sit in exactly this chair, never an auto-assigned one */
     if (!occ && game && !mySeat && me.scene === "casino") {
       const nearIt = game === "bj" ? nearBJ() : game === "rr" ? nearRR() : nearSlot() === i;
