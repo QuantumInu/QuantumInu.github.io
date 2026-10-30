@@ -1406,12 +1406,15 @@ const cv = $("game"), ctx = cv.getContext("2d");
 /* ============ GRAPHICS levels (Jonathan 2026-10-30) ============
    A 4-step graphics picker on the welcome screen (#gfxbar in the welcome
    box, under the top Enter button) replaces the old auto-detect LITE mode.
-   Everyone starts at 2/4 on every page load — phone and desktop alike; the
-   choice is session state only (gfxLevel below; nothing is saved).
+   First visit: desktops start at 4/4, phones at 2/4 (phone = coarse
+   pointer or a mobile user agent — the retired LITE mode's detection).
+   The picked level is saved in this browser (localStorage
+   "quantum-hub-gfx") and a saved level wins over the device default on
+   every later load, a plain refresh included.
      1/4 — pixel-ratio cap 1,   glow blur OFF, decor stepped ~15fps
-     2/4 — pixel-ratio cap 1.5, glow blur OFF, decor full rate  (default)
+     2/4 — pixel-ratio cap 1.5, glow blur OFF, decor full rate  (phone default)
      3/4 — pixel-ratio cap 2,   glow blur OFF, decor full rate
-     4/4 — pixel-ratio cap 2,   glow blur ON,  decor full rate (the original)
+     4/4 — pixel-ratio cap 2,   glow blur ON,  decor full rate (the original; desktop default)
    The three levers, all derived from gfxLevel:
    1) the canvas pixel-density cap in resize() (GFX_DPR_CAPS);
    2) glow blur: shadowBlur is the priciest canvas effect on a phone GPU,
@@ -1421,7 +1424,22 @@ const cv = $("game"), ctx = cv.getContext("2d");
    3) decorative animation time stepped to ~15fps via decorT() at level 1
       only (ambient motion only — gameplay, movement, ball rendering and
       every synced/srvNow() timeline keep real time at every level). */
-let gfxLevel = 2;
+const GFX_LS_KEY = "quantum-hub-gfx";
+function gfxDeviceDefault() {
+  let phone = false;
+  try { phone = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (e) {}
+  if (!phone) { try { phone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || ""); } catch (e) {} }
+  return phone ? 2 : 4;
+}
+function gfxSavedLevel() {
+  try {
+    const raw = localStorage.getItem(GFX_LS_KEY);
+    const v = Number(raw);
+    if (raw !== null && String(raw).trim() !== "" && Number.isInteger(v) && v >= 1 && v <= 4) return v;
+  } catch (e) {}
+  return 0;
+}
+let gfxLevel = gfxSavedLevel() || gfxDeviceDefault();
 const GFX_DPR_CAPS = [1, 1.5, 2, 2];
 function gfxApplyBlur() {
   try {
@@ -1435,6 +1453,7 @@ function gfxHighlight() {
 }
 function setGfxLevel(n) {
   gfxLevel = Math.min(4, Math.max(1, n | 0));
+  try { localStorage.setItem(GFX_LS_KEY, String(gfxLevel)); } catch (e) {}
   gfxApplyBlur();
   if (typeof resize === "function") resize();
   gfxHighlight();
