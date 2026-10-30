@@ -75,6 +75,16 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #sendtokgo{flex:1;background:linear-gradient(135deg,var(--gold),#e8a33d);border:none;color:#23180a;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #sendtokgo:disabled{opacity:.45;cursor:default}
 #sendtokcancel{flex:1;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
+#vipquiz{position:absolute;inset:52px 0 0 0;background:rgba(2,6,18,.45);z-index:36;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#vipquizpanel{background:var(--panel);border:2px solid rgba(255,215,106,.65);border-radius:18px;width:min(440px,96vw);display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,215,106,.30)}
+#vipquizpanel h2{margin:0 0 2px;font-size:21px;color:var(--gold);text-align:center}
+#vipquizsub{margin:0 0 10px;color:#9fd8ea;font-size:13.5px;text-align:center}
+#vipq{margin:0 0 10px;color:#fff;font-size:16.5px;font-weight:700;text-align:center;line-height:1.4}
+#vipchoices{display:flex;flex-direction:column;gap:7px}
+.vipchoice{background:rgba(255,255,255,.05);border:1px solid rgba(255,215,106,.45);color:#ffe9a8;border-radius:12px;padding:10px 12px;font-size:15px;font-weight:700;text-align:center;cursor:pointer;font-family:inherit}
+.vipchoice:active{transform:scale(.98)}
+#vipmsg{min-height:19px;color:#ffd76a;font-size:13.5px;font-weight:700;text-align:center;margin-top:9px}
+#vipclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:none}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
@@ -183,6 +193,14 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
       <button id="sendtokcancel" type="button">Cancel</button>
       <button id="sendtokgo" type="button">Send</button>
     </div>
+  </div></div>
+  <div id="vipquiz" aria-hidden="true"><div id="vipquizpanel">
+    <h2>⭐ VIP Lounge</h2>
+    <p id="vipquizsub">🤖 Q-Bot guards this door. Answer one question about the Hub to get in.</p>
+    <p id="vipq"></p>
+    <div id="vipchoices"></div>
+    <p id="vipmsg"></p>
+    <button id="vipclose" type="button">Walk away</button>
   </div></div>
   <div id="chatbar">
     <button id="micbtn" title="Tap to talk — tap again to mute">🎤</button>
@@ -389,6 +407,7 @@ const sfxStep = () => tone(180 + Math.random() * 60, 120, 0.05, "triangle", 0.02
 const sfxWin = (k) => { k = k || 1; tone(880, 880, 0.1, "sine", 0.07 * k); tone(1108, 1108, 0.1, "sine", 0.07 * k, 0.07); tone(1318, 1318, 0.16, "sine", 0.08 * k, 0.14); tone(1760, 1760, 0.22, "sine", 0.05 * k, 0.2); };
 const sfxBigWin = (k) => { k = k || 1; [784, 988, 1175, 1568, 2093].forEach((f, i) => tone(f, f, 0.16, "triangle", 0.07 * k, i * 0.09)); tone(2637, 2637, 0.3, "sine", 0.05 * k, 0.48); };
 const sfxLose = () => tone(220, 150, 0.28, "sine", 0.05);
+const sfxBad = () => tone(196, 130, 0.22, "sawtooth", 0.05); /* the refusal buzz — called by the tab-lock warning and the chat-block path since before this build but never defined until now (PREVIEW fix: those paths threw a ReferenceError after their visible effect); the VIP guard's wrong answer uses it too */
 const sfxPush = () => tone(520, 520, 0.08, "triangle", 0.04);
 const sfxTick = () => tone(1250, 900, 0.03, "square", 0.014);
 const sfxCard = () => tone(280 + Math.random() * 120, 170, 0.05, "triangle", 0.028);
@@ -481,7 +500,7 @@ function startMusic() {
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
   let tick = 0;
   setInterval(() => {
-    if (muted || audioHeld || !entered || (me.scene === "club" && clubSongActive())) return;
+    if (muted || audioHeld || !entered || ((me.scene === "club" || me.scene === "vip") && clubSongActive())) return; /* the VIP lounge runs on the club's jukebox, not the room theme */
     const sc = me.scene;
     if (sc === "arcade") { arcadeAmb(); tick++; return; }
     if (sc === "theatre") {
@@ -919,9 +938,9 @@ function syncJuke() {
     jukeAudio.onloadedmetadata = () => {
       const pos = (Date.now() - (clubState.ts || Date.now())) / 1000;
       if (pos > 0.5 && pos < jukeAudio.duration - 1) { try { jukeAudio.currentTime = pos; } catch (e) {} }
-      if (me.scene === "club") { jukeWireGain(); jukeAudio.play().catch(() => {}); }
+      if (me.scene === "club" || me.scene === "vip") { jukeWireGain(); jukeAudio.play().catch(() => {}); } /* the VIP lounge hears the club's song too — same shared state (hub/club), same sync point */
     };
-  } else if (me.scene === "club" && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
+  } else if ((me.scene === "club" || me.scene === "vip") && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
 }
 function pickSong(i) {
   if (!db) return;
@@ -959,7 +978,7 @@ $("jukeclose").onclick = closeJuke;
 $("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
 if (db) db.ref("hub/club").on("value", s => { clubState = s.val(); syncJuke(); updateJukePanel(); });
 /* ============ player / world ============ */
-const WORLD = { w: 3200, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south */
+const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south. PREVIEW (2026-10-30): the plaza grows RIGHT by 1140 for the Quantum Horse Track building east of the Sports Complex and the swimming pool east of the casino — again, nothing existing moved, the ground just extends east */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
 const me = { name: "", hero: 0, scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
 let entered = false;
@@ -984,8 +1003,50 @@ function slotSeatView() { const v = {}; SLOTM.forEach((m, i) => { const s = slot
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
 const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 80, w: 124, h: 44 }; /* plate raised above the gold border line (Jonathan 2026-10-29) */
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
+/* ============ the plaza swimming pool (PREVIEW, Jonathan 2026-10-30) ============
+   Scenery in the open ground east of the casino, beside its building, on the
+   plaza's new eastern ground: a pool with an extravagant rock waterfall on its
+   north edge and a little rock archway over its east end. The WATER is walkable
+   (wading — it is not an obstacle); the waterfall rocks and the archway ARE
+   solid (they are in plaza obstacles). Nothing existing moved to make room. */
+const POOL = { x: 3260, y: 1080, w: 920, h: 400 }; /* the stone deck's outer edge — its south rim meets the plaza path's top edge */
+const POOLW = { x: 3306, y: 1126, w: 828, h: 308 }; /* the water itself, inset by the deck rim */
+const FALLS = { x: 3540, y: 990, w: 360, h: 150 }; /* the waterfall rockwork, straddling the pool's north edge — solid */
+const ARCH = { x: 4030, y: 1210, w: 130, h: 190 }; /* the little rock archway over the water's east end — solid */
 const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
 const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
+/* ============ Quantum Horse Track (PREVIEW, Jonathan 2026-10-30) ============
+   A third race building east of the Sports Complex, on the plaza's new eastern
+   ground (WORLD grew right to hold it). Mirrors the gym's footprint and door
+   offsets exactly. Inside: a gallery room — a fenced oval track up top, the
+   betting table in the gallery below it. Scene id "track". */
+const HR_B = { x: 3270, y: 170, w: 1000, h: 340 };
+const HRDOOR = { x: 3725, y: 470, w: 90, h: 34 };
+const TRACKROOM = { w: 2500, h: 1600 };
+const TREXIT = { x: TRACKROOM.w / 2 - 62, y: TRACKROOM.h - 58, w: 124, h: 44 };
+const TRACKFIELD = { x: 240, y: 60, w: 2020, h: 1000 }; /* the fenced track grounds — solid scenery; the gallery strip below it is the walkable room */
+const HR_CX1 = 760, HR_CX2 = 1740, HR_CY = 560; /* the oval's spine, same stadium math as the Speedway ring */
+const HR_LANES = [252, 314, 376, 438]; /* lane radii, inside out — one per horse */
+const HR_HORSES = [
+  { col: "#e33b3b", dark: "#8f1f1f", name: "RED" },
+  { col: "#3b6fe3", dark: "#1f3f8f", name: "BLUE" },
+  { col: "#f2c531", dark: "#9a7a14", name: "YELLOW" },
+  { col: "#35c24a", dark: "#1c7029", name: "GREEN" }
+]; /* the Speedway car colours, as horses (Jonathan's spec) */
+const HRT = { x: 800, y: 1090, w: 900, h: 280 }; /* the betting table in the gallery */
+const HRSEATS = [0, 1, 2, 3, 4].map(i => ({ x: HRT.x + 110 + i * 170, y: HRT.y + HRT.h + 100 })); /* five chairs below the felt, the casino tables' arrangement (a touch higher than the casino's +150 so the middle chair's chips pill clears the exit plate in this smaller room) */
+function hrPerimeter(R) { return 2 * (HR_CX2 - HR_CX1) + 2 * Math.PI * R; }
+function hrRingPos(d, R) { /* a point d units along the oval from the start line (bottom straight, west end), running east along the bottom, up the east cap, west along the top, down the west cap — one full lap is hrPerimeter(R) */
+  const L = HR_CX2 - HR_CX1, cap = Math.PI * R, P = 2 * L + 2 * cap;
+  d = ((d % P) + P) % P;
+  if (d < L) return { x: HR_CX1 + d, y: HR_CY + R };
+  d -= L;
+  if (d < cap) { const a = Math.PI / 2 - d / R; return { x: HR_CX2 + Math.cos(a) * R, y: HR_CY + Math.sin(a) * R }; }
+  d -= cap;
+  if (d < L) return { x: HR_CX2 - d, y: HR_CY - R };
+  d -= L;
+  const a = -Math.PI / 2 - d / R; return { x: HR_CX1 + Math.cos(a) * R, y: HR_CY + Math.sin(a) * R };
+}
 const GYMROOM = { w: 3600, h: 2400 };
 const GEXIT = { x: GYMROOM.w / 2 - 62, y: GYMROOM.h - 58, w: 124, h: 44 };
 /* ============ Quantum Speedway (Jonathan 2026-10-29, preview) ============ */
@@ -1071,6 +1132,16 @@ const JUKE = { x: 296, y: 1170, w: 104, h: 148 };
 const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
 const DJBOOTH = { x: STAGE.x + STAGE.w / 2 - 150, y: STAGE.y + 168, w: 300, h: 92 }; /* the DJ booth, centred on the club stage (Jonathan 2026-10-30). A working DJ spot (same day, his follow-up): only the counter's front slab DJFRONT below is a club obstacle — it blocks walking THROUGH the counter from either side, while the strip directly behind the counter stays open floor, reached by walking around either end of the booth. A player standing in that strip is the DJ (atDJBooth): frame() repaints the booth over their lower body so their head pokes up behind it, and they get the jukebox's song picker from there. */
 const DJFRONT = { x: DJBOOTH.x, y: DJBOOTH.y + 56, w: DJBOOTH.w, h: DJBOOTH.h - 56 }; /* the booth's solid front, from just under the deck top down. From the front, feet still stop at DJBOOTH.y + DJBOOTH.h + 30 (exactly where the full booth used to stop them); from behind, feet stop at DJBOOTH.y + 26 — inside the counter's screen area, which is what lets the booth hide a DJ's lower body */
+/* ============ VIP lounge (PREVIEW, Jonathan 2026-10-30) ============
+   A small lounge west of Club Quantum, through a door in the club's LEFT wall
+   (the arcade-to-theatre door's twin). Q-Bot stands guard at the door inside
+   the club; the door opens only for a player who answers one Hub quiz question
+   (see VIP_QUIZ). Scene id "vip". The club's synced jukebox carries into the
+   lounge, and the room joins the per-room voice model like every other room. */
+const VIPDOOR = { y: 420, half: 64 }; /* the door zone in the club's left wall, between the bar counter and the first booth row */
+const VIPROOM = { w: 1500, h: 1100 };
+const VIPBAR = { x: 56, y: 76, w: 500, h: 60 }; /* the lounge's own little bar counter, in the club bars' style */
+const VIPBOOTH = [{ x: 56, y: 420, w: 210, h: 190 }, { x: 56, y: 700, w: 210, h: 190 }]; /* two private booths down the west wall, the club booths' style */
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
 const PORTAL = { x: 1600, y: 2080 }; /* moved 2026-10-29: from the west lawn (430,620) to its own circle directly below the spawn roundabout, on a new purple spur path */
@@ -1102,9 +1173,11 @@ const STAGE_WALLS = [
 const booths = [];
 [520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B, SPD_B];
+  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B, SPD_B, HR_B, FALLS, ARCH]; /* HR_B: the horse track building; FALLS + ARCH: the swimming pool's rockwork — the pool water itself is deliberately NOT here, it is walkable wading */
+  if (me.scene === "vip") return [VIPBAR];
+  if (me.scene === "track") return [TRACKFIELD, HRT]; /* the fenced track grounds and the betting table itself, exactly as the casino tables are solid in their room */
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE, DJFRONT];
   if (me.scene === "hq") return [...HQSCREENS];
@@ -1121,14 +1194,22 @@ function collide(nx, ny) {
     if (nx > CASINODOOR.x - 6 && nx < CASINODOOR.x + CASINODOOR.w + 6 && ny > SIL_R.y + SIL_R.h - 14 && ny < SIL_R.y + SIL_R.h + 46) return { x: nx, y: ny, casinodoor: true };
     if (nx > GYMDOOR.x - 6 && nx < GYMDOOR.x + GYMDOOR.w + 6 && ny > GYM_B.y + GYM_B.h - 14 && ny < GYM_B.y + GYM_B.h + 46) return { x: nx, y: ny, gymdoor: true };
     if (nx > SPDDOOR.x - 6 && nx < SPDDOOR.x + SPDDOOR.w + 6 && ny > SPD_B.y + SPD_B.h - 14 && ny < SPD_B.y + SPD_B.h + 46) return { x: nx, y: ny, spddoor: true };
+    if (nx > HRDOOR.x - 6 && nx < HRDOOR.x + HRDOOR.w + 6 && ny > HR_B.y + HR_B.h - 14 && ny < HR_B.y + HR_B.h + 46) return { x: nx, y: ny, hrdoor: true };
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
     if (nx > EXIT.x - 4 && nx < EXIT.x + EXIT.w + 4 && ny > ROOM.h - 76) return { x: nx, y: ny, exit: true };
     nx = Math.max(56, Math.min(ROOM.w - 56, nx)); ny = Math.max(70, Math.min(ROOM.h - 46, ny));
   } else if (me.scene === "club") {
+    if (nx < 66 && Math.abs(ny - VIPDOOR.y) < VIPDOOR.half) return { x: nx, y: ny, vipdoor: true }; /* the VIP door in the left wall — the theatre door's test, mirrored (walk into the wall inside the zone and the door takes you) */
     if (nx > CEXIT.x - 4 && nx < CEXIT.x + CEXIT.w + 4 && ny > CLUBROOM.h - 76) return { x: nx, y: ny, clubexit: true };
     nx = Math.max(56, Math.min(CLUBROOM.w - 56, nx)); ny = Math.max(70, Math.min(CLUBROOM.h - 46, ny));
+  } else if (me.scene === "vip") {
+    if (nx > VIPROOM.w - 66 && Math.abs(ny - VIPDOOR.y) < VIPDOOR.half) return { x: nx, y: ny, vipback: true }; /* the return door in the lounge's right wall, at the same height as the club door it answers */
+    nx = Math.max(56, Math.min(VIPROOM.w - 56, nx)); ny = Math.max(70, Math.min(VIPROOM.h - 46, ny));
+  } else if (me.scene === "track") {
+    if (nx > TREXIT.x - 4 && nx < TREXIT.x + TREXIT.w + 4 && ny > TRACKROOM.h - 76) return { x: nx, y: ny, trackexit: true };
+    nx = Math.max(56, Math.min(TRACKROOM.w - 56, nx)); ny = Math.max(70, Math.min(TRACKROOM.h - 46, ny));
   } else if (me.scene === "hq") {
     nx = Math.max(56, Math.min(HQROOM.w - 56, nx)); ny = Math.max(70, Math.min(HQROOM.h - 46, ny));
   } else if (me.scene === "casino") {
@@ -1574,7 +1655,7 @@ function joyMove(e) {
 let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0;
 cv.addEventListener("pointerdown", e => {
   if (!entered) return;
-  if (me.scene === "casino" && uiZones.length) {
+  if ((me.scene === "casino" || me.scene === "track") && uiZones.length) { /* the horse table's buttons live in the same uiZones the casino tables use */
     const r0 = cv.getBoundingClientRect();
     const wx = (e.clientX - r0.left) / SCALE + camX, wy = (e.clientY - r0.top) / SCALE + camY;
     for (const z of uiZones) { if (wx >= z.x && wx <= z.x + z.w && wy >= z.y && wy <= z.y + z.h) { z.fn(); sfxClick(); return; } }
@@ -3072,6 +3153,173 @@ function tableIdleClear(game, st, resetVal) {
   if (!st.emptyTs) { tblUpd(game, { emptyTs: now }); return; }
   if (now - st.emptyTs > 6000) tblSet(game, resetVal); /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears */
 }
+/* ============ Quantum Horse Track: the betting table (PREVIEW, Jonathan 2026-10-30) ============
+   The casino tables' pattern, carried to the gallery: a shared table record at
+   hub/tables/hr, five seats, the lowest fresh seat hosts. A race starts only
+   when EVERY fresh seated player holds a bet and a picked horse and has tapped
+   READY (the casino gate, mirrored). The host writes the outcome ONCE on the
+   shared server-time timeline — winner, per-horse finish times, a seed and the
+   start instant (srvNow) — and every screen animates the same run off that one
+   record, exactly like the roulette spin. A winning bet pays 3-to-1 the real
+   way: the winner receives 4x their bet TOTAL (stake back plus 3x winnings)
+   through settleOnce/addChips, the normal chips path. Standing up during the
+   betting phase refunds in full (the casino rule); the table resets the moment
+   the last seat record leaves, any phase (tableIdleClear). */
+let hrState = null, hrSeat = -1, hrSeatPos = null, hrLeft = -1; /* hrLeft: the chair hrStandUp just freed — the reload reclaim must not hand it straight back (the casino ghost-seat rule, mirrored) */
+let hrFxSince = 0, hrFxDone = 0, trackHooked = false;
+let hrNote = "", hrNoteAt = 0;
+function noteHr(txt) { hrNote = txt; hrNoteAt = performance.now(); }
+function trackListen() {
+  if (!db || trackHooked) return; trackHooked = true;
+  db.ref("hub/tables/hr").on("value", s => { hrState = s.val(); hrFxCheck(); hrSettle(); });
+  setInterval(() => { if (entered && me.scene === "track" && db) hrHostTick(); }, 900);
+  setInterval(hrSeatBeat, 4000);
+}
+function myHrSeat() { return hrSeat >= 0 ? (hrState && hrState.seats && hrState.seats[hrSeat]) : null; }
+function hrSettle() { const st = hrState; if (st && st.phase === "done" && hrSeat >= 0 && st.results && st.results[hrSeat]) settleOnce("hr" + st.raceId + "-" + hrSeat, st.results[hrSeat].amt || 0); }
+function hrFxCheck() {
+  const st = hrState;
+  if (!st || st.phase !== "done" || !st.doneTs || st.doneTs === hrFxDone) return;
+  const fresh = Date.now() - st.doneTs < 5000 && st.doneTs >= hrFxSince;
+  hrFxDone = st.doneTs;
+  if (!fresh || me.scene !== "track") return;
+  const wp = hrHorsePos(st.winner || 0, srvNow());
+  fxBurst(wp.x, wp.y - 20, true, "track");
+  fxText(HR_CX1 + (HR_CX2 - HR_CX1) / 2, HR_CY - 30, "🏆 " + HR_HORSES[st.winner || 0].name + " WINS!", "#ffd76a", "track");
+  const mine = hrSeat >= 0 ? st.seats && st.seats[hrSeat] : null, res = hrSeat >= 0 && st.results ? st.results[hrSeat] : null;
+  if (mine && res && hrSeatPos) { /* hrSeatPos is set by every sit/reclaim path alongside hrSeat; the guard keeps this fx pass from ever throwing on a half-adopted seat */
+    if (res.amt > 0) { fxBurst(hrSeatPos.x, hrSeatPos.y - 46, res.amt >= 4000, "track"); fxText(hrSeatPos.x, hrSeatPos.y - 104, "+🪙 " + res.amt.toLocaleString(), "#ffd76a", "track"); if (res.amt >= 4000) sfxBigWin(1); else sfxWin(1); }
+    else if ((mine.bet || 0) > 0) { fxPuff(hrSeatPos.x, hrSeatPos.y - 46, "track"); sfxLose(); }
+  }
+}
+function hrProgress(h, srvT) { /* one horse's race progress 0..1, a pure function of the shared record — every screen computes the identical run */
+  const st = hrState;
+  if (!st || !st.times || st.phase === "bet") return 0;
+  const u = (srvT - (st.startTs || 0)) / st.times[h];
+  if (u <= 0) return 0;
+  if (u >= 1) return 1;
+  const burst = Math.sin(u * Math.PI * 2 * (1 + (h % 3)) + ((st.seed || 0) % 628) / 100 + h * 1.7) * 0.03 * (1 - u); /* a mid-race surge that dies out at the line, so it can never change who finishes first */
+  return Math.max(0, Math.min(1, Math.pow(u, 0.92) + burst));
+}
+function hrHorsePos(h, srvT) {
+  const R = HR_LANES[h], st = hrState;
+  /* a frozen race with nobody seated must never present as a live race (the casino tables' resting rule): with no fresh seat the field stands at rest, whatever the stored phase says, until the idle reset clears the state itself */
+  const live = !!(st && st.seats && Object.keys(st.seats).some(k => st.seats[k] && st.seats[k].pid && Date.now() - (st.seats[k].ts || 0) < 25000));
+  const racing = live && st && (st.phase === "race" || st.phase === "done") && st.times;
+  const d = racing ? hrProgress(h, srvT) * hrPerimeter(R) : h * 48; /* at rest the field stands staggered at the start line */
+  return hrRingPos(d, R);
+}
+function hrNear() { return me.scene === "track" && (Math.hypot(me.x - (HRT.x + HRT.w / 2), me.y - (HRT.y + HRT.h + 60)) < 470 || nearSeatOf(HRSEATS)); }
+function hrSitAt(i) {
+  if (!acctUser) { noteHr("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  pullChips(); /* about to play: the counter goes on the server amount first */
+  hrLeft = -1; /* an explicit sit ends any leave-guard */
+  if (hrSeat >= 0) { if (hrSeat !== i) noteHr("Stand up from your seat first."); return; }
+  const s = hrState && hrState.seats && hrState.seats[i];
+  if (s && s.pid === myId) { hrSeat = i; hrSeatPos = HRSEATS[i]; mySeatPos = hrSeatPos; seatOD("hr", i, true); return; }
+  if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHr("That seat is taken."); return; } /* only a pid-bearing fresh record is a player — a pid-less husk never blocks (the casino rule) */
+  tblSet("hr/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, pick: -1, chips: profile ? (profile.chips || 0) : 0 });
+  hrSeat = i; hrSeatPos = HRSEATS[i]; mySeatPos = hrSeatPos; seatOD("hr", i, true);
+}
+function hrTrySit() {
+  if (!acctUser) { noteHr("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  if (hrSeat >= 0) return;
+  const seats = (hrState && hrState.seats) || {};
+  let best = -1, bestD = 1e12;
+  for (let i = 0; i < 5; i++) { const s = seats[i]; if (!s || !s.pid || Date.now() - (s.ts || 0) > 25000) { const d = Math.hypot(me.x - HRSEATS[i].x, me.y - HRSEATS[i].y); if (d < bestD) { bestD = d; best = i; } } }
+  if (best >= 0) hrSitAt(best); else noteHr("All seats are taken.");
+}
+function hrStandUp() {
+  if (hrSeat < 0) return;
+  const i = hrSeat;
+  hrLeft = i; /* mark the chair BEFORE anything else, like standUpAll — the reclaim must not hand it back */
+  const st = hrState, s = st && st.seats && st.seats[i];
+  if (s && s.pid === myId) {
+    /* standing up BEFORE the race starts never costs the stake (the casino rule, mirrored): the bet was charged at bet time, so it is handed back before the chair is freed */
+    if (st.phase === "bet" && s.bet) { addChips(s.bet); noteHr("🚪 You stood up — your " + s.bet + " bet was returned."); }
+    if (st.phase === "race" && s.bet) noteHr("🚪 You left mid-race — your spot and bet are forfeited.");
+  }
+  if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet("hr/seats/" + i, null);
+  seatOD("hr", i, false);
+  hrSeat = -1; hrSeatPos = null; mySeatPos = null;
+}
+function hrSeatBeat() {
+  if (!db || !entered || me.scene !== "track") return;
+  if (hrSeat < 0) { /* reload reclaim: adopt my own fresh seat record back — same chair, bet untouched (the casino rule, mirrored) */
+    if (hrLeft >= 0) { const ls = hrState && hrState.seats && hrState.seats[hrLeft]; if (!ls || ls.pid !== myId) hrLeft = -1; }
+    const seats = (hrState && hrState.seats) || {};
+    for (let i = 0; i < 5; i++) { const s = seats[i]; if (s && s.pid === myId && i !== hrLeft && Date.now() - (s.ts || 0) <= 25000) { hrSeat = i; hrSeatPos = HRSEATS[i]; mySeatPos = hrSeatPos; seatOD("hr", i, true); return; } }
+    return;
+  }
+  const s = hrState && hrState.seats && hrState.seats[hrSeat];
+  if (!s || s.pid !== myId) { hrSeat = -1; hrSeatPos = null; mySeatPos = null; return; }
+  tblUpd("hr/seats/" + hrSeat, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* full-identity heartbeat, exactly as the casino seats */
+}
+function hrBet(amt) {
+  const st = hrState, mine = myHrSeat();
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteHr("🔒 Playing takes an account — guests can watch."); return; }
+  const prev = mine.bet || 0;
+  if (prev === amt) return; /* tapping the amount already staked changes nothing (blackjack's rule) */
+  if (!profile || (profile.chips || 0) + prev < amt) { noteHr("Not enough chips for that bet."); return; }
+  if (prev) addChips(prev); /* changing the amount re-stakes the bet: the old stake comes back before the new one is charged */
+  addChips(-amt);
+  if (!st.firstBetTs) tblUpd("hr", { firstBetTs: Date.now() });
+  tblUpd("hr/seats/" + hrSeat, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
+  mine.bet = amt; /* mirror my own write locally at once, as the casino bets do */
+  sfxClick();
+}
+function hrPick(h) {
+  const st = hrState, mine = myHrSeat();
+  if (!st || st.phase !== "bet" || !mine || h < 0 || h > 3) return;
+  if (!acctUser) { noteHr("🔒 Playing takes an account — guests can watch."); return; }
+  tblUpd("hr/seats/" + hrSeat, { pick: h, ts: Date.now() });
+  mine.pick = h; /* mirror locally at once, as the casino writes do */
+  sfxClick();
+}
+/* the READY button (the casino check, mirrored): lit only while the seated player holds a bet AND a picked horse; the race runs when every fresh seated player is ready (see hrHostTick). Tapping again un-readies. */
+function hrReady() {
+  const st = hrState, mine = myHrSeat();
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteHr("🔒 Playing takes an account — guests can watch."); return; }
+  if (!(mine.bet > 0) || !(mine.pick >= 0)) return;
+  const nr = !mine.rdy;
+  tblUpd("hr/seats/" + hrSeat, { rdy: nr, ts: Date.now() });
+  mine.rdy = nr;
+  sfxClick();
+}
+function hrHostSeat() { const st = hrState; if (!st || !st.seats) return -1; const ks = Object.keys(st.seats).map(Number).sort((a, b) => a - b); for (const i of ks) { const s = st.seats[i]; if (s && Date.now() - (s.ts || 0) < 25000) return i; } return -1; }
+function hrHostTick() {
+  if (!hrState) { tblSet("hr", { phase: "bet", seats: {}, raceId: 0, ts: Date.now() }); return; }
+  if (!["bet", "race", "done"].includes(hrState.phase)) { tblSet("hr", { phase: "bet", seats: {}, raceId: hrState.raceId || 0, ts: Date.now() }); return; } /* a foreign-shaped node soft-locks the table forever — any visitor resets it (the casino guard) */
+  tableIdleClear("hr", hrState, { phase: "bet", seats: {}, raceId: hrState.raceId || 0, ts: Date.now() }); /* the last seat leaving resets the table on the spot, any phase; stale leftovers clear on the backstop */
+  const hi = hrHostSeat(); if (hi < 0 || hrState.seats[hi].pid !== myId) return;
+  const st = hrState, now = Date.now(), seats = st.seats || {};
+  Object.keys(seats).forEach(k => { if (!seats[k].pid || (now - (seats[k].ts || 0) > 25000 && !seats[k].bet)) tblSet("hr/seats/" + k, null); }); /* a pid-less husk is reaped on sight (the casino rule) */
+  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
+  const bettors = fresh.filter(i => seats[i].bet > 0);
+  const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0 && seats[i].pick >= 0); /* ready counts only alongside a real bet on a picked horse */
+  if (st.phase === "bet") {
+    if (fresh.length && ready.length === fresh.length) {
+      /* the outcome is drawn ONCE, here, and written on the shared timeline: winner, each horse's finish time, a seed for the mid-race surges, and the start instant on server time (srvNow — the roulette rule: one clock for every screen) */
+      const winner = Math.floor(Math.random() * 4);
+      const wT = 8200 + Math.floor(Math.random() * 900);
+      const times = [0, 1, 2, 3].map(h => h === winner ? wT : Math.round(wT * (1.06 + Math.random() * 0.16)));
+      tblUpd("hr", { phase: "race", winner, times, seed: Math.floor(Math.random() * 1000000000), startTs: srvNow() + 1500, results: null, msg: "" });
+    }
+  } else if (st.phase === "race" && srvNow() - (st.startTs || 0) > Math.max(...(st.times || [0])) + 700) {
+    const results = {};
+    bettors.forEach(i => {
+      const s = seats[i];
+      const amt = s.pick === st.winner ? (s.bet || 0) * 4 : 0; /* 3-to-1, the real-life way: the winner receives 4x the bet TOTAL — stake back plus 3x winnings */
+      results[i] = { res: amt ? ("🎉 " + HR_HORSES[st.winner].name + " wins — WIN +" + amt) : "no win", amt };
+    });
+    tblUpd("hr", { phase: "done", results, doneTs: now });
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 3500) {
+    Object.keys(seats).forEach(i => tblUpd("hr/seats/" + i, { bet: 0, pick: -1, rdy: false })); /* every race starts un-ready with nothing down (the casino recycle) */
+    tblUpd("hr", { phase: "bet", results: null, raceId: (st.raceId || 0) + 1, firstBetTs: 0, msg: "" });
+  }
+}
 /* ---- slots: the machine itself is the interface ---- */
 const SLOTSYMS = ["🍒", "🍋", "🔔", "💎", "⭐", "⚛"];
 let slotAnim = {}, slotBet = 10;
@@ -3125,8 +3373,8 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 
 /* ============ online list ============ */
 /* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot is excluded (Jonathan: "Exclude the bots") — neither of his presence records (plaza or Watchtower HQ) is listed or counted, so the roster and the Online button count people only and always agree. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
-const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "hq", "casino", "gym", "speedway"];
-const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway" };
+const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "vip", "hq", "casino", "gym", "speedway", "track"];
+const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track" };
 let onlineSig = "";
 function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
@@ -3352,6 +3600,79 @@ function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; voiceReset
 function toPlazaFromTheatre() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = BUILDING.x + BUILDING.w + 50; me.y = BUILDING.y - 25; sfxChime(); publish(true); }
 function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
 function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
+/* ============ VIP lounge: the quiz gate (PREVIEW, Jonathan 2026-10-30) ============
+   The door in the club's left wall is guarded by Q-Bot (drawn at his post in
+   the club by frame()'s actor pass). Using the door pops ONE random question
+   from the pool below — Hub questions only, approved verbatim. A right answer
+   earns the pass for the rest of this Hub visit (a plain local flag: a fresh
+   visit — a page reload — is asked again); a wrong answer turns the player
+   away. The pool is EXACTLY these twenty: [question, correct, ...distractors]. */
+const VIP_QUIZ = [
+  ["Who walks the plaza answering questions?", "Q-Bot", "King QI", "The Dealer", "DJ QI"],
+  ["In Hub chat, asking Q-Bot a question starts with…", "/bot", "/ask", "/hey", "/qi"],
+  ["Which of these is a real Hub room?", "Club Quantum", "The Moon Vault", "Inu Tower", "Atom Arena"],
+  ["How many slot machines stand in the casino?", "11", "5", "8", "22"],
+  ["What colour is roulette's special row?", "Green", "Gold", "Purple", "Blue"],
+  ["In roulette, the green bet is on which number?", "0", "7", "13", "36"],
+  ["What do you bet with in the Hub casino?", "Chips", "Real SOL", "Cash", "Gems"],
+  ["A table game starts when every seated player taps…", "READY", "START", "GO", "DEAL"],
+  ["Where do you pick the club's music?", "The DJ booth", "The bar", "The door", "The fountain"],
+  ["The club with the jukebox is called…", "Club Quantum", "Club Atom", "The Quantum Lounge", "Inu Club"],
+  ["How many cars race at the Speedway?", "4", "2", "6", "8"],
+  ["Which is NOT a Speedway car colour?", "Purple", "Red", "Blue", "Green"],
+  ["Holding BOOST at the Speedway makes your car…", "Faster", "Slower", "Louder", "Bigger"],
+  ["Which sport is NOT in the Sports Complex?", "Golf", "Basketball", "Soccer", "Tennis"],
+  ["Who referees the Sports Complex games?", "Q-Bot", "The owner", "The dealer", "Nobody"],
+  ["The theatre plays which videos?", "Daily Life QI", "Music videos", "Race replays", "The news"],
+  ["The Watchtower is…", "The QI headquarters", "A shop", "A bank", "A garage"],
+  ["You reach the HQ through…", "The plaza portal", "The club door", "The casino", "The theatre"],
+  ["What colour is the spawn circle in the plaza?", "Purple", "Gold", "Green", "Red"],
+  ["Who is hero 72 in the picker?", "Q-Bot", "The owner", "King QI", "A guest"]
+];
+let vipPass = false; /* this visit only — deliberately never saved anywhere */
+let vipQuizIdx = -1; /* the question currently on the panel (-1 = panel closed) */
+let guardBubble = "", guardBubbleAt = 0; /* the guard's speech bubble, set by the quiz outcomes — rendered by frame()'s actor pass for everyone on THIS screen */
+function vipGuardSay(txt) { guardBubble = txt; guardBubbleAt = Date.now(); }
+function openVipQuiz() {
+  vipQuizIdx = Math.floor(Math.random() * VIP_QUIZ.length);
+  const q = VIP_QUIZ[vipQuizIdx];
+  $("vipq").textContent = q[0];
+  $("vipmsg").textContent = "";
+  const box = $("vipchoices"); box.innerHTML = "";
+  const order = [1, 2, 3, 4];
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = order[i]; order[i] = order[j]; order[j] = tmp; } /* the four choices, shuffled — the correct answer lands in a random slot */
+  order.forEach(srcIdx => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "vipchoice"; b.textContent = q[srcIdx];
+    b.onclick = () => vipAnswer(srcIdx === 1);
+    box.appendChild(b);
+  });
+  $("vipquiz").style.display = "flex"; $("vipquiz").setAttribute("aria-hidden", "false");
+  sfxPop();
+}
+function closeVipQuiz() { vipQuizIdx = -1; $("vipquiz").style.display = "none"; $("vipquiz").setAttribute("aria-hidden", "true"); }
+$("vipclose").onclick = () => { closeVipQuiz(); sfxClick(); };
+$("vipquiz").addEventListener("click", e => { if (e.target === $("vipquiz")) closeVipQuiz(); });
+function vipAnswer(correct) {
+  if (vipQuizIdx < 0) return;
+  if (correct) {
+    vipPass = true;
+    closeVipQuiz();
+    vipGuardSay("✅ Come on in.");
+    sfxChime();
+    toVip();
+  } else {
+    closeVipQuiz();
+    vipGuardSay("⛔ Members only.");
+    sfxBad();
+    me.x = Math.min(me.x + 90, CLUBROOM.w - 56); publish(true); /* turned away: a step back east, out of the doorway, so the door does not instantly re-ask */
+  }
+}
+function tryVipDoor() { if (vipPass) toVip(); else openVipQuiz(); }
+function toVip() { stopAllTones(); me.scene = "vip"; voiceReset(); me.x = VIPROOM.w - 150; me.y = VIPDOOR.y; sfxChime(); publish(true); syncJuke(); }
+function toClubFromVip() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = 140; me.y = VIPDOOR.y; sfxChime(); publish(true); syncJuke(); }
+function toTrack() { stopAllTones(); me.scene = "track"; voiceReset(); me.x = TRACKROOM.w / 2; me.y = TRACKROOM.h - 170; sfxChime(); publish(true); trackListen(); hrFxSince = Date.now(); pullChips(); }
+function toPlazaFromTrack() { stopAllTones(); hrStandUp(); me.scene = "plaza"; voiceReset(); me.x = 3770; me.y = HR_B.y + HR_B.h + 60; sfxChime(); publish(true); }
 function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
@@ -3604,6 +3925,124 @@ function drawSpeedwayBuilding(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(SPDDOOR.x, SPD_B.y + SPD_B.h - 40, SPDDOOR.w, 40, 6); ctx.stroke();
   ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("▼ ENTER ▼", SPDDOOR.x + SPDDOOR.w / 2, SPD_B.y + SPD_B.h + 62);
+}
+/* ============ the Quantum Horse Track building (plaza, east side — the Sports Complex's neighbour, PREVIEW) ============ */
+function drawTrackBuilding(t) {
+  const b = HR_B, cx = b.x + b.w / 2;
+  /* deep racing-green facade with gold trim — the Sports Complex's language, turf colours */
+  const fg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+  fg.addColorStop(0, "#123f27"); fg.addColorStop(1, "#0a2417");
+  ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  /* gold roof band with a horseshoe finial */
+  ctx.fillStyle = "#7a5a14"; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.stroke();
+  ctx.font = "26px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🧲", cx, b.y - 48); /* the golden horseshoe over the door line */
+  /* chasing gold bulbs along the roof edge */
+  for (let i = 0, bx = b.x + 30; bx <= b.x + b.w - 20; bx += 44, i++) {
+    ctx.fillStyle = ((i + Math.floor(t / 420)) % 2) ? "#ffd76a" : "#b8860b";
+    ctx.beginPath(); ctx.arc(bx, b.y - 12, 5, 0, 7); ctx.fill();
+  }
+  /* marquee */
+  ctx.fillStyle = "#04160d"; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.stroke();
+  for (let i = 0; i < 16; i++) {
+    ctx.fillStyle = (Math.floor(t / 420) + i) % 2 ? "#ffd76a" : "#2eff8c";
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 48, 4.5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 124, 4.5, 0, 7); ctx.fill();
+  }
+  ctx.font = "800 37px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#ffd76a" : "#ffecb0";
+  ctx.fillText("🐎 QUANTUM HORSE TRACK 🐎", cx, b.y + 101);
+  /* tall windows with a turf-green glow */
+  const winX = [0.10, 0.26].map(fx => b.x + b.w * fx).concat([0.26, 0.10].map(fx => b.x + b.w - b.w * fx - 92));
+  ctx.fillStyle = "rgba(46,255,140,0.16)";
+  for (const wx of winX) { rr(wx, b.y + 168, 92, 108, 8); ctx.fill(); }
+  ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 1.5;
+  for (const wx of winX) { rr(wx, b.y + 168, 92, 108, 8); ctx.stroke(); }
+  /* four stable doors in the horse colours along the front */
+  HR_HORSES.forEach((h, i) => {
+    const dx = b.x + 120 + i * 210, dy = b.y + b.h - 108;
+    ctx.fillStyle = "#06231a"; rr(dx, dy, 92, 96, 8); ctx.fill();
+    ctx.strokeStyle = h.col; ctx.lineWidth = 3; rr(dx, dy, 92, 96, 8); ctx.stroke();
+    ctx.font = "30px sans-serif"; ctx.fillText("🐴", dx + 46, dy + 58);
+  });
+  /* golden door, gold light spilling out */
+  const gdy = HR_B.y + HR_B.h - 40;
+  const gdg = ctx.createLinearGradient(0, gdy, 0, gdy + 104);
+  gdg.addColorStop(0, "rgba(255,215,106,0.55)"); gdg.addColorStop(1, "rgba(255,215,106,0)");
+  ctx.fillStyle = gdg; ctx.fillRect(HRDOOR.x - 8, gdy - 6, HRDOOR.w + 16, 104);
+  ctx.fillStyle = "#0a1428"; rr(HRDOOR.x, HR_B.y + HR_B.h - 40, HRDOOR.w, 40, 6); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(HRDOOR.x, HR_B.y + HR_B.h - 40, HRDOOR.w, 40, 6); ctx.stroke();
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
+  ctx.fillText("▼ ENTER ▼", HRDOOR.x + HRDOOR.w / 2, HR_B.y + HR_B.h + 62);
+}
+/* ============ the plaza swimming pool (PREVIEW): stone deck, wading water, rock waterfall, rock archway ============ */
+function drawPlazaPool(t) {
+  const P = POOL, W = POOLW;
+  /* the stone deck */
+  ctx.fillStyle = "#3d4356"; rr(P.x - 14, P.y - 14, P.w + 28, P.h + 28, 26); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2.5; rr(P.x - 14, P.y - 14, P.w + 28, P.h + 28, 26); ctx.stroke();
+  ctx.fillStyle = "#565e73"; rr(P.x, P.y, P.w, P.h, 20); ctx.fill();
+  ctx.strokeStyle = "rgba(10,16,36,0.5)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 20); ctx.stroke();
+  /* deck joints, the plaza's stone language */
+  ctx.strokeStyle = "rgba(10,16,36,0.28)"; ctx.lineWidth = 1.5;
+  for (let x = P.x + 92; x < P.x + P.w - 10; x += 92) { ctx.beginPath(); ctx.moveTo(x, P.y + 8); ctx.lineTo(x, P.y + 38); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, P.y + P.h - 38); ctx.lineTo(x, P.y + P.h - 8); ctx.stroke(); }
+  /* the water: fountain blues, lighter at the heart, with drifting shimmer and slow ripple rings — pure decor, it is walked through, not around */
+  const wg = ctx.createRadialGradient(W.x + W.w / 2, W.y + W.h / 2, 30, W.x + W.w / 2, W.y + W.h / 2, W.w * 0.62);
+  wg.addColorStop(0, "#2f7fc4"); wg.addColorStop(0.7, "#1d5da8"); wg.addColorStop(1, "#17467e");
+  ctx.fillStyle = wg; rr(W.x, W.y, W.w, W.h, 14); ctx.fill();
+  ctx.strokeStyle = "rgba(190,240,255,0.55)"; ctx.lineWidth = 2; rr(W.x, W.y, W.w, W.h, 14); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.rect(W.x + 3, W.y + 3, W.w - 6, W.h - 6); ctx.clip();
+  for (let i = 0; i < 26; i++) { /* sun-sparkle drifting on the surface (deterministic, like the fountains) */
+    const sx = W.x + 20 + Math.abs(Math.sin(i * 127.1 + Math.floor(t / 2400))) * (W.w - 40);
+    const sy = W.y + 16 + Math.abs(Math.sin(i * 311.7) ) * (W.h - 32);
+    const tw = 0.18 + 0.30 * (0.5 + 0.5 * Math.sin(t / 300 + i * 1.9));
+    ctx.fillStyle = "rgba(255,255,255," + tw + ")";
+    ctx.beginPath(); ctx.ellipse(sx, sy, 7 + (i % 3) * 3, 2.4, 0, 0, 7); ctx.fill();
+  }
+  for (let k = 0; k < 3; k++) { /* slow ripple rings, the fountains' loop */
+    const rp = ((t / 2600) + k / 3) % 1;
+    ctx.strokeStyle = "rgba(200,245,255," + (0.30 * (1 - rp)) + ")"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(W.x + W.w * 0.36, W.y + W.h * 0.55, 16 + rp * 130, (16 + rp * 130) * 0.42, 0, 0, 7); ctx.stroke();
+  }
+  ctx.restore();
+  /* the waterfall: an extravagant pile of boulders on the north edge, water pouring off it into the pool */
+  const F = FALLS;
+  function boulder(bx, by, br, tone) {
+    ctx.fillStyle = tone; ctx.beginPath(); ctx.arc(bx, by, br, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(10,16,36,0.45)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.13)"; ctx.beginPath(); ctx.arc(bx - br * 0.3, by - br * 0.35, br * 0.38, 0, 7); ctx.fill();
+  }
+  boulder(F.x + 40, F.y + 118, 62, "#5a4a3a"); boulder(F.x + F.w - 40, F.y + 118, 62, "#534334");
+  boulder(F.x + 105, F.y + 96, 74, "#66553f"); boulder(F.x + F.w - 105, F.y + 96, 74, "#5f4c38");
+  boulder(F.x + F.w / 2, F.y + 66, 92, "#6e5a41");
+  boulder(F.x + F.w / 2 - 88, F.y + 40, 52, "#77644a"); boulder(F.x + F.w / 2 + 88, F.y + 40, 52, "#77644a");
+  boulder(F.x + F.w / 2, F.y + 8, 56, "#827052"); /* the crown boulder the water pours over */
+  ctx.font = "26px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌿", F.x + 66, F.y + 30); ctx.fillText("🌿", F.x + F.w - 66, F.y + 30);
+  /* the cascade: bright falling streaks off the crown rock, and foam where it lands */
+  const casX = F.x + F.w / 2, casTop = F.y + 40, casBot = W.y + 26;
+  for (let i = 0; i < 9; i++) {
+    const off = (i - 4) * 13, ph = ((t / 620) + i / 9) % 1;
+    ctx.strokeStyle = "rgba(190,240,255," + (0.75 - ph * 0.3) + ")"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(casX + off * 0.6, casTop); ctx.quadraticCurveTo(casX + off, casTop + (casBot - casTop) * 0.55, casX + off * 1.5, casBot); ctx.stroke();
+  }
+  for (let i = 0; i < 7; i++) {
+    const fp = ((t / 900) + i / 7) % 1;
+    ctx.fillStyle = "rgba(255,255,255," + (0.5 * (1 - fp)) + ")";
+    ctx.beginPath(); ctx.ellipse(casX + (hashN(i * 3.3 + 5) - 0.5) * 120, casBot + 4, 10 + fp * 26, (10 + fp * 26) * 0.36, 0, 0, 7); ctx.fill();
+  }
+  /* the little rock archway over the water's east end: two boulder pillars and a boulder lintel — solid rockwork (ARCH is the obstacle), the gap under the lintel is drawn open over the water */
+  const A = ARCH;
+  boulder(A.x + 24, A.y + A.h - 22, 34, "#66553f"); boulder(A.x + 24, A.y + A.h - 78, 30, "#5f4c38"); boulder(A.x + 24, A.y + 52, 27, "#6e5a41");
+  boulder(A.x + A.w - 24, A.y + A.h - 22, 34, "#66553f"); boulder(A.x + A.w - 24, A.y + A.h - 78, 30, "#5f4c38"); boulder(A.x + A.w - 24, A.y + 52, 27, "#6e5a41");
+  boulder(A.x + 32, A.y + 22, 30, "#77644a"); boulder(A.x + A.w / 2, A.y + 12, 34, "#827052"); boulder(A.x + A.w - 32, A.y + 22, 30, "#77644a");
+  ctx.font = "24px sans-serif"; ctx.fillText("🌺", A.x + A.w / 2, A.y - 16);
+  /* the name, gold on the deck's south rim */
+  ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = "#ffd76a"; ctx.fillText("🏊 QUANTUM POOL", P.x + P.w / 2, P.y + P.h - 14);
+  /* two palms at the deck's south corners, the casino palms' idiom */
+  ctx.font = "46px sans-serif"; ctx.fillText("🌴", P.x + 34, P.y + P.h - 26); ctx.fillText("🌴", P.x + P.w - 34, P.y + P.h - 26);
 }
 /* ============ casino rendering: the tables are the game ============ */
 let uiZones = [];
@@ -3872,6 +4311,145 @@ function drawSlots(t) {
       ctx.fillText(near === i ? "🪑 sit down to play" : "👆 walk up to play", mch.x + mch.w / 2, mch.y + 216);
     }
   });
+}
+/* ============ inside the Quantum Horse Track (PREVIEW) ============ */
+function hrStadiumPath(R) {
+  ctx.beginPath();
+  ctx.moveTo(HR_CX1, HR_CY - R); ctx.lineTo(HR_CX2, HR_CY - R);
+  ctx.arc(HR_CX2, HR_CY, R, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(HR_CX1, HR_CY + R);
+  ctx.arc(HR_CX1, HR_CY, R, Math.PI / 2, Math.PI * 1.5);
+  ctx.closePath();
+}
+function drawHrHorse(h, t) {
+  const st = hrState, pos = hrHorsePos(h, srvNow());
+  const racing = st && (st.phase === "race" || st.phase === "done") && st.times && hrProgress(h, srvNow()) > 0 && hrProgress(h, srvNow()) < 1;
+  const ahead = hrRingPos((racing || (st && st.phase === "race") ? hrProgress(h, srvNow()) * hrPerimeter(HR_LANES[h]) : h * 48) + 14, HR_LANES[h]);
+  const bob = racing ? -Math.abs(Math.sin(t / 88 + h * 1.35)) * 7 : Math.sin(t / 640 + h * 1.7) * 1.6; /* the gallop bounce while running, an idle sway at rest */
+  const won = st && st.phase === "done" && st.winner === h;
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(pos.x, pos.y + 6, 30, 9, 0, 0, 7); ctx.fill();
+  if (won) { ctx.strokeStyle = "rgba(255,215,106," + (0.6 + 0.4 * Math.sin(t / 240)) + ")"; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.ellipse(pos.x, pos.y + 6, 40, 13, 0, 0, 7); ctx.stroke(); }
+  ctx.fillStyle = HR_HORSES[h].col; ctx.beginPath(); ctx.ellipse(pos.x, pos.y + 2, 27, 8, 0, 0, 7); ctx.fill(); /* the racing silk under the horse, in its colour */
+  ctx.save(); ctx.translate(pos.x, pos.y - 16 + bob);
+  if (ahead.x > pos.x + 0.5) ctx.scale(-1, 1); /* the 🐎 glyph faces left; running east it is mirrored */
+  ctx.font = "54px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("🐎", 0, 14);
+  ctx.restore();
+  if (won) { ctx.font = "26px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🏆", pos.x, pos.y - 62 + bob); }
+  ctx.font = "800 14px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
+  ctx.strokeText(HR_HORSES[h].name, pos.x, pos.y + 30); ctx.fillStyle = HR_HORSES[h].col; ctx.fillText(HR_HORSES[h].name, pos.x, pos.y + 30);
+  ctx.restore();
+}
+function hrSeatsRow() {
+  const st = hrState;
+  HRSEATS.forEach((s, i) => {
+    const occ = st && st.seats && st.seats[i] && st.seats[i].pid && Date.now() - (st.seats[i].ts || 0) < 25000; /* the casino chairs' rule: only a pid-bearing fresh record occupies */
+    if (!occ && hrSeat < 0 && me.scene === "track" && hrNear()) uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => hrSitAt(i) });
+    ctx.fillStyle = occ ? "#ffd76a" : "#2e5d3a";
+    ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = occ ? "#fff2c4" : "rgba(255,215,106,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", s.x, s.y + 7);
+    if (occ && st.seats[i].chips !== undefined) {
+      const txt = "🪙 " + Number(st.seats[i].chips || 0).toLocaleString("en-US");
+      ctx.font = "700 19px 'Segoe UI',sans-serif";
+      const w = ctx.measureText(txt).width + 22;
+      ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(s.x - w / 2, s.y + 40, w, 30, 15); ctx.fill();
+      ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(s.x - w / 2, s.y + 40, w, 30, 15); ctx.stroke();
+      ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, s.x, s.y + 62);
+    }
+  });
+}
+function drawTrack(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  /* turf floor with mow stripes */
+  ctx.fillStyle = "#123f27"; ctx.fillRect(0, 0, TRACKROOM.w, TRACKROOM.h);
+  for (let x = 0; x < TRACKROOM.w; x += 156) { ctx.fillStyle = ((x / 156) % 2) ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)"; ctx.fillRect(x, 0, 156, TRACKROOM.h); }
+  ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 5; ctx.strokeRect(6, 6, TRACKROOM.w - 12, TRACKROOM.h - 12);
+  const st = hrState;
+  const liveHr = !!(st && st.seats && Object.keys(st.seats).some(k => st.seats[k] && st.seats[k].pid && Date.now() - (st.seats[k].ts || 0) < 25000));
+  /* the track: dirt oval, lane lines, grass infield */
+  hrStadiumPath(HR_LANES[3] + 40); ctx.fillStyle = "#6e5233"; ctx.fill();
+  hrStadiumPath(HR_LANES[3] + 34); ctx.fillStyle = "#8a6844"; ctx.fill();
+  hrStadiumPath(HR_LANES[0] - 40); ctx.fillStyle = "#175733"; ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 2; ctx.setLineDash([16, 12]);
+  for (let i = 0; i < 3; i++) { hrStadiumPath((HR_LANES[i] + HR_LANES[i + 1]) / 2); ctx.stroke(); }
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "rgba(255,215,106,0.85)"; ctx.lineWidth = 3.5; hrStadiumPath(HR_LANES[3] + 40); ctx.stroke(); /* the outer rail */
+  ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 2.5; hrStadiumPath(HR_LANES[0] - 40); ctx.stroke(); /* the inner rail */
+  /* the start/finish line across the bottom straight */
+  ctx.fillStyle = "#f6f2e8"; ctx.fillRect(HR_CX1 - 4, HR_CY + HR_LANES[0] - 34, 8, (HR_LANES[3] + 34) - (HR_LANES[0] - 34));
+  ctx.fillStyle = "#12233f"; for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 2; xx++) if ((xx + yy) % 2) ctx.fillRect(HR_CX1 - 4 + xx * 4, HR_CY + HR_LANES[0] - 34 + yy * ((HR_LANES[3] + 34 - HR_LANES[0] + 34) / 8), 4, (HR_LANES[3] + 34 - HR_LANES[0] + 34) / 8);
+  /* the infield atom, the plaza roundabout's mark at track scale */
+  ctx.save(); ctx.translate((HR_CX1 + HR_CX2) / 2, HR_CY);
+  ctx.strokeStyle = "rgba(46,255,140,0.35)"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 74, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 55, 20, 0, 0, 7); ctx.stroke(); ctx.restore(); }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill();
+  ctx.restore();
+  /* the horses, back markers first so the inside lanes paint over cleanly */
+  for (let h = 3; h >= 0; h--) drawHrHorse(h, t);
+  /* the gallery rail between the field and the betting strip */
+  ctx.fillStyle = "#7a5a14"; ctx.fillRect(180, 1064, 2140, 8);
+  for (let px = 200; px <= 2300; px += 100) ctx.fillRect(px, 1052, 6, 32);
+  uiZones = [];
+  /* the betting table */
+  feltBase(HRT, "🐎 HORSE TRACK");
+  const cx = HRT.x + HRT.w / 2;
+  ctx.textAlign = "center";
+  ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+  let status = "Setting up the table…";
+  if (st) {
+    if (!liveHr && st.phase !== "bet") status = "Place your bets — sit down, pick a horse & bet to start";
+    else if (st.phase === "bet") { const ss = st.seats || {}, nowS = Date.now(); const fr = Object.keys(ss).filter(k => ss[k] && ss[k].pid && nowS - (ss[k].ts || 0) < 25000); const bt = fr.filter(k => ss[k].bet > 0 && ss[k].pick >= 0); const rd = fr.filter(k => ss[k].rdy && ss[k].bet > 0 && ss[k].pick >= 0); status = bt.length ? "Waiting for everyone to tap READY — " + rd.length + "/" + fr.length + " ready" : "Place your bets — sit down, pick a horse & bet to start"; }
+    else if (st.phase === "race") status = srvNow() < (st.startTs || 0) ? "🏁 The horses are at the gate…" : "🏁 They're off!";
+    else if (st.phase === "done") status = "🏆 " + HR_HORSES[st.winner || 0].name + " WINS!";
+  }
+  ctx.fillText(status, cx, HRT.y + 96);
+  /* READY button: the casino tables' own — top-right on the title row, purple, dim until a bet and a horse are both down */
+  {
+    const mine0 = myHrSeat();
+    if (st && st.phase === "bet" && mine0) {
+      const hasBet = (mine0.bet || 0) > 0 && mine0.pick >= 0, isRdy = !!(mine0.rdy && hasBet);
+      drawBtn(HRT.x + HRT.w - 168, HRT.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? hrReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+    }
+  }
+  /* per-seat spots on the felt: the picked horse, the stake, the ready stamp, the result */
+  for (let i = 0; i < 5; i++) {
+    const s = st && st.seats && st.seats[i];
+    if (!s || Date.now() - (s.ts || 0) > 25000) continue;
+    const spx = HRT.x + 110 + i * 170, spy = HRT.y + HRT.h - 104;
+    if (st.phase === "done" && st.results && st.results[i]) {
+      ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
+      ctx.fillText(st.results[i].amt ? ("🎉 +" + st.results[i].amt.toLocaleString()) : "no win", spx, spy + 16);
+    } else {
+      if (s.pick >= 0) { ctx.fillStyle = HR_HORSES[s.pick].col; ctx.beginPath(); ctx.arc(spx - 24, spy, 14, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff2c4"; ctx.lineWidth = 2; ctx.stroke(); ctx.font = "15px sans-serif"; ctx.fillText("🐎", spx - 24, spy + 5); }
+      if (s.bet) drawChip(spx + 22, spy, s.bet);
+      if (s.rdy && st.phase === "bet") { ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", spx, spy + 32); }
+    }
+  }
+  hrSeatsRow();
+  /* my controls, on the felt: the horse picks and the casino tables' twelve amounts */
+  if (hrSeat >= 0 && st && st.phase === "bet" && myHrSeat()) {
+    const mine = myHrSeat();
+    HR_HORSES.forEach((hse, i) => drawBtn(cx - 320 + i * 163, HRT.y + 118, 154, 42, "🐎 " + hse.name, () => hrPick(i), { fs: 19, fill: hse.dark, color: "#ffffff", sel: mine.pick === i }));
+    const by = HRT.y + HRT.h - 66;
+    [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 308 + (k % 6) * 104, by + Math.floor(k / 6) * 26, 96, 22, "BET " + amt.toLocaleString("en-US"), () => hrBet(amt), { fs: 15 }));
+  }
+  drawTableFx(t, "track");
+  /* the note line, the casino note's twin */
+  if (hrNote && performance.now() - hrNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(hrNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(hrNote, me.x, me.y - 135);
+  }
+  /* exit door */
+  ctx.fillStyle = "#ffd76a"; rr(TREXIT.x, TREXIT.y, TREXIT.w, 10, 5); ctx.fill();
+  ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
+  ctx.fillText("▼ EXIT ▼", TREXIT.x + TREXIT.w / 2, TREXIT.y + 40);
+  ctx.restore();
 }
 function drawCasino(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
@@ -4154,10 +4732,10 @@ function drawPlaza(t) {
   const D = Math.sqrt(205 * 205 - 80 * 80); /* 188.7 — where the bars meet the circle */
   ctx.beginPath();
   ctx.moveTo(1520, 510); ctx.lineTo(1680, 510);
-  ctx.lineTo(1680, 670); ctx.lineTo(2550, 670); ctx.lineTo(2550, 460); ctx.lineTo(2710, 460); ctx.lineTo(2710, 830); ctx.lineTo(1680, 830);
+  ctx.lineTo(1680, 670); ctx.lineTo(2550, 670); ctx.lineTo(2550, 460); ctx.lineTo(2710, 460); ctx.lineTo(2710, 670); ctx.lineTo(3680, 670); ctx.lineTo(3680, 460); ctx.lineTo(3840, 460); ctx.lineTo(3840, 830); ctx.lineTo(1680, 830); /* the walkway runs on east past the gym's apron to the Horse Track's apron (PREVIEW — the plaza's eastern ground) */
   ctx.lineTo(1680, 1560 - D);
   ctx.arc(CX, 1560, 205, Math.atan2(-D, 80), Math.atan2(-80, D));
-  ctx.lineTo(3200, 1480); ctx.lineTo(3200, 1640); ctx.lineTo(CX + D, 1640);
+  ctx.lineTo(WORLD.w, 1480); ctx.lineTo(WORLD.w, 1640); ctx.lineTo(CX + D, 1640); /* the bottom walkway runs the plaza's full width — it now passes the swimming pool on the eastern ground */
   /* the HQ portal spur (2026-10-29): a 240-wide path runs off the roundabout's bottom to the portal's own circle below spawn */
   const PD = Math.sqrt(205 * 205 - 120 * 120); /* 166.2 — where the spur's edges meet the roundabout */
   ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(PD, 120));
@@ -4310,7 +4888,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ");
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawPlazaPool(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ");
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -4555,9 +5133,98 @@ function drawClub(t) {
   ctx.fillStyle = "#ff5d8f"; rr(CEXIT.x, CEXIT.y, CEXIT.w, 10, 5); ctx.fill();
   ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd3e2";
   ctx.fillText("▼ EXIT ▼", CEXIT.x + CEXIT.w / 2, CEXIT.y + 40);
+  /* the VIP door in the left wall (PREVIEW): a gold-trimmed door with a red carpet running from it into the room — Q-Bot's guard post is right beside it (frame()'s actor pass draws him). Walking into the wall here is the door (see collide's vipdoor zone and tryVipDoor's quiz gate) */
+  const vdy = VIPDOOR.y;
+  ctx.fillStyle = "#5c1031"; ctx.fillRect(56, vdy - 44, 150, 88); /* the carpet, club red with a gold edge */
+  ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2; ctx.strokeRect(56, vdy - 44, 150, 88);
+  ctx.fillStyle = "#170b26"; rr(2, vdy - VIPDOOR.half, 52, VIPDOOR.half * 2, 8); ctx.fill();
+  ctx.save(); ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 3 + 20 * beat;
+  ctx.strokeStyle = "rgba(255,215,106," + (0.75 + 0.25 * beat) + ")"; ctx.lineWidth = 3; rr(2, vdy - VIPDOOR.half, 52, VIPDOOR.half * 2, 8); ctx.stroke(); ctx.restore();
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(44, vdy, 4.5, 0, 7); ctx.fill(); /* the knob */
+  ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("⭐ VIP", 118, vdy - 58);
+  ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ff8fb5";
+  ctx.fillText("MEMBERS ONLY", 118, vdy + 66);
   /* neon room border last, like the theatre's — pulses on the club beat, same as the facade outside */
   ctx.save(); ctx.shadowColor = "#ff5d8f"; ctx.shadowBlur = 3 + 22 * beat;
   ctx.strokeStyle = "rgba(255,93,143," + (0.7 + 0.3 * beat) + ")"; ctx.lineWidth = 5; ctx.strokeRect(4, 4, CLUBROOM.w - 8, CLUBROOM.h - 8); ctx.restore();
+  ctx.restore();
+}
+function drawVip(t) {
+  t = decorT(t); /* decorT: the lounge is a pure-decor scene like the club — its ambient neon steps at graphics 1/4 */
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  const beat = Math.pow(1 - ((t % 480) / 480), 2); /* the club's kick-drum pulse — the lounge's neon flashes on the same beat, it is the club's room */
+  ctx.fillStyle = "#0d0718"; ctx.fillRect(0, 0, VIPROOM.w, VIPROOM.h);
+  ctx.strokeStyle = "rgba(168,85,247,0.13)"; ctx.lineWidth = 2;
+  for (let x = 0; x <= VIPROOM.w; x += 84) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIPROOM.h); ctx.stroke(); }
+  for (let y = 0; y <= VIPROOM.h; y += 84) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIPROOM.w, y); ctx.stroke(); }
+  /* the title, in the club sign's voice */
+  ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.9)"; ctx.shadowBlur = 10 + 24 * beat;
+  ctx.fillStyle = "#ffd76a"; ctx.fillText("⭐ VIP LOUNGE ⭐", VIPROOM.w / 2, 74); ctx.restore();
+  /* the little bar: shelf bottles + counter, the club bars' own geometry (VIPBAR is the counter, and the room's one obstacle) */
+  ctx.fillStyle = "#170b26"; ctx.fillRect(VIPBAR.x, 18, VIPBAR.w, 46);
+  const bottleCols = ["#38e1ff", "#ff5d8f", "#ffd76a", "#4ade80", "#a855f7"];
+  for (let i = 0; i < 14; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(VIPBAR.x + 14 + i * 34, 30 - (i % 3) * 4, 9, 26 + (i % 3) * 4); }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#241031"; rr(VIPBAR.x, VIPBAR.y, VIPBAR.w, VIPBAR.h, 10); ctx.fill();
+  ctx.save(); ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 3 + 20 * beat;
+  ctx.fillStyle = "rgba(255,215,106," + (0.7 + 0.3 * beat) + ")"; ctx.fillRect(VIPBAR.x, VIPBAR.y, VIPBAR.w, 6); ctx.restore();
+  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 2; rr(VIPBAR.x, VIPBAR.y, VIPBAR.w, VIPBAR.h, 10); ctx.stroke();
+  for (let sx = VIPBAR.x + 36; sx < VIPBAR.x + VIPBAR.w - 10; sx += 62) {
+    ctx.fillStyle = "#3b1554"; ctx.beginPath(); ctx.arc(sx, VIPBAR.y + VIPBAR.h + 34, 17, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, VIPBAR.y + VIPBAR.h + 34, 17, 0, 7); ctx.stroke();
+    ctx.fillStyle = "rgba(255,215,106,0.8)"; ctx.fillRect(sx - 2, VIPBAR.y + VIPBAR.h + 12, 4, 8);
+  }
+  /* two private booths down the west wall, the club booths' shapes */
+  for (const bt of VIPBOOTH) {
+    ctx.fillStyle = "#22103f"; rr(bt.x, bt.y, bt.w, bt.h, 14); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bt.x, bt.y, bt.w, bt.h, 14); ctx.stroke();
+    ctx.fillStyle = "#31155c"; rr(bt.x + 14, bt.y + 14, bt.w - 28, 40, 9); ctx.fill(); rr(bt.x + 14, bt.y + bt.h - 54, bt.w - 28, 40, 9); ctx.fill();
+    ctx.fillStyle = "#170b26"; rr(bt.x + bt.w / 2 - 34, bt.y + bt.h / 2 - 24, 68, 48, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.6)"; rr(bt.x + bt.w / 2 - 34, bt.y + bt.h / 2 - 24, 68, 48, 8); ctx.stroke();
+    ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(bt.x + bt.w / 2, bt.y + bt.h / 2, 5, 0, 7); ctx.fill();
+    ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("VIP BOOTH", bt.x + bt.w / 2, bt.y + 38);
+  }
+  /* a low lounge rug with couches, centre room */
+  ctx.fillStyle = "#2b0f2e"; rr(560, 420, 560, 300, 18); ctx.fill();
+  ctx.strokeStyle = "rgba(255,93,143,0.55)"; ctx.lineWidth = 2.5; rr(560, 420, 560, 300, 18); ctx.stroke();
+  for (const cy of [452, 628]) {
+    ctx.fillStyle = "#3b1554"; rr(640, cy, 400, 52, 12); ctx.fill();
+    ctx.strokeStyle = "rgba(56,225,255,0.5)"; ctx.lineWidth = 2; rr(640, cy, 400, 52, 12); ctx.stroke();
+    ctx.fillStyle = "#31155c"; rr(656, cy + 8, 110, 36, 8); ctx.fill(); rr(914, cy + 8, 110, 36, 8); ctx.fill();
+  }
+  ctx.fillStyle = "#170b26"; rr(788, 540, 104, 60, 10); ctx.fill(); /* the coffee table between the couches */
+  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 1.5; rr(788, 540, 104, 60, 10); ctx.stroke();
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(840, 570, 6, 0, 7); ctx.fill();
+  /* a small gold dance rug under the title, echoing the club floor in miniature */
+  const pal = ["#ff5d8f", "#38e1ff", "#a855f7", "#ffd76a"];
+  const step = Math.floor(t / 480);
+  for (let r2 = 0; r2 < 2; r2++) for (let c2 = 0; c2 < 6; c2++) {
+    ctx.fillStyle = pal[(c2 * 3 + r2 * 5 + step) % pal.length]; ctx.globalAlpha = 0.35;
+    ctx.fillRect(600 + c2 * 80 + 2, 830 + r2 * 80 + 2, 76, 76);
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "rgba(255,215,106,0.7)"; ctx.lineWidth = 2.5; ctx.strokeRect(600, 830, 480, 160);
+  /* now playing — the club's song, carried in (the lounge has no jukebox of its own) */
+  if (clubSongActive()) {
+    ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", VIPROOM.w / 2, 380);
+  }
+  /* the return door in the right wall — gold like the door it answers, back to the club */
+  const vdy = VIPDOOR.y;
+  ctx.fillStyle = "#5c1031"; ctx.fillRect(VIPROOM.w - 206, vdy - 44, 150, 88);
+  ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2; ctx.strokeRect(VIPROOM.w - 206, vdy - 44, 150, 88);
+  ctx.fillStyle = "#170b26"; rr(VIPROOM.w - 54, vdy - VIPDOOR.half, 52, VIPDOOR.half * 2, 8); ctx.fill();
+  ctx.save(); ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 3 + 20 * beat;
+  ctx.strokeStyle = "rgba(255,215,106," + (0.75 + 0.25 * beat) + ")"; ctx.lineWidth = 3; rr(VIPROOM.w - 54, vdy - VIPDOOR.half, 52, VIPDOOR.half * 2, 8); ctx.stroke(); ctx.restore();
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(VIPROOM.w - 44, vdy, 4.5, 0, 7); ctx.fill();
+  ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("CLUB →", VIPROOM.w - 130, vdy - 58);
+  /* neon room border, gold for the lounge, pulsing on the same club beat */
+  ctx.save(); ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 3 + 22 * beat;
+  ctx.strokeStyle = "rgba(255,215,106," + (0.65 + 0.3 * beat) + ")"; ctx.lineWidth = 5; ctx.strokeRect(4, 4, VIPROOM.w - 8, VIPROOM.h - 8); ctx.restore();
   ctx.restore();
 }
 function drawArcade(t) {
@@ -5103,6 +5770,10 @@ function frame(now) {
     if (now - stepAt > (sprinting ? 175 : 270)) { stepAt = now; sfxStep(); }
     if (res.door) toArcade();
     if (res.clubdoor) toClub();
+    if (res.vipdoor) tryVipDoor();
+    if (res.vipback) toClubFromVip();
+    if (res.hrdoor) toTrack();
+    if (res.trackexit) toPlazaFromTrack();
     if (res.casinodoor) toCasino();
     if (res.casinoexit) toPlazaFromCasino();
     if (res.gymdoor) toGym();
@@ -5147,17 +5818,27 @@ function frame(now) {
       if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
     }
   }
+  if (me.scene === "track" && hrSeat >= 0) {
+    /* seated at the horse table the camera frames the whole room — the race up
+       top and the table below it — the gym court-focus pattern */
+    const f = { x: 90, y: 30, w: 2320, h: 1520 };
+    SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
+    camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
+    camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
+    if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+    if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+  }
   if (fxPrevScene !== null && me.scene !== fxPrevScene) clearRoomFx(); /* a room change wipes every pending room effect — nothing earned in one room replays in the next */
   fxPrevScene = me.scene;
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") drawVip(now); else if (me.scene === "track") drawTrack(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
   if (me.scene !== "gym") pauseLgVideos();
   if (me.scene !== "speedway") pauseSwVideos();
   else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
-  if (me.scene === "club") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause();
+  if (me.scene === "club" || me.scene === "vip") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause(); /* the VIP lounge is part of the club for music: the same synced song plays in both rooms */
   ctx.restore();
   if (me.scene !== drawnScene) { drawnScene = me.scene; for (const p of peers.values()) if (p.scene === me.scene) p.snap = true; }
   const actors = [];
@@ -5168,6 +5849,7 @@ function frame(now) {
     actors.push(p);
   }
   actors.push(me);
+  if (me.scene === "club") actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the VIP door guard (PREVIEW): a fixed Q-Bot post at the club's left-wall door, drawn through the same actor pass as every player so he sorts and renders like one — he is this room's furniture, not a presence record, so he never counts as a person online */
   actors.sort((a, b) => a.y - b.y);
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* sprint dust puffs, kicked up at my feet, drawn under the sprites */
@@ -5203,6 +5885,8 @@ function frame(now) {
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
+  else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
+  else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
   else if (nearBJ()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Blackjack"; promptAction = () => trySit("bj"); }
   else if (nearRR()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎡 Sit at Roulette"; promptAction = () => trySit("rr"); }
   else if (me.scene === "casino" && nearSlot() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Slots"; promptAction = () => sitAtSlot(nearSlot()); }
