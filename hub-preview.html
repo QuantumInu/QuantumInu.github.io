@@ -60,6 +60,21 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .onlinerow b{color:#fff;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .onlinerow span{color:#9fd8ea;white-space:nowrap}
 #onlineclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
+.onlinerow{flex-wrap:wrap}
+.onlineact{flex-basis:100%;display:flex;justify-content:flex-end;align-items:center}
+.sendtokbtn{background:linear-gradient(135deg,var(--gold),#e8a33d);border:none;color:#23180a;font-weight:800;border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+.onlinenote{color:#7d93ad;font-size:12.5px}
+#sendtok{position:absolute;inset:52px 0 0 0;background:rgba(2,6,18,.45);z-index:36;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#sendtokpanel{background:var(--panel);border:2px solid rgba(255,215,106,.55);border-radius:18px;width:min(420px,96vw);display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,215,106,.25)}
+#sendtokpanel h2{margin:0 0 2px;font-size:21px;color:var(--gold);text-align:center}
+#sendtokto{margin:0 0 2px;color:#fff;font-size:15px;font-weight:700;text-align:center}
+#sendtokbal{margin:0 0 10px;color:#9fd8ea;font-size:13.5px;text-align:center}
+#sendtokamt{display:block;width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;border:1px solid rgba(56,225,255,.3);background:rgba(5,10,24,.8);color:#eaf6ff;font-size:17px;text-align:center;outline:none}
+#sendtokmsg{min-height:19px;color:#ffd76a;font-size:13.5px;font-weight:700;text-align:center;margin-top:8px}
+.sendtokrow{display:flex;gap:8px;margin-top:10px}
+#sendtokgo{flex:1;background:linear-gradient(135deg,var(--gold),#e8a33d);border:none;color:#23180a;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
+#sendtokgo:disabled{opacity:.45;cursor:default}
+#sendtokcancel{flex:1;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #gate{position:absolute;inset:52px 0 0 0;background:radial-gradient(1200px 700px at 50% 20%,#101d3d 0%,var(--bg) 70%);z-index:40;display:flex;flex-direction:column;align-items:center;padding:18px 14px;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:none}
 #gate h2{margin:2px 0 4px;font-size:24px;color:#fff;text-align:center}
 #gate p.sub{margin:0 0 12px;color:#9fd8ea;font-size:14px;text-align:center}
@@ -157,6 +172,17 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <p id="onlinecount">0 online</p>
     <div id="onlinerows"></div>
     <button id="onlineclose" type="button">Close</button>
+  </div></div>
+  <div id="sendtok" aria-hidden="true"><div id="sendtokpanel">
+    <h2>🪙 Send Tokens</h2>
+    <p id="sendtokto">Send tokens</p>
+    <p id="sendtokbal"></p>
+    <input id="sendtokamt" type="number" inputmode="numeric" min="1" step="1" placeholder="How many tokens?" autocomplete="off">
+    <p id="sendtokmsg"></p>
+    <div class="sendtokrow">
+      <button id="sendtokcancel" type="button">Cancel</button>
+      <button id="sendtokgo" type="button">Send</button>
+    </div>
   </div></div>
   <div id="chatbar">
     <button id="micbtn" title="Tap to talk — tap again to mute">🎤</button>
@@ -356,6 +382,7 @@ function tone(f0, f1, dur, type, vol, when) {
 }
 const sfxPop = () => tone(520, 880, 0.09, "sine", 0.07);
 const sfxClick = () => tone(700, 700, 0.05, "triangle", 0.05);
+const sfxCoin = () => { tone(1568, 1568, 0.07, "square", 0.04); tone(2093, 2093, 0.2, "square", 0.04, 0.06); }; /* coin jingle — tokens sent / received */
 const sfxChime = () => { tone(660, 660, 0.12, "sine", 0.06); tone(880, 880, 0.14, "sine", 0.06, 0.09); tone(1320, 1320, 0.2, "sine", 0.05, 0.18); };
 const sfxStep = () => tone(180 + Math.random() * 60, 120, 0.05, "triangle", 0.025);
 /* casino table sounds (Jonathan 2026-10-28): wins sing — full volume for the winner, softer (k) for everyone else at the table; a loss is one low quiet tone for the loser only */
@@ -560,8 +587,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + onlineRoster().length + " online"; if (typeof renderOnlineList === "function") renderOnlineList();
@@ -571,12 +598,14 @@ let lastPub = 0, lastPubKey = "";
 function publish(force) {
   if (!db || !entered) return;
   const now = performance.now();
-  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0].join("|");
+  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : ""].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000) return;
   if (!force && now - lastPub < 180 && key === lastPubKey) return;
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
-  myRef.set({ name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+  const rec = { name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
+  myRef.set(rec).catch(() => {});
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
@@ -1213,6 +1242,38 @@ function watchChips() {
     }
   });
 }
+/* ============ send tokens — receiving side (Jonathan 2026-10-30) ============
+   The chips rule never bends: NO client ever writes another player's
+   balance. A sender only debits their OWN record and leaves a note under
+   hub/transfers/<recipient uid>/ (see sendTokensConfirm). The recipient's
+   own client is the only thing that ever credits the recipient, and it
+   removes the note FIRST, then credits — so a note can never pay out
+   twice, and a balance can never be raised by anything but the owner's
+   own client acting on a real note. watchTransfers starts exactly where
+   watchChips does: after the sign-in has reconciled the account. */
+let xferRef = null;
+const xferSeen = new Set(); /* note keys already settled this session — a redelivery of the same note credits nothing */
+function watchTransfers() {
+  if (!acctUser || !db) return;
+  if (xferRef) { try { xferRef.off(); } catch (e) {} xferRef = null; }
+  xferRef = db.ref("hub/transfers/" + acctUser.uid);
+  xferRef.on("child_added", s => {
+    const note = s.val(), key = s.key;
+    if (!note || !key) return;
+    if (xferSeen.has(key)) { try { s.ref.remove(); } catch (e) {} return; } /* already settled: just sweep the copy away */
+    xferSeen.add(key);
+    try { s.ref.remove(); } catch (e) {} /* the note dies BEFORE the credit lands — it can never be credited twice */
+    const amt = Math.floor(Number(note.amt));
+    if (!acctUser || !profile || !isFinite(amt) || amt < 1) return; /* a malformed note is swept, never paid */
+    addChips(amt); /* crediting my OWN record — the one balance this client may ever raise */
+    const from = String(note.from || "Someone");
+    sfxCoin();
+    fxBurst(me.x, me.y - 46, true, me.scene);
+    fxText(me.x, me.y - 104, "+🪙 " + amt.toLocaleString(), "#ffd76a", me.scene);
+    logChat("🪙 " + from, "sent you " + amt.toLocaleString() + " tokens");
+  });
+}
+function stopTransfers() { if (xferRef) { try { xferRef.off(); } catch (e) {} xferRef = null; } }
 /* single-session rule (Jonathan 2026-10-28; per-tab + blocked newcomer since 2026-10-29): one account, one place. Signing in claims the account's session slot under this TAB's id (tabId — myId is browser-wide and cannot tell tabs apart); a sign-in from another tab or device while the claim is fresh (heartbeat 15s, stale at 90s) is BLOCKED: it never enters, writes no presence, touches no chips, and the session already inside is never kicked by a newcomer. The claim lands through a transaction, so it is taken only when the slot is empty, already this tab's, or stale. Release is conditional the same way — a tab only ever lets go of its OWN claim. */
 const SESS_BLOCK_MSG = "⚠️ You're already signed in in another tab or device. Close it there, then sign in here.";
 let sessHeld = false, sessTimer = 0, sessLiveTimer = 0;
@@ -1358,7 +1419,7 @@ function initAuth() {
     catch (e) { acctMsg(friendlyAuthErr(e)); }
   };
   $("acctform").onsubmit = (e) => { e.preventDefault(); }; /* the sign-in is a REAL form submit that we intercept: that shape is what lets iOS and desktop browsers offer to save the login and pre-fill it next visit; the Sign in button above keeps its own handler and does the actual sign-in */
-  $("acctsignout").onclick = async () => { const rel = releaseSession(); try { await Promise.race([rel, new Promise(r => setTimeout(r, 2500))]); } catch (e) {} if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; } try { await auth.signOut(); } catch (e) {} }; /* the slot release lands BEFORE sign-out: once auth is gone the database denies the write and the fresh slot refuses the same account on the other page for 90s (2026-10-29). The 2.5s race keeps a hung write from ever trapping the user in sign-out — on timeout the still-armed onDisconnect and the 90s staleness remain the backstops. */
+  $("acctsignout").onclick = async () => { const rel = releaseSession(); try { await Promise.race([rel, new Promise(r => setTimeout(r, 2500))]); } catch (e) {} if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; } stopTransfers(); try { await auth.signOut(); } catch (e) {} }; /* the slot release lands BEFORE sign-out: once auth is gone the database denies the write and the fresh slot refuses the same account on the other page for 90s (2026-10-29). The 2.5s race keeps a hung write from ever trapping the user in sign-out — on timeout the still-armed onDisconnect and the 90s staleness remain the backstops. */
   auth.onAuthStateChanged(async (u) => {
     if (u && !freshAuthHere()) { try { await auth.signOut(); } catch (e) {} return; } /* a user with no fresh sign-in in THIS instance is a ghost of the old build's persisted session: sign it back out at once \u2014 no claim, no profile; the visit simply starts at the sign-in box */
     const prevUser = acctUser;
@@ -1366,6 +1427,7 @@ function initAuth() {
     if (!u) {
       acctLoaded = false;
       if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
+      stopTransfers();
       if (prevUser && sessHeld && db) releaseSessSlot(prevUser.uid);
       if (prevUser) clearSessLive(prevUser.uid);
       sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; } stopSessLive();
@@ -1394,8 +1456,8 @@ function initAuth() {
           checkEnter(); drawChips();
           acctLoaded = true;
           if (pk.local) acctSave(); /* the account had no amount yet (legacy record) — the local figure becomes its starting amount, once */
-          claimSession(); watchChips();
-        } else if (!d) { acctLoaded = true; acctSave(); claimSession(); watchChips(); } /* first sign-in on this account: push this device's profile up as the starting point */
+          claimSession(); watchChips(); watchTransfers();
+        } else if (!d) { acctLoaded = true; acctSave(); claimSession(); watchChips(); watchTransfers(); } /* first sign-in on this account: push this device's profile up as the starting point */
         /* a server profile that can't be applied is left exactly as it is — a sign-in NEVER overwrites the account with this device's local defaults */
       } catch (e) {}
     }
@@ -2761,6 +2823,8 @@ function standUpAll() {
   const st = g === "bj" ? bjState : rrState;
   const s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
+    /* standing up BEFORE the round starts never costs the stake (Jonathan 2026-10-30: "standing up before hitting ready should not take your currency"): a bet still in the bet phase is refunded in full — ready or not, the chips were charged at bet time, so they are handed back before the chair is freed */
+    if (st.phase === "bet" && s.bet) { addChips(s.bet); noteCasino("🚪 You stood up — your " + s.bet + " bet was returned."); }
     /* leaving after the game has started forfeits the spot: the bet stays in and the hand is out */
     if (g === "bj" && (st.phase === "play" || st.phase === "deal") && s.bet) noteCasino("🚪 You left mid-hand — your spot and bet are forfeited.");
     if (g === "rr" && st.phase === "spin" && s.bet) noteCasino("🚪 You left mid-spin — your spot and bet are forfeited.");
@@ -2807,9 +2871,12 @@ function seatList(st, extra) {
 function myBjSeat() { return (mySeat && mySeat.game === "bj") ? bjState && bjState.seats && bjState.seats[mySeat.idx] : null; }
 function bjBet(amt) {
   const st = bjState, mine = myBjSeat();
-  if (!st || st.phase !== "bet" || !mine || mine.bet) return;
+  if (!st || st.phase !== "bet" || !mine) return;
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch."); return; }
-  if (!profile || profile.chips < amt) { noteCasino("Not enough chips for that bet."); return; }
+  const prev = mine.bet || 0;
+  if (prev === amt) return; /* tapping the amount already staked changes nothing */
+  if (!profile || (profile.chips || 0) + prev < amt) { noteCasino("Not enough chips for that bet."); return; }
+  if (prev) addChips(prev); /* changing the amount re-stakes the bet (Jonathan 2026-10-30 — the roulette rule below, mirrored): the old stake comes back before the new one is charged, so the tap only ever moves the difference */
   addChips(-amt);
   if (!st.firstBetTs) tblUpd("bj", { firstBetTs: Date.now() });
   tblUpd("bj/seats/" + mySeat.idx, { bet: amt, ts: Date.now() }); sfxClick();
@@ -2917,6 +2984,27 @@ function rouletteBet(type) {
   if (!amt) seatUpd.rdy = false; /* ready requires holding a bet (Jonathan 2026-10-29): unselecting every pick takes the player back off ready */
   tblUpd("rr/seats/" + mySeat.idx, seatUpd);
   const ms = st.seats && st.seats[mySeat.idx]; if (ms) { ms.bet = amt; ms.betType = next.join("+"); if (!amt) ms.rdy = false; } /* mirror my own write locally at once: a fast follow-up tap (READY right after a pick) must see this bet before the server echo lands, not the stale record */
+}
+/* tapping an amount while picks are already down RE-STAKES them (Jonathan 2026-10-30, from his screenshot at the table: "changing the bet amount should recalculate the total bet above your character" / "even when you have red odd and green selected, it should let you change bet to change the total amount bet"): the total becomes picks x the newly tapped amount and the chips move by the difference — the same refund-then-charge rouletteBet runs when a pick is tapped, against the same availability (chips + the stake already down). An amount the player cannot cover is refused with the note and leaves the bet AND the amount selection untouched; ready survives a re-stake because the bet never reaches zero. With nothing down, or outside the bet phase, the tap only selects the amount, exactly as before. */
+function rouletteSetAmt(amt) {
+  const st = rrState, mine = myRrSeat();
+  const parts = mine ? rrBetParts(mine) : [], prev = mine ? (mine.bet || 0) : 0;
+  if (st && st.phase === "bet" && mine && prev > 0 && parts.length) {
+    const total = parts.length * amt;
+    if (total !== prev) {
+      if (!acctUser) return; /* a guest holds no stake to re-stake */
+      const avail = (profile ? (profile.chips || 0) : 0) + prev;
+      if (total > avail) { noteCasino("Not enough chips for a " + total + " bet."); return; }
+      rouletteAmt = amt;
+      addChips(prev);
+      addChips(-total);
+      tblUpd("rr/seats/" + mySeat.idx, { bet: total, ts: Date.now(), chips: profile ? profile.chips : 0 });
+      const ms = st.seats && st.seats[mySeat.idx]; if (ms) ms.bet = total; /* mirror my own write locally at once, exactly as rouletteBet does */
+      sfxClick();
+      return;
+    }
+  }
+  rouletteAmt = amt; sfxClick();
 }
 /* the READY button (Jonathan 2026-10-29): tapping it — lit only while the player holds at least one bet — flips the rdy flag on their own seat record, so every client sees the same ready state off the same record. Tapping again un-readies. The wheel spins when every fresh seated player is ready (see rouletteHostTick); readiness without a bet is impossible — rouletteBet clears rdy the moment the bets reach zero, and this toggle refuses to set it with nothing down. */
 function rouletteReady() {
@@ -3044,14 +3132,15 @@ function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Pl
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
 function onlineListOpen() { const el = $("onlinelist"); return !!(el && el.style.display === "flex"); }
 const NPC_PIDS = new Set([NPC_PID, "qbot-npc-hq"]); /* Q-Bot's presence records: plaza + Watchtower HQ — never listed or counted as online */
+let onlineSelId = ""; /* the roster row currently tapped open (send tokens lives there) — render state only */
 function onlineRoster() {
   const now = Date.now(), rows = [];
-  if (entered && me.name) rows.push({ id: myId, name: me.name, scene: me.scene });
+  if (entered && me.name) rows.push({ id: myId, name: me.name, scene: me.scene, acct: acctUser ? acctUser.uid : "" });
   for (const p of peers.values()) {
     if (!p || !p.name) continue;
     if (NPC_PIDS.has(p.id)) continue;
     if (p.ts && now - p.ts > 45000) continue;
-    rows.push({ id: p.id, name: p.name, scene: p.scene });
+    rows.push({ id: p.id, name: p.name, scene: p.scene, acct: p.acct || "" });
   }
   rows.sort((a, b) => {
     const ra = ONLINE_ROOM_ORDER.indexOf(a.scene), rb = ONLINE_ROOM_ORDER.indexOf(b.scene);
@@ -3062,7 +3151,7 @@ function onlineRoster() {
 function renderOnlineList(force) {
   const wrap = $("onlinelist"); if (!wrap || wrap.style.display !== "flex") return;
   const rows = onlineRoster();
-  const sig = rows.map(r => r.id + "\u001f" + r.name + "\u001f" + r.scene).join("\u001e");
+  const sig = rows.map(r => r.id + "\u001f" + r.name + "\u001f" + r.scene + "\u001f" + (r.acct || "")).join("\u001e") + "\u001d" + onlineSelId + "\u001d" + (acctUser ? acctUser.uid : "");
   if (!force && sig === onlineSig) return;
   onlineSig = sig;
   const countEl = $("onlinecount"); if (countEl) countEl.textContent = rows.length + " online";
@@ -3073,7 +3162,25 @@ function renderOnlineList(force) {
     const d = document.createElement("div"); d.className = "onlinerow";
     const b = document.createElement("b"); b.textContent = r.name;
     const s = document.createElement("span"); s.textContent = onlineRoomName(r.scene);
-    d.appendChild(b); d.appendChild(s); list.appendChild(d);
+    d.appendChild(b); d.appendChild(s);
+    if (r.id !== myId) {
+      d.style.cursor = "pointer";
+      d.onclick = () => { onlineSelId = onlineSelId === r.id ? "" : r.id; onlineSig = ""; renderOnlineList(true); sfxClick(); };
+      if (onlineSelId === r.id) {
+        /* send tokens (Jonathan 2026-10-30): tapping a player opens their strip. The button exists only when BOTH sides are signed in — the recipient must be logged in to hold a balance, and a guest sender holds no chips to send. Anyone else just gets the reason, in words. */
+        const act = document.createElement("div"); act.className = "onlineact";
+        if (r.acct && acctUser) {
+          const btn = document.createElement("button"); btn.type = "button"; btn.className = "sendtokbtn"; btn.textContent = "🪙 send tokens";
+          btn.onclick = e => { if (e && e.stopPropagation) e.stopPropagation(); openSendTokens(r); };
+          act.appendChild(btn);
+        } else {
+          const n = document.createElement("span"); n.className = "onlinenote"; n.textContent = r.acct ? "sign in to send tokens" : "not logged in";
+          act.appendChild(n);
+        }
+        d.appendChild(act);
+      }
+    }
+    list.appendChild(d);
   }
 }
 function openOnlineList() {
@@ -3085,13 +3192,76 @@ function openOnlineList() {
 function closeOnlineList() {
   const el = $("onlinelist"); if (!el) return;
   el.style.display = "none"; el.setAttribute("aria-hidden", "true"); onlineEl.setAttribute("aria-expanded", "false");
-  onlineSig = "";
+  onlineSig = ""; onlineSelId = "";
 }
 function toggleOnlineList() { if (chatBoxOpen()) return; if (onlineListOpen()) closeOnlineList(); else openOnlineList(); }
 onlineEl.onclick = toggleOnlineList;
 $("onlineclose").onclick = closeOnlineList;
 $("onlinelist").addEventListener("click", e => { if (e.target === $("onlinelist")) closeOnlineList(); });
 chatIn.addEventListener("focus", closeOnlineList);
+/* ============ send tokens — sending side (Jonathan 2026-10-30) ============
+   From the Online list: tap a signed-in player, tap "send tokens", type
+   the amount. The send NEVER touches the recipient's balance: it writes
+   a note under hub/transfers/<their uid> FIRST and only debits my own
+   record once the note has landed — so a failed send eats nothing, and
+   the recipient's own client does the crediting (see watchTransfers). */
+let sendTokTarget = null; /* { pid, uid, name } — the roster row the panel was opened from */
+function sendTokBalance() { return profile && typeof profile.chips === "number" ? profile.chips : 0; }
+function sendTokValidate(str, bal) {
+  const t = String(str == null ? "" : str).trim();
+  if (!/^\d+$/.test(t)) return 0; /* whole numbers only: no signs, no fractions, no blanks */
+  const n = parseInt(t, 10);
+  if (!Number.isSafeInteger(n) || n < 1 || n > (bal || 0)) return 0;
+  return n;
+}
+function openSendTokens(r) {
+  if (!r || !r.acct || !acctUser || r.acct === acctUser.uid) return; /* signed-in players only, and never yourself */
+  sendTokTarget = { pid: r.id, uid: r.acct, name: r.name };
+  $("sendtokto").textContent = "Send tokens to " + r.name;
+  $("sendtokbal").textContent = "Your balance: 🪙 " + sendTokBalance().toLocaleString();
+  const inp = $("sendtokamt"); inp.value = "";
+  $("sendtokmsg").textContent = "";
+  $("sendtokgo").disabled = false;
+  $("sendtok").style.display = "flex"; $("sendtok").setAttribute("aria-hidden", "false");
+  sfxClick();
+  try { inp.focus(); } catch (e) {}
+}
+function closeSendTokens() {
+  const el = $("sendtok"); if (!el) return;
+  el.style.display = "none"; el.setAttribute("aria-hidden", "true");
+  sendTokTarget = null;
+}
+async function sendTokensConfirm() {
+  const tgt = sendTokTarget;
+  if (!tgt || !acctUser || !db) return;
+  const msg = $("sendtokmsg"), go = $("sendtokgo");
+  if (!acctLoaded) { msg.textContent = "Your account is still loading — try again in a moment."; return; }
+  const raw = $("sendtokamt").value;
+  const amt = sendTokValidate(raw, sendTokBalance());
+  if (!amt) {
+    const t = String(raw == null ? "" : raw).trim();
+    msg.textContent = (!/^\d+$/.test(t) || Number(t) < 1) ? "Enter a whole number of tokens, at least 1." : "That's more than your balance (🪙 " + sendTokBalance().toLocaleString() + ").";
+    sfxLose();
+    return;
+  }
+  /* the recipient must still be online, on the same account, at send time */
+  const peer = peers.get(tgt.pid);
+  if (!peer || peer.acct !== tgt.uid) { msg.textContent = tgt.name + " isn't online anymore — nothing was sent."; return; }
+  go.disabled = true;
+  msg.textContent = "Sending…";
+  try {
+    await db.ref("hub/transfers/" + tgt.uid).push().set({ amt: amt, from: me.name || "Someone", ts: firebase.database.ServerValue.TIMESTAMP });
+  } catch (e) { msg.textContent = "Couldn't send — nothing was taken. Try again."; go.disabled = false; return; }
+  /* the note landed — now debit my OWN record, the only balance I may move */
+  addChips(-amt);
+  msg.textContent = "✅ Sent 🪙 " + amt.toLocaleString() + " to " + tgt.name + "!";
+  sfxCoin();
+  setTimeout(() => { closeSendTokens(); closeOnlineList(); }, 1100);
+}
+$("sendtokgo").onclick = sendTokensConfirm;
+$("sendtokcancel").onclick = () => { closeSendTokens(); sfxClick(); };
+$("sendtok").addEventListener("click", e => { if (e.target === $("sendtok")) closeSendTokens(); });
+$("sendtokamt").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendTokensConfirm(); } });
 /* ============ chat log ============ */
 const chatLog = [];
 const loggedChatKeys = new Set();
@@ -3558,8 +3728,8 @@ function drawBJTable(t) {
   if (mySeat && mySeat.game === "bj" && st) {
     const mine = st.seats && st.seats[mySeat.idx];
     const by = BJT.y + BJT.h - 66;
-    if (st.phase === "bet" && mine && !mine.bet) {
-      /* twelve amounts in TWO ROWS of SIX inside the old row's footprint (Jonathan 2026-10-30 final: "so basically 6 columns" — top row the original six, bottom row the new six up to 100,000): same cx-308..cx+308 span (the original 96-wide / 104-step buttons fit six across), same by..by+48 block split into two 22px rows with a 4px gap; labels carry thousands commas so "BET 100,000" stays readable at fs 15 */
+    if (st.phase === "bet" && mine) {
+      /* twelve amounts in TWO ROWS of SIX inside the old row's footprint (Jonathan 2026-10-30 final: "so basically 6 columns" — top row the original six, bottom row the new six up to 100,000): same cx-308..cx+308 span (the original 96-wide / 104-step buttons fit six across), same by..by+48 block split into two 22px rows with a 4px gap; labels carry thousands commas so "BET 100,000" stays readable at fs 15. The row now stays up while a bet is down too: tapping a different amount re-stakes the bet (bjBet), so the buttons only leave when the hand deals. */
       [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 308 + (k % 6) * 104, by + Math.floor(k / 6) * 26, 96, 22, "BET " + amt.toLocaleString("en-US"), () => bjBet(amt), { fs: 15 }));
     }
     if (st.phase === "play" && st.turn === mySeat.idx && mine && mine.hand && mine.hand.length) {
@@ -3650,7 +3820,7 @@ function drawRouletteTable(t) {
   });
   if (mySeat && mySeat.game === "rr") {
     /* twelve amounts in TWO ROWS of SIX inside the old row's footprint (Jonathan 2026-10-30 final, same as blackjack: top row the original six, bottom row the new six): same RRT.x+478..RRT.x+873 span (60-wide buttons at a 67 step — the original width), same 48px block at the panel's bottom split into two 22px rows with a 4px gap; labels carry thousands commas; pad drops 5 -> 2 so the two rows' tap zones (26 tall at a 26 pitch) touch but never overlap */
-    [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(RRT.x + 478 + (k % 6) * 67, RRT.y + RRT.h - 66 + Math.floor(k / 6) * 26, 60, 22, amt.toLocaleString("en-US"), () => { rouletteAmt = amt; sfxClick(); }, { fs: 15, sel: rouletteAmt === amt, pad: 2 }));
+    [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(RRT.x + 478 + (k % 6) * 67, RRT.y + RRT.h - 66 + Math.floor(k / 6) * 26, 60, 22, amt.toLocaleString("en-US"), () => rouletteSetAmt(amt), { fs: 15, sel: rouletteAmt === amt, pad: 2 }));
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 674, RRT.y + RRT.h - 75); /* centered under the board: x = board center (478 + 392/2); baseline sits in the middle of the 332..364 gap between the green button and the amount row */
   }
   /* seat bets + results */
