@@ -1040,7 +1040,8 @@ const BAR_R = { x: 1688, y: 76, w: 560, h: 60 };
 const DFLOOR = { x: 652, y: 540, w: 1000, h: 740 };
 const JUKE = { x: 296, y: 1170, w: 104, h: 148 };
 const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
-const DJBOOTH = { x: STAGE.x + STAGE.w / 2 - 150, y: STAGE.y + 168, w: 300, h: 92 }; /* the DJ booth, centred on the club stage (Jonathan 2026-10-30): pure decor, no controls, nothing to tap — but solid: it sits in the club obstacles below, so players walk around it, never through it */
+const DJBOOTH = { x: STAGE.x + STAGE.w / 2 - 150, y: STAGE.y + 168, w: 300, h: 92 }; /* the DJ booth, centred on the club stage (Jonathan 2026-10-30). A working DJ spot (same day, his follow-up): only the counter's front slab DJFRONT below is a club obstacle — it blocks walking THROUGH the counter from either side, while the strip directly behind the counter stays open floor, reached by walking around either end of the booth. A player standing in that strip is the DJ (atDJBooth): frame() repaints the booth over their lower body so their head pokes up behind it, and they get the jukebox's song picker from there. */
+const DJFRONT = { x: DJBOOTH.x, y: DJBOOTH.y + 56, w: DJBOOTH.w, h: DJBOOTH.h - 56 }; /* the booth's solid front, from just under the deck top down. From the front, feet still stop at DJBOOTH.y + DJBOOTH.h + 30 (exactly where the full booth used to stop them); from behind, feet stop at DJBOOTH.y + 26 — inside the counter's screen area, which is what lets the booth hide a DJ's lower body */
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
 const PORTAL = { x: 1600, y: 2080 }; /* moved 2026-10-29: from the west lawn (430,620) to its own circle directly below the spawn roundabout, on a new purple spur path */
@@ -1076,7 +1077,7 @@ function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcad
 function obstacles() {
   if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B, SPD_B];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
-  if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE, DJBOOTH];
+  if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE, DJFRONT];
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
@@ -1532,6 +1533,8 @@ cv.addEventListener("pointerdown", e => {
   if (me.scene === "club") {
     const js = worldToScreen(JUKE.x + JUKE.w / 2, JUKE.y + JUKE.h / 2);
     if (Math.hypot(px - js.x, py - js.y) < 90 && nearJuke()) openJuke();
+    const bs = worldToScreen(DJBOOTH.x + DJBOOTH.w / 2, DJBOOTH.y + DJBOOTH.h / 2);
+    if (Math.hypot(px - bs.x, py - bs.y) < 110 && atDJBooth(me.x, me.y)) openJuke(); /* tapping the booth works too, but only for the DJ standing behind it — mirrors the jukebox tap above */
   }
 });
 cv.addEventListener("pointermove", e => {
@@ -2991,9 +2994,8 @@ function spinMachine(i) {
   if (!mySeat || mySeat.game !== "slot" || mySeat.idx !== i) { noteCasino("🪑 Sit at the machine to play."); return; }
   if (!profile || (profile.chips || 0) < slotBet) { noteCasino("Not enough chips for a " + slotBet + " bet."); return; }
   addChips(-slotBet);
-  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⚛"]; /* reels 1-2 draw from this bag: the balanced mix cherry/lemon/bell/gem/star x40 + atom x1 (N=201), set 2026-10-29 (option 1). Reel 3 draws from a 266-stop strip (the same 201 paying stops + 65 blanks), added at his word 2026-10-30 to lower the hit rate and make three in a row rarer. Pay branches below are unchanged (side-by-side pairs only, trips 10x, atom trips 50x, any atom returns the bet). Exact enumerated figures for the strip model: any-credit 33.0025%, trips 2.9777%, RTP 0.8862x (from 36.9505% / 3.9406% / 1.0414x when all three reels drew from this bag) */
-  const strip3 = bag.concat(new Array(65).fill("")); /* reel 3 only: a longer 266-stop strip — the same 201 paying stops plus 65 blanks; a blank ("") cannot pair, cannot trip and is not an atom, so the third reel completes a line less often */
-  const fin = [bag[Math.floor(Math.random() * bag.length)], bag[Math.floor(Math.random() * bag.length)], strip3[Math.floor(Math.random() * strip3.length)]];
+  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "💎", "💎", "⭐", "⭐", "⚛"]; /* all three reels draw from this one bag: cherry x5, lemon x5, bell x3, gem x2, star x2, atom x1 (N=18) — the 50% build of 2026-10-28, restored at his word 2026-10-30 over the N=201 balanced bag and the reel-3 blank strip. Pay branches below are unchanged (side-by-side pairs only, trips 10x, atom trips 50x, any atom returns the bet). Exact enumerated figures: any-credit 49.79%, RTP 1.277x */
+  const fin = [bag[Math.floor(Math.random() * bag.length)], bag[Math.floor(Math.random() * bag.length)], bag[Math.floor(Math.random() * bag.length)]];
   let pay = 0;
   if (fin[0] === "⚛" && fin[1] === "⚛" && fin[2] === "⚛") pay = slotBet * 50;
   else if (fin[0] === fin[1] && fin[1] === fin[2]) pay = slotBet * 10;
@@ -3195,6 +3197,7 @@ function checkPortal(P, go) {
 function toHQ() { stopAllTones(); portalArmed = false; me.scene = "hq"; voiceReset(); me.x = HQPORTAL.x; me.y = HQPORTAL.y - 130; sfxChime(); publish(true); startHqVideos(); }
 function toPlazaFromHQ() { stopAllTones(); portalArmed = false; me.scene = "plaza"; voiceReset(); me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "club" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; }
+function atDJBooth(x, y) { return me.scene === "club" && x > DJBOOTH.x - 16 && x < DJBOOTH.x + DJBOOTH.w + 16 && y >= DJBOOTH.y - 6 && y <= DJBOOTH.y + 26; } /* standing in the DJ strip directly behind the booth counter: feet between the counter's top edge and the furthest point its solid front (DJFRONT) lets anyone reach from behind. One test for both jobs — frame() repaints the booth over a player standing here (their head pokes up behind the counter), and the local player standing here gets the song-picker prompt. Reachable only by walking around either end of the booth: the counter itself blocks through-passage both ways */
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
   if (me.scene !== "arcade") return null;
@@ -4240,6 +4243,30 @@ function drawClubBuilding(t) {
   ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd3e2";
   ctx.fillText("▼ ENTER ▼", CLUBDOOR.x + CLUBDOOR.w / 2, CLUBDOOR.y + CLUBDOOR.h + 52);
 }
+function drawDJBooth(t) {
+  /* the DJ booth, centre stage (Jonathan 2026-10-30): a counter in the bar counters' style — dark purple body, pink neon top strip pulsing on the club beat, cyan trim — with two turntables and a mixer on top. It sits on the stage floor below the disco ball, clear of the valance, the side drapes and the stage's front gold strip. Called once from drawClub with the room, then again from frame() over any player standing in the DJ strip behind it (atDJBooth), so the counter paints over their lower body and their head pokes up above it. t arrives decorT-stepped from both callers, same as the rest of the club's decor. */
+  const beat = Math.pow(1 - ((t % 480) / 480), 2);
+  const dj = DJBOOTH;
+  ctx.fillStyle = "#241031"; rr(dj.x, dj.y, dj.w, dj.h, 10); ctx.fill();
+  ctx.save(); ctx.shadowColor = "#ff5d8f"; ctx.shadowBlur = 3 + 22 * beat;
+  ctx.fillStyle = "rgba(255,93,143," + (0.7 + 0.3 * beat) + ")"; ctx.fillRect(dj.x, dj.y, dj.w, 6); ctx.restore();
+  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 2; rr(dj.x, dj.y, dj.w, dj.h, 10); ctx.stroke();
+  ctx.fillStyle = "#31155c"; rr(dj.x + 12, dj.y + 14, dj.w - 24, 44, 8); ctx.fill(); /* the deck top the gear sits on */
+  for (const px of [dj.x + 62, dj.x + dj.w - 62]) { /* two turntables, platters slowly turning */
+    ctx.fillStyle = "#0a0616"; ctx.beginPath(); ctx.arc(px, dj.y + 36, 21, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, dj.y + 36, 21, 0, 7); ctx.fill();
+    const da = t / 400 + px;
+    ctx.fillStyle = "#38e1ff"; ctx.beginPath(); ctx.arc(px + Math.cos(da) * 13, dj.y + 36 + Math.sin(da) * 13, 3, 0, 7); ctx.fill();
+    ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(px, dj.y + 36, 3.5, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = "#170b26"; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.fill(); /* the mixer between the decks */
+  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 1.5; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.stroke();
+  ctx.fillStyle = "#4ade80"; ctx.fillRect(dj.x + dj.w / 2 - 18, dj.y + 26, 4, 14);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(dj.x + dj.w / 2 - 6, dj.y + 30, 4, 10);
+  ctx.fillStyle = "#ff5d8f"; ctx.fillRect(dj.x + dj.w / 2 + 6, dj.y + 24, 4, 16);
+  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff8fb5";
+  ctx.fillText("🎧 DJ", dj.x + dj.w / 2, dj.y + dj.h - 12);
+}
 function drawClub(t) {
   t = decorT(t); /* decorT: at graphics 1/4 club ambient decor (kick-beat neon, dance floor, disco sway) steps at ~15fps */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
@@ -4295,27 +4322,8 @@ function drawClub(t) {
     for (let fx = cx0 + 12; fx < cx0 + 52; fx += 13) ctx.fillRect(fx, st.y + 16, 5, st.h - 32);
     ctx.fillStyle = "#ffd76a"; ctx.fillRect(cx0, st.y + st.h - 74, 58, 7);
   }
-  /* the DJ booth, centre stage (Jonathan 2026-10-30): a counter in the bar counters' style — dark purple body, pink neon top strip pulsing on the club beat, cyan trim — with two turntables and a mixer on top. It sits on the stage floor below the disco ball, clear of the valance, the side drapes and the stage's front gold strip. Pure decor: nothing here is a tap zone; the booth is solid only through DJBOOTH in the club obstacles. */
-  const dj = DJBOOTH;
-  ctx.fillStyle = "#241031"; rr(dj.x, dj.y, dj.w, dj.h, 10); ctx.fill();
-  ctx.save(); ctx.shadowColor = "#ff5d8f"; ctx.shadowBlur = 3 + 22 * beat;
-  ctx.fillStyle = "rgba(255,93,143," + (0.7 + 0.3 * beat) + ")"; ctx.fillRect(dj.x, dj.y, dj.w, 6); ctx.restore();
-  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 2; rr(dj.x, dj.y, dj.w, dj.h, 10); ctx.stroke();
-  ctx.fillStyle = "#31155c"; rr(dj.x + 12, dj.y + 14, dj.w - 24, 44, 8); ctx.fill(); /* the deck top the gear sits on */
-  for (const px of [dj.x + 62, dj.x + dj.w - 62]) { /* two turntables, platters slowly turning */
-    ctx.fillStyle = "#0a0616"; ctx.beginPath(); ctx.arc(px, dj.y + 36, 21, 0, 7); ctx.fill();
-    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, dj.y + 36, 21, 0, 7); ctx.stroke();
-    const da = t / 400 + px;
-    ctx.fillStyle = "#38e1ff"; ctx.beginPath(); ctx.arc(px + Math.cos(da) * 13, dj.y + 36 + Math.sin(da) * 13, 3, 0, 7); ctx.fill();
-    ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(px, dj.y + 36, 3.5, 0, 7); ctx.fill();
-  }
-  ctx.fillStyle = "#170b26"; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.fill(); /* the mixer between the decks */
-  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 1.5; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.stroke();
-  ctx.fillStyle = "#4ade80"; ctx.fillRect(dj.x + dj.w / 2 - 18, dj.y + 26, 4, 14);
-  ctx.fillStyle = "#ffd76a"; ctx.fillRect(dj.x + dj.w / 2 - 6, dj.y + 30, 4, 10);
-  ctx.fillStyle = "#ff5d8f"; ctx.fillRect(dj.x + dj.w / 2 + 6, dj.y + 24, 4, 16);
-  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff8fb5";
-  ctx.fillText("🎧 DJ", dj.x + dj.w / 2, dj.y + dj.h - 12);
+  /* the DJ booth, centre stage — painted by drawDJBooth, which frame() also repaints over a DJ standing behind it */
+  drawDJBooth(t);
   /* dance floor: cycling neon tiles */
   const cols = 10, rows = 8, tw = DFLOOR.w / cols, th = DFLOOR.h / rows;
   const pal = ["#ff5d8f", "#38e1ff", "#a855f7", "#ffd76a", "#4ade80", "#ff8c42"];
@@ -5009,6 +5017,7 @@ function frame(now) {
     const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999); /* Q-Bot's bubble ages from when this screen received his answer (his timestamps come from the server's clock), so it lasts the same 5s as a player's own bubble */
     if (me.scene === "gym") { const ci2 = courtAt(a.x, a.y); if (ci2) { const sd = a.x < ci2.r.x + ci2.r.w / 2 ? "A" : "B"; ctx.beginPath(); ctx.ellipse(a.x, a.y + 26, 30, 10, 0, 0, 7); ctx.strokeStyle = sd === "A" ? "rgba(56,225,255,0.9)" : "rgba(255,93,143,0.9)"; ctx.lineWidth = 3.5; ctx.stroke(); } }
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
+    if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now)); /* a DJ standing behind the booth: repaint the counter over their lower body so their head pokes up behind it. Actors are y-sorted, so anyone in FRONT of the booth has a larger y and is drawn after this — they paint over the booth as normal. Applies to my sprite and to remote players alike (a.x/a.y are the smoothed positions everyone sees) */
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
   ctx.restore();
@@ -5019,6 +5028,7 @@ function frame(now) {
   else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
+  else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
   else if (nearBJ()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Blackjack"; promptAction = () => trySit("bj"); }
   else if (nearRR()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎡 Sit at Roulette"; promptAction = () => trySit("rr"); }
