@@ -851,7 +851,7 @@ function startSwVideos() {
 function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
-/* iOS Safari ignores .volume on media elements, so the club's 25% runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
+/* iOS Safari ignores .volume on media elements, so the club's 10% runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
 let jukeGain = null;
 function jukeWireGain() {
   if (jukeGain) return true;
@@ -859,16 +859,16 @@ function jukeWireGain() {
     const c = ac(); if (!c) return false;
     const srcNode = c.createMediaElementSource(jukeAudio);
     const g = c.createGain();
-    g.gain.value = muted ? 0 : 0.25;
+    g.gain.value = muted ? 0 : 0.1;
     g.connect(c.destination); srcNode.connect(g);
     jukeGain = g;
-    jukeAudio.volume = 1; /* the gain node does the 25% now */
+    jukeAudio.volume = 1; /* the gain node does the 10% now */
     return true;
   } catch (e) { return false; }
 }
 function jukeApplyVol() {
-  if (jukeGain) { jukeAudio.volume = 1; try { jukeGain.gain.value = muted ? 0 : 0.25; } catch (e) {} }
-  else jukeAudio.volume = muted ? 0 : 0.25;
+  if (jukeGain) { jukeAudio.volume = 1; try { jukeGain.gain.value = muted ? 0 : 0.1; } catch (e) {} }
+  else jukeAudio.volume = muted ? 0 : 0.1;
 }
 let clubState = null;
 function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
