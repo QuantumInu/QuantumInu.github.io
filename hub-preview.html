@@ -859,7 +859,7 @@ function startSwVideos() {
 function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
-/* iOS Safari ignores .volume on media elements, so the club's 5% runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
+/* iOS Safari ignores .volume on media elements, so the club's 25% (Jonathan 2026-10-30: back up from the 5% set earlier the same day) runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
 let jukeGain = null;
 function jukeWireGain() {
   if (jukeGain) return true;
@@ -867,16 +867,16 @@ function jukeWireGain() {
     const c = ac(); if (!c) return false;
     const srcNode = c.createMediaElementSource(jukeAudio);
     const g = c.createGain();
-    g.gain.value = muted ? 0 : 0.05;
+    g.gain.value = muted ? 0 : 0.25;
     g.connect(c.destination); srcNode.connect(g);
     jukeGain = g;
-    jukeAudio.volume = 1; /* the gain node does the 5% now */
+    jukeAudio.volume = 1; /* the gain node does the 25% now */
     return true;
   } catch (e) { return false; }
 }
 function jukeApplyVol() {
-  if (jukeGain) { jukeAudio.volume = 1; try { jukeGain.gain.value = muted ? 0 : 0.05; } catch (e) {} }
-  else jukeAudio.volume = muted ? 0 : 0.05;
+  if (jukeGain) { jukeAudio.volume = 1; try { jukeGain.gain.value = muted ? 0 : 0.25; } catch (e) {} }
+  else jukeAudio.volume = muted ? 0 : 0.25;
 }
 let clubState = null;
 function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
@@ -1040,6 +1040,7 @@ const BAR_R = { x: 1688, y: 76, w: 560, h: 60 };
 const DFLOOR = { x: 652, y: 540, w: 1000, h: 740 };
 const JUKE = { x: 296, y: 1170, w: 104, h: 148 };
 const CEXIT = { x: CLUBROOM.w / 2 - 62, y: CLUBROOM.h - 58, w: 124, h: 44 };
+const DJBOOTH = { x: STAGE.x + STAGE.w / 2 - 150, y: STAGE.y + 168, w: 300, h: 92 }; /* the DJ booth, centred on the club stage (Jonathan 2026-10-30): pure decor, no controls, nothing to tap — but solid: it sits in the club obstacles below, so players walk around it, never through it */
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
 const PORTAL = { x: 1600, y: 2080 }; /* moved 2026-10-29: from the west lawn (430,620) to its own circle directly below the spawn roundabout, on a new purple spur path */
@@ -1075,7 +1076,7 @@ function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcad
 function obstacles() {
   if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B, SPD_B];
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
-  if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE];
+  if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, JUKE, DJBOOTH];
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
@@ -2804,15 +2805,23 @@ function myBjSeat() { return (mySeat && mySeat.game === "bj") ? bjState && bjSta
 function bjBet(amt) {
   const st = bjState, mine = myBjSeat();
   if (!st || st.phase !== "bet" || !mine || mine.bet) return;
+  if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch."); return; }
   if (!profile || profile.chips < amt) { noteCasino("Not enough chips for that bet."); return; }
   addChips(-amt);
   if (!st.firstBetTs) tblUpd("bj", { firstBetTs: Date.now() });
   tblUpd("bj/seats/" + mySeat.idx, { bet: amt, ts: Date.now() }); sfxClick();
+  mine.bet = amt; /* mirror my own write locally at once, exactly as rouletteBet does: a fast follow-up tap (READY right after the bet) must see this bet before the server echo lands, not the stale record */
 }
-function bjStartGame() {
+/* the READY button (Jonathan 2026-10-30): the same check roulette got on 2026-10-29, because blackjack went too quick — a hand used to deal the moment any one seated player tapped START GAME. Tapping READY — lit only while the player holds a bet — flips the rdy flag on their own seat record, so every client sees the same ready state off the same record. Tapping again un-readies. The hand deals when every fresh seated player is ready (see bjHostTick); readiness without a bet is impossible — this toggle refuses to set it with nothing down, and the host gate counts rdy only alongside a real bet. The old START GAME path (bjStartGame writing startReq) is removed: the ready check is now the only way a hand starts. */
+function bjReady() {
   const st = bjState, mine = myBjSeat();
   if (!st || st.phase !== "bet" || !mine) return;
-  tblUpd("bj", { startReq: Date.now() }); sfxClick();
+  if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch."); return; }
+  if (!(mine.bet > 0)) return;
+  const nr = !mine.rdy;
+  tblUpd("bj/seats/" + mySeat.idx, { rdy: nr, ts: Date.now() });
+  mine.rdy = nr; /* mirror locally, same as rouletteReady: the button's own repaint shouldn't wait on the echo */
+  sfxClick();
 }
 function bjHit() {
   const st = bjState, mine = myBjSeat();
@@ -2838,12 +2847,13 @@ function bjHostTick() {
   Object.keys(seats).forEach(k => { if (!seats[k].pid || (now - (seats[k].ts || 0) > 25000 && !seats[k].bet)) tblSet("bj/seats/" + k, null); }); /* a pid-less husk is reaped on sight, not after 25s (ghost-seat fix, 2026-10-30) */
   const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
   const bettors = fresh.filter(i => seats[i].bet > 0).sort((a, b) => a - b);
+  const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0); /* rdy alone never counts: readiness requires holding a bet, so a stale flag on an empty seat can't deal the hand (roulette's rule, mirrored) */
   if (st.phase === "bet") {
-    /* a hand starts only when a seated player presses START GAME — no auto-deal timer.
+    /* a hand starts only when EVERY fresh seated player has tapped READY while holding a bet (Jonathan 2026-10-30 — roulette's ready check, because blackjack went too quick: one player's START GAME tap used to deal the hand for the whole table). No auto-deal timer.
        Nothing is dealt before that: clear any stale cards left on the table. */
     if (st.dealer && st.dealer.length) tblUpd("bj", { dealer: [] });
     fresh.forEach(i => { if (seats[i].hand && seats[i].hand.length) tblUpd("bj/seats/" + i, { hand: [] }); });
-    if (bettors.length && st.startReq) {
+    if (fresh.length && ready.length === fresh.length) {
       const deck = newDeck();
       const dealer = [deck.pop(), deck.pop()];
       bettors.forEach(i => tblUpd("bj/seats/" + i, { hand: [deck.pop(), deck.pop()], stood: false, dbl: false }));
@@ -2875,7 +2885,7 @@ function bjHostTick() {
       if (nt !== st.turn) tblUpd("bj", { turn: nt, turnTs: now });
     }
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
-    Object.keys(seats).forEach(i => tblUpd("bj/seats/" + i, { bet: 0, hand: [], stood: false, dbl: false }));
+    Object.keys(seats).forEach(i => tblUpd("bj/seats/" + i, { bet: 0, hand: [], stood: false, dbl: false, rdy: false })); /* every hand starts un-ready: nobody rides last hand's READY tap into the next deal (roulette's rule, mirrored) */
     tblUpd("bj", { phase: "bet", dealer: [], results: null, handId: (st.handId || 0) + 1, firstBetTs: 0, startReq: 0, msg: "" });
   }
 }
@@ -3503,12 +3513,20 @@ function drawBJTable(t) {
   let status = "Setting up the table…";
   if (st) {
     if (!liveBj && st.phase !== "bet") status = "Place your bets — sit down & bet to start";
-    else if (st.phase === "bet") status = st.firstBetTs ? "Place your bets — a seated player taps ▶ START GAME to deal" : "Place your bets — sit down & bet to start";
+    else if (st.phase === "bet") { const ss = st.seats || {}, nowS = Date.now(); const fr = Object.keys(ss).filter(k => ss[k] && nowS - (ss[k].ts || 0) < 25000); const bt = fr.filter(k => ss[k].bet > 0); const rd = fr.filter(k => ss[k].rdy && ss[k].bet > 0); status = bt.length ? "Waiting for everyone to tap READY — " + rd.length + "/" + fr.length + " ready" : "Place your bets — sit down & bet to start"; }
     else if (st.phase === "deal") status = "🃏 The dealer is dealing…";
     else if (st.phase === "play") { const ts = st.seats && st.seats[st.turn]; status = (mySeat && mySeat.game === "bj" && st.turn === mySeat.idx) ? "⭐ YOUR TURN ⭐" : ((ts ? ts.name : "A player") + " is playing…"); }
     else if (st.phase === "done") status = st.msg || "Hand over.";
   }
   ctx.fillText(status, cx, BJT.y + 208);
+  /* READY button (Jonathan 2026-10-30): top-right of the panel, aligned with the title — the same spot, size and colours as roulette's. The title baseline sits at BJT.y+52 in 30px type (feltBase), so its optical centre is ~BJT.y+42 and the 48px-tall button spans BJT.y+18..+66 around that same centre. Purple: DIM dark purple with no tap zone while the seated player holds no bet, LIT bright purple once a bet is down; a readied player sees it stay lit, stamped ✓ READY, and tapping again un-readies (bjReady). Spectators and players between hands get no button at all — counts only. This replaces the old ▶ START GAME button: the hand deals when everyone seated is ready, not when one player says go. */
+  {
+    const mine0 = myBjSeat();
+    if (st && st.phase === "bet" && mine0) {
+      const hasBet = (mine0.bet || 0) > 0, isRdy = !!(mine0.rdy && hasBet);
+      drawBtn(BJT.x + BJT.w - 168, BJT.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? bjReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+    }
+  }
   /* seat spots: cards, totals, bets, results */
   BJSPOTS.forEach((sp, i) => {
     const s = st && st.seats && st.seats[i];
@@ -3527,17 +3545,16 @@ function drawBJTable(t) {
     if (st.phase === "done" && st.results && st.results[i]) {
       ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
       ctx.fillText(st.results[i].res + (st.results[i].amt ? " · +" + st.results[i].amt : ""), sp.x, sp.y + 28);
-    } else if (s.bet) drawChip(sp.x, sp.y + 52, s.bet);
+    } else if (s.bet) {
+      drawChip(sp.x, sp.y + 52, s.bet);
+      if (s.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 20); } /* other players' ready state, read off the same shared seat record (roulette's label, mirrored) */
+    }
   });
   drawSeatsRow(BJSEATS, st, "bj");
   /* my controls, on the felt */
   if (mySeat && mySeat.game === "bj" && st) {
     const mine = st.seats && st.seats[mySeat.idx];
     const by = BJT.y + BJT.h - 66;
-    if (st.phase === "bet" && mine) {
-      const anyBet = Object.keys(st.seats || {}).some(k => { const s2 = st.seats[k]; return s2 && s2.bet > 0 && Date.now() - (s2.ts || 0) < 25000; });
-      if (anyBet) drawBtn(cx - 150, BJT.y + 246, 300, 52, st.startReq ? "⏳ DEALING…" : "▶ START GAME", st.startReq ? null : bjStartGame, { fs: 23, fill: "#8a6a1f", dim: !!st.startReq });
-    }
     if (st.phase === "bet" && mine && !mine.bet) {
       [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(cx - 308 + k * 104, by, 96, 48, "BET " + amt, () => bjBet(amt), { fs: 20 }));
     }
@@ -4278,6 +4295,27 @@ function drawClub(t) {
     for (let fx = cx0 + 12; fx < cx0 + 52; fx += 13) ctx.fillRect(fx, st.y + 16, 5, st.h - 32);
     ctx.fillStyle = "#ffd76a"; ctx.fillRect(cx0, st.y + st.h - 74, 58, 7);
   }
+  /* the DJ booth, centre stage (Jonathan 2026-10-30): a counter in the bar counters' style — dark purple body, pink neon top strip pulsing on the club beat, cyan trim — with two turntables and a mixer on top. It sits on the stage floor below the disco ball, clear of the valance, the side drapes and the stage's front gold strip. Pure decor: nothing here is a tap zone; the booth is solid only through DJBOOTH in the club obstacles. */
+  const dj = DJBOOTH;
+  ctx.fillStyle = "#241031"; rr(dj.x, dj.y, dj.w, dj.h, 10); ctx.fill();
+  ctx.save(); ctx.shadowColor = "#ff5d8f"; ctx.shadowBlur = 3 + 22 * beat;
+  ctx.fillStyle = "rgba(255,93,143," + (0.7 + 0.3 * beat) + ")"; ctx.fillRect(dj.x, dj.y, dj.w, 6); ctx.restore();
+  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 2; rr(dj.x, dj.y, dj.w, dj.h, 10); ctx.stroke();
+  ctx.fillStyle = "#31155c"; rr(dj.x + 12, dj.y + 14, dj.w - 24, 44, 8); ctx.fill(); /* the deck top the gear sits on */
+  for (const px of [dj.x + 62, dj.x + dj.w - 62]) { /* two turntables, platters slowly turning */
+    ctx.fillStyle = "#0a0616"; ctx.beginPath(); ctx.arc(px, dj.y + 36, 21, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, dj.y + 36, 21, 0, 7); ctx.stroke();
+    const da = t / 400 + px;
+    ctx.fillStyle = "#38e1ff"; ctx.beginPath(); ctx.arc(px + Math.cos(da) * 13, dj.y + 36 + Math.sin(da) * 13, 3, 0, 7); ctx.fill();
+    ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(px, dj.y + 36, 3.5, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = "#170b26"; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.fill(); /* the mixer between the decks */
+  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 1.5; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.stroke();
+  ctx.fillStyle = "#4ade80"; ctx.fillRect(dj.x + dj.w / 2 - 18, dj.y + 26, 4, 14);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(dj.x + dj.w / 2 - 6, dj.y + 30, 4, 10);
+  ctx.fillStyle = "#ff5d8f"; ctx.fillRect(dj.x + dj.w / 2 + 6, dj.y + 24, 4, 16);
+  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff8fb5";
+  ctx.fillText("🎧 DJ", dj.x + dj.w / 2, dj.y + dj.h - 12);
   /* dance floor: cycling neon tiles */
   const cols = 10, rows = 8, tw = DFLOOR.w / cols, th = DFLOOR.h / rows;
   const pal = ["#ff5d8f", "#38e1ff", "#a855f7", "#ffd76a", "#4ade80", "#ff8c42"];
