@@ -1710,9 +1710,8 @@ function stepSports(dt) {
   }
 }
 function courtFocusRect() {
-  const ci = courtAt(me.x, me.y);
-  const r = ci ? ci.r : (me.x > LG.x && me.x < LG.x + LG.w && me.y > LG.y && me.y < LG.y + LG.h) ? LG : null;
-  if (!r) return null;
+  /* CAMERA TRIGGER (Jonathan 2026-10-29): the zoom starts when you enter an area's BOX — its whole quadrant of the gym (bb top-left, fb top-right, tn bottom-left, lounge bottom-right) — not when you step onto the field. The focus rect itself (the field/lounge rect padded by 90) and so the zoom amount are exactly as before; side/scoring still key off the actual field via courtAt in stepSports — this function is camera-only. */
+  const r = me.y < 1200 ? (me.x < 1800 ? BB : FB) : (me.x < 1800 ? TN : LG);
   return { x: r.x - 90, y: r.y - 90, w: r.w + 180, h: r.h + 180 };
 }
 /* ============ inside the Quantum Sports Complex ============ */
@@ -1770,10 +1769,28 @@ function swCarRec(i) { return (swState && swState.cars && swState.cars[i]) || nu
 function swCarTarget(i) {
   /* the spot everyone agrees car i is at: its shared record when one exists, its staging spot otherwise; a driver only counts while their record is fresh */
   const rec = swCarRec(i);
-  if (rec && typeof rec.x === "number") return { x: rec.x, y: rec.y, hd: rec.hd || 0, drv: (rec.drv && Date.now() - (rec.ts || 0) < 12000) ? rec.drv : "", drvName: rec.drvName || "" };
-  const s = swStage(i); return { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "" };
+  if (rec && typeof rec.x === "number") return { x: rec.x, y: rec.y, hd: rec.hd || 0, drv: (rec.drv && Date.now() - (rec.ts || 0) < 12000) ? rec.drv : "", drvName: rec.drvName || "", lap: (typeof rec.lap === "number") ? rec.lap : 0 };
+  const s = swStage(i); return { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0 };
 }
 function swCarOfDriver(pid) { for (let i = 0; i < 4; i++) if (swCarTarget(i).drv === pid && pid) return i; return -1; }
+/* ---- lap counter (Jonathan 2026-10-29): counter-clockwise laps only, counted at the start/finish line. The driver's client owns its car's count: it tracks the car's angle around the arena centre (1800,1200) — with y down, CCW travel makes that angle DECREASE — and banks a lap only when a full 2π of CCW progress meets a crossing of the line, so partial loops, wiggling on the line and wrong-way driving earn nothing. Progress counts only while the car is on the track ring; cutting across the infield is dead air. The count rides in the shared car record (lap) so the whole room sees the same four numbers, and a car that rolls back to staging starts over at 0. ---- */
+let swLaps = [0, 0, 0, 0]; /* the room's lap counts, one per car: mine computed here, the others mirrored from their records */
+let swLapAcc = 0, swLapBase = 0, swLapTheta = null; /* my car's accumulated CCW radians, the progress mark of its last counted lap, and its last angle around the centre */
+function swLapResetTrack() { swLapAcc = 0; swLapBase = 0; swLapTheta = null; }
+function swLapUpdate(x, y) {
+  if (myCar < 0) return;
+  const th = Math.atan2(y - SW_CY, x - 1800);
+  if (swLapTheta === null) { swLapTheta = th; return; }
+  let d = th - swLapTheta;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  const q = swSpine(x, y), rd = Math.hypot(x - q.x, y - q.y);
+  if (rd >= SW_RI && rd <= SW_RO) { /* on the track ring — the infield earns nothing */
+    if (swLapTheta > Math.PI / 2 && th <= Math.PI / 2 && d < 0 && swLapAcc - swLapBase >= Math.PI * 2 - 0.25) { swLaps[myCar]++; swLapBase = swLapAcc; } /* a full CCW loop meeting the line (angle passing +90° on the bottom straight): bank the lap */
+    swLapAcc -= d; /* CCW travel decreases the angle, so progress is the negative delta — clockwise driving subtracts */
+  }
+  swLapTheta = th;
+}
 /* ---- engine sound: two detuned oscillators through a lowpass, pitch and bite rise with speed; a soft putter at idle. Follows the hub's mute + focus-hold rules like every other sound. ---- */
 let engOsc = null, engOsc2 = null, engGain = null, engFilter = null;
 const ENG_IDLE_GAIN = 0.045; /* the seated idle hum level: a FLOOR that never dips while a driver sits in the car (Jonathan 2026-10-29 — the hum must never cut at standstill) */
@@ -1808,10 +1825,11 @@ function engineUpdate(frac) {
 function sitInCar(i) {
   const v = swCarTarget(i);
   myCar = i;
+  swLaps[i] = v.lap || 0; swLapResetTrack(); /* my count continues from the car's stored lap; the progress tracker starts fresh from here */
   carPos = { x: v.x, y: v.y, hd: v.hd || 0 }; carVel = { x: 0, y: 0 };
   me.x = carPos.x; me.y = carPos.y;
   swWriteAt = 0; swLastWrite = null;
-  swSet("cars/" + i, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, ts: Date.now() });
+  swSet("cars/" + i, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[i], ts: Date.now() });
   swOD(true);
   sfxChime(); publish(true);
 }
@@ -1820,7 +1838,7 @@ function stepOutOfCar(silent) {
   const i = myCar;
   swSet("cars/" + i + "/drv", null); swSet("cars/" + i + "/drvName", null);
   swOD(false);
-  myCar = -1; engineStop();
+  myCar = -1; engineStop(); swLapResetTrack(); /* the lap count itself stays in the car record until the car re-stages */
   if (carPos) {
     /* step out onto the apron: the nearest point just outside the track's outer edge */
     const q = swSpine(carPos.x, carPos.y);
@@ -1835,7 +1853,7 @@ function stepOutOfCar(silent) {
 function stepSpeedway(dt, ivx, ivy) {
   const now = performance.now();
   /* if another driver's claim on my car landed after mine, I lost it — step out in place */
-  if (myCar >= 0) { const rec = swCarRec(myCar); if (rec && rec.drv && rec.drv !== myId && Date.now() - (rec.ts || 0) < 12000) { myCar = -1; carPos = null; carVel = { x: 0, y: 0 }; engineStop(); } }
+  if (myCar >= 0) { const rec = swCarRec(myCar); if (rec && rec.drv && rec.drv !== myId && Date.now() - (rec.ts || 0) < 12000) { myCar = -1; carPos = null; carVel = { x: 0, y: 0 }; engineStop(); swLapResetTrack(); } }
   if (myCar >= 0 && carPos) {
     /* ---- driving ---- */
     const mag = Math.hypot(ivx, ivy);
@@ -1874,13 +1892,14 @@ function stepSpeedway(dt, ivx, ivy) {
     const spd = Math.hypot(carVel.x, carVel.y);
     if (spd > 30) carPos.hd = swTurn(carPos.hd, Math.atan2(carVel.y, carVel.x), 3.6 * dt);
     me.x = carPos.x; me.y = carPos.y; me.moving = false; me.run = false;
+    swLapUpdate(carPos.x, carPos.y); /* lap progress follows the car's final spot each frame */
     engineUpdate(Math.min(1, spd / SW_SPEED));
     swEmitSmoke(myCar, carPos.x, carPos.y, carPos.hd, mag > 0.1 ? Math.min(1, dl / SW_SPEED) : 0, dt, carVel.x, carVel.y); /* smoke keys off the same velocity gap the physics is closing: full at launch, zero once speed matches the stick */
     /* share my car: on movement, and at least every 1.5s as a heartbeat so my claim stays fresh */
     const lw = swLastWrite;
     if (now - swWriteAt > 120 && (!lw || Math.hypot(carPos.x - lw.x, carPos.y - lw.y) > 3 || Math.abs(carPos.hd - lw.hd) > 0.03 || now - swWriteAt > 1500)) {
       swWriteAt = now; swLastWrite = { x: carPos.x, y: carPos.y, hd: carPos.hd };
-      swSet("cars/" + myCar, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, ts: Date.now() });
+      swSet("cars/" + myCar, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[myCar], ts: Date.now() });
     }
   } else {
     engineUpdate(0);
@@ -1895,6 +1914,7 @@ function stepSpeedway(dt, ivx, ivy) {
   for (let i = 0; i < 4; i++) {
     if (i === myCar) { swCarsVis[i] = carPos ? { x: carPos.x, y: carPos.y, hd: carPos.hd } : swCarsVis[i]; continue; }
     const v = swCarTarget(i);
+    swLaps[i] = v.lap || 0; /* mirror the room's agreed count for this car */
     let vis = swCarsVis[i];
     const pvx = vis ? vis.x : v.x, pvy = vis ? vis.y : v.y;
     if (!vis || Math.hypot(v.x - vis.x, v.y - vis.y) > 320) { vis = swCarsVis[i] = { x: v.x, y: v.y, hd: v.hd }; swVisSpd[i] = 0; }
@@ -1916,7 +1936,7 @@ function stepSpeedway(dt, ivx, ivy) {
       const rec = swCarRec(i); if (!rec) continue;
       const v = swCarTarget(i); if (v.drv) continue;
       const s = swStage(i);
-      if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", ts: Date.now() });
+      if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, ts: Date.now() }); /* back on its staging spot, the lap counter resets to 0 */
     }
   }
   /* ---- smoke particles: drift, expand slightly, fade out, then they're gone ---- */
@@ -2070,6 +2090,16 @@ function drawSwStand(cx, cy) {
   ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌭 🍿 🥤", 0, -88);
   ctx.restore();
 }
+function drawSwLapRow() {
+  /* the lap counter (Jonathan 2026-10-29): one counter per car under the centrepiece — evenly spaced about the arena centre, in the cars' staging order, each painted in its car's colour with the room's agreed lap count */
+  ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.lineJoin = "round";
+  for (let i = 0; i < 4; i++) {
+    const n = i === myCar ? swLaps[i] : (swCarTarget(i).lap || 0);
+    const label = SW_CARS[i].name + " " + n, lx = 1800 + (i - 1.5) * 190;
+    ctx.lineWidth = 7; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.strokeText(label, lx, 1408);
+    ctx.fillStyle = SW_CARS[i].col; ctx.fillText(label, lx, 1408);
+  }
+}
 function drawSpeedway(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* hall floor */
@@ -2110,6 +2140,9 @@ function drawSpeedway(t) {
     ctx.fillStyle = k % 2 ? "#e8ecf2" : "#14161c"; ctx.fillRect(1790, ry, 10, (SW_RO - SW_RI) / 16 + 1);
     ctx.fillStyle = k % 2 ? "#14161c" : "#e8ecf2"; ctx.fillRect(1800, ry, 10, (SW_RO - SW_RI) / 16 + 1);
   }
+  /* direction chevrons just past (right of) the start/finish line (Jonathan 2026-10-29): laps run counter-clockwise, so travel crosses the line heading +x — the arrows point the way. Paint only, no collision */
+  ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 7; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  for (const cy of [1745, 1830, 1915]) { ctx.beginPath(); ctx.moveTo(1869, cy - 26); ctx.lineTo(1891, cy); ctx.lineTo(1869, cy + 26); ctx.stroke(); }
   /* staging boxes */
   ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2;
   for (let i = 0; i < 4; i++) { const s = swStage(i); ctx.strokeRect(s.x - 48, s.y - 27, 96, 54); }
@@ -2129,6 +2162,7 @@ function drawSpeedway(t) {
   ctx.restore();
   ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,196,120,0.9)";
   ctx.fillText("🏁 QUANTUM SPEEDWAY 🏁", 1800, 1092);
+  drawSwLapRow(); /* the lap counters ride right under the centrepiece, part of the same centre display */
   ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,200,0.65)";
   ctx.fillText("walk into a car to drive it — just for fun", 1800, 1330);
   /* infield monitors — Daily Life racing feeds, one centred in each half of the grass (Jonathan 2026-10-29) */
@@ -3559,7 +3593,7 @@ function drawPlaza(t) {
     ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.beginPath(); ctx.arc(x - 1.6, y - 1.6, 1.8, 0, 7); ctx.fill();
     ctx.fillStyle = "#ffd76a";
   }
-  for (let y = 560; y <= 1500; y += 188) { if (y !== 748) { lamp(1492, y); lamp(1708, y); } }
+  for (let y = 560; y <= 1500; y += 188) { if (y !== 748 && y !== 1500) { lamp(1492, y); lamp(1708, y); } } /* two rows draw NEITHER lamp: y=748 (the crossroads pair) and y=1500 — that pair flanked the roundabout atom on its ring, removed at Jonathan's word (2026-10-29) */
   for (let x = 660; x <= 1380; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   for (let x = 1880; x <= 2600; x += 240) { lamp(x, 1452); lamp(x, 1668); }
   lamp(1960, 642); lamp(2360, 642); lamp(1960, 858); lamp(2360, 858); lamp(2532, 580); lamp(2728, 580);
@@ -3733,6 +3767,23 @@ function drawClubBuilding(t) {
   ctx.save(); ctx.shadowColor = "rgba(255,93,143,0.85)"; ctx.shadowBlur = 14;
   ctx.strokeStyle = "#ff5d8f"; ctx.lineWidth = 3; rr(b.x, b.y, b.w, b.h, 16); ctx.stroke(); ctx.restore();
   ctx.strokeStyle = "rgba(56,225,255,0.55)"; ctx.lineWidth = 2; rr(b.x + 9, b.y + 9, b.w - 18, b.h - 18, 11); ctx.stroke();
+  /* roof (Jonathan 2026-10-29): the club was the only plaza building with a bare top edge — it now wears the same top-edge language as the casino/gym/speedway, in club colours: a trapezoid crown tier above the edge, an overhanging roof band straddling it, chasing pink/purple bulbs along the band, and a disco-ball finial at the centre. Drawing only — footprint, door, sign and obstacles untouched. */
+  const bcx = b.x + b.w / 2;
+  ctx.fillStyle = "#341052";
+  ctx.beginPath(); ctx.moveTo(b.x + 30, b.y - 30); ctx.lineTo(b.x + 112, b.y - 78); ctx.lineTo(b.x + b.w - 112, b.y - 78); ctx.lineTo(b.x + b.w - 30, b.y - 30); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(255,93,143,0.85)"; ctx.lineWidth = 2.5; ctx.stroke();
+  const rfg = ctx.createLinearGradient(0, b.y - 34, 0, b.y + 10);
+  rfg.addColorStop(0, "#3b115c"); rfg.addColorStop(1, "#220836");
+  ctx.fillStyle = rfg; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.fill();
+  ctx.strokeStyle = "#ff5d8f"; ctx.lineWidth = 2.5; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.stroke();
+  for (let i = 0, bx = b.x + 30; bx <= b.x + b.w - 20; bx += 44, i++) {
+    ctx.fillStyle = ((i + Math.floor(t / 420)) % 2) ? "#ff5d8f" : "#a855f7";
+    ctx.beginPath(); ctx.arc(bx, b.y - 12, 5, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(bcx - 3, b.y - 94, 6, 16);
+  ctx.fillStyle = "#e9d5ff"; ctx.beginPath(); ctx.arc(bcx, b.y - 104, 10, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#ff5d8f"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bcx, b.y - 104, 10, 0, 7); ctx.stroke();
+  ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(bcx - 3, b.y - 107, 3, 0, 7); ctx.fill();
   /* vertical neon strips on the facade — all flash together on the beat, like a kick drum */
   const clubBeat = Math.pow(1 - ((t % 480) / 480), 2);
   for (let i = 0; i < 6; i++) {
@@ -4055,7 +4106,7 @@ function drawHQ(t) {
     const gx = [250, W - 250, 250, W - 250][i], gy = [290, 290, H - 250, H - 250][i];
     ctx.save(); ctx.translate(gx, gy); ctx.rotate(0.6 + i * 0.9);
     for (let a = 0; a < 3; a++) {
-      ctx.save(); ctx.rotate(a * 2.1 + t / 850);
+      ctx.save(); ctx.rotate(a * 2.1 + t / 2600);
       ctx.fillStyle = "rgba(190,220,255,0.10)";
       ctx.beginPath(); ctx.ellipse(27, 0, 36, 9, 0, 0, 7); ctx.fill(); ctx.restore();
     }
