@@ -882,7 +882,7 @@ const SW_CX1 = 1100, SW_CX2 = 2500, SW_CY = 1200;
 const SW_RO = 800, SW_RI = 460;
 const SW_LANES = [SW_RI + 42.5, SW_RI + 127.5, SW_RI + 212.5, SW_RI + 297.5]; /* lane centres, inside out */
 const SW_SPEED = 671; /* drive speed: walk 305 x 2.2 — same stick, just faster (his spec) */
-const SW_BOOST_MULT = 1.5; /* BOOST (Jonathan 2026-10-29): holding the run button / spacebar while driving raises the target speed to SW_SPEED x 1.5 (~1007) for as long as it's held; releasing drops straight back to SW_SPEED */
+const SW_BOOST_MULT = 1.5; /* BOOST (Jonathan 2026-10-29): holding the run button / spacebar while driving raises the target speed to SW_SPEED x 1.5 (~1007) — but only while the boost METER has charge (see the boost-meter block below); empty meter, capped speed, held button or not */
 const SW_CARS = [
   { col: "#e33b3b", dark: "#8f1f1f", name: "RED" },
   { col: "#3b6fe3", dark: "#1f3f8f", name: "BLUE" },
@@ -1749,9 +1749,9 @@ let carPos = null, carVel = { x: 0, y: 0 }; /* my car's live state while driving
 /* ---- car smoke (Jonathan 2026-10-29): SUBTLE puffs trailing DRIVEN cars while they accelerate. Emission keys off acceleration effort: for my car, the real velocity gap the physics is closing this frame; for remote cars (the sync record carries position only — format unchanged), the observed speed change of the smoothed car. No smoke at idle, none at steady cruise, none from parked/staged cars. Capped per car, particles integrate in stepSpeedway and render under the cars in drawSpeedway. ---- */
 const SW_SMOKE_MAX = 26; /* live puffs per car — a whisper of smoke, and cheap on phones */
 let swPuffs = [], swEmitAcc = [0, 0, 0, 0], swVisSpd = [0, 0, 0, 0];
-/* ---- boost state (Jonathan 2026-10-29): the sprint input (touch RUN button / spacebar) IS the boost in a car. swBoostLvl is the boost BAR's fill per car, 0..1 — it fills over ~1s while that car's boost is held and drains over ~0.6s once released. It is a visual of the boost state ONLY: it never limits or gates the boost, which works whenever held. For remote cars the level is driven by the same derived boost the smoke reads (observed speed above the normal cap — the sync record carries position only, so no new field). ---- */
+/* ---- boost METER (Jonathan 2026-10-29): the sprint input (touch RUN button / spacebar) IS the boost in a car, and swBoostLvl[i] is a real METER, not just the bar's picture of one. It starts FULL when a driver gets in; while boost is ACTIVE (held with charge left) it drains — a full meter buys SW_BOOST_USE seconds of boost; at empty the boost DEACTIVATES (speed back to the cap, boost smoke off) even if the button stays held, and a held-empty meter does NOT refill. Let go and it REPLENISHES over SW_BOOST_REFILL seconds; touch it again mid-charge and it boosts on whatever is there, draining from that value. Both times are 1.0s — "it should last just as long as it takes to fill right now", the old bar's own fill time. The meter rides in the shared car record (bst), written by the driver on the same writes as the position (its own motion also trips a write, so the empty moment reaches the room at once), so every client reads the exact number the driver sees — no local re-simulation of a remote meter to drift apart. ---- */
 let swBoostLvl = [0, 0, 0, 0];
-const SW_BOOST_FILL = 1.0, SW_BOOST_DRAIN = 0.6; /* seconds: bar fill time while held / drain time after release */
+const SW_BOOST_USE = 1.0, SW_BOOST_REFILL = 1.0; /* seconds: full meter -> empty under boost / empty -> full while released */
 function swBoostHeld() { return runBtnHeld || keys.has(" "); }
 function swSyncRunLabel() { const want = myCar >= 0 ? "BOOST" : "RUN"; if (runEl.textContent !== want) runEl.textContent = want; } /* the mobile button reads BOOST while I drive a car, RUN on foot (where the same input still sprints) */
 function swEmitSmoke(i, x, y, hd, effort, dt, cvx, cvy, boost) {
@@ -1778,8 +1778,8 @@ function swCarRec(i) { return (swState && swState.cars && swState.cars[i]) || nu
 function swCarTarget(i) {
   /* the spot everyone agrees car i is at: its shared record when one exists, its staging spot otherwise; a driver only counts while their record is fresh */
   const rec = swCarRec(i);
-  if (rec && typeof rec.x === "number") return { x: rec.x, y: rec.y, hd: rec.hd || 0, drv: (rec.drv && Date.now() - (rec.ts || 0) < 12000) ? rec.drv : "", drvName: rec.drvName || "", lap: (typeof rec.lap === "number") ? rec.lap : 0, lev: (typeof rec.lev === "number") ? rec.lev : 0 };
-  const s = swStage(i); return { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, lev: 0 };
+  if (rec && typeof rec.x === "number") return { x: rec.x, y: rec.y, hd: rec.hd || 0, drv: (rec.drv && Date.now() - (rec.ts || 0) < 12000) ? rec.drv : "", drvName: rec.drvName || "", lap: (typeof rec.lap === "number") ? rec.lap : 0, lev: (typeof rec.lev === "number") ? rec.lev : 0, bst: (typeof rec.bst === "number") ? rec.bst : 1 };
+  const s = swStage(i); return { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, lev: 0, bst: 1 };
 }
 function swCarOfDriver(pid) { for (let i = 0; i < 4; i++) if (swCarTarget(i).drv === pid && pid) return i; return -1; }
 /* ---- lap counter (Jonathan 2026-10-29): counter-clockwise laps only, counted at the start/finish line. The driver's client owns its car's count: it tracks the car's angle around the arena centre (1800,1200) — with y down, CCW travel makes that angle DECREASE — and banks a lap only when a full 2π of CCW progress meets a crossing of the line, so partial loops, wiggling on the line and wrong-way driving earn nothing. Progress counts only while the car is on the track ring; cutting across the infield is dead air. The count rides in the shared car record (lap) so the whole room sees the same four numbers, and a car that rolls back to staging starts over at 0. ---- */
@@ -1845,13 +1845,13 @@ function engineUpdate(frac) {
 function sitInCar(i) {
   const v = swCarTarget(i);
   myCar = i;
-  swBoostLvl[i] = 0; swSyncRunLabel(); /* fresh seat: the boost bar starts empty and the button becomes BOOST */
+  swBoostLvl[i] = 1; swSyncRunLabel(); /* fresh seat: the boost meter starts FULL and the button becomes BOOST */
   swLaps[i] = v.lap || 0; swLapResetTrack(); /* my count continues from the car's stored lap; the progress tracker starts fresh from here */
   swLapLev[i] = v.lev || 0; swLevSeen[i] = swLapLev[i]; swLevInit[i] = true; /* my event chain continues from the car's stored lev, and those past events are already celebrated — joining a car mid-chain fires nothing */
   carPos = { x: v.x, y: v.y, hd: v.hd || 0 }; carVel = { x: 0, y: 0 };
   me.x = carPos.x; me.y = carPos.y;
   swWriteAt = 0; swLastWrite = null;
-  swSet("cars/" + i, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[i], lev: swLapLev[i], ts: Date.now() });
+  swSet("cars/" + i, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[i], lev: swLapLev[i], bst: 1, ts: Date.now() });
   swOD(true);
   sfxChime(); publish(true);
 }
@@ -1880,7 +1880,7 @@ function stepSpeedway(dt, ivx, ivy) {
   if (myCar >= 0 && carPos) {
     /* ---- driving ---- */
     const mag = Math.hypot(ivx, ivy);
-    const boosting = swBoostHeld(); /* the sprint input, read as boost while I drive */
+    const boosting = swBoostHeld() && swBoostLvl[myCar] > 0; /* boost is ACTIVE only while the sprint input is held AND the meter still has charge — an empty meter means no boost, however long the button stays down */
     let txv = 0, tyv = 0;
     if (mag > 0.1) { const sp = SW_SPEED * (boosting ? SW_BOOST_MULT : 1) * Math.min(1, mag); txv = ivx / mag * sp; tyv = ivy / mag * sp; }
     const ACC = mag > 0.1 ? 1500 : 2300;
@@ -1918,14 +1918,15 @@ function stepSpeedway(dt, ivx, ivy) {
     me.x = carPos.x; me.y = carPos.y; me.moving = false; me.run = false;
     swLapUpdate(carPos.x, carPos.y); /* lap progress follows the car's final spot each frame */
     engineUpdate(Math.min(SW_BOOST_MULT, spd / SW_SPEED)); /* the fraction runs past 1 only while boosting, so the existing pitch/level staging revs higher on boost and is untouched otherwise */
-    swBoostLvl[myCar] = boosting ? Math.min(1, swBoostLvl[myCar] + dt / SW_BOOST_FILL) : Math.max(0, swBoostLvl[myCar] - dt / SW_BOOST_DRAIN); /* the bar shadows the held state, ~1s up / ~0.6s down */
+    if (boosting) swBoostLvl[myCar] = Math.max(0, swBoostLvl[myCar] - dt / SW_BOOST_USE); /* active boost spends the meter: full buys SW_BOOST_USE seconds, then it's empty and boosting stays off while held */
+    else if (!swBoostHeld()) swBoostLvl[myCar] = Math.min(1, swBoostLvl[myCar] + dt / SW_BOOST_REFILL); /* released, the meter replenishes; held at empty it just sits at empty until I let go */
     const accEff = mag > 0.1 ? Math.min(1, dl / SW_SPEED) : 0;
     swEmitSmoke(myCar, carPos.x, carPos.y, carPos.hd, boosting && mag > 0.1 ? Math.max(accEff, 0.9) : accEff, dt, carVel.x, carVel.y, boosting && mag > 0.1); /* smoke keys off the same velocity gap the physics is closing: full at launch, zero once speed matches the stick — but while BOOST is held the effort floors at 0.9, so a boosting car pours smoke for the whole boost, not just the launch */
-    /* share my car: on movement, and at least every 1.5s as a heartbeat so my claim stays fresh */
+    /* share my car: on movement, and at least every 1.5s as a heartbeat so my claim stays fresh. The boost meter rides the same record (bst) — and its own motion trips a write too, so a draining or refilling meter (and the exact moment it empties) reaches the room within one throttle window even from a car sitting still. */
     const lw = swLastWrite;
-    if (now - swWriteAt > 120 && (!lw || Math.hypot(carPos.x - lw.x, carPos.y - lw.y) > 3 || Math.abs(carPos.hd - lw.hd) > 0.03 || now - swWriteAt > 1500)) {
-      swWriteAt = now; swLastWrite = { x: carPos.x, y: carPos.y, hd: carPos.hd };
-      swSet("cars/" + myCar, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[myCar], lev: swLapLev[myCar], ts: Date.now() });
+    if (now - swWriteAt > 120 && (!lw || Math.hypot(carPos.x - lw.x, carPos.y - lw.y) > 3 || Math.abs(carPos.hd - lw.hd) > 0.03 || Math.abs(swBoostLvl[myCar] - (lw ? lw.bst : 1)) > 0.04 || now - swWriteAt > 1500)) {
+      swWriteAt = now; swLastWrite = { x: carPos.x, y: carPos.y, hd: carPos.hd, bst: swBoostLvl[myCar] };
+      swSet("cars/" + myCar, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[myCar], lev: swLapLev[myCar], bst: +swBoostLvl[myCar].toFixed(2), ts: Date.now() });
     }
   } else {
     engineUpdate(0);
@@ -1954,7 +1955,7 @@ function stepSpeedway(dt, ivx, ivy) {
     if (!vis || Math.hypot(v.x - vis.x, v.y - vis.y) > 320) { vis = swCarsVis[i] = { x: v.x, y: v.y, hd: v.hd }; swVisSpd[i] = 0; }
     else {
       vis.x += (v.x - vis.x) * Math.min(1, dt * 10); vis.y += (v.y - vis.y) * Math.min(1, dt * 10); vis.hd = swTurn(vis.hd, v.hd, 10 * dt);
-      /* remote smoke: the record carries no velocity, so derive effort from the smoothed car's observed speed change (same 1500px/s^2 scale as the local physics). BOOST needs no new sync field either: a car observed moving faster than the normal cap (SW_SPEED) can only be boosting, so its smoke and its bar read that straight off the synced positions. */
+      /* remote smoke: the record carries no velocity, so derive effort from the smoothed car's observed speed change (same 1500px/s^2 scale as the local physics). The smoke's boost flavour reads the same way: a car observed moving faster than the normal cap (SW_SPEED) can only be boosting. (Its boost BAR is not derived — it mirrors the synced meter in bst, below.) */
       const dts = Math.max(dt, 0.001), spdN = Math.hypot(vis.x - pvx, vis.y - pvy) / dts;
       const eff = Math.max(0, Math.min(1, (spdN - swVisSpd[i]) / (1500 * dts)));
       swVisSpd[i] = spdN;
@@ -1962,9 +1963,8 @@ function stepSpeedway(dt, ivx, ivy) {
       if (v.drv) swEmitSmoke(i, vis.x, vis.y, vis.hd, rBoost ? Math.max(eff, 0.9) : eff, dt, (vis.x - pvx) / dts, (vis.y - pvy) / dts, rBoost);
     }
     vis.drv = v.drv; vis.drvName = v.drvName;
-    /* the remote car's boost bar rides the same derived boost (observed speed above the cap), filling and draining on the same timing as mine */
-    if (!v.drv) swBoostLvl[i] = 0;
-    else swBoostLvl[i] = swVisSpd[i] > SW_SPEED * 1.06 ? Math.min(1, swBoostLvl[i] + dt / SW_BOOST_FILL) : Math.max(0, swBoostLvl[i] - dt / SW_BOOST_DRAIN);
+    /* the remote car's boost bar IS its driver's meter: bst rides in the shared record, so mirror it exactly — same number, same empty moment, no local re-simulation to drift. An undriven car's bar isn't drawn; its next driver starts full at sit-in. */
+    if (v.drv) swBoostLvl[i] = Math.max(0, Math.min(1, v.bst));
   }
   /* ---- an empty car left off its spot rolls back to staging after ~4s (anyone in the room may write it; the write is identical) ---- */
   if (now - swRestageAt > 800) {
@@ -1974,7 +1974,7 @@ function stepSpeedway(dt, ivx, ivy) {
       const rec = swCarRec(i); if (!rec) continue;
       const v = swCarTarget(i); if (v.drv) continue;
       const s = swStage(i);
-      if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, lev: 0, ts: Date.now() }); /* back on its staging spot, the lap counter resets to 0 — and its event chain restarts at 0 with it, so the car's next bank celebrates fresh (the reset itself fires nothing anywhere) */
+      if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, lev: 0, bst: 1, ts: Date.now() }); /* back on its staging spot, the lap counter resets to 0 — and its event chain restarts at 0 with it, so the car's next bank celebrates fresh (the reset itself fires nothing anywhere); the staged car also reads a full boost meter, like every fresh car */
     }
   }
   /* ---- smoke particles: drift, expand slightly, fade out, then they're gone ---- */
