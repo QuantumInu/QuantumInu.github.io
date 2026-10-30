@@ -1391,9 +1391,22 @@ $("changebtn").onclick = () => {
 cancelBtn.onclick = () => { gate.style.display = "none"; sfxClick(); };
 /* ============ input ============ */
 const cv = $("game"), ctx = cv.getContext("2d");
+/* ============ LITE mode — phones only (Jonathan 2026-10-30) ============
+   Phone browsers get a cheaper render; PCs are byte-for-byte the old page:
+   every LITE-gated value below reduces to today's value when LITE is false.
+   1) the canvas caps at 1x pixel density instead of 2x (see resize);
+   2) glow blur is neutralised at this one context — ctx is the ONLY 2D
+      context the page ever draws with, and shadowBlur is the priciest
+      canvas effect on a phone GPU, so killing it here kills it everywhere;
+   3) purely decorative animation time is stepped to ~15fps via decorT()
+      at the decor draws (ambient motion only — gameplay, movement, ball
+      rendering and every synced/srvNow() timeline keep real time). */
+const LITE = (window.matchMedia && matchMedia("(pointer: coarse)").matches) || /Android|webOS|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+if (LITE) { try { Object.defineProperty(ctx, "shadowBlur", { configurable: true, get() { return 0; }, set() {} }); } catch (e) {} }
+function decorT(t) { return LITE ? Math.floor(t / 66) * 66 : t; }
 let VW = 0, VH = 0, DPR = 1;
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = Math.min(window.devicePixelRatio || 1, LITE ? 1 : 2);
   VW = cv.clientWidth; VH = cv.clientHeight;
   cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
 }
@@ -2459,17 +2472,18 @@ function drawGym(t) {
     ctx.strokeStyle = "rgba(255,215,106,0.25)"; rr(rugX + 50, rugY + 50, rugW - 100, rugH - 100, 20); ctx.stroke();
     /* fireplace on the top wall */
     const fp = FIREPL;
+    const ft = decorT(t); /* LITE: the fireplace flicker steps at ~15fps on phones — the rest of the gym (balls, hoops, fx) keeps real time */
     const glow = ctx.createRadialGradient(cx, fp.y + 130, 30, cx, fp.y + 130, 330);
-    glow.addColorStop(0, "rgba(255,140,40," + (0.30 + 0.06 * Math.sin(t / 300)) + ")"); glow.addColorStop(1, "rgba(255,140,40,0)");
+    glow.addColorStop(0, "rgba(255,140,40," + (0.30 + 0.06 * Math.sin(ft / 300)) + ")"); glow.addColorStop(1, "rgba(255,140,40,0)");
     ctx.fillStyle = glow; ctx.fillRect(cx - 340, fp.y, 680, 380);
     ctx.fillStyle = "#4a3a3a"; rr(fp.x - 26, fp.y - 14, fp.w + 52, fp.h + 26, 10); ctx.fill();
     ctx.fillStyle = "#191012"; rr(fp.x, fp.y + 16, fp.w, fp.h - 6, 8); ctx.fill();
     ctx.fillStyle = "#5a3a22"; ctx.fillRect(fp.x + 90, fp.y + 76, 160, 20); ctx.fillRect(fp.x + 120, fp.y + 62, 130, 16);
     for (let i = 0; i < 5; i++) {
-      const fx = cx + (i - 2) * 34, fh = 44 + 20 * Math.sin(t / 190 + i * 1.9) + 10 * Math.sin(t / 97 + i);
+      const fx = cx + (i - 2) * 34, fh = 44 + 20 * Math.sin(ft / 190 + i * 1.9) + 10 * Math.sin(ft / 97 + i);
       const fg2 = ctx.createRadialGradient(fx, fp.y + 92, 2, fx, fp.y + 92 - fh / 2, fh);
       fg2.addColorStop(0, "rgba(255,220,120,0.95)"); fg2.addColorStop(0.55, "rgba(255,130,30,0.8)"); fg2.addColorStop(1, "rgba(200,40,0,0)");
-      ctx.fillStyle = fg2; ctx.beginPath(); ctx.ellipse(fx, fp.y + 92 - fh / 2, 15 + 4 * Math.sin(t / 150 + i * 2.2), fh, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = fg2; ctx.beginPath(); ctx.ellipse(fx, fp.y + 92 - fh / 2, 15 + 4 * Math.sin(ft / 150 + i * 2.2), fh, 0, 0, 7); ctx.fill();
     }
     ctx.fillStyle = "#6a4a4a"; ctx.fillRect(fp.x - 40, fp.y - 30, fp.w + 80, 18);
     ctx.font = "26px sans-serif"; ctx.fillText("🏆", fp.x - 6, fp.y - 36); ctx.fillText("🏆", fp.x + fp.w - 26, fp.y - 36); ctx.fillText("⚛️", cx - 13, fp.y - 36);
@@ -3603,7 +3617,7 @@ function drawCasino(t) {
   ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 6; ctx.strokeRect(14, 14, CASINOROOM.w - 28, CASINOROOM.h - 28);
   ctx.strokeStyle = "rgba(168,85,247,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(30, 30, CASINOROOM.w - 60, CASINOROOM.h - 60);
   ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-  ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#ffd76a" : "#ffdf94";
+  ctx.fillStyle = (Math.floor(decorT(t) / 500) % 2) ? "#ffd76a" : "#ffdf94"; /* decorT: LITE steps this title blink on phones; t itself flows on untouched to the tables and drawTableFx below */
   ctx.fillText("🎰 QUANTUM CASINO 🎰", CASINOROOM.w / 2, 128);
   ctx.font = "700 25px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.8)";
   ctx.fillText("blackjack · roulette · slots — the tables are the game, pull up a seat", CASINOROOM.w / 2, 172);
@@ -3844,6 +3858,7 @@ function drawHalloweenPlaza(t) {
   HW_WEBS.forEach(w => hwWeb(w[0], w[1], w[2], w[3], w[4]));
 }
 function drawPlaza(t) {
+  t = decorT(t); /* LITE: the plaza's ambient decor (fountains, chasing bulbs, building glows, tree sparkle, spawn atom, Halloween flicker) steps at ~15fps on phones — players and sync are drawn elsewhere with real time */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const CX = 1600, CY = 1010;
   const g = ctx.createRadialGradient(CX, CY, 140, CX, CY, 1020);
@@ -4132,6 +4147,7 @@ function drawClubBuilding(t) {
   ctx.fillText("▼ ENTER ▼", CLUBDOOR.x + CLUBDOOR.w / 2, CLUBDOOR.y + CLUBDOOR.h + 52);
 }
 function drawClub(t) {
+  t = decorT(t); /* LITE: club ambient decor (kick-beat neon, dance floor, disco sway) steps at ~15fps on phones */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const beat = Math.pow(1 - ((t % 480) / 480), 2); /* the club's kick-drum pulse — interior neon flashes together on it */
   ctx.fillStyle = "#0a0616"; ctx.fillRect(0, 0, CLUBROOM.w, CLUBROOM.h);
@@ -4249,6 +4265,7 @@ function drawClub(t) {
   ctx.restore();
 }
 function drawArcade(t) {
+  t = decorT(t); /* LITE: arcade ambient decor (marquee bulbs, cabinet glows) steps at ~15fps on phones */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* wide screens: the floor runs on past both side walls all the way to the screen
      edges, so no outer space shows beside the room (Jonathan 2026-10-29) — the apron
@@ -4418,6 +4435,7 @@ function drawPortal(x, y, t, label) {
   ctx.restore();
 }
 function drawHQ(t) {
+  t = decorT(t); /* LITE: HQ ambient decor (fans, lamps, window drift, portal atom) steps at ~15fps on phones */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const W = HQROOM.w, H = HQROOM.h;
   ctx.fillStyle = "#070d1d"; ctx.fillRect(0, 0, W, H);
@@ -4584,6 +4602,7 @@ function drawHQ(t) {
   ctx.restore();
 }
 function drawTheatre(t) {
+  t = decorT(t); /* LITE: theatre ambient decor (screen glow cycle, projector flicker, marquee bulbs) steps at ~15fps on phones */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   ctx.fillStyle = "#07060f"; ctx.fillRect(0, 0, TH.w, TH.h);
   ctx.fillStyle = "#0d0b1e"; ctx.fillRect(HALL.x1, 0, TH.w - HALL.x1, TH.h);
