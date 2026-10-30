@@ -520,6 +520,8 @@ $("mutebtn").onclick = () => {
 };
 /* ============ presence (Firebase Realtime Database) ============ */
 let db = null, myRef = null, connected = false;
+let srvOff = 0; /* Firebase server clock minus this device's clock (kept fresh by the .info/serverTimeOffset listener below). srvNow() puts this device on the SERVER timeline, so a shared instant stamped by one player — a roulette spin's start above all — is measured identically by every player, however their own clock is set. The old habit of stamping with one device's raw Date.now() and measuring with another's mixed two clocks: that was the roulette ball that never spun for some players (see drawRouletteTable). */
+function srvNow() { return Date.now() + srvOff; }
 let myId = localStorage.getItem("quantum-hub-session");
 if (!myId) { myId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); localStorage.setItem("quantum-hub-session", myId); } /* localStorage, not sessionStorage (2026-10-28): the id survives tab closes, so after a reload the game still knows this browser — that is what lets a player reclaim their own casino chair instead of finding it stuck under a stranger-id */
 /* per-TAB id (2026-10-29): sessionStorage, so every tab of a browser gets its own id and a reload of the same tab keeps it. The account session claim below runs on THIS id — myId cannot do that job, being shared by every tab of the browser on purpose (seat reclaim above). Telling tabs apart is what lets a second tab be blocked while the first one stays put. */
@@ -536,6 +538,7 @@ try {
     setStatus(connected ? "● Connected" : "● Offline", connected ? "on" : "off");
     if (connected && entered) publish(true);
   });
+  db.ref(".info/serverTimeOffset").on("value", s => { const v = s.val(); if (typeof v === "number" && isFinite(v)) srvOff = v; });
   db.ref("hub/presence").on("value", snap => {
     const now = Date.now();
     const seen = new Set();
@@ -2791,17 +2794,23 @@ const ROU_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8
 const ROU_RED = { 1: 1, 3: 1, 5: 1, 7: 1, 9: 1, 12: 1, 14: 1, 16: 1, 18: 1, 19: 1, 21: 1, 23: 1, 25: 1, 27: 1, 30: 1, 32: 1, 34: 1, 36: 1 };
 let rouletteAmt = 10;
 function myRrSeat() { return (mySeat && mySeat.game === "rr") ? rrState && rrState.seats && rrState.seats[mySeat.idx] : null; }
+/* two independent pick groups (Jonathan 2026-10-29: "you can pick either black or red or green plus you can still pick even or odd"): the colour group (red/black/green) and the even/odd group hold one pick EACH, stored together in betType joined with "+" ("red+even", or a lone "red" exactly as before). Picking in one group never touches the other; picking a different member of the same group replaces that group's pick; tapping the pick you already have UNSELECTS it ("tapping again unselects"). Every pick carries the selected amount, so bet is the TOTAL staked (picks x amount) and each pick settles for bet / picks. */
+const RR_GROUPS = { red: "colour", black: "colour", green: "colour", even: "parity", odd: "parity" };
+function rrBetParts(seat) { return seat && seat.betType ? String(seat.betType).split("+").filter(tp => RR_GROUPS[tp]) : []; }
 function rouletteBet(type) {
   const st = rrState, mine = myRrSeat();
-  if (!st || st.phase !== "bet" || !mine) return;
+  if (!st || st.phase !== "bet" || !mine || !RR_GROUPS[type]) return;
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch."); return; }
-  const amt = rouletteAmt, prev = mine.bet || 0;
+  const parts = rrBetParts(mine), prev = mine.bet || 0;
+  const picked = parts.includes(type) ? parts.filter(tp => tp !== type) : parts.filter(tp => RR_GROUPS[tp] !== RR_GROUPS[type]).concat(type);
+  const next = ["red", "black", "green", "even", "odd"].filter(tp => picked.includes(tp)); /* canonical order — colour pick first, parity second — whatever order they were tapped in */
+  const amt = next.length * rouletteAmt;
   const avail = (profile ? (profile.chips || 0) : 0) + prev;
   if (amt > avail) { noteCasino("Not enough chips for a " + amt + " bet."); return; }
   if (prev) addChips(prev);
-  addChips(-amt);
-  if (!st.firstBetTs) tblUpd("rr", { firstBetTs: Date.now() });
-  tblUpd("rr/seats/" + mySeat.idx, { bet: amt, betType: type, ts: Date.now(), chips: profile ? profile.chips : 0 });
+  if (amt) addChips(-amt);
+  if (!st.firstBetTs && amt) tblUpd("rr", { firstBetTs: Date.now() });
+  tblUpd("rr/seats/" + mySeat.idx, { bet: amt, betType: next.join("+"), ts: Date.now(), chips: profile ? profile.chips : 0 });
 }
 function rouletteHostSeat() { const st = rrState; if (!st || !st.seats) return -1; const ks = Object.keys(st.seats).map(Number).sort((a, b) => a - b); for (const i of ks) { const s = st.seats[i]; if (s && Date.now() - (s.ts || 0) < 25000) return i; } return -1; }
 function rouletteHostTick() {
@@ -2814,14 +2823,18 @@ function rouletteHostTick() {
   if (st.phase === "bet") {
     /* Jonathan 2026-10-28: the wheel rolls only when EVERY seated player has their bet down — no timer roll while someone at the table is still deciding */
     if (bettors.length && bettors.length === fresh.length) {
-      tblUpd("rr", { phase: "spin", result: Math.floor(Math.random() * 37), spinTs: now, results: null, msg: "" });
+      /* spinTs is stamped on the SHARED timeline — srvNow(), this host's clock corrected onto server time — never the host's raw Date.now(): every client renders the ball off this one instant measured against its own srvNow() (see drawRouletteTable), so the spin starts at the same shared moment on every screen. Stamping it with the host's raw local clock left viewers whose clocks ran ahead of the host's seeing the ball already landed, and viewers behind seeing it hang off-angle, which is why some players never saw the ball spin at all */
+      tblUpd("rr", { phase: "spin", result: Math.floor(Math.random() * 37), spinTs: srvNow(), results: null, msg: "" });
     }
-  } else if (st.phase === "spin" && now - (st.spinTs || 0) > 5600) {
+  } else if (st.phase === "spin" && srvNow() - (st.spinTs || 0) > 5600) {
     const res = st.result || 0, results = {};
     bettors.forEach(i => {
       const s = seats[i]; let amt = 0;
-      if (s.betType === "green" && res === 0) amt = s.bet * 36;
-      else if (res !== 0 && ((s.betType === "red" && ROU_RED[res]) || (s.betType === "black" && !ROU_RED[res]) || (s.betType === "even" && res % 2 === 0) || (s.betType === "odd" && res % 2 === 1))) amt = s.bet * 2;
+      const parts = rrBetParts(s), per = parts.length ? (s.bet || 0) / parts.length : 0; /* each pick settles for its own stake: a lone pick settles for the whole bet, exactly as before */
+      parts.forEach(tp => {
+        if (tp === "green" && res === 0) amt += per * 36;
+        else if (res !== 0 && ((tp === "red" && ROU_RED[res]) || (tp === "black" && !ROU_RED[res]) || (tp === "even" && res % 2 === 0) || (tp === "odd" && res % 2 === 1))) amt += per * 2;
+      });
       results[i] = { res: amt ? ("🎉 WIN +" + amt) : "no win", amt };
     });
     tblUpd("rr", { phase: "done", results, doneTs: now });
@@ -3468,7 +3481,8 @@ function drawRouletteTable(t) {
     const target = ROU_ORDER.indexOf(st.result) * step - Math.PI / 2;
     if (st.phase === "done") ballAng = target;
     else {
-      const p = Math.min(1, (Date.now() - (st.spinTs || 0)) / 4800), ease = 1 - Math.pow(1 - p, 3);
+      /* elapsed is measured on the SHARED timeline — srvNow() against the server-stamped spinTs — never this device's raw clock against another device's stamp. Every client, host included, computes the same p from the same record, and a client whose first snapshot lands mid-spin lands on the same ball position as everyone else and watches the same landing. (Before the server stamp, a viewer whose clock ran ahead of the host's got p = 1 on the first frame — ball already parked, no spin ever seen; a viewer behind got p < 0 and a backwards-hung ball.) */
+      const p = Math.min(1, Math.max(0, (srvNow() - (st.spinTs || 0)) / 4800)), ease = 1 - Math.pow(1 - p, 3);
       const start = (st.spinTs % 3600) * 0.01;
       let dlt = (target - start) % (Math.PI * 2); if (dlt < 0) dlt += Math.PI * 2;
       ballAng = start + (Math.PI * 10 + dlt) * ease;
@@ -3495,9 +3509,9 @@ function drawRouletteTable(t) {
   const types = [["red", "🔴 RED", "#a11d28"], ["black", "⚫ BLACK", "#15151f"], ["even", "EVEN", "#1d2b52"], ["odd", "ODD", "#1d2b52"], ["green", "🟢 GREEN 0 · pays 36×", "#0a8a4a"]];
   types.forEach((tp, k) => {
     const bw = k === 4 ? 392 : 188, bx = RRT.x + 478 + (k % 2) * 204, by = RRT.y + 116 + Math.floor(k / 2) * 76;
-    const sel = mine && mine.betType === tp[0];
-    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + mine.bet : ""), () => rouletteBet(tp[0]), { fs: 21, fill: tp[2], sel, pad: 6 });
-    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(tp[1] + (sel ? " · " + mine.bet : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
+    const myParts = mine ? rrBetParts(mine) : [], sel = !!mine && myParts.includes(tp[0]), per = myParts.length ? (mine.bet || 0) / myParts.length : 0;
+    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + per : ""), () => rouletteBet(tp[0]), { fs: 21, fill: tp[2], sel, pad: 6 });
+    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(tp[1] + (sel ? " · " + per : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
   });
   if (mySeat && mySeat.game === "rr") {
     [1, 5, 10, 20, 50, 100].forEach((amt, k) => drawBtn(RRT.x + 478 + k * 67, RRT.y + RRT.h - 66, 60, 48, String(amt), () => { rouletteAmt = amt; sfxClick(); }, { fs: 19, sel: rouletteAmt === amt, pad: 5 }));
