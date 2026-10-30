@@ -418,20 +418,14 @@ function gymThemeTick(tick) {
   if (step % 2 === 1) noiseBurst(0.05, "highpass", 6000, 6000, 0.006); /* hat tick */
   if (step % 2 === 0) tone(ch[[0, 2, 3, 2][step / 2]] * 4, 0, 0.22, "triangle", 0.010); /* arp sparkle */
 }
-/* the crowd answers a point on any court — called from spFxCheck beside the cheer, so everyone in the gym hears the same swell */
-function gymCrowdSwell() {
-  if (me.scene !== "gym") return;
-  noiseBurst(2.4, "bandpass", 500, 1100, 0.2);
-  noiseBurst(1.8, "lowpass", 700, 480, 0.10, 0.05);
-}
-/* casino: Dm9 – G13 – Cmaj9 – A7 lounge changes — soft pads, a gentle root/third bass walk, brush ticks on the off-steps */
+/* the score-triggered crowd swell that used to answer a point here (gymCrowdSwell — a bandpass sweep 500→1100Hz, added with the room themes) was removed at Jonathan's word (2026-10-29, "just remove the recently added swish"): a point keeps its original sting + cheer and the steady crowd hum in gymThemeTick carries on, but the swell never fires */
+/* casino: Dm9 – G13 – Cmaj9 – A7 lounge changes — a gentle root/third bass walk, brush ticks on the off-steps, one soft sparkle per chord. The long sustained string pad that used to swell under it was removed at Jonathan's word (2026-10-29, "remove the long string instrument") — the pad layer is gone from this theme only; the other rooms' pads are untouched */
 const CASINO_CHORDS = [
   [146.8, 174.6, 261.6, 329.6], [98.0, 123.5, 174.6, 329.6],
   [130.8, 164.8, 246.9, 293.7], [110.0, 138.6, 196.0, 329.6]
 ];
 function casinoThemeTick(tick) {
   const ci = Math.floor(tick / 16) % 4, ch = CASINO_CHORDS[ci], step = tick % 16;
-  if (step === 0) padChord(ch, 8.4, 0.011);
   if (step % 4 === 0) tone(ch[[0, 1, 0, 2][step / 4]], 0, 1.7, "triangle", 0.020); /* slow bass walk */
   if (step % 4 === 2) noiseBurst(0.09, "highpass", 5000, 5000, 0.005); /* brush chick */
   if (step === 8) tone(ch[3] * 4, 0, 1.4, "sine", 0.006); /* one soft high sparkle per chord */
@@ -932,8 +926,13 @@ const RRT = { x: 1870, y: 980, w: 900, h: 430 };
 const BJSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h + 150 })); /* seats sit well below the felt (2026-10-28): at +84 the seated players' name plates landed on the table's bottom button row */
 const RRSEATS = [0, 1, 2, 3, 4].map(i => ({ x: RRT.x + 110 + i * 170, y: RRT.y + RRT.h + 150 })); /* 5 chairs below the felt in blackjack's exact arrangement — the 2 end chairs are gone (Jonathan 2026-10-29) */
 const BJSPOTS = [0, 1, 2, 3, 4].map(i => ({ x: BJT.x + 110 + i * 170, y: BJT.y + BJT.h - 128 }));
-const SLOTM = [0, 1, 2, 3, 4, 5].map(i => ({ x: 270 + i * 480, y: 250, w: 210, h: 330 }));
+/* slots (expanded 2026-10-29 at Jonathan's word "add another slot machine in between each slot machine"): SLOTM is in DRAW order, left to right, but every machine carries a fixed record id. The original six machines keep ids 0-5 — their positions (x = 270 + id*480) and their shared slot/slotseat records are exactly what they always were — while the five new machines sit centred in the gaps (x = 510 + (id-6)*480, 30px clear of each neighbour) under brand-new ids 6-10, so no existing machine's last spin or seat can ever land on a different cabinet. Everywhere in the slot code, an index into SLOTM/SLOTSEATS is a DRAW index; shared records are only ever touched through slotKey()/slotMachineByKey(). */
+const SLOTM = [];
+for (let i = 0; i < 6; i++) { SLOTM.push({ id: i, x: 270 + i * 480, y: 250, w: 210, h: 330 }); if (i < 5) SLOTM.push({ id: 6 + i, x: 510 + i * 480, y: 250, w: 210, h: 330 }); }
 const SLOTSEATS = SLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 120 })); /* pushed down 2026-10-28: at +40 the player's head + name plate covered the SPIN button */
+function slotKey(i) { const m = SLOTM[i]; return m ? String(m.id) : String(i); }
+function slotMachineByKey(k) { return SLOTM.find(m => String(m.id) === String(k)) || null; }
+function slotSeatView() { const v = {}; SLOTM.forEach((m, i) => { const s = slotSeats && slotSeats[m.id]; if (s) v[i] = s; }); return v; }
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
 const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 80, w: 124, h: 44 }; /* plate raised above the gold border line (Jonathan 2026-10-29) */
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
@@ -1715,7 +1714,7 @@ function sportsListen() {
   if (!db || spHooked) return; spHooked = true;
   for (const pr of COURTS) { const k = pr[0]; db.ref("hub/tables/sports/" + k).on("value", s => { spState[k] = s.val(); spFxCheck(k); }); }
 }
-/* score celebrations: driven by the SHARED lastScore, so everyone in the gym sees and hears the same moment (the tableResultFx pattern) */
+/* score celebrations: driven by the SHARED lastScore, so everyone in the gym sees and hears the same moment (the tableResultFx pattern) — the sounds are the original per-sport sting + cheer; only the room-themes crowd swell was removed (Jonathan 2026-10-29) */
 let hoopAnim = { L: 0, R: 0 };
 function spFxCheck(k) {
   const st = spState[k]; if (!st || !st.lastScore) return;
@@ -1728,11 +1727,10 @@ function spFxCheck(k) {
   if (k === "bb") fx = ls.side === "A" ? r.x + r.w - 58 : r.x + 58;
   if (k === "fb") fx = ls.side === "A" ? r.x + r.w - 20 : r.x + 20;
   if (k === "tn") fy = r.y + 120;
-  fxBurst(fx, fy, true);
-  fxText(fx, fy - 60, "+" + (ls.pts || 1) + " " + SP_SNAME[ls.side], SP_COL[ls.side]);
+  fxBurst(fx, fy, true, "gym");
+  fxText(fx, fy - 60, "+" + (ls.pts || 1) + " " + SP_SNAME[ls.side], SP_COL[ls.side], "gym");
   if (k === "bb") { hoopAnim[ls.side === "A" ? "R" : "L"] = performance.now(); sfxSwish(); } else if (k === "fb") sfxBuzzer(); else sfxWhistle();
-  sfxCheer();
-  gymCrowdSwell(); /* the stadium crowd swells on the same shared lastScore moment */
+  sfxCheer(); /* the original score sounds stay exactly as they were (Jonathan corrected himself 2026-10-29: "Scoring should keep the sound, just remove the recently added swish") — the single removal is the room-themes crowd swell that used to fire beside this cheer; it is gone, function and call */
 }
 function spBufPush(v, sb) {
   /* one accepted ball state joins the follower's snapshot buffer (see stepSports). Snapshots are keyed by the WRITER's timestamp \u2014 already in every payload: consecutive stamps from the host's single clock are exact ~33ms spacings, so interpolating between them keeps the ball's speed true even when network jitter bunches or spreads the ARRIVALS (keying by arrival time distorted every segment's duration and the ball surged and stalled). The writer's absolute clock is never trusted: a smoothed offset (EMA of receipt minus stamp, both read in Date.now() terms) maps local time onto the writer's timeline, and any clock skew cancels inside it. */
@@ -2517,16 +2515,20 @@ function drawGym(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GEXIT.x, GEXIT.y, GEXIT.w, GEXIT.h, 8); ctx.stroke();
   ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", GEXIT.x + GEXIT.w / 2, GEXIT.y + 30);
-  drawTableFx(t);
+  drawTableFx(t, "gym");
   ctx.restore();
 }
 let bjState = null, rrState = null, slotState = {}, slotSeats = {}, casinoHooked = false;
 /* ---- table celebrations (Jonathan 2026-10-28): driven by the SHARED table results, so when a hand or spin settles, every client in the casino fires the same burst at the winner's seat — the winner hears the full jingle, everyone else hears it softer ---- */
 let fxParts = [], fxTexts = [], fxFlashBJ = 0, fxFlashRR = 0, fxLastT = 0;
+/* ---- cross-room fx leak fix (Jonathan 2026-10-29: casino coins kept popping up while he walked the gym). Three locks, because the casino listeners stay live all session and this pool is shared with the gym's score bursts: (1) every particle/text carries its origin scene (p.sc) and drawTableFx only paints its own scene's; (2) the casino checks only SPAWN visuals for results that land while the player is inside the casino, and only for results newer than casinoFxSince — the moment he entered — so a win that predates entry never replays, while the seen-markers still advance in every scene so nothing stale can fire later; (3) frame() wipes all pending room fx the moment the scene changes, so nothing queued in one room can render in the next. ---- */
+let casinoFxSince = 0; /* set by toCasino: table results older than this never celebrate */
+let fxPrevScene = null; /* frame()'s scene-change detector for clearRoomFx */
+function clearRoomFx() { fxParts = []; fxTexts = []; fxFlashBJ = 0; fxFlashRR = 0; swLineFx = []; swPuffs = []; swLapPulse = [-1e9, -1e9, -1e9, -1e9]; }
 let bjFxDone = 0, rrFxDone = 0, lastBjCards = -1, slotFxTs = {}, lastTickSpin = 0, lastBallPocket = -1;
-function fxBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, grey: false, r: 4 + Math.random() * 5, rot: Math.random() * 7 }); } }
-function fxPuff(x, y) { for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, sp = 24 + Math.random() * 70; fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 26, life: 0, max: 0.7 + Math.random() * 0.4, coin: false, grey: true, r: 6 + Math.random() * 7, rot: 0 }); } }
-function fxText(x, y, txt, col) { fxTexts.push({ x, y, txt, col, life: 0 }); }
+function fxBurst(x, y, big, sc) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, grey: false, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: sc || me.scene }); } }
+function fxPuff(x, y, sc) { for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, sp = 24 + Math.random() * 70; fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 26, life: 0, max: 0.7 + Math.random() * 0.4, coin: false, grey: true, r: 6 + Math.random() * 7, rot: 0, sc: sc || me.scene }); } }
+function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc: sc || me.scene }); }
 function tableResultFx(game, st, seatsList) {
   if (!st || !st.results || !st.seats) return;
   Object.keys(st.results).forEach(k => {
@@ -2536,12 +2538,9 @@ function tableResultFx(game, st, seatsList) {
     const x = seatsList[i].x, y = seatsList[i].y - 12;
     if (bet > 0 && amt > bet) {
       const big = amt >= bet * 10 || amt >= 1000;
-      fxBurst(x, y, big); fxText(x, y - 24, "+🪙 " + amt, "#ffd76a");
-      if (big) { if (game === "bj") fxFlashBJ = 1; else fxFlashRR = 1; }
-      if (me.scene === "casino") { if (big) sfxBigWin(mine ? 1 : 0.45); else sfxWin(mine ? 1 : 0.45); }
+      if (me.scene === "casino") { fxBurst(x, y, big, "casino"); fxText(x, y - 24, "+🪙 " + amt, "#ffd76a", "casino"); if (big) { if (game === "bj") fxFlashBJ = 1; else fxFlashRR = 1; } if (big) sfxBigWin(mine ? 1 : 0.45); else sfxWin(mine ? 1 : 0.45); }
     } else if (bet > 0 && amt === 0) {
-      fxPuff(x, y); fxText(x, y - 18, "−" + bet, "rgba(205,210,225,0.95)");
-      if (mine && me.scene === "casino") sfxLose();
+      if (me.scene === "casino") { fxPuff(x, y, "casino"); fxText(x, y - 18, "−" + bet, "rgba(205,210,225,0.95)", "casino"); if (mine) sfxLose(); }
     } else if (bet > 0 && amt === bet && mine && me.scene === "casino") sfxPush();
   });
 }
@@ -2551,25 +2550,26 @@ function bjFxCheck() {
   if (st.seats) Object.keys(st.seats).forEach(k => { cards += (st.seats[k].hand || []).length; });
   if (lastBjCards >= 0 && cards > lastBjCards && me.scene === "casino" && (st.phase === "deal" || st.phase === "play" || st.phase === "done")) sfxCard(); /* a new card just landed on the felt */
   lastBjCards = cards;
-  if (st.phase === "done" && st.doneTs && st.doneTs !== bjFxDone && Date.now() - st.doneTs < 5000) { bjFxDone = st.doneTs; tableResultFx("bj", st, BJSEATS); }
+  if (st.phase === "done" && st.doneTs && st.doneTs !== bjFxDone) { const fxFresh = Date.now() - st.doneTs < 5000 && st.doneTs >= casinoFxSince; bjFxDone = st.doneTs; if (fxFresh && me.scene === "casino") tableResultFx("bj", st, BJSEATS); }
 }
 function rrFxCheck() {
   const st = rrState; if (!st) return;
-  if (st.phase === "done" && st.doneTs && st.doneTs !== rrFxDone && Date.now() - st.doneTs < 5000) { rrFxDone = st.doneTs; tableResultFx("rr", st, RRSEATS); }
+  if (st.phase === "done" && st.doneTs && st.doneTs !== rrFxDone) { const fxFresh = Date.now() - st.doneTs < 5000 && st.doneTs >= casinoFxSince; rrFxDone = st.doneTs; if (fxFresh && me.scene === "casino") tableResultFx("rr", st, RRSEATS); }
 }
 function slotFxCheck() {
   Object.keys(slotState || {}).forEach(k => {
     const s = slotState[k]; if (!s || !s.ts) return;
     if (slotFxTs[k] === s.ts) return; slotFxTs[k] = s.ts;
-    if (s.amt > 0 && Date.now() - s.ts < 5000) { const m = SLOTM[Number(k)]; if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 1000); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt, "#ffd76a"); } }
+    if (s.amt > 0 && Date.now() - s.ts < 5000 && s.ts >= casinoFxSince && me.scene === "casino") { const m = slotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 1000, "casino"); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt, "#ffd76a", "casino"); } }
   });
 }
-function drawTableFx(t) {
+function drawTableFx(t, sc) {
   const dt = Math.min(0.05, fxLastT ? (t - fxLastT) / 1000 : 0.016); fxLastT = t;
-  if (fxFlashBJ > 0) { ctx.strokeStyle = "rgba(255,215,106," + (fxFlashBJ * 0.85).toFixed(3) + ")"; ctx.lineWidth = 8; rr(BJT.x - 8, BJT.y - 8, BJT.w + 16, BJT.h + 16, 18); ctx.stroke(); fxFlashBJ = Math.max(0, fxFlashBJ - dt * 1.3); }
-  if (fxFlashRR > 0) { ctx.strokeStyle = "rgba(255,215,106," + (fxFlashRR * 0.85).toFixed(3) + ")"; ctx.lineWidth = 8; rr(RRT.x - 8, RRT.y - 8, RRT.w + 16, RRT.h + 16, 18); ctx.stroke(); fxFlashRR = Math.max(0, fxFlashRR - dt * 1.3); }
+  if (sc === "casino" && fxFlashBJ > 0) { ctx.strokeStyle = "rgba(255,215,106," + (fxFlashBJ * 0.85).toFixed(3) + ")"; ctx.lineWidth = 8; rr(BJT.x - 8, BJT.y - 8, BJT.w + 16, BJT.h + 16, 18); ctx.stroke(); fxFlashBJ = Math.max(0, fxFlashBJ - dt * 1.3); }
+  if (sc === "casino" && fxFlashRR > 0) { ctx.strokeStyle = "rgba(255,215,106," + (fxFlashRR * 0.85).toFixed(3) + ")"; ctx.lineWidth = 8; rr(RRT.x - 8, RRT.y - 8, RRT.w + 16, RRT.h + 16, 18); ctx.stroke(); fxFlashRR = Math.max(0, fxFlashRR - dt * 1.3); }
   fxParts = fxParts.filter(p => { p.life += dt; if (p.life >= p.max) return false; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.grey ? -26 : 620) * dt; p.rot += dt * 6; return true; });
   fxParts.forEach(p => {
+    if ((p.sc || sc) !== sc) return; /* another room's celebration: it ages out above but never paints here */
     const a = Math.max(0, 1 - p.life / p.max);
     ctx.save(); ctx.globalAlpha = a; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
     if (p.grey) { ctx.fillStyle = "rgba(160,165,180,0.5)"; ctx.beginPath(); ctx.arc(0, 0, p.r, 0, 7); ctx.fill(); }
@@ -2579,6 +2579,7 @@ function drawTableFx(t) {
   });
   fxTexts = fxTexts.filter(ft => { ft.life += dt; return ft.life < 1.5; });
   fxTexts.forEach(ft => {
+    if ((ft.sc || sc) !== sc) return;
     const a = ft.life < 1.05 ? 1 : Math.max(0, 1 - (ft.life - 1.05) / 0.45), y = ft.y - ft.life * 36;
     ctx.save(); ctx.globalAlpha = a; ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
     ctx.strokeStyle = "rgba(0,0,0,0.65)"; ctx.lineWidth = 4; ctx.strokeText(ft.txt, ft.x, y);
@@ -2607,7 +2608,7 @@ function settleOnce(key, amt) { if (settledKeys.has(key)) return; settledKeys.ad
 function seatOD(game, idx, on) {
   if (!db) return;
   try {
-    const ref = db.ref(game === "slot" ? "hub/tables/slotseats/" + idx : "hub/tables/" + game + "/seats/" + idx);
+    const ref = db.ref(game === "slot" ? "hub/tables/slotseats/" + slotKey(idx) : "hub/tables/" + game + "/seats/" + idx); /* slot idx is a draw index; the seat record lives under the machine's fixed id */
     if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel();
   } catch (e) {}
 }
@@ -2619,16 +2620,16 @@ function reclaimSeat() {
     for (let i = 0; i < n; i++) { const s = seats[i]; if (s && s.pid === myId && Date.now() - (s.ts || 0) <= 25000) { mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true; } }
     return false;
   };
-  if (scan(slotSeats, 6, "slot", SLOTSEATS)) return;
+  for (let i = 0; i < SLOTM.length; i++) { const s = slotSeats && slotSeats[slotKey(i)]; if (s && s.pid === myId && Date.now() - (s.ts || 0) <= 25000) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; } } /* slot seat records are keyed by machine id, not draw index */
   if (scan(bjState && bjState.seats, 5, "bj", BJSEATS)) return;
   scan(rrState && rrState.seats, 5, "rr", RRSEATS);
 }
 function seatBeat() {
   if (!mySeat) { reclaimSeat(); return; }
   if (mySeat.game === "slot") {
-    const s = slotSeats && slotSeats[mySeat.idx];
+    const s = slotSeats && slotSeats[slotKey(mySeat.idx)];
     if (!s || s.pid !== myId) { mySeat = null; mySeatPos = null; return; }
-    tblUpd("slotseats/" + mySeat.idx, { ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+    tblUpd("slotseats/" + slotKey(mySeat.idx), { ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
     return;
   }
   const st = mySeat.game === "bj" ? bjState : rrState;
@@ -2659,8 +2660,8 @@ function standUpAll() {
   if (!mySeat) return;
   const g = mySeat.game, i = mySeat.idx;
   if (g === "slot") {
-    const s = slotSeats && slotSeats[i];
-    if (s && s.pid === myId) tblSet("slotseats/" + i, null);
+    const s = slotSeats && slotSeats[slotKey(i)];
+    if (s && s.pid === myId) tblSet("slotseats/" + slotKey(i), null);
     seatOD("slot", i, false);
     mySeat = null; mySeatPos = null;
     return;
@@ -2681,10 +2682,10 @@ function sitAtSlot(i) {
   if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   pullChips();
   if (mySeat) { if (!(mySeat.game === "slot" && mySeat.idx === i)) noteCasino("Stand up from the other table first."); return; }
-  const s = slotSeats && slotSeats[i];
+  const s = slotSeats && slotSeats[slotKey(i)];
   if (s && s.pid === myId) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; }
   if (s && Date.now() - (s.ts || 0) <= 25000) { noteCasino("That machine is taken."); return; }
-  tblSet("slotseats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+  tblSet("slotseats/" + slotKey(i), { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
   mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true);
 }
 /* the seated camera frames the whole table / machine, not just the player */
@@ -2810,7 +2811,21 @@ function rouletteBet(type) {
   if (prev) addChips(prev);
   if (amt) addChips(-amt);
   if (!st.firstBetTs && amt) tblUpd("rr", { firstBetTs: Date.now() });
-  tblUpd("rr/seats/" + mySeat.idx, { bet: amt, betType: next.join("+"), ts: Date.now(), chips: profile ? profile.chips : 0 });
+  const seatUpd = { bet: amt, betType: next.join("+"), ts: Date.now(), chips: profile ? profile.chips : 0 };
+  if (!amt) seatUpd.rdy = false; /* ready requires holding a bet (Jonathan 2026-10-29): unselecting every pick takes the player back off ready */
+  tblUpd("rr/seats/" + mySeat.idx, seatUpd);
+  const ms = st.seats && st.seats[mySeat.idx]; if (ms) { ms.bet = amt; ms.betType = next.join("+"); if (!amt) ms.rdy = false; } /* mirror my own write locally at once: a fast follow-up tap (READY right after a pick) must see this bet before the server echo lands, not the stale record */
+}
+/* the READY button (Jonathan 2026-10-29): tapping it — lit only while the player holds at least one bet — flips the rdy flag on their own seat record, so every client sees the same ready state off the same record. Tapping again un-readies. The wheel spins when every fresh seated player is ready (see rouletteHostTick); readiness without a bet is impossible — rouletteBet clears rdy the moment the bets reach zero, and this toggle refuses to set it with nothing down. */
+function rouletteReady() {
+  const st = rrState, mine = myRrSeat();
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteCasino("🔒 Playing takes an account — guests can watch."); return; }
+  if (!(mine.bet > 0)) return;
+  const nr = !mine.rdy;
+  tblUpd("rr/seats/" + mySeat.idx, { rdy: nr, ts: Date.now() });
+  mine.rdy = nr; /* mirror locally, same as rouletteBet: the button's own repaint shouldn't wait on the echo */
+  sfxClick();
 }
 function rouletteHostSeat() { const st = rrState; if (!st || !st.seats) return -1; const ks = Object.keys(st.seats).map(Number).sort((a, b) => a - b); for (const i of ks) { const s = st.seats[i]; if (s && Date.now() - (s.ts || 0) < 25000) return i; } return -1; }
 function rouletteHostTick() {
@@ -2820,9 +2835,10 @@ function rouletteHostTick() {
   Object.keys(seats).forEach(k => { if (now - (seats[k].ts || 0) > 25000 && !seats[k].bet) tblSet("rr/seats/" + k, null); });
   const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && now - (seats[i].ts || 0) < 25000);
   const bettors = fresh.filter(i => seats[i].bet > 0);
+  const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0); /* rdy alone never counts: readiness requires holding a bet, so a stale flag on an empty seat can't fire the wheel */
   if (st.phase === "bet") {
-    /* Jonathan 2026-10-28: the wheel rolls only when EVERY seated player has their bet down — no timer roll while someone at the table is still deciding */
-    if (bettors.length && bettors.length === fresh.length) {
+    /* Jonathan 2026-10-29: the wheel rolls when EVERY seated player has tapped READY (the button lights only once they hold a bet) — this replaces the 2026-10-28 all-bet gate: bets down is no longer enough, everyone must say they're ready */
+    if (fresh.length && ready.length === fresh.length) {
       /* spinTs is stamped on the SHARED timeline — srvNow(), this host's clock corrected onto server time — never the host's raw Date.now(): every client renders the ball off this one instant measured against its own srvNow() (see drawRouletteTable), so the spin starts at the same shared moment on every screen. Stamping it with the host's raw local clock left viewers whose clocks ran ahead of the host's seeing the ball already landed, and viewers behind seeing it hang off-angle, which is why some players never saw the ball spin at all */
       tblUpd("rr", { phase: "spin", result: Math.floor(Math.random() * 37), spinTs: srvNow(), results: null, msg: "" });
     }
@@ -2839,7 +2855,7 @@ function rouletteHostTick() {
     });
     tblUpd("rr", { phase: "done", results, doneTs: now });
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
-    Object.keys(seats).forEach(i => tblUpd("rr/seats/" + i, { bet: 0, betType: "" }));
+    Object.keys(seats).forEach(i => tblUpd("rr/seats/" + i, { bet: 0, betType: "", rdy: false })); /* every round starts un-ready: nobody rides last round's READY tap into the next spin */
     tblUpd("rr", { phase: "bet", results: null, spinId: (st.spinId || 0) + 1, firstBetTs: 0, msg: "" });
   }
 }
@@ -2876,7 +2892,7 @@ function spinMachine(i) {
   if (!mySeat || mySeat.game !== "slot" || mySeat.idx !== i) { noteCasino("🪑 Sit at the machine to play."); return; }
   if (!profile || (profile.chips || 0) < slotBet) { noteCasino("Not enough chips for a " + slotBet + " bet."); return; }
   addChips(-slotBet);
-  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "💎", "💎", "⭐", "⭐", "⚛"]; /* tuned 2026-10-28: with the in-a-row-only pair rule this mix returns something on 49.8% of spins — his 50% win rate */
+  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "🔔", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "💎", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⚛"]; /* retuned 2026-10-29 at his word — option 1: pay rules frozen byte-identical (side-by-side pairs only, trips 10x, atom trips 50x, any atom returns the bet); the bag is now the balanced mix cherry/lemon/bell/gem/star x40 + atom x1 (N=201): exactly 36.9505% any-credit, RTP 1.0414x (was 39.1477% / 1.0505x on the 13/13/12/12/11/1 bag, and 49.7942% / 1.2774x on the original bag) */
   const fin = [0, 1, 2].map(() => bag[Math.floor(Math.random() * bag.length)]);
   let pay = 0;
   if (fin[0] === "⚛" && fin[1] === "⚛" && fin[2] === "⚛") pay = slotBet * 50;
@@ -2893,7 +2909,7 @@ function slotTick() {
     if (!a.paid && now >= a.endsAt) {
       a.paid = true;
       if (a.pay) { addChips(a.pay); sfxChime(); }
-      tblSet("slots/" + k, { pid: myId, name: me.name, syms: a.fin, amt: a.pay, ts: Date.now() });
+      tblSet("slots/" + slotKey(Number(k)), { pid: myId, name: me.name, syms: a.fin, amt: a.pay, ts: Date.now() }); /* the shared spin record lives under the machine's fixed id, not its draw index */
     }
   }
 }
@@ -3064,7 +3080,7 @@ function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; voiceReset
 function toPlazaFromTheatre() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = BUILDING.x + BUILDING.w + 50; me.y = BUILDING.y - 25; sfxChime(); publish(true); }
 function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
 function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
-function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoListen(); pullChips(); }
+function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toPlazaFromGym() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
@@ -3454,11 +3470,19 @@ function drawRouletteTable(t) {
     const ss0 = st.seats || {}, nowS0 = Date.now();
     const liveRr = Object.keys(ss0).some(k => ss0[k] && nowS0 - (ss0[k].ts || 0) < 25000);
     if (!liveRr && st.phase !== "bet") status = "Place your bets"; /* nobody seated: never present a leftover spin as live (same display guard as blackjack) */
-    else if (st.phase === "bet") { const ss = st.seats || {}, nowS = Date.now(); const fr = Object.keys(ss).filter(k => ss[k] && nowS - (ss[k].ts || 0) < 25000); const bt = fr.filter(k => ss[k].bet > 0); status = bt.length && bt.length < fr.length ? "Waiting for everyone's bets — " + bt.length + "/" + fr.length + " in" : "Place your bets"; }
+    else if (st.phase === "bet") { const ss = st.seats || {}, nowS = Date.now(); const fr = Object.keys(ss).filter(k => ss[k] && nowS - (ss[k].ts || 0) < 25000); const bt = fr.filter(k => ss[k].bet > 0); const rd = fr.filter(k => ss[k].rdy && ss[k].bet > 0); status = bt.length ? "Waiting for everyone to tap READY — " + rd.length + "/" + fr.length + " ready" : "Place your bets"; }
     else if (st.phase === "spin") status = "No more bets — the ball is rolling!";
     else if (st.phase === "done") status = "Next spin soon…";
   }
   ctx.fillText(status, RRT.x + 664, RRT.y + 96);
+  /* READY button (Jonathan 2026-10-29): top-right of the panel, aligned with the title — the title baseline sits at RRT.y+52 in 30px type (feltBase), so its optical centre is ~RRT.y+42 and the 48px-tall button spans RRT.y+18..+66 around that same centre. Purple: DIM dark purple with no tap zone while the seated player holds no bet, LIT bright purple once any pick is down; a readied player sees it stay lit, stamped ✓ READY, and tapping again un-readies (rouletteReady). Spectators and players between rounds get no button at all — counts only. */
+  {
+    const mine0 = myRrSeat();
+    if (st && st.phase === "bet" && mine0) {
+      const hasBet = (mine0.bet || 0) > 0, isRdy = !!(mine0.rdy && hasBet);
+      drawBtn(RRT.x + RRT.w - 168, RRT.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? rouletteReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+    }
+  }
   /* wheel */
   ctx.fillStyle = "#3d0f14"; ctx.beginPath(); ctx.arc(cx, cy, R + 26, 0, 7); ctx.fill();
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, R + 26, 0, 7); ctx.stroke();
@@ -3526,6 +3550,7 @@ function drawRouletteTable(t) {
       drawChip(ax, ay, s.bet);
       ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
       ctx.fillText(s.betType ? s.betType.toUpperCase() : "", ax, ay + 38);
+      if (s.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", ax, ay - 32); } /* other players' ready state, read off the same shared seat record */
     }
     if (st.phase === "done" && st.results && st.results[i]) {
       ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
@@ -3536,21 +3561,21 @@ function drawRouletteTable(t) {
 }
 function drawSlots(t) {
   const near = nearSlot();
-  drawSeatsRow(SLOTSEATS, { seats: slotSeats }, "slot");
+  drawSeatsRow(SLOTSEATS, { seats: slotSeatView() }, "slot"); /* the seat row is in draw order; slotSeatView maps each chair to its machine-id seat record */
   SLOTM.forEach((mch, i) => {
     ctx.fillStyle = "#2a1150"; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.fill();
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke();
     ctx.fillStyle = "#0a0616"; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.fill();
     ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
     const a = slotAnim[i], spinning = a && performance.now() < a.endsAt;
-    const st = slotState && slotState[i];
+    const st = slotState && slotState[mch.id];
     const syms = spinning ? [0, 1, 2].map(r => SLOTSYMS[Math.floor(Math.random() * SLOTSYMS.length)]) : (a && a.paid ? a.fin : (st && st.syms ? st.syms : ["⚛", "⚛", "⚛"]));
     ctx.font = "42px sans-serif"; ctx.textAlign = "center";
     ctx.fillStyle = "#ffffff"; /* the atom is a text-presentation glyph on some systems and took the window's near-black fill — invisible (his report 2026-10-28); white paint + the emoji form fix it */
     syms.forEach((s, r) => ctx.fillText(s === "⚛" ? "⚛️" : s, mch.x + mch.w * (0.25 + r * 0.25), mch.y + 80));
     ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
     const seatedHere = mySeat && mySeat.game === "slot" && mySeat.idx === i;
-    const spinnerSeated = !!(st && slotSeats && slotSeats[i] && slotSeats[i].pid === st.pid);
+    const spinnerSeated = !!(st && slotSeats && slotSeats[mch.id] && slotSeats[mch.id].pid === st.pid);
     const lastTxt = a && a.paid && seatedHere ? (a.pay ? "🎉 +" + a.pay : "no luck") : (st && st.amt && spinnerSeated ? "+" + st.amt + (st.name ? " · " + String(st.name).slice(0, 12) : "") : "SLOTS"); /* the win amount and the spinner's name show only while the spinner is still seated there — the last spin's symbols may stay on the reels, the credit line may not (his rule 2026-10-28) */
     ctx.fillText(lastTxt, mch.x + mch.w / 2, mch.y + 140);
     ctx.fillStyle = "#eaf6ff";
@@ -3608,7 +3633,7 @@ function drawCasino(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(CAEXIT.x, CAEXIT.y, CAEXIT.w, CAEXIT.h, 8); ctx.stroke();
   ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", CAEXIT.x + CAEXIT.w / 2, CAEXIT.y + 30);
-  drawTableFx(t);
+  drawTableFx(t, "casino");
   if (casinoNote && performance.now() - casinoNoteAt < 4200) {
     ctx.font = "700 20px 'Segoe UI',sans-serif";
     const w = ctx.measureText(casinoNote).width + 30;
@@ -4688,6 +4713,8 @@ function frame(now) {
       if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
     }
   }
+  if (fxPrevScene !== null && me.scene !== fxPrevScene) clearRoomFx(); /* a room change wipes every pending room effect — nothing earned in one room replays in the next */
+  fxPrevScene = me.scene;
   ctx.save();
   if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
