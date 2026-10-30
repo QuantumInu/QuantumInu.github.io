@@ -3559,7 +3559,8 @@ function drawBJTable(t) {
     const mine = st.seats && st.seats[mySeat.idx];
     const by = BJT.y + BJT.h - 66;
     if (st.phase === "bet" && mine && !mine.bet) {
-      [1, 5, 10, 20, 50, 100, 500, 1000].forEach((amt, k) => drawBtn(cx - 308 + k * 78, by, 70, 48, "BET " + amt, () => bjBet(amt), { fs: 15 }));
+      /* twelve amounts in TWO ROWS of SIX inside the old row's footprint (Jonathan 2026-10-30 final: "so basically 6 columns" — top row the original six, bottom row the new six up to 100,000): same cx-308..cx+308 span (the original 96-wide / 104-step buttons fit six across), same by..by+48 block split into two 22px rows with a 4px gap; labels carry thousands commas so "BET 100,000" stays readable at fs 15 */
+      [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 308 + (k % 6) * 104, by + Math.floor(k / 6) * 26, 96, 22, "BET " + amt.toLocaleString("en-US"), () => bjBet(amt), { fs: 15 }));
     }
     if (st.phase === "play" && st.turn === mySeat.idx && mine && mine.hand && mine.hand.length) {
       drawBtn(cx - 207, by, 130, 48, "HIT", bjHit, { fs: 22 });
@@ -3648,7 +3649,8 @@ function drawRouletteTable(t) {
     else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(tp[1] + (sel ? " · " + per : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
   });
   if (mySeat && mySeat.game === "rr") {
-    [1, 5, 10, 20, 50, 100, 500, 1000].forEach((amt, k) => drawBtn(RRT.x + 478 + k * 50, RRT.y + RRT.h - 66, 45, 48, String(amt), () => { rouletteAmt = amt; sfxClick(); }, { fs: 16, sel: rouletteAmt === amt, pad: 5 }));
+    /* twelve amounts in TWO ROWS of SIX inside the old row's footprint (Jonathan 2026-10-30 final, same as blackjack: top row the original six, bottom row the new six): same RRT.x+478..RRT.x+873 span (60-wide buttons at a 67 step — the original width), same 48px block at the panel's bottom split into two 22px rows with a 4px gap; labels carry thousands commas; pad drops 5 -> 2 so the two rows' tap zones (26 tall at a 26 pitch) touch but never overlap */
+    [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(RRT.x + 478 + (k % 6) * 67, RRT.y + RRT.h - 66 + Math.floor(k / 6) * 26, 60, 22, amt.toLocaleString("en-US"), () => { rouletteAmt = amt; sfxClick(); }, { fs: 15, sel: rouletteAmt === amt, pad: 2 }));
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 674, RRT.y + RRT.h - 75); /* centered under the board: x = board center (478 + 392/2); baseline sits in the middle of the 332..364 gap between the green button and the amount row */
   }
   /* seat bets + results */
