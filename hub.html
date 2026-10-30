@@ -1710,9 +1710,9 @@ function stepSports(dt) {
   }
 }
 function courtFocusRect() {
-  /* CAMERA TRIGGER (Jonathan 2026-10-29): the zoom starts when you enter an area's BOX — its whole quadrant of the gym (bb top-left, fb top-right, tn bottom-left, lounge bottom-right) — not when you step onto the field. The focus rect itself (the field/lounge rect padded by 90) and so the zoom amount are exactly as before; side/scoring still key off the actual field via courtAt in stepSports — this function is camera-only. */
-  const r = me.y < 1200 ? (me.x < 1800 ? BB : FB) : (me.x < 1800 ? TN : LG);
-  return { x: r.x - 90, y: r.y - 90, w: r.w + 180, h: r.h + 180 };
+  /* CAMERA TRIGGER (Jonathan 2026-10-29, corrected): the zoom engages ONLY while I am inside one of the four BOXES — the drawn quadrant rects BB / FB / TN / LG themselves. The green paths that run like a cross between the boxes (the vertical strip between the left and right boxes, the horizontal strip between the top and bottom boxes, and the centre where they meet under the atom) keep NORMAL zoom — no focus at all — even though that ground sits inside a room quarter; the first pass keyed off room halves and wrongly zoomed on the paths. Inside a box the focus rect (the box padded by 90) and so the zoom amount are exactly as before; side/scoring still key off the actual field via courtAt in stepSports — this function is camera-only. */
+  for (const r of [BB, FB, TN, LG]) if (me.x > r.x && me.x < r.x + r.w && me.y > r.y && me.y < r.y + r.h) return { x: r.x - 90, y: r.y - 90, w: r.w + 180, h: r.h + 180 };
+  return null;
 }
 /* ============ inside the Quantum Sports Complex ============ */
 function spScoreboard(k, r, icon, t) {
@@ -1769,13 +1769,24 @@ function swCarRec(i) { return (swState && swState.cars && swState.cars[i]) || nu
 function swCarTarget(i) {
   /* the spot everyone agrees car i is at: its shared record when one exists, its staging spot otherwise; a driver only counts while their record is fresh */
   const rec = swCarRec(i);
-  if (rec && typeof rec.x === "number") return { x: rec.x, y: rec.y, hd: rec.hd || 0, drv: (rec.drv && Date.now() - (rec.ts || 0) < 12000) ? rec.drv : "", drvName: rec.drvName || "", lap: (typeof rec.lap === "number") ? rec.lap : 0 };
-  const s = swStage(i); return { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0 };
+  if (rec && typeof rec.x === "number") return { x: rec.x, y: rec.y, hd: rec.hd || 0, drv: (rec.drv && Date.now() - (rec.ts || 0) < 12000) ? rec.drv : "", drvName: rec.drvName || "", lap: (typeof rec.lap === "number") ? rec.lap : 0, lev: (typeof rec.lev === "number") ? rec.lev : 0 };
+  const s = swStage(i); return { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, lev: 0 };
 }
 function swCarOfDriver(pid) { for (let i = 0; i < 4; i++) if (swCarTarget(i).drv === pid && pid) return i; return -1; }
 /* ---- lap counter (Jonathan 2026-10-29): counter-clockwise laps only, counted at the start/finish line. The driver's client owns its car's count: it tracks the car's angle around the arena centre (1800,1200) — with y down, CCW travel makes that angle DECREASE — and banks a lap only when a full 2π of CCW progress meets a crossing of the line, so partial loops, wiggling on the line and wrong-way driving earn nothing. Progress counts only while the car is on the track ring; cutting across the infield is dead air. The count rides in the shared car record (lap) so the whole room sees the same four numbers, and a car that rolls back to staging starts over at 0. ---- */
 let swLaps = [0, 0, 0, 0]; /* the room's lap counts, one per car: mine computed here, the others mirrored from their records */
 let swLapAcc = 0, swLapBase = 0, swLapTheta = null; /* my car's accumulated CCW radians, the progress mark of its last counted lap, and its last angle around the centre */
+/* ---- lap celebrations (Jonathan 2026-10-29): when a lap banks, the whole room celebrates the same moment — a finish-line noise, the banking car's counter pops and glows in its colour, and the start/finish line itself flashes in that car's colour. The bank is detected once by the car's driver, who writes a lap-EVENT sequence (lev) into the shared car record in the same write as the lap increment; every other client watches lev and fires exactly once per rise (dedupe in stepSpeedway). A re-stage restarts the chain at 0, and every client follows it down silently — a reset never fires. The driver's own client fires locally at the bank, so it never waits on its own record echo. ---- */
+let swLapLev = [0, 0, 0, 0]; /* the lev this client writes for the car it drives (continued from the record when it sits in) */
+let swLevSeen = [0, 0, 0, 0], swLevInit = [false, false, false, false]; /* per car: the highest lev already celebrated here, and whether the car's chain has been sighted yet (first sight syncs silently — no retro-fires for laps banked before I arrived) */
+let swLapPulse = [-1e9, -1e9, -1e9, -1e9]; /* when each car's counter last popped (performance.now clock, the draw clock) */
+let swLineFx = []; /* live start-line flashes: {car, at} — drawn in drawSpeedway over the line, in the car's colour */
+const sfxLap = () => { tone(659, 659, 0.09, "triangle", 0.06); tone(880, 880, 0.09, "triangle", 0.06, 0.07); tone(1175, 1175, 0.1, "triangle", 0.06, 0.14); tone(1568, 1568, 0.26, "sine", 0.07, 0.21); }; /* a short finish-line chime — four rising tones through the hub's tone(), so the mute and focus-hold rules apply like every other sound */
+function swLapCelebrate(i) {
+  swLapPulse[i] = performance.now();
+  swLineFx.push({ car: i, at: performance.now() });
+  if (me.scene === "speedway") sfxLap();
+}
 function swLapResetTrack() { swLapAcc = 0; swLapBase = 0; swLapTheta = null; }
 function swLapUpdate(x, y) {
   if (myCar < 0) return;
@@ -1786,7 +1797,7 @@ function swLapUpdate(x, y) {
   while (d < -Math.PI) d += Math.PI * 2;
   const q = swSpine(x, y), rd = Math.hypot(x - q.x, y - q.y);
   if (rd >= SW_RI && rd <= SW_RO) { /* on the track ring — the infield earns nothing */
-    if (swLapTheta > Math.PI / 2 && th <= Math.PI / 2 && d < 0 && swLapAcc - swLapBase >= Math.PI * 2 - 0.25) { swLaps[myCar]++; swLapBase = swLapAcc; } /* a full CCW loop meeting the line (angle passing +90° on the bottom straight): bank the lap */
+    if (swLapTheta > Math.PI / 2 && th <= Math.PI / 2 && d < 0 && swLapAcc - swLapBase >= Math.PI * 2 - 0.25) { swLaps[myCar]++; swLapBase = swLapAcc; swLapLev[myCar]++; swLevSeen[myCar] = swLapLev[myCar]; swLapCelebrate(myCar); } /* a full CCW loop meeting the line (angle passing +90° on the bottom straight): bank the lap — the event sequence rises WITH the count, and my own room celebrates it right here */
     swLapAcc -= d; /* CCW travel decreases the angle, so progress is the negative delta — clockwise driving subtracts */
   }
   swLapTheta = th;
@@ -1826,10 +1837,11 @@ function sitInCar(i) {
   const v = swCarTarget(i);
   myCar = i;
   swLaps[i] = v.lap || 0; swLapResetTrack(); /* my count continues from the car's stored lap; the progress tracker starts fresh from here */
+  swLapLev[i] = v.lev || 0; swLevSeen[i] = swLapLev[i]; swLevInit[i] = true; /* my event chain continues from the car's stored lev, and those past events are already celebrated — joining a car mid-chain fires nothing */
   carPos = { x: v.x, y: v.y, hd: v.hd || 0 }; carVel = { x: 0, y: 0 };
   me.x = carPos.x; me.y = carPos.y;
   swWriteAt = 0; swLastWrite = null;
-  swSet("cars/" + i, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[i], ts: Date.now() });
+  swSet("cars/" + i, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[i], lev: swLapLev[i], ts: Date.now() });
   swOD(true);
   sfxChime(); publish(true);
 }
@@ -1899,7 +1911,7 @@ function stepSpeedway(dt, ivx, ivy) {
     const lw = swLastWrite;
     if (now - swWriteAt > 120 && (!lw || Math.hypot(carPos.x - lw.x, carPos.y - lw.y) > 3 || Math.abs(carPos.hd - lw.hd) > 0.03 || now - swWriteAt > 1500)) {
       swWriteAt = now; swLastWrite = { x: carPos.x, y: carPos.y, hd: carPos.hd };
-      swSet("cars/" + myCar, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[myCar], ts: Date.now() });
+      swSet("cars/" + myCar, { x: Math.round(carPos.x), y: Math.round(carPos.y), hd: +carPos.hd.toFixed(3), drv: myId, drvName: me.name, lap: swLaps[myCar], lev: swLapLev[myCar], ts: Date.now() });
     }
   } else {
     engineUpdate(0);
@@ -1909,6 +1921,14 @@ function stepSpeedway(dt, ivx, ivy) {
       if (v.drv) continue;
       if (Math.hypot(me.x - v.x, me.y - v.y) < 56) { sitInCar(i); break; }
     }
+  }
+  /* ---- lap celebrations: watch every OTHER car's event chain (my own banks already fired locally in swLapUpdate). First sight of a chain syncs silently; a rise fires exactly once per banked lap; a fall is a re-stage restarting the chain and is followed down without firing. ---- */
+  for (let i = 0; i < 4; i++) {
+    if (i === myCar) continue;
+    const lev = swCarTarget(i).lev || 0;
+    if (!swLevInit[i]) { swLevInit[i] = true; swLevSeen[i] = lev; continue; }
+    if (lev < swLevSeen[i]) { swLevSeen[i] = lev; continue; }
+    while (swLevSeen[i] < lev) { swLevSeen[i]++; swLapCelebrate(i); }
   }
   /* ---- smooth the other cars toward their shared spots ---- */
   for (let i = 0; i < 4; i++) {
@@ -1936,7 +1956,7 @@ function stepSpeedway(dt, ivx, ivy) {
       const rec = swCarRec(i); if (!rec) continue;
       const v = swCarTarget(i); if (v.drv) continue;
       const s = swStage(i);
-      if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, ts: Date.now() }); /* back on its staging spot, the lap counter resets to 0 */
+      if (Math.hypot(v.x - s.x, v.y - s.y) > 6 && Date.now() - (rec.ts || 0) > 4000) swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, lev: 0, ts: Date.now() }); /* back on its staging spot, the lap counter resets to 0 — and its event chain restarts at 0 with it, so the car's next bank celebrates fresh (the reset itself fires nothing anywhere) */
     }
   }
   /* ---- smoke particles: drift, expand slightly, fade out, then they're gone ---- */
@@ -2090,14 +2110,17 @@ function drawSwStand(cx, cy) {
   ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌭 🍿 🥤", 0, -88);
   ctx.restore();
 }
-function drawSwLapRow() {
-  /* the lap counter (Jonathan 2026-10-29): one counter per car under the centrepiece — evenly spaced about the arena centre, in the cars' staging order, each painted in its car's colour with the room's agreed lap count */
+function drawSwLapRow(t) {
+  /* the lap counter (Jonathan 2026-10-29): one counter per car under the centrepiece — in the cars' staging order, each painted in its car's colour with the room's agreed lap count. Spread wide (270 apart, so even multi-digit counts never touch) and set low, centred in the green under the centrepiece — Jonathan's screenshot verdict 2026-10-29: the first row (190 spacing, y 1408) overlapped and sat too high. When a lap banks, THAT car's counter alone pops: for ~0.65s it swells and glows in its car's colour, then settles (swLapPulse, set by swLapCelebrate). */
   ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.lineJoin = "round";
   for (let i = 0; i < 4; i++) {
     const n = i === myCar ? swLaps[i] : (swCarTarget(i).lap || 0);
-    const label = SW_CARS[i].name + " " + n, lx = 1800 + (i - 1.5) * 190;
-    ctx.lineWidth = 7; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.strokeText(label, lx, 1408);
-    ctx.fillStyle = SW_CARS[i].col; ctx.fillText(label, lx, 1408);
+    const label = SW_CARS[i].name + " " + n, lx = 1800 + (i - 1.5) * 270;
+    const page = (t || 0) - swLapPulse[i], pop = page >= 0 && page < 650 ? Math.sin(page / 650 * Math.PI) : 0;
+    if (pop > 0) { ctx.save(); ctx.shadowColor = SW_CARS[i].col; ctx.shadowBlur = Math.round(26 * pop); ctx.font = "800 " + Math.round(46 * (1 + 0.3 * pop)) + "px 'Segoe UI',sans-serif"; }
+    ctx.lineWidth = 7; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.strokeText(label, lx, 1500);
+    ctx.fillStyle = SW_CARS[i].col; ctx.fillText(label, lx, 1500);
+    if (pop > 0) ctx.restore();
   }
 }
 function drawSpeedway(t) {
@@ -2143,6 +2166,16 @@ function drawSpeedway(t) {
   /* direction chevrons just past (right of) the start/finish line (Jonathan 2026-10-29): laps run counter-clockwise, so travel crosses the line heading +x — the arrows point the way. Paint only, no collision */
   ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 7; ctx.lineJoin = "round"; ctx.lineCap = "round";
   for (const cy of [1745, 1830, 1915]) { ctx.beginPath(); ctx.moveTo(1869, cy - 26); ctx.lineTo(1891, cy); ctx.lineTo(1869, cy + 26); ctx.stroke(); }
+  /* lap celebration ON the line (Jonathan 2026-10-29): when a lap banks, the start/finish line flashes in the crossing car's colour — a bright core over the chequers inside a widening glow band — and fades over ~0.95s. Fired room-wide by swLapCelebrate off the shared record, so everyone in the speedway sees the same flash. */
+  for (let k = swLineFx.length - 1; k >= 0; k--) {
+    const f = swLineFx[k], fage = t - f.at;
+    if (fage > 950) { swLineFx.splice(k, 1); continue; }
+    if (fage < 0) continue;
+    const fcol = SW_CARS[f.car].col, fcr = parseInt(fcol.slice(1, 3), 16), fcg = parseInt(fcol.slice(3, 5), 16), fcb = parseInt(fcol.slice(5, 7), 16);
+    const ffade = 1 - fage / 950, fgrow = Math.min(1, fage / 180);
+    ctx.fillStyle = "rgba(" + fcr + "," + fcg + "," + fcb + "," + (0.34 * ffade).toFixed(3) + ")"; ctx.fillRect(1800 - 10 - 34 * fgrow, SW_CY + SW_RI - 8, 20 + 68 * fgrow, SW_RO - SW_RI + 16);
+    ctx.fillStyle = "rgba(" + fcr + "," + fcg + "," + fcb + "," + (0.8 * ffade).toFixed(3) + ")"; ctx.fillRect(1788, SW_CY + SW_RI - 8, 24, SW_RO - SW_RI + 16);
+  }
   /* staging boxes */
   ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2;
   for (let i = 0; i < 4; i++) { const s = swStage(i); ctx.strokeRect(s.x - 48, s.y - 27, 96, 54); }
@@ -2162,7 +2195,7 @@ function drawSpeedway(t) {
   ctx.restore();
   ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,196,120,0.9)";
   ctx.fillText("🏁 QUANTUM SPEEDWAY 🏁", 1800, 1092);
-  drawSwLapRow(); /* the lap counters ride right under the centrepiece, part of the same centre display */
+  drawSwLapRow(t); /* the lap counters ride right under the centrepiece, part of the same centre display */
   ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,200,0.65)";
   ctx.fillText("walk into a car to drive it — just for fun", 1800, 1330);
   /* infield monitors — Daily Life racing feeds, one centred in each half of the grass (Jonathan 2026-10-29) */
@@ -3026,7 +3059,9 @@ function drawCasinoBuilding(t) {
   ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#ffd76a" : "#ffdf94";
   ctx.fillText("🎰 QUANTUM CASINO", cx, b.y + 110);
   ctx.fillStyle = "rgba(150,210,255,0.28)";
-  for (const fx of [0.14, 0.32, 0.62, 0.8]) { rr(b.x + b.w * fx, b.y + 168, 56, 62, 6); ctx.fill(); }
+  /* the four front windows (Jonathan 2026-10-29): the two pairs keep their EXACT layout — same within-pair spacing, same wide middle gap — the whole group is simply shifted LEFT as one rigid block until its midpoint sits on the building's centre line. (The fraction spots put the group's midpoint at b.w * 0.47 + 28, right of centre; winShift is exactly that overshoot, 11.2px on this 560-wide front.) Size, colour and row height unchanged. */
+  const winShift = 28 - b.w * 0.03;
+  for (const fx of [0.14, 0.32, 0.62, 0.8]) { rr(b.x + b.w * fx - winShift, b.y + 168, 56, 62, 6); ctx.fill(); }
   const cdy = SIL_R.y + SIL_R.h - 40;
   const cdg = ctx.createLinearGradient(0, cdy, 0, cdy + 100);
   cdg.addColorStop(0, "rgba(255,215,106,0.55)"); cdg.addColorStop(1, "rgba(255,215,106,0)");
