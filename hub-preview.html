@@ -1767,15 +1767,6 @@ let myCourt = null, mySide = null;
 let spBallVis = {}, spScoreSeen = {};
 const SP_WRITE_MS = 33; /* the referee's ball publish cadence (~30Hz) — used only as the fallback snapshot spacing in spBufPush when a payload carries no writer timestamp */
 const SP_INTERP_MS = 55; /* follower render delay: the ball is drawn this far behind the newest accepted state, interpolated between snapshots on the writer's timeline (see spBufPush / stepSports) */
-/* OWN-BUMP PREDICTION (2026-10-30, display-only, preview first): when MY sprite touches the rendered ball, the follower shows the bump at once — predicted with the referee's own math (spPredBump) — instead of waiting out the stream's round trip. The referee stays the only writer and the only truth: the prediction lives entirely inside spBallVis render values, reconciles on the first newer referee state, and never writes anything anywhere. */
-const SP_PRED_MS = 450;      /* prediction lifetime cap — past it the follower render takes back over */
-const SP_PRED_BLEND_PX = 48; /* reconcile gate: a newer referee ball within this of the predicted ball eases back onto the buffer path over SP_PRED_BLEND_MS; beyond it, snap */
-const SP_PRED_BLEND_MS = 90;
-const SP_PRED_COOL_MS = 280; /* mirrors the referee's HIT_COOL_S (0.280s) re-hit lock */
-let spPred = { bb: null, fb: null, tn: null };
-let spPredBlend = { bb: null, fb: null, tn: null };
-let spPredCool = { bb: 0, fb: 0, tn: 0 };
-let spMyPrev = null, spMyVel = { x: 0, y: 0 };
 const SP_COL = { A: "#38e1ff", B: "#ff5d8f" };
 const SP_SNAME = { A: "CYAN", B: "PINK" };
 const BALLR = { bb: 26, fb: 24, tn: 16 };
@@ -1820,40 +1811,11 @@ function spBufPush(v, sb) {
   v.buf.push({ x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, wts });
   if (v.buf.length > 14) v.buf.splice(0, v.buf.length - 14);
 }
-function spMySpriteW() { const img = heroImgs[me.hero]; return img ? 96 * (img.naturalWidth / img.naturalHeight || 0.8) : 76.8; } /* drawPlayer's own width formula (H = 96); the referee's sprite_w table is a baked copy of these values and 76.8 is the shared unloaded fallback on both sides */
-function spPredBump(k, bx, by, mvx, mvy) {
-  /* referee.py's bump, mirrored constant for constant: my hitbox against the RENDERED ball at (bx, by); (mvx, mvy) is my local velocity, already clamped like the referee's actor estimate. Returns the placed ball + its new velocity, or null for no contact. */
-  const R = BALLR[k];
-  const hw = (spMySpriteW() || 77) / 2 - 14;
-  const rx0 = me.x - hw, rx1 = me.x + hw, ry0 = me.y - 96 + 14, ry1 = me.y - 14;
-  const qx = Math.max(rx0, Math.min(bx, rx1)), qy = Math.max(ry0, Math.min(by, ry1));
-  const dx = bx - qx, dy = by - qy, d = Math.hypot(dx, dy);
-  if (!(d < R)) return null;
-  let nx, ny, px = bx, py = by;
-  if (d > 0.01) { nx = dx / d; ny = dy / d; px = qx + nx * R; py = qy + ny * R; }
-  else { /* ball centre inside the rect: the referee's min-edge fallback */
-    const pl = bx - rx0, pr = rx1 - bx, pt = by - ry0, pb = ry1 - by, m2 = Math.min(pl, pr, pt, pb);
-    nx = m2 === pl ? -1 : (m2 === pr ? 1 : 0);
-    ny = m2 === pt ? -1 : (m2 === pb ? 1 : 0);
-    if (nx === -1) px = rx0 - R; else if (nx === 1) px = rx1 + R;
-    if (ny === -1) py = ry0 - R; else if (ny === 1) py = ry1 + R;
-  }
-  const power = Math.min(880, 330 + Math.hypot(mvx, mvy) * 0.95);
-  return { x: px, y: py, vx: nx * power + mvx * 0.30, vy: ny * power + mvy * 0.30 };
-}
 function stepSports(dt) {
   /* my court and side are purely local: the half of the court I am standing on (the referee reads the same geometry from my presence position) */
   const ci = courtAt(me.x, me.y);
   myCourt = ci ? ci.k : null;
   mySide = ci ? (me.x < ci.r.x + ci.r.w / 2 ? "A" : "B") : null;
-  /* my local velocity for own-bump prediction: this step's real displacement over dt, magnitude-clamped to 480 — the referee's ACTOR_V_MAX, applied to its own estimate the same way. (The referee ESTIMATES actor velocity from successive presence snapshots of my rounded published positions at its ~10Hz poll; the page cannot see that estimate, so the prediction runs on the true local value instead.) */
-  if (spMyPrev && dt > 0) {
-    let mvx = (me.x - spMyPrev.x) / dt, mvy = (me.y - spMyPrev.y) / dt;
-    const ms = Math.hypot(mvx, mvy);
-    if (ms > 480) { mvx *= 480 / ms; mvy *= 480 / ms; }
-    spMyVel.x = mvx; spMyVel.y = mvy;
-  } else { spMyVel.x = 0; spMyVel.y = 0; }
-  spMyPrev = { x: me.x, y: me.y };
   for (const pr of COURTS) {
     const k = pr[0], st = spState[k];
     /* follow the referee's shared ball — this page never writes it. Acceptance is deliberately simple: a HIGHER gen means the ball was genuinely re-placed (respawn/reset), so the render snaps to it and re-buffers; within the same gen only a HIGHER seq is accepted into the snapshot buffer; anything else (a stale gen, a duplicated or reordered seq) is ignored whole, and the ball rests at its last accepted state. */
@@ -1888,41 +1850,6 @@ function stepSports(dt) {
         let near = myCourt === k && Math.hypot(v.x - me.x, v.y - me.y) < 110;
         if (!near) for (const p of peers.values()) if (p.scene === "gym" && Math.hypot(v.x - p.x, v.y - p.y) < 110) { near = true; break; }
         if (near) sfxBounce(Math.min(1, newSp / 800));
-      }
-      /* ---- own-bump prediction: display-only, riding on the follower values computed above; outside a prediction window nothing here runs and the render is exactly the old path ---- */
-      const P = spPred[k];
-      if (P) {
-        const lsTs = (st.lastScore && st.lastScore.ts) || 0, sc = st.score || { a: 0, b: 0 };
-        if (v.gen !== P.gen || lsTs !== P.lsTs || (sc.a || 0) !== P.sca || (sc.b || 0) !== P.scb) spPred[k] = null; /* (c) respawn / score / freeze: the referee re-placed the ball — drop the prediction at once, the follower values stand */
-        else if (performance.now() - P.t0 > SP_PRED_MS) spPred[k] = null; /* (b) 450ms cap */
-        else if (v.seq > P.seq) { /* (a) the first newer referee state: close — ease back onto the buffer path; far — snap (the follower values above stand) */
-          if (Math.hypot(sb.x - P.x, sb.y - P.y) <= SP_PRED_BLEND_PX) spPredBlend[k] = { fx: P.x, fy: P.y, t0: performance.now() };
-          spPred[k] = null;
-        } else {
-          P.x += P.vx * dt; P.y += P.vy * dt; /* the referee's integration order: move, then friction (0.55 tennis, else 1.15) */
-          const pf = Math.max(0, 1 - (k === "tn" ? 0.55 : 1.15) * dt);
-          P.vx *= pf; P.vy *= pf;
-          const cr = pr[1];
-          if (P.x < cr.x + BALLR[k] || P.x > cr.x + cr.w - BALLR[k] || P.y < cr.y + BALLR[k] || P.y > cr.y + cr.h - BALLR[k]) spPred[k] = null; /* crossed a court boundary line — prediction has no walls; hand the ball back to the follower */
-          else { v.x = P.x; v.y = P.y; v.vx = P.vx; v.vy = P.vy; }
-        }
-      }
-      const PB = spPredBlend[k];
-      if (PB) {
-        const bt = (performance.now() - PB.t0) / SP_PRED_BLEND_MS;
-        if (bt >= 1) spPredBlend[k] = null;
-        else { const be = bt * bt * (3 - 2 * bt); v.x = PB.fx + (v.x - PB.fx) * be; v.y = PB.fy + (v.y - PB.fy) * be; }
-      }
-      if (!spPred[k] && myCourt === k && performance.now() >= spPredCool[k]) {
-        const hit = spPredBump(k, v.x, v.y, spMyVel.x, spMyVel.y);
-        if (hit) {
-          const sc2 = st.score || { a: 0, b: 0 };
-          spPred[k] = { x: hit.x, y: hit.y, vx: hit.vx, vy: hit.vy, t0: performance.now(), seq: v.seq, gen: v.gen, sca: sc2.a || 0, scb: sc2.b || 0, lsTs: (st.lastScore && st.lastScore.ts) || 0 };
-          spPredCool[k] = performance.now() + SP_PRED_COOL_MS;
-          spPredBlend[k] = null;
-          v.x = hit.x; v.y = hit.y; v.vx = hit.vx; v.vy = hit.vy;
-          sfxBounce(Math.min(1, Math.hypot(hit.vx, hit.vy) / 800)); /* the sports block's own bump sound, fired at the predicted touch */
-        }
       }
     } else if (!v) spBallVis[k] = courtCenterBall(k); /* no referee record yet: the local default visual at court centre (never written anywhere) */
   }
