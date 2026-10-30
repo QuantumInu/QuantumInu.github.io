@@ -3537,6 +3537,16 @@ function drawPlaza(t) {
   ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
+  /* spinning atom at the centre of the roundabout (Jonathan 2026-10-29): the Sports Complex
+     center-court atom (see drawGym) scaled up ~1.4x to sit inside the spawn circle — a soft
+     green ring, three cyan orbit rings turning on t/2600, gold nucleus — painted here with
+     the ground decor so Q-Bot and the players walk right over it */
+  ctx.save(); ctx.translate(1600, 1560);
+  ctx.strokeStyle = "rgba(46,255,140,0.35)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, 118, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(56,225,255,0.65)"; ctx.lineWidth = 4;
+  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 87, 31, 0, 0, 7); ctx.stroke(); ctx.restore(); }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill();
+  ctx.restore();
   /* lamp posts along the paths */
   ctx.fillStyle = "#ffd76a";
   function lamp(x, y) {
@@ -4064,10 +4074,14 @@ function drawHQ(t) {
   ctx.fillStyle = "rgba(56,225,255,0.10)";
   ctx.fillRect(0, 880, W, 5); ctx.fillRect(0, 1270, W, 5);
   /* rectangular floor glows — the ONLY glows in the room (Jonathan 2026-10-29): soft-edged cyan
-     light pools under the conference table and under each station screen. Each pool is three
-     layered rounded rects (largest + faintest first) filled with a vertical cyan gradient that
-     fades downward, so the shape stays rectangular while the edges melt into the floor. Drawn
-     here, on the bare floor, so the stations and the table paint over them. */
+     light pools under the conference table and under each station screen, each three layered
+     rounded rects (largest + faintest first) so the shape stays rectangular while the edges
+     melt into the floor. Drawn here, on the bare floor, so the stations and the table paint
+     over them. The screen pools (hqRectGlow) fill each layer with a vertical cyan gradient
+     that fades downward. The table pool (hqTableGlow) instead uses FLAT fills at double the
+     alphas with the same symmetric insets — the same intensity on all four sides, no
+     directional fade, and clearly more visible (Jonathan 2026-10-29: "make sure the glow is
+     even around the table and more visible"). */
   function hqRectGlow(x, y, w, h, r) {
     const layers = [[0, 0.040], [9, 0.058], [18, 0.082]];
     for (const [inset, a] of layers) {
@@ -4080,7 +4094,14 @@ function drawHQ(t) {
       rr(x + inset, gy, w - inset * 2, gh, Math.max(8, r - inset)); ctx.fill();
     }
   }
-  hqRectGlow(HQTABLE.x - 26, HQTABLE.y - 26, HQTABLE.w + 52, HQTABLE.h + 52, 66);
+  function hqTableGlow(x, y, w, h, r) {
+    const layers = [[0, 0.080], [9, 0.116], [18, 0.164]];
+    for (const [inset, a] of layers) {
+      ctx.fillStyle = "rgba(56,225,255," + a + ")";
+      rr(x + inset, y + inset, w - inset * 2, h - inset * 2, Math.max(8, r - inset)); ctx.fill();
+    }
+  }
+  hqTableGlow(HQTABLE.x - 26, HQTABLE.y - 26, HQTABLE.w + 52, HQTABLE.h + 52, 66);
   for (const st of HQSTATIONS) hqRectGlow(st.sx - 8, st.sy + 292, 536, 120, 18);
   /* shuttle windows along the upper wall — space streaming past */
   for (let i = 0; i < 4; i++) {
