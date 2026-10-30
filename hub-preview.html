@@ -71,6 +71,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #acctbox input{display:block;width:100%;box-sizing:border-box;margin:0 0 8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(56,225,255,.3);background:rgba(5,10,24,.8);color:#eaf6ff;font-size:16px}
 .acctrow{display:flex;gap:8px;flex-wrap:wrap}
 .acctrow button{flex:1;padding:10px 8px;border-radius:999px;border:1px solid rgba(56,225,255,.4);background:rgba(56,225,255,.12);color:#cfeaff;font-weight:700;font-size:13.5px;cursor:pointer;white-space:nowrap;font-family:inherit}
+#acctform{margin:0}
 #acctmsg{font-size:12.5px;min-height:16px;margin-top:8px;color:#9db8d9}
 #chipspill{font-weight:800;color:var(--gold)}
 #loadline{color:var(--gold);font-size:13px;margin:10px 0 4px;min-height:17px}
@@ -180,12 +181,14 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
       <h3>👤 Account <span style="font-weight:400;color:#9db8d9">(optional)</span></h3>
       <p>Guests just enter above — nothing else needed. Create an account only if you want your name, hero and 🪙 chips saved to YOU, so they follow you on any device.</p>
       <div id="acctout">
-        <input id="acctemail" type="email" placeholder="Email" autocomplete="email">
-        <input id="acctpass" type="password" placeholder="Password (6+ characters)" autocomplete="current-password">
+        <form id="acctform" novalidate>
+        <input id="acctemail" type="email" name="username" placeholder="Email" autocomplete="username">
+        <input id="acctpass" type="password" name="password" placeholder="Password (6+ characters)" autocomplete="current-password">
         <div class="acctrow">
           <button id="acctcreate" type="button">Create account</button>
-          <button id="acctsignin" type="button">Sign in</button>
+          <button id="acctsignin" type="submit">Sign in</button>
         </div>
+        </form>
       </div>
       <div id="acctin" style="display:none">
         <p id="acctwho" style="margin-bottom:8px"></p>
@@ -1348,6 +1351,7 @@ function initAuth() {
     try { await auth.signInWithEmailAndPassword(em, pw); acctMsg(""); }
     catch (e) { acctMsg(friendlyAuthErr(e)); }
   };
+  $("acctform").onsubmit = (e) => { e.preventDefault(); }; /* the sign-in is a REAL form submit that we intercept: that shape is what lets iOS and desktop browsers offer to save the login and pre-fill it next visit; the Sign in button above keeps its own handler and does the actual sign-in */
   $("acctsignout").onclick = async () => { const rel = releaseSession(); try { await Promise.race([rel, new Promise(r => setTimeout(r, 2500))]); } catch (e) {} if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; } try { await auth.signOut(); } catch (e) {} }; /* the slot release lands BEFORE sign-out: once auth is gone the database denies the write and the fresh slot refuses the same account on the other page for 90s (2026-10-29). The 2.5s race keeps a hung write from ever trapping the user in sign-out — on timeout the still-armed onDisconnect and the 90s staleness remain the backstops. */
   auth.onAuthStateChanged(async (u) => {
     if (u && !freshAuthHere()) { try { await auth.signOut(); } catch (e) {} return; } /* a user with no fresh sign-in in THIS instance is a ghost of the old build's persisted session: sign it back out at once \u2014 no claim, no profile; the visit simply starts at the sign-in box */
