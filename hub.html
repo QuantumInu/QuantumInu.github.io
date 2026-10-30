@@ -3725,6 +3725,125 @@ function drawBuysBoard(t) {
   });
 }
 function drawPlazaBoards(t) { drawStatsBoard(t); drawBuysBoard(t); }
+/* ============ HALLOWEEN DECOR — PLAZA ONLY (temporary, Jonathan 2026-10-30; revert on Nov 1 by restoring hub-preview-build.html-pre-halloween) ============
+   Pumpkins clustered at the base edges of every plaza building and flanking the two holder boards, spiderwebs tucked into the top corners of the buildings and boards, and scarecrows standing among the plaza trees. Pure canvas scenery drawn at the end of drawPlaza, in the same ground/decor layer treatment as the trees and boards: no image assets, no audio, no collision, hitbox, interaction, spawn, path, door or layout changes — obstacles() is untouched, every door tile and the spawn circle stay clear, and players draw over the decor in the frame pass exactly like they draw over the trees. Nothing outside the plaza scene calls any of this. */
+const HW_PUMPKIN_SPOTS = [ /* [centreX, groundY, scale, jack-o'-lantern?] — spread along each base, clear of every door + awning (door spans noted per building) */
+  /* the arcade (BUILDING, base y510; door 1560..1640, awning 1512..1683) */
+  [1308, 524, 0.95, 0], [1352, 530, 0.66, 1], [1396, 522, 0.80, 0],
+  [1804, 522, 0.80, 1], [1848, 530, 0.62, 0], [1892, 524, 0.98, 0],
+  /* the Speedway building (SPD_B, base y510; door 525..615, awning 477..648) */
+  [118, 524, 0.90, 1], [162, 530, 0.60, 0], [206, 522, 0.78, 0],
+  [934, 522, 0.78, 0], [978, 530, 0.60, 1], [1022, 524, 0.92, 0],
+  /* the Sports Complex (GYM_B, base y510; door 2585..2675, awning 2537..2708) */
+  [2172, 524, 0.92, 0], [2216, 530, 0.62, 1], [2260, 522, 0.80, 0],
+  [2940, 522, 0.80, 0], [2984, 530, 0.62, 0], [3028, 524, 0.95, 1],
+  /* Club Quantum (CLUB, base y1480; door 310..390, awning 262..433) */
+  [176, 1494, 0.90, 1], [218, 1500, 0.60, 0],
+  [486, 1500, 0.62, 0], [528, 1494, 0.88, 0],
+  /* the casino building (SIL_R, base y1480; door 2805..2885, glow 2797..2901) */
+  [2606, 1494, 0.88, 0], [2648, 1500, 0.60, 1],
+  [3036, 1500, 0.60, 0], [3078, 1494, 0.90, 1],
+  /* the two holder boards under the fountains (bases y1386; panels x 980..1320 and 1880..2220) — flanking each panel and at its posts' feet */
+  [946, 1400, 0.85, 1], [1354, 1400, 0.80, 0], [996, 1406, 0.55, 0], [1304, 1406, 0.55, 1],
+  [1846, 1400, 0.80, 0], [2254, 1400, 0.85, 1], [1904, 1406, 0.55, 1], [2196, 1406, 0.55, 0],
+  /* the Watchtower HQ portal clearing (portal centre 1600,2080, r120) — one jack-o'-lantern each side, clear of the portal circle and the spawn roundabout far above */
+  [1440, 2152, 1.00, 1], [1760, 2152, 1.00, 1]
+];
+const HW_WEBS = [ /* [cornerX, cornerY, radius, sx, sy] — quarter webs tucked into top corners (sx/sy point the web into the surface) */
+  [1286, 136, 76, 1, 1], [1914, 136, 76, -1, 1], /* arcade */
+  [76, 176, 70, 1, 1], [1064, 176, 70, -1, 1], /* Speedway building */
+  [2136, 176, 70, 1, 1], [3124, 176, 70, -1, 1], /* Sports Complex */
+  [146, 1186, 60, 1, 1], [554, 1186, 60, -1, 1], /* Club Quantum */
+  [2576, 1186, 60, 1, 1], [3124, 1186, 60, -1, 1], /* casino building */
+  [986, 1142, 52, 1, 1], [1314, 1142, 52, -1, 1], /* stats (holders) board */
+  [1886, 1142, 52, 1, 1], [2214, 1142, 52, -1, 1] /* buys board */
+];
+const HW_SCARECROWS = [ /* [x, groundY, scale, shirt] — each stands beside a plaza quantumTree: (430,1150), (2770,1150), (700,1900), (2500,1900) */
+  [512, 1168, 1.02, "#b8412f"], [2688, 1168, 1.02, "#3f6fb5"], [618, 1918, 1.06, "#7a4fa3"], [2582, 1918, 1.06, "#4d8a4f"]
+];
+function hwPumpkin(x, gy, s, jack, seed, t) {
+  const w = 27 * s, h = 21 * s, cy = gy - h + 2;
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, gy + 2, w * 0.95, 5.5 * s, 0, 0, 7); ctx.fill();
+  if (jack) { /* the candle inside throws a soft warm pool of light, breathing a little */
+    const fl = 0.30 + 0.07 * Math.sin(t / 170 + seed * 2.3);
+    const gg = ctx.createRadialGradient(x, cy, 4, x, cy, 52 * s);
+    gg.addColorStop(0, "rgba(255,176,66," + fl + ")"); gg.addColorStop(1, "rgba(255,176,66,0)");
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.ellipse(x, cy, 52 * s, 40 * s, 0, 0, 7); ctx.fill();
+  }
+  const og = ctx.createRadialGradient(x - w * 0.3, cy - h * 0.4, 3, x, cy, w * 1.15);
+  og.addColorStop(0, "#ffa53a"); og.addColorStop(0.65, "#ef7d12"); og.addColorStop(1, "#d86408");
+  ctx.fillStyle = og; ctx.beginPath(); ctx.ellipse(x, cy, w, h, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(146,64,4,0.55)"; ctx.lineWidth = 1.6;
+  [0.36, 0.68].forEach(fr => { ctx.beginPath(); ctx.ellipse(x, cy, w * fr, h * 0.95, 0, 0, 7); ctx.stroke(); });
+  ctx.save(); ctx.translate(x, cy - h + 3); ctx.rotate(-0.18 + (seed % 5) * 0.09);
+  ctx.fillStyle = "#5d7a2a"; ctx.fillRect(-3 * s, -10 * s, 6 * s, 11 * s); ctx.restore();
+  if (jack) { /* carved face lit from inside: two triangle eyes, a nose, a jagged grin */
+    ctx.save(); ctx.shadowColor = "#ffb03a"; ctx.shadowBlur = 12; ctx.fillStyle = "#ffd76a";
+    const ey = cy - 5 * s;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + side * 11 * s - 5.5 * s, ey + 4.5 * s); ctx.lineTo(x + side * 11 * s, ey - 6 * s); ctx.lineTo(x + side * 11 * s + 5.5 * s, ey + 4.5 * s);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.beginPath(); ctx.moveTo(x - 3 * s, ey + 7 * s); ctx.lineTo(x + 3 * s, ey + 7 * s); ctx.lineTo(x, ey + 2.5 * s); ctx.closePath(); ctx.fill();
+    const my = cy + 7 * s;
+    ctx.beginPath(); ctx.moveTo(x - 13 * s, my);
+    [[-8, 5.5], [-4, 1], [0, 6], [4, 1], [8, 5.5], [13, 0.5]].forEach(p => ctx.lineTo(x + p[0] * s, my + p[1] * s));
+    ctx.lineTo(x + 13 * s, my + 8 * s); ctx.lineTo(x - 13 * s, my + 8 * s); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+function hwWeb(x, y, r, sx, sy) {
+  ctx.save();
+  const dirs = [];
+  for (let k = 0; k <= 4; k++) { const a = k * Math.PI / 8; dirs.push([Math.cos(a) * sx, Math.sin(a) * sy]); }
+  ctx.strokeStyle = "rgba(235,245,255,0.50)"; ctx.lineWidth = 1.5;
+  for (const d of dirs) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + d[0] * r, y + d[1] * r); ctx.stroke(); }
+  ctx.strokeStyle = "rgba(235,245,255,0.42)";
+  [0.34, 0.58, 0.82].forEach(f => { /* concentric arcs, each sagging toward the corner between spokes — the classic web curve */
+    ctx.beginPath();
+    dirs.forEach((d, k) => {
+      const px = x + d[0] * r * f, py = y + d[1] * r * f;
+      if (k === 0) ctx.moveTo(px, py);
+      else { const pd = dirs[k - 1]; ctx.quadraticCurveTo(x + (pd[0] + d[0]) / 2 * r * f * 0.86, y + (pd[1] + d[1]) / 2 * r * f * 0.86, px, py); }
+    });
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+function hwScarecrow(x, gy, s, shirt) {
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, gy + 3, 30 * s, 7 * s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#6b4a2a"; /* the post and the arm crossbar */
+  ctx.fillRect(x - 3.5 * s, gy - 118 * s, 7 * s, 118 * s);
+  ctx.fillRect(x - 54 * s, gy - 96 * s, 108 * s, 6 * s);
+  ctx.strokeStyle = shirt; ctx.lineWidth = 13 * s; ctx.lineCap = "round"; /* sleeves along the outstretched arms */
+  ctx.beginPath(); ctx.moveTo(x - 52 * s, gy - 93 * s); ctx.lineTo(x + 52 * s, gy - 93 * s); ctx.stroke();
+  ctx.strokeStyle = "#e8c85a"; ctx.lineWidth = 2.2; /* straw poking out of both cuffs */
+  for (const e of [-1, 1]) for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(x + e * 54 * s, gy - 93 * s); ctx.lineTo(x + e * (62 + Math.abs(i)) * s, gy - 93 * s + i * 3.4 * s); ctx.stroke(); }
+  ctx.fillStyle = shirt; /* the shirt torso */
+  ctx.beginPath(); ctx.moveTo(x - 15 * s, gy - 104 * s); ctx.lineTo(x + 15 * s, gy - 104 * s); ctx.lineTo(x + 21 * s, gy - 52 * s); ctx.lineTo(x - 21 * s, gy - 52 * s); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#31497f"; /* trousers: two legs with a notch, hanging to the ground */
+  ctx.beginPath(); ctx.moveTo(x - 21 * s, gy - 52 * s); ctx.lineTo(x + 21 * s, gy - 52 * s); ctx.lineTo(x + 17 * s, gy - 4 * s); ctx.lineTo(x + 4 * s, gy - 4 * s); ctx.lineTo(x, gy - 30 * s); ctx.lineTo(x - 4 * s, gy - 4 * s); ctx.lineTo(x - 17 * s, gy - 4 * s); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#e8c85a"; ctx.lineWidth = 2.2; /* straw spilling at the waist */
+  for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(x + i * 8 * s, gy - 52 * s); ctx.lineTo(x + i * 10 * s, gy - 42 * s); ctx.stroke(); }
+  const hy = gy - 122 * s; /* the burlap head with a stitched smile */
+  ctx.fillStyle = "#d8b98a"; ctx.beginPath(); ctx.arc(x, hy, 16.5 * s, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(120,86,40,0.6)"; ctx.lineWidth = 1.4; ctx.stroke();
+  ctx.fillStyle = "#2a1c10";
+  ctx.beginPath(); ctx.arc(x - 6 * s, hy - 2 * s, 1.9 * s, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 6 * s, hy - 2 * s, 1.9 * s, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#2a1c10"; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(x, hy + 3.5 * s, 6.5 * s, 0.25, Math.PI - 0.25); ctx.stroke();
+  ctx.fillStyle = "#d9a441"; /* the straw hat: wide brim + crown with a red band */
+  ctx.beginPath(); ctx.ellipse(x, hy - 12 * s, 27 * s, 7 * s, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x - 13 * s, hy - 13 * s); ctx.lineTo(x - 8 * s, hy - 27 * s); ctx.lineTo(x + 8 * s, hy - 27 * s); ctx.lineTo(x + 13 * s, hy - 13 * s); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#8a3324"; ctx.fillRect(x - 12.5 * s, hy - 16.5 * s, 25 * s, 4.5 * s);
+}
+function drawHalloweenPlaza(t) {
+  HW_PUMPKIN_SPOTS.forEach((p, i) => hwPumpkin(p[0], p[1], p[2], p[3], i, t));
+  HW_SCARECROWS.forEach(c => hwScarecrow(c[0], c[1], c[2], c[3]));
+  HW_WEBS.forEach(w => hwWeb(w[0], w[1], w[2], w[3], w[4]));
+}
 function drawPlaza(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const CX = 1600, CY = 1010;
@@ -3956,6 +4075,7 @@ function drawPlaza(t) {
   ctx.fillStyle = "#38e1ff"; rr(DOOR.x, DOOR.y, DOOR.w, 10, 5); ctx.fill();
   ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff";
   ctx.fillText("▼ ENTER ▼", DOOR.x + DOOR.w / 2, DOOR.y + DOOR.h + 52);
+  drawHalloweenPlaza(t); /* HALLOWEEN DECOR (temporary, plaza only — see the block above drawPlaza): painted last in the plaza's ground/decor layer, over the buildings' bases and top corners, under the players */
   ctx.restore();
 }
 function drawClubBuilding(t) {
