@@ -430,16 +430,19 @@ function gymThemeTick(tick) {
   if (step % 2 === 0) tone(ch[[0, 2, 3, 2][step / 2]] * 4, 0, 0.22, "triangle", 0.010); /* arp sparkle */
 }
 /* the score-triggered crowd swell that used to answer a point here (gymCrowdSwell — a bandpass sweep 500→1100Hz, added with the room themes) was removed at Jonathan's word (2026-10-29, "just remove the recently added swish"): a point keeps its original sting + cheer, but the swell never fires */
-/* casino: Dm9 – G13 – Cmaj9 – A7 lounge changes — a gentle root/third bass walk, brush ticks on the off-steps, one soft sparkle per chord. The long sustained string pad that used to swell under it was removed at Jonathan's word (2026-10-29, "remove the long string instrument") — the pad layer is gone from this theme only; the other rooms' pads are untouched */
+/* casino: Dm9 – G13 – Cmaj9 – A7 lounge changes — a gentle root/third bass walk, brush ticks on the off-steps, one soft sparkle per chord, and (added at Jonathan's word 2026-10-30, "add a string that makes sense") a short bowed-string line: a little phrase of soft detuned-sawtooth notes across the bar, every note taken from the current chord so it always fits the changes, with rests between phrases — it livens the loop without ever becoming a bed. The long sustained string pad that used to swell under it was removed at Jonathan's word (2026-10-29, "remove the long string instrument") and STAYS removed — no padChord in this theme; the other rooms' pads are untouched */
 const CASINO_CHORDS = [
   [146.8, 174.6, 261.6, 329.6], [98.0, 123.5, 174.6, 329.6],
   [130.8, 164.8, 246.9, 293.7], [110.0, 138.6, 196.0, 329.6]
 ];
+const CASINO_STR = { 0: 2, 3: 3, 6: 1, 10: 3, 13: 2 }; /* the string line's phrase map: step -> chord-tone index (notes sound on these steps only, rests between) */
 function casinoThemeTick(tick) {
   const ci = Math.floor(tick / 16) % 4, ch = CASINO_CHORDS[ci], step = tick % 16;
   if (step % 4 === 0) tone(ch[[0, 1, 0, 2][step / 4]], 0, 1.7, "triangle", 0.020); /* slow bass walk */
   if (step % 4 === 2) noiseBurst(0.09, "highpass", 5000, 5000, 0.005); /* brush chick */
   if (step === 8) tone(ch[3] * 4, 0, 1.4, "sine", 0.006); /* one soft high sparkle per chord */
+  const si = CASINO_STR[step]; /* bowed-string line: one chord tone an octave up, voiced as a detuned sawtooth pair so it reads as a string; ~1.5s per note so consecutive notes overlap slightly, legato-style, well under the bass */
+  if (si !== undefined) { const sf = ch[si] * 2; tone(sf * 0.998, 0, 1.5, "sawtooth", 0.0035); tone(sf * 1.002, 0, 1.5, "sawtooth", 0.0035); }
 }
 function startMusic() {
   if (musicOn) return; musicOn = true;
@@ -851,7 +854,7 @@ function startSwVideos() {
 function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.preload = "auto";
-/* iOS Safari ignores .volume on media elements, so the club's 50% runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
+/* iOS Safari ignores .volume on media elements, so the club's 25% runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
 let jukeGain = null;
 function jukeWireGain() {
   if (jukeGain) return true;
@@ -859,16 +862,16 @@ function jukeWireGain() {
     const c = ac(); if (!c) return false;
     const srcNode = c.createMediaElementSource(jukeAudio);
     const g = c.createGain();
-    g.gain.value = muted ? 0 : 0.5;
+    g.gain.value = muted ? 0 : 0.25;
     g.connect(c.destination); srcNode.connect(g);
     jukeGain = g;
-    jukeAudio.volume = 1; /* the gain node does the 50% now */
+    jukeAudio.volume = 1; /* the gain node does the 25% now */
     return true;
   } catch (e) { return false; }
 }
 function jukeApplyVol() {
-  if (jukeGain) { jukeAudio.volume = 1; try { jukeGain.gain.value = muted ? 0 : 0.5; } catch (e) {} }
-  else jukeAudio.volume = muted ? 0 : 0.5;
+  if (jukeGain) { jukeAudio.volume = 1; try { jukeGain.gain.value = muted ? 0 : 0.25; } catch (e) {} }
+  else jukeAudio.volume = muted ? 0 : 0.25;
 }
 let clubState = null;
 function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
