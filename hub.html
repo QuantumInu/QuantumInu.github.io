@@ -1897,7 +1897,7 @@ async function lkEnsureMicStream() {
     micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
     micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
     return true;
-  } catch (e) { lkMicRetryAt = Date.now() + 3000; return false; }
+  } catch (e) { lkMicRetryAt = Date.now() + 1000; return false; } /* a passing failure retries in a second, not three (heal faster) */
 }
 function lkDropMicStream() {
   /* throw the current mic stream away (tracks stopped by US, now). Used on a
@@ -1930,18 +1930,44 @@ async function lkLeave() {
   speakingNow.clear();
   if (room) { try { await room.disconnect(); } catch (e) {} }
 }
+let lkFails = 0, lkSpare = null, lkRefilling = false;
+function lkBackoff() {
+  /* heal fast (Jonathan 2026-10-31): the first retry comes after half a second;
+     only repeated failures back off, up to the old 5s. A successful join
+     resets the count, so a healed connection is quick again next time. */
+  lkRetryAt = Date.now() + Math.min(500 * Math.pow(2, lkFails), 5000);
+  lkFails++;
+}
+async function lkRefillSpare() {
+  /* keep a spare pass standing by for the room you are in (a pass lives an
+     hour, joining is all it does): a rejoin after a blip then skips the pass
+     wait entirely and goes straight to connecting. */
+  if (lkRefilling || lkJoining || !entered || !lkScene) return;
+  const sc = lkScene;
+  lkRefilling = true;
+  try {
+    const t = await lkFetchToken(sc);
+    if (t && (!lkSpare || lkSpare.scene === sc)) lkSpare = { scene: sc, token: t.token, url: t.url, at: Date.now() };
+  } catch (e) {}
+  lkRefilling = false;
+}
 async function lkJoin(scene) {
   const C = window.LivekitClient;
   if (!C || lkJoining || !entered || !db || !myId) return;
   if (lkRoom && lkScene === scene) return;
   lkJoining = true;
+  const prevRoom = lkRoom; /* make-before-break: the old room stays UP until the new one is connected, then closes */
+  let room = null;
   try {
-    if (lkRoom) await lkLeave();
-    const pass = await lkFetchToken(scene);
-    if (!pass) { lkRetryAt = Date.now() + 5000; lkJoining = false; return; }
+    let pass = null;
+    if (lkSpare && lkSpare.scene === scene && Date.now() - lkSpare.at < 2700000) { pass = lkSpare; lkSpare = null; } /* the standing spare: no pass wait at all */
+    if (!pass) {
+      for (let i = 0; i < 15 && lkRefilling; i++) await new Promise(r => setTimeout(r, 100)); /* never race a spare refill for the shared request slot — wait it out briefly */
+      pass = await lkFetchToken(scene);
+    }
+    if (!pass) { lkBackoff(); lkJoining = false; return; }
     if (!entered || me.scene !== scene) { lkJoining = false; return; } /* the room changed while the pass was minted — the tick joins the right one */
-    const room = new C.Room({});
-    lkRoom = room; lkScene = scene;
+    room = new C.Room({});
     room.on(C.RoomEvent.TrackSubscribed, track => {
       if (track.kind !== "audio") return;
       try {
@@ -1957,21 +1983,27 @@ async function lkJoin(scene) {
       for (const sp of speakers) if (sp && sp.identity) speakingNow.add(sp.identity);
     });
     room.on(C.RoomEvent.Disconnected, () => {
-      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkRetryAt = Date.now() + 3000; }
+      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkBackoff(); }
     });
     await room.connect(pass.url, pass.token);
-    lkRetryAt = 0;
+    lkRoom = room; lkScene = scene; /* the new room is the live one only from here */
+    lkRetryAt = 0; lkFails = 0;
+    if (prevRoom && prevRoom !== room) { try { await prevRoom.disconnect(); } catch (e) {} } /* the old room closes only now — the switch overlapped instead of gapping */
     try { const ap = room.startAudio(); if (ap && ap.catch) ap.catch(() => {}); } catch (e) {} /* hearing resumes without waiting for the next tap where the browser allows it */
     if (pttHeld) { lkDropMicStream(); lkPublishMic(); } /* a mic you left on gets a FRESH stream in the new room — never the old room's track (see lkDropMicStream) */
+    lkRefillSpare(); /* restock the standing spare for the next heal */
   } catch (e) {
-    if (lkRoom) { const r = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null; try { r.disconnect(); } catch (err) {} }
-    lkRetryAt = Date.now() + 5000;
+    /* only the NEW room is torn down here — the old room (prevRoom) was never
+       touched, so if the new connection failed the player is still connected
+       where they were and the tick retries the switch. */
+    if (room && lkRoom !== room) { try { const dp = room.disconnect(); if (dp && dp.catch) dp.catch(() => {}); } catch (err) {} }
+    lkBackoff();
   }
   lkJoining = false;
 }
 function voiceReset() {
-  lkLeave();
-  if (entered) lkJoin(me.scene);
+  if (entered) lkJoin(me.scene); /* make-before-break: the join itself closes the old room once the new one is live */
+  else lkLeave();
 }
 function voiceInit() {
   if (!db || !myId) return;
@@ -2011,17 +2043,35 @@ async function pttStart() {
   me.mic = true; publish(true);
   micBtn.classList.add("on");
   ac();
-  if (!micStream && !micDenied) {
-    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-    catch (e) { micDenied = true; flashMicDenied(); }
+  if (!micStream) {
+    /* a fresh tap ALWAYS tries again (Jonathan 2026-10-31, on mobile:
+       "sometimes i turn on the mic and nothing happens"). The old code
+       latched micDenied on ANY capture failure — but on a phone most
+       failures are passing ones (the audio session mid-switch, another app
+       holding the mic for a moment), so one blip used to kill the mic for
+       the whole session. Now only a true refusal (NotAllowedError) latches;
+       anything else backs off briefly and the next tap — or the frame
+       healer while the mic is held — retries. The capture is also raced
+       against a timeout: iOS can leave the request hanging when the audio
+       session is busy, which used to wedge the tap completely. */
+    micDenied = false;
+    try {
+      micStream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("mic-timeout")), 4000))
+      ]);
+    } catch (e) {
+      if (e && e.name === "NotAllowedError") { micDenied = true; flashMicDenied(); }
+      else lkMicRetryAt = Date.now() + 1000;
+    }
     if (micStream) {
       micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
       lkPublishMic();
     }
-  } else if (micStream) {
+  } else {
     micStream.getAudioTracks().forEach(t => t.enabled = true);
     lkPublishMic();
-  } else if (micDenied) flashMicDenied();
+  }
 }
 function pttEnd() {
   if (!pttHeld) return; pttHeld = false;
