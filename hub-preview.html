@@ -38,6 +38,8 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #joystick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(56,225,255,.5);transform:translate(-50%,-50%)}
 #runbtn{position:absolute;right:18px;bottom:76px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:17px;font-weight:800;letter-spacing:1.5px;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none}
 #runbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
+#tbtn{position:absolute;right:18px;bottom:174px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none}
+#tbtn.cd{opacity:.35}
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
 #micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 #micbtn.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
@@ -169,6 +171,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <canvas id="game"></canvas>
   <div id="joy"><div id="joystick"></div></div>
   <div id="runbtn">RUN</div>
+  <div id="tbtn">T</div>
   <button id="prompt"></button>
   <div id="jukebox"><div id="jukepanel">
     <h2>🎵 Club Quantum Jukebox</h2>
@@ -270,6 +273,7 @@ const OWNER_HERO = 71; /* robot QI: owner-only hero — offered as the FIRST pic
 const OWNER_HEROES = [71]; /* hero 71 is Jonathan's alone, under his sign-in only */
 const KING_HERO = 73, KING_EMAIL = "brandogaleno@icloud.com"; /* the crowned king (hero 73, mirrored + sized to the set 2026-10-28) belongs to OnlineMoney — ONLY his account ever sees it in the picker or wears it (Jonathan's correction 2026-10-28: it was wrongly wired to the owner account first) */
 const OWNER_EMAIL = "jrod11991@icloud.com";
+const MECH_HERO = 74; /* the DreadMech (Jonathan 2026-10-31): the owner account's transform form — his own uploaded art at hub-heroes/hero-074.webp; never a picker cell, never saved to a profile; only the T transform ever wears it */
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
 function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
@@ -413,6 +417,7 @@ function tone(f0, f1, dur, type, vol, when) {
 const sfxPop = () => tone(520, 880, 0.09, "sine", 0.07);
 const sfxClick = () => tone(700, 700, 0.05, "triangle", 0.05);
 const sfxCoin = () => { tone(1568, 1568, 0.07, "square", 0.04); tone(2093, 2093, 0.2, "square", 0.04, 0.06); }; /* coin jingle — tokens sent / received */
+const sfxSwap = () => { noiseBurst(0.16, "bandpass", 500, 2600, 0.10); tone(240, 980, 0.13, "sawtooth", 0.025, 0.01); }; /* the transform's quick swap noise — the owner and everyone in the room hear it (Jonathan 2026-10-31) */
 const sfxChime = () => { tone(660, 660, 0.12, "sine", 0.06); tone(880, 880, 0.14, "sine", 0.06, 0.09); tone(1320, 1320, 0.2, "sine", 0.05, 0.18); };
 const sfxStep = () => tone(180 + Math.random() * 60, 120, 0.05, "triangle", 0.025);
 /* casino table sounds (Jonathan 2026-10-28): wins sing — full volume for the winner, softer (k) for everyone else at the table; a loss is one low quiet tone for the loser only */
@@ -647,7 +652,7 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (v.hero === MECH_HERO || p.hero === MECH_HERO) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene); sfxSwap(); } /* the owner's transform just flipped on my screen: cyan smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
       else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
@@ -664,7 +669,7 @@ function publish(force) {
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
-  const rec = { name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  const rec = { name: me.name, hero: mechForm ? MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   myRef.set(rec).catch(() => {});
 }
@@ -1036,6 +1041,7 @@ const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) fo
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
 const me = { name: "", hero: 0, g: "m", scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
 let entered = false;
+let mechForm = false, mechCdUntil = 0; /* the owner's mech transform (Jonathan 2026-10-31): session-only — a fresh page load starts as the dog; 3 second cooldown between flips */
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
 const CLUB = { x: 140, y: 1180, w: 420, h: 300 };
@@ -1777,6 +1783,7 @@ window.addEventListener("resize", resize); resize();
 const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
+  if ((e.key === "t" || e.key === "T") && entered && isOwnerAcct()) { toggleMech(); return; } /* the owner's transform key on PC (Jonathan 2026-10-31) */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
@@ -1792,6 +1799,21 @@ let runBtnHeld = false, runId = null;
 runEl.addEventListener("pointerdown", e => { e.preventDefault(); runId = e.pointerId; runBtnHeld = true; runEl.classList.add("on"); try { runEl.setPointerCapture(runId); } catch (err) {} });
 function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = false; runEl.classList.remove("on"); } }
 runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
+/* ---- the owner's mech transform (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; it exists ONLY on the owner account's phone, from the moment he is in ---- */
+const tEl = $("tbtn");
+function syncTBtn() { const show = entered && isOwnerAcct() && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function toggleMech() {
+  if (!entered || !isOwnerAcct()) return;
+  const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
+  mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
+  mechForm = !mechForm;
+  spawnSmoke(me.x, me.y, me.scene);
+  sfxSwap();
+  publish(true);
+  syncTBtn();
+}
+tEl.addEventListener("pointerdown", e => { e.preventDefault(); toggleMech(); });
+setInterval(syncTBtn, 400);
 let joyId = null;
 joyEl.addEventListener("pointerdown", e => { joyId = e.pointerId; joyEl.setPointerCapture(joyId); joyMove(e); });
 joyEl.addEventListener("pointermove", e => { if (e.pointerId === joyId) joyMove(e); });
@@ -3001,6 +3023,8 @@ function fxPuff(x, y, sc) { for (let i = 0; i < 14; i++) { const a = Math.random
 function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc: sc || me.scene }); }
 /* ---- general fx: the same coin bursts and floating texts, but painted by frame()'s actor pass in EVERY scene (Jonathan 2026-10-30: the send-tokens receive animation only showed in the casino, because the room pool above is drawn solely by the casino/gym/track scene draws). Entries carry their origin scene and paint only while the player is still in it — the room pool's leak lock — and casino win fx keep using the room pool exactly as before; this list is for effects that belong to the PLAYER, not the room. ---- */
 let genParts = [], genTexts = [];
+let smokeParts = []; /* cyan transform smoke (Jonathan 2026-10-31): world-space puffs with a scene tag, painted by drawGenFx with the other player fx */
+function spawnSmoke(x, y, sc) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0 }); } }
 function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
 function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
 function drawGenFx(dt) {
@@ -3020,6 +3044,13 @@ function drawGenFx(dt) {
     ctx.save(); ctx.globalAlpha = a; ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
     ctx.strokeStyle = "rgba(0,0,0,0.65)"; ctx.lineWidth = 4; ctx.strokeText(ft.txt, ft.x, y);
     ctx.fillStyle = ft.col; ctx.fillText(ft.txt, ft.x, y); ctx.restore();
+  });
+  smokeParts = smokeParts.filter(p => { p.life += dt; if (p.life >= p.max) return false; p.x += p.vx * dt; p.y += p.vy * dt; p.r += dt * 44; return true; });
+  smokeParts.forEach(p => {
+    if (p.sc !== me.scene) return;
+    const a = Math.max(0, 1 - p.life / p.max) * 0.5;
+    ctx.fillStyle = p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")";
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
   });
 }
 function tableResultFx(game, st, seatsList) {
@@ -4444,6 +4475,8 @@ function drawChatBubble(cx, boxBottom, chat) {
   ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, cx, by + 26 + i * 26));
 }
 function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving, gender) {
+  if (isMe && mechForm) hero = MECH_HERO; /* my own screen draws me from me.hero, not from my presence record — the transform has to land here too, or I would stay a dog on my own screen while the room sees the mech */
+  if (hero === MECH_HERO) gender = "m"; /* the mech lives on the male track whatever the wearer's picker gender */
   const img = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
   if (!img) { ensureHero(hero, gender);
     ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(wx, wy - 4, 27, 9, 0, 0, 7); ctx.fill();
@@ -4452,7 +4485,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
     ctx.strokeText(name, wx, wy - 104); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, wy - 104);
     ctx.restore(); return; }
   const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * 11 : Math.sin(t / 620 + phase) * 1.4;
-  const H = 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8);
+  const H = hero === MECH_HERO ? 288 : 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8); /* the mech stands 3x taller than the dog (Jonathan 2026-10-31); the shadow ellipse takes its width from W, so the shadow widens with the form, as he asked; the name tag rides H the same way */
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
   ctx.save(); ctx.translate(wx, wy - H / 2 + bob);
