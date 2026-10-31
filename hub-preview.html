@@ -1250,20 +1250,30 @@ const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the 
    lounge's south-east edge — slightly smaller (0.66) and dimmed, with the
    club's own live people in it — so the eye reads the VIP as higher.
    VIPBELOW maps club-world points into lounge-world points:
-   (ox + s*x, oy + s*y). The layer's top-left corner tucks UNDER the
-   lounge's floor at (1200, 680); only the part past the lounge's right
-   wall (x 1500) or bottom wall (y 1100) ever shows — the rest is covered
-   by the lounge itself, which paints right after (see frame's dispatch).
+   (ox + s*x, oy + s*y). RAISED 2026-10-31 at Jonathan's word (the top
+   half of the club was hidden under the lounge and the view stopped
+   partway down the room): at oy 68 the layer spans the lounge's full
+   height — the club's top border (sign, bar, shelves) sits beside the
+   lounge's upper wall and its bottom border lands flush with the
+   lounge's bottom wall (68 + 1720*0.60 = 1100), so the WHOLE club
+   shows beside the lounge, top border to bottom border. The layer's
+   left part tucks UNDER the lounge's floor (covered when the lounge
+   paints right after — see frame's dispatch), and the drawing is
+   clipped to the layer's footprint, which IS the club's own border:
+   nothing is drawn beyond the club's right border.
    A second placement (VIPBELOW_B) paints the same room again in the
    band below the lounge's bottom wall, its top border at that wall —
    the bottom view shows the room from its top border down.
+   The layer renders with the PRE-SNAP camera (camX - vipCamOx): the
+   balcony lean's snap moves YOUR floor only — the bottom floor never
+   snaps (Jonathan 2026-10-31).
    vipBelowXf is the one-frame handoff to drawClub: paintClubBelow sets it
    while the layer borrows the club's own draw path, and drawClub adds the
    layer transform on top of the camera transform when it is set. It is
    null everywhere else, so the club scene itself renders exactly as
    before. Display only — nothing here is walkable, clickable or synced. */
-const VIPBELOW = { ox: 1200, oy: 680, s: 0.66 };
-const VIPBELOW_B = { ox: 1200, oy: 1100, s: 0.66 }; /* the bottom band's placement (Jonathan 2026-10-31): the SAME room painted a second time below the lounge's bottom wall (oy = the lounge's own height), so the bottom view shows the club from its TOP BORDER down. VIPBELOW itself is exactly where it always was — nothing moved. */
+const VIPBELOW = { ox: 1200, oy: 68, s: 0.60 };
+const VIPBELOW_B = { ox: 1200, oy: 1100, s: 0.60 }; /* the bottom band's placement (Jonathan 2026-10-31): the SAME room painted again below the lounge's bottom wall (oy = the lounge's own height), so the bottom view shows the club from its TOP BORDER down */
 let vipBelowXf = null;
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
@@ -4628,16 +4638,16 @@ function drawTrackBuilding(t) {
   ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
   /* the roof (PREVIEW round 3): a PEAKED GABLE now — a real racing-stable silhouette in the round-2 colours: cream faces, burgundy trim, the thin burgundy stripes clipped into the slopes, a burgundy fascia along the eaves. The chasing bulbs that ran the old flat band's edge are GONE from the roof entirely (his word); the marquee below keeps its own, untouched. Unmistakably NOT the Sports Complex's flat green band or the Speedway's flat dark crown — those are bands, this is a peak */
-  ctx.beginPath(); ctx.moveTo(b.x, b.y + 10); ctx.lineTo(cx, b.y - 96); ctx.lineTo(b.x + b.w, b.y + 10); ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(cx, b.y - 106); ctx.lineTo(b.x + b.w, b.y); ctx.closePath();
   ctx.fillStyle = "#f5eeda"; ctx.fill();
   ctx.save(); ctx.clip();
   ctx.fillStyle = "rgba(122,31,43,0.5)";
-  for (let sx = b.x + 16; sx <= b.x + b.w - 20; sx += 46) ctx.fillRect(sx, b.y - 96, 7, 106); /* the thin stripes, clipped to the gable */
+  for (let sx = b.x + 16; sx <= b.x + b.w - 20; sx += 46) ctx.fillRect(sx, b.y - 106, 7, 106); /* the thin stripes, clipped to the gable */
   ctx.restore();
-  ctx.beginPath(); ctx.moveTo(b.x, b.y + 10); ctx.lineTo(cx, b.y - 96); ctx.lineTo(b.x + b.w, b.y + 10); ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(cx, b.y - 106); ctx.lineTo(b.x + b.w, b.y); ctx.closePath();
   ctx.strokeStyle = "#7a1f2b"; ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.fillStyle = "#7a1f2b"; ctx.fillRect(b.x, b.y + 4, b.w, 6); /* the burgundy fascia along the eaves — flush with the facade since round 6: the old ±18 overshoot ended in a little red spike past each end of the roof (his screenshot), so the gable's eaves and the fascia now land exactly on the building's corners */
-  ctx.font = "26px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🧲", cx, b.y - 110); /* the golden horseshoe rides just over the peak (it floated over the old flat band on this same centre line) */
+  ctx.fillStyle = "#7a1f2b"; ctx.fillRect(b.x, b.y - 6, b.w, 6); /* the burgundy fascia along the eaves — flush with the facade since round 6: the old ±18 overshoot ended in a little red spike past each end of the roof (his screenshot), so the gable's eaves and the fascia now land exactly on the building's corners. RAISED with the whole roof on 2026-10-31 at Jonathan's word: the gable's base now rests exactly ON the building's top edge (it overlapped the facade by 10px before), and the fascia rides just above that edge */
+  ctx.font = "26px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🧲", cx, b.y - 120); /* the golden horseshoe rides just over the peak (it floated over the old flat band on this same centre line) */
   /* marquee — charcoal panel, cream trim, cream-and-red bulbs (his restyle: different from the old gold-on-green) */
   ctx.fillStyle = "#1d1d24"; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.fill();
   ctx.strokeStyle = "#f3e9d2"; ctx.lineWidth = 3; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.stroke();
@@ -6014,31 +6024,37 @@ function paintClubBelow(t, dt) {
      is scene "club" only. A translucent shade plus the lounge's cast shadow over the seams sell the drop.
      Pure scenery: no hit tests read it, no presence is written, and the club scene itself never runs
      this code.
-     TWO placements of the one room (Jonathan 2026-10-31): the main layer keeps its exact original spot
-     (VIPBELOW, oy 680 — the club layered down and to the right, seen beside the lounge's east wall), and
-     a second pass paints the room again in the band BELOW the lounge's bottom wall with the club's own
-     TOP BORDER right at that wall (VIPBELOW_B) — so the bottom view shows the room from its top border
-     down instead of a slice from partway down. The bottom pass paints after the main one, so where the
-     two overlap below the wall, the bottom view wins. */
+     TWO placements of the one room (Jonathan 2026-10-31): the main layer spans the lounge's full height
+     (VIPBELOW, oy 68 — the WHOLE club beside the lounge's east wall, its top border up by the lounge's
+     top and its bottom border flush with the lounge's bottom wall), and a second pass paints the room
+     again in the band BELOW the lounge's bottom wall with the club's own TOP BORDER right at that wall
+     (VIPBELOW_B) — so the bottom view shows the room from its top border down. The bottom pass paints
+     after the main one, so where the two overlap below the wall, the bottom view wins.
+     THE BOTTOM FLOOR NEVER SNAPS (Jonathan 2026-10-31): everything here renders with the pre-snap camera
+     (camX - vipCamOx). The balcony lean's snap moves the lounge — your floor — only; the club below
+     behaves exactly as it did just before the snap and moves only with your normal walking.
+     The actor list is built (and lerped) ONCE and shared by both passes — lerping per pass made the
+     club's people glide twice as fast as they should. */
   const L = VIPBELOW, fx = L.ox, fy = L.oy, fw = CLUBROOM.w * L.s, fh = CLUBROOM.h * L.s;
+  const camXB = camX - vipCamOx; /* the pre-snap camera: the lean offset never reaches the bottom floor */
+  const actors = [];
+  for (const p of peers.values()) {
+    if (p.scene !== "club") continue;
+    if (p.snap) { p.x = p.tx; p.y = p.ty; p.snap = false; }
+    p.x += (p.tx - p.x) * Math.min(1, dt * 9); p.y += (p.ty - p.y) * Math.min(1, dt * 9);
+    actors.push(p);
+  }
+  actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the same synthetic guard frame() composes into the club's actor pass — same post, same bubble */
+  actors.sort((a, b) => a.y - b.y);
   function paintLayer(Lp, clipRects) {
     ctx.save();
-    ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+    ctx.scale(SCALE, SCALE); ctx.translate(-camXB, -camY);
     ctx.beginPath();
     for (const r of clipRects) ctx.rect(r[0], r[1], r[2], r[3]);
     ctx.clip("evenodd");
     ctx.save();
     vipBelowXf = Lp;
     try { drawClub(t); } finally { vipBelowXf = null; }
-    const actors = [];
-    for (const p of peers.values()) {
-      if (p.scene !== "club") continue;
-      if (p.snap) { p.x = p.tx; p.y = p.ty; p.snap = false; }
-      p.x += (p.tx - p.x) * Math.min(1, dt * 9); p.y += (p.ty - p.y) * Math.min(1, dt * 9);
-      actors.push(p);
-    }
-    actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the same synthetic guard frame() composes into the club's actor pass — same post, same bubble */
-    actors.sort((a, b) => a.y - b.y);
     ctx.translate(Lp.ox, Lp.oy); ctx.scale(Lp.s, Lp.s);
     for (const a of actors) {
       const moving = Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7;
@@ -6054,18 +6070,18 @@ function paintClubBelow(t, dt) {
     ctx.fillStyle = "rgba(5,2,14,0.30)"; ctx.fillRect(Lp.ox, Lp.oy, CLUBROOM.w * Lp.s, CLUBROOM.h * Lp.s);
     ctx.restore();
   }
-  paintLayer(L, [[fx, fy, fw, fh], [0, 0, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect */
+  paintLayer(L, [[fx, fy, fw, fh], [-vipCamOx, 0, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect — the rect SHIFTED by the snap: the lounge is drawn with the snapped camera, so in this pre-snap frame its wall sits vipCamOx further left, and the layer fills flush up to that wall (the club's points never move on screen; the sliding lounge simply uncovers more of the tucked part) */
   paintLayer(VIPBELOW_B, [[fx, VIPROOM.h, fw, fh]]); /* the bottom band: the room again, from its top border down */
   /* the lounge's own shadow falls across the seams */
   ctx.save();
-  ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  ctx.beginPath(); ctx.rect(fx, fy, fw, fh * 2); ctx.rect(0, 0, VIPROOM.w, VIPROOM.h); ctx.clip("evenodd");
+  ctx.scale(SCALE, SCALE); ctx.translate(-camXB, -camY);
+  ctx.beginPath(); ctx.rect(fx, fy, fw, fh * 2); ctx.rect(-vipCamOx, 0, VIPROOM.w, VIPROOM.h); ctx.clip("evenodd");
   const shS = ctx.createLinearGradient(0, VIPROOM.h, 0, VIPROOM.h + 48);
   shS.addColorStop(0, "rgba(0,0,0,0.55)"); shS.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = shS; ctx.fillRect(fx, VIPROOM.h, VIPROOM.w - fx + 48, 48);
   const shE = ctx.createLinearGradient(VIPROOM.w, 0, VIPROOM.w + 48, 0);
   shE.addColorStop(0, "rgba(0,0,0,0.55)"); shE.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = shE; ctx.fillRect(VIPROOM.w, fy, 48, VIPROOM.h - fy);
+  ctx.fillStyle = shE; ctx.fillRect(VIPROOM.w - vipCamOx, fy, 48, VIPROOM.h - fy); /* the east shadow falls from the lounge's wall as drawn — snapped — so it starts vipCamOx left of the room's edge in this pre-snap frame */
   ctx.restore();
 }
 function paintVipRail(t) {
@@ -6222,7 +6238,7 @@ function drawVip(t) {
   /* the title, in the club sign's voice */
   ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.9)"; ctx.shadowBlur = 10 + 24 * beat;
-  ctx.fillStyle = "#ffd76a"; ctx.fillText("⭐ VIP LOUNGE ⭐", VIPROOM.w / 2, 74); ctx.restore();
+  ctx.fillStyle = "#ffd76a"; ctx.fillText("⭐ VIP LOUNGE ⭐", 840, 74); /* centred on the coffee table (788 + 104/2) at Jonathan's word 2026-10-31 — the title and the song line below sat at the room's centre, left of the table */ ctx.restore();
   /* the little bar: shelf bottles + counter, the club bars' own geometry (VIPBAR is the counter, and the room's one obstacle) */
   ctx.fillStyle = "#170b26"; ctx.fillRect(VIPBAR.x, 18, VIPBAR.w, 46);
   const bottleCols = ["#38e1ff", "#ff5d8f", "#ffd76a", "#4ade80", "#a855f7"];
@@ -6292,7 +6308,7 @@ function drawVip(t) {
   /* now playing — the club's song, carried in (the lounge has no jukebox of its own). PREVIEW round 4, his word: the line sits DIRECTLY UNDER the room's title at the top — the title's baseline is 74 in 40px type, so one line height (48) plus a small margin puts this baseline at 128, centred on the title's own x */
   if (clubSongActive()) {
     ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", VIPROOM.w / 2, 128);
+    ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", 840, 128); /* centred with the title and the coffee table (Jonathan 2026-10-31) */
   }
   /* the album-art TV (PREVIEW round 7, Jonathan 2026-10-30): a square set in the room's TOP-RIGHT corner — bare wall until now — in a dark housing with the club border's own pink pulse, three little control dots on its bottom bezel (paint only, no controls). Its screen is the cover of the song the lounge shares with the club, read off the SAME clubState.idx the ♪ line above uses, so the picture and the title can never disagree; when no song is on, the screen rests dark with a gold ♪. Display only — it clears the door panel below it (which starts at y 376) by a wide margin and never touches the jukebox, the title or the song line */
   const VT = { x: VIPROOM.w - 262, y: 40, w: 222, h: 222 }; /* y 26 -> 40 (Jonathan 2026-10-31): the housing then sits 30px off the top wall, matching its 30px right gap (housing right edge = w-30) */
