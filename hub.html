@@ -1073,14 +1073,15 @@ const POOL = { x: 3260, y: 1080, w: 920, h: 400 }; /* the stone deck's outer edg
 const POOLW = { x: 3306, y: 1126, w: 828, h: 308 }; /* the water itself, inset by the deck rim */
 /* the waterfall boulders and the rock archway that first stood here were removed at Jonathan's word (2026-10-30) — the pool is open water with its deck now, no rockwork, nothing solid in or around it */
 function inPoolWater(x, y) { return x > POOLW.x && x < POOLW.x + POOLW.w && y > POOLW.y && y < POOLW.y + POOLW.h; } /* standing IN the water (feet inside the water rect): drives the half-submerged render, the splashes and the wading pace */
-function poolSubmersion(x, y) { /* the waterline (PREVIEW round 3 — the pre-round-2 read, restored at Jonathan's word): when the band shows, the water cuts the sprite exactly in HALF — the band is always the sprite's lower half. Round 2's true-overlap band is gone: pinned to the water's top edge it tinted the whole sprite the deeper you waded, and read as completely underwater. What round 3 sets is WHEN the band appears, by the edge the sprite overlaps the water from: from the TOP or BOTTOM edge, only once HALF the sprite is inside the water; from the LEFT or RIGHT edge, only once the sprite is FULLY inside. Splashes and the wading pace still key off the feet (inPoolWater), untouched. Returns { top, h } in world space, or null while dry. ROUND 4 added one exception, the bottom edge only: feet past the water's bottom edge force the band off at once (see the off switch at the return). */
-  const sx0 = x - 29, sx1 = x + 29, sy0 = y - 96, sy1 = y; /* the sprite's own span (drawPlayer: 58 wide, 96 tall, anchored at the feet) */
+function poolSubmersion(x, y, hero) { /* the waterline (PREVIEW round 3 — the pre-round-2 read, restored at Jonathan's word): when the band shows, the water cuts the sprite exactly in HALF — the band is always the sprite's lower half. Round 2's true-overlap band is gone: pinned to the water's top edge it tinted the whole sprite the deeper you waded, and read as completely underwater. What round 3 sets is WHEN the band appears, by the edge the sprite overlaps the water from: from the TOP or BOTTOM edge, only once HALF the sprite is inside the water; from the LEFT or RIGHT edge, only once the sprite is FULLY inside. Splashes and the wading pace still key off the feet (inPoolWater), untouched. Returns { top, h } in world space, or null while dry. ROUND 4 added one exception, the bottom edge only: feet past the water's bottom edge force the band off at once (see the off switch at the return). */
+  const hw = hero === MECH_HERO ? 65 : 29, sh = hero === MECH_HERO ? 216 : 96; /* the sprite's own span, form-aware (Jonathan 2026-10-31): the mech's body is 2.25x the dog's, so the span, the halfway threshold and the band all scale with the wearer — for the dog this is exactly the old span (29 half-width, 96 tall, anchored at the feet) */
+  const sx0 = x - hw, sx1 = x + hw, sy0 = y - sh, sy1 = y;
   const oy = Math.min(sy1, POOLW.y + POOLW.h) - Math.max(sy0, POOLW.y); /* how much of the sprite stands inside the water, measured vertically */
   if (oy <= 0) return null; /* no overlap at all — up on the deck, dry */
   if (sx0 < POOLW.x || sx1 > POOLW.x + POOLW.w) return null; /* overlapping from the left or right edge: the band waits until the sprite is FULLY inside the water */
-  if (oy < 48) return null; /* overlapping from the top or bottom edge: the band appears once HALF the sprite (48 of its 96) is inside */
+  if (oy < sh / 2) return null; /* overlapping from the top or bottom edge: the band appears once HALF the sprite is inside */
   if (y > POOLW.y + POOLW.h) return null; /* the BOTTOM-edge off switch (PREVIEW round 4, his word): the moment the feet cross below the water's bottom edge the band is GONE — a sprite stepping out southward stands on the deck, dry, however much of it still overlaps the water. Bottom edge ONLY: the top/left/right thresholds above are exactly as round 3 left them */
-  return { top: y - 48, h: 48 }; /* the waterline cuts halfway through the sprite */
+  return { top: y - sh / 2, h: sh / 2, hw }; /* the waterline cuts halfway through the sprite; hw rides along so the painter draws the band at the wearer's own width */
 }
 const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
 const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
@@ -7125,10 +7126,10 @@ function frame(now) {
     if (me.scene === "gym") { const ci2 = courtAt(a.x, a.y); if (ci2) { const sd = a.x < ci2.r.x + ci2.r.w / 2 ? "A" : "B"; ctx.beginPath(); ctx.ellipse(a.x, a.y + 26, 30, 10, 0, 0, 7); ctx.strokeStyle = sd === "A" ? "rgba(56,225,255,0.9)" : "rgba(255,93,143,0.9)"; ctx.lineWidth = 3.5; ctx.stroke(); } }
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g);
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now)); /* a DJ standing behind the booth: repaint the counter over their lower body so their head pokes up behind it. Actors are y-sorted, so anyone in FRONT of the booth has a larger y and is drawn after this — they paint over the booth as normal. Applies to my sprite and to remote players alike (a.x/a.y are the smoothed positions everyone sees) */
-    const aSub = me.scene === "plaza" ? poolSubmersion(a.x, a.y) : null;
+    const aSub = me.scene === "plaza" ? poolSubmersion(a.x, a.y, a.hero) : null;
     if (aSub && heroImgFor(a.hero, a.g)) { /* wading (PREVIEW): the sprite's lower half wears the water — a translucent band over exactly the submerged half (poolSubmersion), with the bright waterline ring sitting on the band's own top edge, the halfway cut. A sprite short of the edge thresholds paints nothing (Jonathan 2026-10-30) */
-      ctx.fillStyle = "rgba(35,105,175,0.45)"; ctx.fillRect(a.x - 29, aSub.top, 58, aSub.h);
-      ctx.strokeStyle = "rgba(195,242,255,0.55)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(a.x, aSub.top, 29, 7.5, 0, 0, 7); ctx.stroke(); /* the surface line rings the sprite on its waterline */
+      ctx.fillStyle = "rgba(35,105,175,0.45)"; ctx.fillRect(a.x - aSub.hw, aSub.top, aSub.hw * 2, aSub.h); /* the band at the wearer's own width — the mech's is 2.25x the dog's (Jonathan 2026-10-31) */
+      ctx.strokeStyle = "rgba(195,242,255,0.55)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(a.x, aSub.top, aSub.hw, 7.5 * (aSub.hw / 29), 0, 0, 7); ctx.stroke(); /* the surface line rings the sprite on its waterline, at the wearer's own width */
     }
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
