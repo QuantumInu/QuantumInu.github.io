@@ -930,6 +930,8 @@ function jukeApplyVol() {
 }
 let clubState = null;
 function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
+const vipArt = {}; /* the VIP lounge TV's cover cache (PREVIEW round 7): one Image per song slug, loaded lazily the first time that song is on — the covers live beside the mp3s the jukebox itself plays (assets/music/<slug>.jpg, the site music section's own cover files) */
+function vipArtImg(slug) { let im = vipArt[slug]; if (!im) { im = new Image(); im.src = "assets/music/" + slug + ".jpg"; vipArt[slug] = im; } return im; }
 function syncJuke() {
   if (!clubSongActive()) { if (!jukeAudio.paused) jukeAudio.pause(); return; }
   const key = clubState.idx + "@" + clubState.ts;
@@ -1164,7 +1166,8 @@ const PHDOOR_A = { y: 1376, half: 92 }; /* the door to the Pool Hall, in the Arc
 const TDOOR = { y: ROOM.h / 2, half: 92 };
 const TH = { w: 2600, h: 1920 };
 const HALL = { x1: 620, top: TH.h / 2 - 140, bot: TH.h / 2 + 140 };
-const TEXDOOR = { x: 830, w: 150 }; /* green-sign exit door on the theatre's top wall, left of the screen — out to the plaza at the arcade building's top-right corner (Jonathan 2026-10-29) */
+const TEXDOOR = { x: 830, w: 150 }; /* green-sign exit door on the theatre's top wall, left of the screen — out to the plaza ABOVE the arcade building's top-left (Jonathan 2026-10-29; the landing moved from the building's right EDGE to above its left side in PREVIEW round 7, Jonathan 2026-10-30, when the second door below took the top-right) */
+const TEXDOOR_R = { x: 2240, w: 150 }; /* the SECOND green-sign exit door on the theatre's top wall (PREVIEW round 7, Jonathan 2026-10-30): the left door's mirror across the screen's centre (its centre 905 -> 2315), standing right of the screen — out to the plaza above the arcade building's top-right */
 const SCREEN = { x: 1186, y: 332, w: 848, h: 478 };
 const PEDESTAL = { x: SCREEN.x + SCREEN.w + 56, y: SCREEN.y + SCREEN.h - 88, w: 56, h: 88 };
 const seats = [];
@@ -1225,7 +1228,7 @@ const booths = [];
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
 function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [BUILDING, CLUB, SIL_R, GYM_B, SPD_B, HR_B]; /* HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
+  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B]; /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox in the bottom-right corner (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
@@ -1279,6 +1282,7 @@ function collide(nx, ny) {
     nx = Math.max(56, Math.min(SWROOM.w - 56, nx)); ny = Math.max(70, Math.min(SWROOM.h - 46, ny));
   } else {
     if (ny < 66 && nx > TEXDOOR.x && nx < TEXDOOR.x + TEXDOOR.w) return { x: nx, y: ny, theatreexit: true };
+    if (ny < 66 && nx > TEXDOOR_R.x && nx < TEXDOOR_R.x + TEXDOOR_R.w) return { x: nx, y: ny, theatreexitr: true }; /* the right top door (round 7): the left door's check, mirrored — its landing is the matching side of the roof */
     if (nx < 48 && ny > HALL.top && ny < HALL.bot) return { x: nx, y: ny, back: true };
     nx = Math.max(46, Math.min(TH.w - 56, nx)); ny = Math.max(60, Math.min(TH.h - 46, ny));
     if (nx - r < HALL.x1 && (ny - r < HALL.top || ny + r > HALL.bot)) {
@@ -2682,10 +2686,10 @@ function drawSpeedway(t) {
   ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2;
   for (let i = 0; i < 4; i++) { const s = swStage(i); ctx.strokeRect(s.x - 48, s.y - 27, 96, 54); }
   /* silver spectator benches on all four sides of the oval (Jonathan 2026-10-29): inside the arena, OFF the track surface (outer edge: y 400 top / y 2000 bottom / x 300 left / x 3300 right), facing the racing. The bottom row splits around the centre so the entry spawn (1800,2240), the step-out spot below the staged cars and the walk down to the exit plate stay clear. Round 6 (2026-10-30): a SECOND top row above the first — its top edge (147 − 24 = 123) sits halfway between the top wall (y 0) and the top of the original top row (270 − 24 = 246) — same span, same step; and the side banks shift 40px toward their walls (170 → 130, 3430 → 3470), still well clear of the track's outer edge (x 300 / x 3300) */
-  for (let bx = 700; bx <= 2900; bx += 168) drawSwBench(bx, 147, 0);
+  for (let bx = 700; bx <= 2900; bx += 168) drawSwBench(bx, 132, 0); /* round 7 (Jonathan 2026-10-30): the topmost row rides 15px nearer the top wall than round 6 put it (147 -> 132) — its shadow's top edge now sits 108, still inside the room */
   for (let bx = 700; bx <= 2900; bx += 168) drawSwBench(bx, 270, 0);
-  for (let bx = 732; bx <= 1404; bx += 168) drawSwBench(bx, 2130, Math.PI);
-  for (let bx = 2196; bx <= 2868; bx += 168) drawSwBench(bx, 2130, Math.PI);
+  for (let bx = 732; bx <= 1404; bx += 168) drawSwBench(bx, 2160, Math.PI); /* round 7: the bottom rows ride 30px nearer the bottom wall (2130 -> 2160) — their feet at 2196, still clear of the exit plate (~2250) and the entry corridor */
+  for (let bx = 2196; bx <= 2868; bx += 168) drawSwBench(bx, 2160, Math.PI);
   for (let by = 780; by <= 1620; by += 168) { drawSwBench(130, by, -Math.PI / 2); drawSwBench(3470, by, Math.PI / 2); }
   /* concession stands in the arena's four corners (Jonathan 2026-10-29) */
   for (const sc of SWSTAND_C) drawSwStand(sc[0], sc[1]);
@@ -4210,7 +4214,8 @@ function toArcade() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = 
 function toPlaza() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 1600; me.y = 566; sfxChime(); publish(true); }
 function toTheatre() { stopAllTones(); me.scene = "theatre"; voiceReset(); me.x = 96; me.y = TH.h / 2; sfxChime(); publish(true); if (vid.dataset.cur) vid.play().catch(() => {}); }
 function toArcadeFromTheatre() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = ROOM.w - 140; me.y = TDOOR.y; sfxChime(); publish(true); }
-function toPlazaFromTheatre() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = BUILDING.x + BUILDING.w + 50; me.y = BUILDING.y - 25; sfxChime(); publish(true); }
+function toPlazaFromTheatre() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = BUILDING.x + 75; me.y = BUILDING.y - 25; sfxChime(); publish(true); } /* out the LEFT top door (round 7): above the arcade building on its left side — the old landing (BUILDING's right edge, x + w + 50) is gone at Jonathan's word */
+function toPlazaFromTheatreR() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = BUILDING.x + BUILDING.w - 75; me.y = BUILDING.y - 25; sfxChime(); publish(true); } /* out the RIGHT top door (round 7): above the arcade building on its top-right, the left door's mirror */
 function toClub() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = CLUBROOM.w / 2; me.y = CLUBROOM.h - 150; sfxChime(); publish(true); syncJuke(); }
 function toPlazaFromClub() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 350; me.y = CLUB.y + CLUB.h + 60; sfxChime(); publish(true); if (!jukeAudio.paused) jukeAudio.pause(); }
 /* ============ VIP lounge: the quiz gate (PREVIEW, Jonathan 2026-10-30) ============
@@ -4633,6 +4638,9 @@ function drawPlazaPool(t) {
   /* palms at the deck's corners, the casino palms' idiom: the south pair, and (round 6) the same pair mirrored to the north corners — same size, same 34px inset from the side edges, the glyph box the same distance off the top edge as the south pair's is off the bottom */
   ctx.font = "46px sans-serif"; ctx.fillText("🌴", P.x + 34, P.y + P.h - 26); ctx.fillText("🌴", P.x + P.w - 34, P.y + P.h - 26);
   ctx.fillText("🌴", P.x + 34, P.y + 54); ctx.fillText("🌴", P.x + P.w - 34, P.y + 54);
+  /* beach chairs and umbrellas along the deck's TOP side (PREVIEW round 7, Jonathan 2026-10-30): three loungers on the deck strip above the water, each under its own umbrella, in the palms' glyph idiom — pure decor in the ground pass: not sittable, no obstacle, the water and the beach ball untouched. PATH CLEARANCE (his hard rule — they must NOT touch the purple path): the plaza's purple path union passes nowhere near the pool's top side — its nearest reach is the bottom walkway along y 1480..1640, which meets the deck's SOUTH rim (1480) on the far side of the pool, 354px below the nearest umbrella tip; every glyph below sits on the deck's own stone (x 3260..4180, y 1080..1480), well inside it and clear of the path on every side */
+  ctx.font = "40px sans-serif"; ctx.fillText("⛱️", 3560, P.y + 40); ctx.fillText("⛱️", 3720, P.y + 40); ctx.fillText("⛱️", 3880, P.y + 40);
+  ctx.font = "34px sans-serif"; ctx.fillText("🪑", 3560, P.y + 76); ctx.fillText("🪑", 3720, P.y + 76); ctx.fillText("🪑", 3880, P.y + 76);
 }
 /* ============ casino rendering: the tables are the game ============ */
 let uiZones = [];
@@ -5033,11 +5041,11 @@ function drawTrack(t) {
     }
   }
   hrSeatsRow();
-  /* my controls, on the felt: the horse picks and the twelve amounts. The amounts are the TRACK's own size (PREVIEW round 4, his word: up a bit, bigger a bit) — 118x27 at fs 18 (the casino tables' 96x22 grown by ~23%), two rows of six at a 126 step spanning 748 centred, the block riding 6px higher (anchored HRT.h - 72, rows at a 31 step). The horse picks, the READY button and every other table's buttons keep their exact sizes — this panel only */
+  /* my controls, on the felt: the horse picks and the twelve amounts. The amounts are the TRACK's own size (PREVIEW round 4, his word: up a bit, bigger a bit) — 118x27 at fs 18 (the casino tables' 96x22 grown by ~23%), two rows of six at a 126 step spanning 748 centred, the block riding higher (anchored HRT.h - 72 in round 4, HRT.h - 84 since round 7, rows at a 31 step). The horse picks, the READY button and every other table's buttons keep their exact sizes — this panel only */
   if (hrSeat >= 0 && st && st.phase === "bet" && myHrSeat()) {
     const mine = myHrSeat();
     HR_HORSES.forEach((hse, i) => drawBtn(cx - 320 + i * 163, HRT.y + 118, 154, 42, "🐎 " + hse.name, () => hrPick(i), { fs: 19, fill: hse.dark, color: "#ffffff", sel: mine.pick === i }));
-    const by = HRT.y + HRT.h - 72;
+    const by = HRT.y + HRT.h - 84; /* round 7 (Jonathan 2026-10-30): the amounts ride 12px higher than round 4 put them — SIZE UNCHANGED at his word (still 118x27, fs 18, same 126/31 steps); only the anchor moved up */
     [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 374 + (k % 6) * 126, by + Math.floor(k / 6) * 31, 118, 27, "BET " + amt.toLocaleString("en-US"), () => hrBet(amt), { fs: 18 }));
   }
   drawTableFx(t, "track");
@@ -5103,6 +5111,16 @@ function drawPhTable(tt, t) {
   const view = phViews[tt];
   if (view) for (let n = 1; n < 16; n++) phBallDraw(view[n], n);
   if (view) phBallDraw(view[0], 0); /* the cue ball paints last, on top */
+  /* my sunk balls (PREVIEW round 7, Jonathan 2026-10-30): the balls I have pocketed this game, racked in a row in the top-left corner ABOVE the table — off the felt, clear of the rail — so I can see my set and my colour at a glance. Read straight off the table's SYNCED state, never a local counter: my group from st.sets, my balls the ones of that group the state marks down (!on), in ball-number order (the state carries no drop sequence — the rack order is the canonical one), the 8 last once the game is done and I took it. A refresh or a mid-game sit-down shows the same row; it clears itself when the table racks a new game (every ball back on). A ball sunk out of turn still counts — the state marks it down, so it shows. My seat only; spectators and the other table's players see nothing here */
+  if (st && (st.phase === "play" || st.phase === "done") && st.balls && st.sets && phSeatT === tt && phSeatI >= 0) {
+    const myG = st.sets[phSeatI];
+    if (myG) {
+      let sbx = T.x + 2;
+      const sby = T.y - 52;
+      for (let n = 1; n < 16; n++) { const bb = st.balls[n]; if (bb && !bb.on && phGroup(n) === myG) { phBallDraw({ x: sbx + PH_BR, y: sby, on: true }, n); sbx += PH_BR * 2 + 6; } }
+      if (st.phase === "done" && st.winner === phSeatI && st.balls[8] && !st.balls[8].on) phBallDraw({ x: sbx + PH_BR, y: sby, on: true }, 8);
+    }
+  }
   /* my aim: the cue line to first contact, the ghost circle there, and the cue stick pulled back behind the cue ball */
   if (tt === phSeatT && phCanShoot() && view && view[0] && view[0].on) {
     const cue = view[0];
@@ -5165,7 +5183,7 @@ function drawPhTable(tt, t) {
     else if (st.phase === "done") { const wn = ss[st.winner]; status = "🏆 TABLE " + (tt + 1) + " — " + (st.mode === "pc" && !wn ? "🤖 PC" : (wn ? wn.name : "A player")) + " took the pot!"; }
   }
   ctx.fillText(status, T.x + T.w / 2, T.y + T.h + 44);
-  /* the betting controls OVERLAY the table (PREVIEW round 4, his word — round 3 hung them in a panel under the south rail, which is NOT how the casino tables do it): before the game, a seated player's controls sit ON TOP of the table itself, drawn over the felt and the balls, like the blackjack/roulette panels. One geometry (phOverlayGeom) centres the panel inside the table's bounds; every button below is drawn — and tap-zoned, by drawBtn — from that same rect, so the taps land exactly on the paint. The metrics are the casino tables' OWN, copied from drawBJTable/drawRouletteTable: READY 140x48 at the panel's top-right (P.x + P.w - 168, P.y + 18, the title row's own offset) in the same purple states; the twelve amounts 96x22 at a 104 step in two rows of six (26 step) anchored off the panel's bottom (P.y + P.h - 66), comma labels, fs 15; the title in feltBase's 30px voice at P.y + 52. Placement only — the betting logic, re-stake, READY gate, RPS flow, vs-PC, pot, refunds and forfeits are all exactly as they were */
+  /* the betting controls OVERLAY the table (PREVIEW round 4, his word — round 3 hung them in a panel under the south rail, which is NOT how the casino tables do it): before the game, a seated player's controls sit ON TOP of the table itself, drawn over the felt and the balls, like the blackjack/roulette panels. One geometry (phOverlayGeom) centres the panel inside the table's bounds; every button below is drawn — and tap-zoned, by drawBtn — from that same rect, so the taps land exactly on the paint. The metrics are the casino tables' OWN, copied from drawBJTable/drawRouletteTable: READY 140x48 at the panel's top-right (P.x + P.w - 168, P.y + 18, the title row's own offset) in the same purple states; the twelve amounts at the casino tables' geometry as shipped in round 4 (round 7 grew them — see the amounts line itself), comma labels; the title in feltBase's 30px voice at P.y + 52. Placement only — the betting logic, re-stake, READY gate, RPS flow, vs-PC, pot, refunds and forfeits are all exactly as they were */
   if (st && (st.phase === "bet" || st.phase === "rps")) {
     const P = phOverlayGeom(T), pcx = P.x + P.w / 2;
     const ss2 = st.seats || {}, fr2 = [0, 1].filter(i => ss2[i] && ss2[i].pid && Date.now() - (ss2[i].ts || 0) < 25000);
@@ -5190,8 +5208,8 @@ function drawPhTable(tt, t) {
       /* READY: the casino tables' own — top-right of the panel on the title row, purple, dim until a bet is down */
       const hasBet = (mine2.bet || 0) > 0, isRdy = !!(mine2.rdy && hasBet);
       drawBtn(P.x + P.w - 168, P.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? phReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
-      /* the twelve amounts, two rows of six in the casino tables' exact geometry, anchored off the panel's bottom the way theirs anchor off the felt's */
-      [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(pcx - 308 + (k % 6) * 104, P.y + P.h - 66 + Math.floor(k / 6) * 26, 96, 22, "BET " + amt.toLocaleString("en-US"), () => phBet(amt), { fs: 15 }));
+      /* the twelve amounts (PREVIEW round 7, Jonathan 2026-10-30: BIGGER and up a bit — the 96x22s were too small to tap): 100x34 at fs 17, two rows of six at a 106 step across and a 38 step down, the block centred (630 wide) and anchored off the panel's bottom at P.y + P.h - 94, so its top row rides 28px higher than the old block's and its bottom row ends 22px off the panel's bottom edge. Comma labels, order and amounts unchanged; drawBtn zones follow the new size and spot exactly */
+      [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(pcx - 315 + (k % 6) * 106, P.y + P.h - 94 + Math.floor(k / 6) * 38, 100, 34, "BET " + amt.toLocaleString("en-US"), () => phBet(amt), { fs: 17 }));
     }
     if (st.phase === "rps") {
       /* rock paper scissors for the break (PREVIEW round 3, moved ONTO the table with the rest of the overlay in round 4): the throw is played here, on the felt, where every seat and every spectator can see it */
@@ -5897,9 +5915,10 @@ function drawDJBooth(t) {
   }
   ctx.fillStyle = "#170b26"; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.fill(); /* the mixer between the decks */
   ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 1.5; rr(dj.x + dj.w / 2 - 26, dj.y + 20, 52, 32, 5); ctx.stroke();
-  ctx.fillStyle = "#4ade80"; ctx.fillRect(dj.x + dj.w / 2 - 18, dj.y + 26, 4, 14);
-  ctx.fillStyle = "#ffd76a"; ctx.fillRect(dj.x + dj.w / 2 - 6, dj.y + 30, 4, 10);
-  ctx.fillStyle = "#ff5d8f"; ctx.fillRect(dj.x + dj.w / 2 + 6, dj.y + 24, 4, 16);
+  /* the mixer's three level bars (PREVIEW round 7, Jonathan 2026-10-30): the group sat high-left inside its box — the whole group rides 6px right and 5px down from the offsets it shipped with, so it sits centred in the box; sizes, colours, spacing and heights are exactly as they were */
+  ctx.fillStyle = "#4ade80"; ctx.fillRect(dj.x + dj.w / 2 - 12, dj.y + 31, 4, 14);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(dj.x + dj.w / 2, dj.y + 35, 4, 10);
+  ctx.fillStyle = "#ff5d8f"; ctx.fillRect(dj.x + dj.w / 2 + 12, dj.y + 29, 4, 16);
   ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff8fb5";
   ctx.fillText("🎧 DJ", dj.x + dj.w / 2, dj.y + dj.h - 12);
 }
@@ -5907,6 +5926,12 @@ function drawClub(t) {
   t = decorT(t); /* decorT: at graphics 1/4 club ambient decor (kick-beat neon, dance floor, disco sway) steps at ~15fps */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const beat = Math.pow(1 - ((t % 480) / 480), 2); /* the club's kick-drum pulse — interior neon flashes together on it */
+  /* wide screens (PREVIEW round 7, Jonathan 2026-10-30): the floor runs on past both side walls to the screen edges — the arcade apron's own fix, in the club's colours — so the starry space backdrop never shows past the room's left or right edge. Pure scenery: at least a full room width on each side and never less than the visible world width; the room's bounds, border, doors and every prop inside keep their exact spots */
+  const extW = Math.max(CLUBROOM.w, Math.ceil(VW / SCALE));
+  ctx.fillStyle = "#0a0616"; ctx.fillRect(-extW, 0, CLUBROOM.w + extW * 2, CLUBROOM.h);
+  ctx.strokeStyle = "rgba(168,85,247,0.13)"; ctx.lineWidth = 2;
+  for (let x = -Math.ceil(extW / 84) * 84; x <= CLUBROOM.w + extW; x += 84) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CLUBROOM.h); ctx.stroke(); }
+  for (let y = 0; y <= CLUBROOM.h; y += 84) { ctx.beginPath(); ctx.moveTo(-extW, y); ctx.lineTo(CLUBROOM.w + extW, y); ctx.stroke(); }
   ctx.fillStyle = "#0a0616"; ctx.fillRect(0, 0, CLUBROOM.w, CLUBROOM.h);
   ctx.strokeStyle = "rgba(168,85,247,0.13)"; ctx.lineWidth = 2;
   for (let x = 0; x <= CLUBROOM.w; x += 84) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CLUBROOM.h); ctx.stroke(); }
@@ -5950,7 +5975,7 @@ function drawClub(t) {
   /* the valance is clipped to the stage's own width: the last scallop's arc is wider than
      the space left for it and spilled a flap past the stage's top-right corner (Jonathan 2026-10-29) */
   ctx.save(); ctx.beginPath(); ctx.rect(st.x, st.y - 2, st.w, 44); ctx.clip();
-  for (let x = st.x; x < st.x + st.w; x += 44) { ctx.beginPath(); ctx.arc(x + 22, st.y + 14, 23, 0, Math.PI); ctx.fill(); }
+  for (let x = st.x; x < st.x + st.w; x += 44) { ctx.beginPath(); ctx.arc(x + 22, st.y + 8, 23, 0, Math.PI); ctx.fill(); } /* the scallops' hang line rides at st.y + 8 (PREVIEW round 7, Jonathan 2026-10-30): raised 6px from st.y + 14 so the valance's top edge lines up with the side drapes' tops (their rr starts at st.y + 8) — scallop size, spacing and colour untouched, and the width clip above still wraps the whole row */
   ctx.restore();
   for (const cx0 of [st.x, st.x + st.w - 58]) {
     ctx.fillStyle = "#7f1d3a"; rr(cx0, st.y + 8, 58, st.h - 16, 8); ctx.fill();
@@ -6101,6 +6126,16 @@ function drawVip(t) {
     ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
     ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", VIPROOM.w / 2, 128);
   }
+  /* the album-art TV (PREVIEW round 7, Jonathan 2026-10-30): a square set in the room's TOP-RIGHT corner — bare wall until now — in a dark housing with the club border's own pink pulse, three little control dots on its bottom bezel (paint only, no controls). Its screen is the cover of the song the lounge shares with the club, read off the SAME clubState.idx the ♪ line above uses, so the picture and the title can never disagree; when no song is on, the screen rests dark with a gold ♪. Display only — it clears the door panel below it (which starts at y 376) by a wide margin and never touches the jukebox, the title or the song line */
+  const VT = { x: VIPROOM.w - 262, y: 26, w: 222, h: 222 };
+  ctx.fillStyle = "#1a0f2e"; rr(VT.x - 10, VT.y - 10, VT.w + 20, VT.h + 30, 14); ctx.fill();
+  ctx.save(); ctx.shadowColor = "#ff5d8f"; ctx.shadowBlur = 3 + 22 * beat;
+  ctx.strokeStyle = "rgba(255,93,143," + (0.7 + 0.3 * beat) + ")"; ctx.lineWidth = 3; rr(VT.x - 10, VT.y - 10, VT.w + 20, VT.h + 30, 14); ctx.stroke(); ctx.restore();
+  const vim = clubSongActive() ? vipArtImg(SONGS[clubState.idx][0]) : null;
+  if (vim && vim.complete && vim.naturalWidth) ctx.drawImage(vim, VT.x, VT.y, VT.w, VT.h);
+  else { ctx.fillStyle = "#0d0718"; ctx.fillRect(VT.x, VT.y, VT.w, VT.h); ctx.font = "64px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,215,106,0.75)"; ctx.fillText("♪", VT.x + VT.w / 2, VT.y + VT.h / 2 + 22); }
+  ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(VT.x, VT.y, VT.w, VT.h, 4); ctx.stroke();
+  for (let ci = 0; ci < 3; ci++) { ctx.fillStyle = ["#ff5d8f", "#ffd76a", "#38e1ff"][ci]; ctx.beginPath(); ctx.arc(VT.x + VT.w / 2 - 22 + ci * 22, VT.y + VT.h + 10, 4.5, 0, 7); ctx.fill(); }
   drawTableFx(t, "vip");
   /* the return door in the right wall — gold like the door it answers, back to the club */
   const vdy = VIPDOOR.y;
@@ -6553,6 +6588,20 @@ function drawTheatre(t) {
   ctx.strokeStyle = "#2ee66b"; ctx.lineWidth = 2.5; rr(TEXDOOR.x + TEXDOOR.w / 2 - 126, 78, 252, 44, 11); ctx.stroke();
   ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#4ade80";
   ctx.fillText("EXIT · PLAZA ▲", TEXDOOR.x + TEXDOOR.w / 2, 107);
+  /* the second green-sign exit door on the top wall, RIGHT of the screen (PREVIEW round 7, Jonathan 2026-10-30): the left door's treatment mirrored line for line — border break, green wash, caps, chevron out, sign plate below — only the door it paints (TEXDOOR_R) and where it lands (above the building's top-right) differ */
+  ctx.fillStyle = "#050914"; ctx.fillRect(TEXDOOR_R.x, 0, TEXDOOR_R.w, 12);
+  const tg2 = ctx.createLinearGradient(0, 0, 0, 90);
+  tg2.addColorStop(0, "rgba(46,230,107,0.35)"); tg2.addColorStop(1, "rgba(46,230,107,0)");
+  ctx.fillStyle = tg2; ctx.fillRect(TEXDOOR_R.x, 0, TEXDOOR_R.w, 90);
+  ctx.fillStyle = "#2ee66b";
+  ctx.fillRect(TEXDOOR_R.x - 6, 0, 16, 10); ctx.fillRect(TEXDOOR_R.x + TEXDOOR_R.w - 10, 0, 16, 10);
+  ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#2ee66b";
+  ctx.fillText("▲", TEXDOOR_R.x + TEXDOOR_R.w / 2, 58);
+  ctx.save(); ctx.shadowColor = "rgba(46,230,107,0.45)"; ctx.shadowBlur = 10;
+  ctx.fillStyle = "#0b1f12"; rr(TEXDOOR_R.x + TEXDOOR_R.w / 2 - 126, 78, 252, 44, 11); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#2ee66b"; ctx.lineWidth = 2.5; rr(TEXDOOR_R.x + TEXDOOR_R.w / 2 - 126, 78, 252, 44, 11); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#4ade80";
+  ctx.fillText("EXIT · PLAZA ▲", TEXDOOR_R.x + TEXDOOR_R.w / 2, 107);
   /* the big screen */
   ctx.save(); ctx.shadowColor = "rgba(" + glowCols[gIdx] + ",0.5)"; ctx.shadowBlur = 22;
   ctx.fillStyle = "#000"; rr(SCREEN.x - 10, SCREEN.y - 10, SCREEN.w + 20, SCREEN.h + 20, 10); ctx.fill(); ctx.restore();
@@ -6700,6 +6749,7 @@ function frame(now) {
     if (res.theatre) toTheatre();
     if (res.back) toArcadeFromTheatre();
     if (res.theatreexit) toPlazaFromTheatre();
+    if (res.theatreexitr) toPlazaFromTheatreR();
     if (me.scene === "plaza") checkPortal(PORTAL, toHQ);
     else if (me.scene === "hq") checkPortal(HQPORTAL, toPlazaFromHQ);
   }
