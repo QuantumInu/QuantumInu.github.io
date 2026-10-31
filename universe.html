@@ -77,7 +77,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #sendtokgo{flex:1;background:linear-gradient(135deg,var(--gold),#e8a33d);border:none;color:#23180a;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #sendtokgo:disabled{opacity:.45;cursor:default}
 #sendtokcancel{flex:1;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
-#vipquiz{position:absolute;inset:52px 0 0 0;background:rgba(2,6,18,.45);z-index:36;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#vipquiz{position:absolute;inset:52px 0 0 0;background:transparent;z-index:36;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #vipquizpanel{background:var(--panel);border:2px solid rgba(255,215,106,.65);border-radius:18px;width:min(440px,96vw);display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,215,106,.30)}
 #vipquizpanel h2{margin:0 0 2px;font-size:21px;color:var(--gold);text-align:center}
 #vipquizsub{margin:0 0 10px;color:#9fd8ea;font-size:13.5px;text-align:center}
@@ -3199,6 +3199,7 @@ function standUpAll() {
   if (!mySeat) return;
   const g = mySeat.game, i = mySeat.idx;
   leftSeat = { game: g, idx: i }; /* mark the chair BEFORE anything else: until the removal echoes back, reclaimSeat must not hand this seat straight back (ghost-seat fix, 2026-10-30) */
+  bjSettle(); rouletteSettle(); /* bank a decided round BEFORE the chair is freed (Jonathan 2026-10-31): the settles read the shared record and settleOnce pays each win exactly once, so standing on WINNER can never lose it — both are no-ops until their table's phase is "done" with my result on it */
   if (g === "slot") {
     const s = slotSeats && slotSeats[slotKey(i)];
     /* free the chair for real: remove the record unless the freshest snapshot proves a DIFFERENT player holds it fresh right now. The old code removed it only when the local snapshot happened to show my pid at that instant, so any snapshot lag — or a pid-less leftover record — silently skipped the removal while mySeat cleared and the disconnect release was cancelled: the chair stayed "taken" under a ghost */
@@ -3575,6 +3576,7 @@ function hrStandUp() {
   if (hrSeat < 0) return;
   const i = hrSeat;
   hrLeft = i; /* mark the chair BEFORE anything else, like standUpAll — the reclaim must not hand it back */
+  hrSettle(); /* the same done-phase bank as the casino: standing after the result is in still collects the win */
   const st = hrState, s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
     /* standing up BEFORE the race starts never costs the stake (the casino rule, mirrored): the bet was charged at bet time, so it is handed back before the chair is freed */
@@ -3743,6 +3745,7 @@ function phStandUp() {
   if (phSeatT < 0) return;
   const t = phSeatT, i = phSeatI;
   phLeft = { t, i }; /* mark the chair BEFORE anything else, like standUpAll — the reclaim must not hand it back */
+  phSettle(t); /* bank a finished match's pot before the chair is freed — a no-op until the phase is "done" */
   if (phSim && phSim.t === t) phSim = null; /* abandoning a live roll: the table's forfeit path settles up */
   if (phAim && phAim.t === t) phAim = null;
   const st = phStates[t], s = st && st.seats && st.seats[i];
