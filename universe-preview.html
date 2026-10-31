@@ -1854,8 +1854,7 @@ const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
   if ((e.key === "t" || e.key === "T") && entered && isOwnerAcct()) { toggleMech(); return; } /* the owner's transform key on PC (Jonathan 2026-10-31) */
-  if ((e.key === "q" || e.key === "Q" || e.key === "j" || e.key === "J") && boxingBout) { keys.add(e.key.toLowerCase()); boxPunch("L"); return; } /* boxing on PC: Q or J = left punch, E or K = right punch (Jonathan 2026-10-31). The key ALSO joins the held set: the frame loop polls it, so a punch held down while moving (even diagonally) still swings — a lone tap could be eaten by the bell-settle moment or crowded out by the movement keys */
-  if ((e.key === "e" || e.key === "E" || e.key === "k" || e.key === "K") && boxingBout) { keys.add(e.key.toLowerCase()); boxPunch("R"); return; }
+  /* boxing on PC: NO keyboard punches (Jonathan 2026-10-31, final word) — the mouse is the ONLY way to punch on desktop: Left Mouse = left punch, Right Mouse = right punch (the canvas pointerdown below). Q/E/J/K do nothing in a bout. Phones keep their L / R punch buttons */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
@@ -7140,7 +7139,7 @@ function drawBoxingFx(t) {
       ctx.fillText((i === 0 ? "🔴 " : "🔵 ") + nm + " · " + hp, x + bw / 2, by + 28);
     };
     bar(0, BOXRING.x + 14, 1); bar(1, BOXRING.x + BOXRING.w - 364, -1); /* the ring's own top corners: x 1434 and x 1816, y 534 */
-    if (st.phase === "fight" && boxSeat >= 0 && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; ctx.fillText("Q / E or J / K to punch", 1800, BOXRING.y + BOXRING.h - 54); } /* while fighting, the punch-key hint shows in the ring too — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
+    if (st.phase === "fight" && boxSeat >= 0 && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; ctx.fillText("Left Mouse and Right Mouse to punch", 1800, BOXRING.y + BOXRING.h - 54); } /* while fighting, the punch hint shows in the ring too — DESKTOP ONLY, never on phones (Jonathan 2026-10-31): the mouse is the only desktop punch */
     if (st.phase === "fight" && srvNow() < (st.fightTs || 0) + 1200) {
       ctx.font = "800 54px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
       ctx.fillText("🥊 GET READY…", 1800, 880);
@@ -7219,7 +7218,7 @@ function drawBoxingFx(t) {
     if (boxSeat >= 0) {
       const myBet = (ss[boxSeat] && ss[boxSeat].bet) || 0, myRdy = !!(ss[boxSeat] && ss[boxSeat].rdy);
       ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#000000"; ctx.textAlign = "center";
-      if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) ctx.fillText("Q / E or J / K to punch", 1800, BOXRING.y + BOXRING.h - 54); /* the punch-key hint, one line above the your-bet line — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
+      if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) ctx.fillText("Left Mouse and Right Mouse to punch", 1800, BOXRING.y + BOXRING.h - 54); /* the punch hint, one line above the your-bet line — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
       ctx.fillText(myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") : "Your bet: none — place a bet to fight", 1800, BOXRING.y + BOXRING.h - 24); /* inside the ring along its bottom side, in black (Jonathan 2026-10-31) */
       CH_BETS.forEach((amt, k) => drawBtn(1800 - 479 + (k % 6) * 162, BOXRING.y + BOXRING.h + 66 + Math.floor(k / 6) * 68, 148, 56, amt.toLocaleString("en-US"), () => boxSetBet(amt), { fs: 24, sel: myBet === amt })); /* bigger bet buttons (Jonathan 2026-10-31): 104x40 fs17 -> 148x56 fs24 */
       drawBtn(1800 - 90, BOXRING.y + BOXRING.h + 206, 180, 52, myRdy ? "✓ READY" : "READY", () => boxReady(), { fs: 22, sel: myRdy }); /* dropped 30px to stay clear of the enlarged bet rows */
@@ -8805,7 +8804,6 @@ function frame(now) {
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
-  if (boxingBout && boxSeat >= 0) { if (keys.has("q") || keys.has("j")) boxPunch("L"); else if (keys.has("e") || keys.has("k")) boxPunch("R"); } /* punching while moving (Jonathan 2026-10-31): a HELD punch key swings every frame the game looks — boxPunch itself keeps the bell-settle and one-swing-a-beat rules — so moving in any direction never eats a punch */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
     const os = boxState.seats && boxState.seats[1 - boxSeat];
     let ox = null;
