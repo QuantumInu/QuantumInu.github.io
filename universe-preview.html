@@ -1838,8 +1838,8 @@ const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
   if ((e.key === "t" || e.key === "T") && entered && isOwnerAcct()) { toggleMech(); return; } /* the owner's transform key on PC (Jonathan 2026-10-31) */
-  if ((e.key === "j" || e.key === "J") && boxingBout) { boxPunch("L"); return; } /* boxing on PC: J = left punch, K = right punch */
-  if ((e.key === "k" || e.key === "K") && boxingBout) { boxPunch("R"); return; }
+  if ((e.key === "q" || e.key === "Q") && boxingBout) { boxPunch("L"); return; } /* boxing on PC: Q = left punch, E = right punch (Jonathan 2026-10-31; replaces J/K) */
+  if ((e.key === "e" || e.key === "E") && boxingBout) { boxPunch("R"); return; }
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
@@ -6870,7 +6870,7 @@ function drawChessBoard(ti) {
   if (chSeatT === ti && st) {
     const mine = chMySeatRec(ti);
     if (st.phase === "bet" && mine) {
-      CH_BETS.forEach((amt, k) => drawBtn(b.x + b.w / 2 - 248 + (k % 6) * 84, b.y + b.h - 74 + Math.floor(k / 6) * 38, 76, 30, amt >= 1000 ? (amt / 1000) + "k" : String(amt), () => chessBet(amt), { fs: 16, sel: (mine.bet || 0) === amt, pad: 2 }));
+      CH_BETS.forEach((amt, k) => drawBtn(b.x + b.w / 2 - 365 + (k % 6) * 124, b.y + b.h - 88 + Math.floor(k / 6) * 50, 110, 44, amt >= 1000 ? (amt / 1000) + "k" : String(amt), () => chessBet(amt), { fs: 22, sel: (mine.bet || 0) === amt, pad: 2 })); /* bigger bet buttons (Jonathan 2026-10-31): 76x30 fs16 -> 110x44 fs22 */
       const hasBet = (mine.bet || 0) > 0, isRdy = !!(mine.rdy && hasBet);
       drawBtn(b.x + b.w / 2 - 84, b.y + b.h - 146, 168, 56, isRdy ? "✓ READY" : "READY", hasBet ? chessReady : null, { fs: 24, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
     }
@@ -6918,7 +6918,7 @@ function drawBoxing(t) {
   ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 6; ctx.strokeRect(14, 14, BOXROOM.w - 28, BOXROOM.h - 28);
   ctx.strokeStyle = "rgba(168,85,247,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(30, 30, BOXROOM.w - 60, BOXROOM.h - 60);
   ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("🥊 BOXING ARENA 🥊", 1800, 128);
+  ctx.fillText("🥊 BOXING ARENA 🥊", 1800, 330); /* below the top bleachers' 3 rows, in the gap between them and the ring (Jonathan 2026-10-31) */
   /* bleachers: the horse track's own silver benches (drawSwBench — the bench the Track's banks are built from; Jonathan 2026-10-31: "the normal race bleachers"), banked inside the same BOXBLEACH rects and facing the ring. Pure scenery, walked over, exactly like the Track's */
   for (const B of BOXBLEACH) {
     if (B.w > B.h) {
@@ -6966,18 +6966,19 @@ function drawBoxingFx(t) {
     if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); if (sd.bet) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("bet " + (sd.bet || 0).toLocaleString("en-US"), sp.x, sp.y - 68); } if (sd.rdy) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#39d353"; ctx.fillText("READY ✓", sp.x, sp.y + 84); } }
   });
   if (st && (st.phase === "fight" || st.phase === "done")) {
-    /* health bars under the title: left seat left, right seat right */
+    /* health bars INSIDE the ring's top corners, on the white canvas: left seat left, right seat right (Jonathan 2026-10-31) */
     const bar = (i, x, dir) => {
       const hp = Math.max(0, (st.hp && st.hp[i]) || 0), nm = (st.seats && st.seats[i] && st.seats[i].name) || "—";
-      ctx.fillStyle = "rgba(8,10,24,0.85)"; rr(x, 96, 470, 40, 10); ctx.fill();
-      ctx.strokeStyle = i === 0 ? "#d42a2a" : "#2a4fd4"; ctx.lineWidth = 2.5; rr(x, 96, 470, 40, 10); ctx.stroke();
-      const w = 462 * (hp / 100);
+      const bw = 350, by = BOXRING.y + 14; /* 350 wide so both bars fit the ring's 760 canvas side by side */
+      ctx.fillStyle = "rgba(8,10,24,0.85)"; rr(x, by, bw, 40, 10); ctx.fill();
+      ctx.strokeStyle = i === 0 ? "#d42a2a" : "#2a4fd4"; ctx.lineWidth = 2.5; rr(x, by, bw, 40, 10); ctx.stroke();
+      const w = (bw - 8) * (hp / 100);
       ctx.fillStyle = hp > 50 ? "#39d353" : hp > 25 ? "#e8b93c" : "#d42a2a";
-      if (dir > 0) ctx.fillRect(x + 4, 100, w, 32); else ctx.fillRect(x + 466 - w, 100, w, 32);
+      if (dir > 0) ctx.fillRect(x + 4, by + 4, w, 32); else ctx.fillRect(x + bw - 4 - w, by + 4, w, 32);
       ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
-      ctx.fillText((i === 0 ? "🔴 " : "🔵 ") + nm + " · " + hp, x + 235, 124);
+      ctx.fillText((i === 0 ? "🔴 " : "🔵 ") + nm + " · " + hp, x + bw / 2, by + 28);
     };
-    bar(0, 100, 1); bar(1, BOXROOM.w - 570, -1); /* the arena's own top corners (Jonathan 2026-10-31) */
+    bar(0, BOXRING.x + 14, 1); bar(1, BOXRING.x + BOXRING.w - 364, -1); /* the ring's own top corners: x 1434 and x 1816, y 534 */
     if (st.phase === "fight" && srvNow() < (st.fightTs || 0) + 1200) {
       ctx.font = "800 54px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
       ctx.fillText("🥊 GET READY…", 1800, 880);
@@ -6996,11 +6997,11 @@ function drawBoxingFx(t) {
         let lx = fx + sideSign * 40, ly = fy - 58 + dy;
         const mine = (punchSide === (isTop ? "L" : "R"));
         if (mine && punchAge < 200) lx += sideSign * 26 * (1 - punchAge / 200);
-        ctx.fillStyle = isTop ? "#d42a2a" : "#2a4fd4";
+        ctx.fillStyle = "#d42a2a"; /* BOTH gloves red — top and lower, both fighters (Jonathan 2026-10-31) */
         ctx.beginPath(); ctx.arc(lx, ly, 27, 0, 7); ctx.fill();
         ctx.strokeStyle = "rgba(10,10,20,0.6)"; ctx.lineWidth = 3; ctx.stroke();
-        ctx.fillStyle = "#f6f2e8"; ctx.fillRect(lx - (flip ? 30 : -3), ly - 8, 30, 16); /* the cuff, behind the fist */
-        ctx.strokeStyle = "rgba(10,10,20,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(lx - (flip ? 30 : -3), ly - 8, 30, 16);
+        ctx.fillStyle = "#f6f2e8"; ctx.fillRect(lx - 15, ly + 27, 30, 16); /* the cuff (the white stick) BELOW the fist (Jonathan 2026-10-31) */
+        ctx.strokeStyle = "rgba(10,10,20,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(lx - 15, ly + 27, 30, 16);
       };
       glove(0, true); glove(40, false);
     };
@@ -7030,13 +7031,13 @@ function drawBoxingFx(t) {
       else if (ss[0].rdy && ss[1].rdy) line = "Both READY — the bell is about to ring!";
       else line = (b0 > 0 ? "Bets matched at " + b0.toLocaleString("en-US") + " — " : "No bets — ") + "both fighters tap READY to start";
     }
-    ctx.fillText(line, 1800, 330);
+    ctx.fillText(line, 1800, 382); /* directly under the title (Jonathan 2026-10-31) */
     if (boxSeat >= 0) {
       const myBet = (ss[boxSeat] && ss[boxSeat].bet) || 0, myRdy = !!(ss[boxSeat] && ss[boxSeat].rdy);
-      ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center";
-      ctx.fillText(myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") : "Your bet: none — tap an amount, or READY with no bet", 1800, BOXRING.y + BOXRING.h + 52);
-      CH_BETS.forEach((amt, k) => drawBtn(1800 - 337 + (k % 6) * 114, BOXRING.y + BOXRING.h + 66 + Math.floor(k / 6) * 50, 104, 40, amt.toLocaleString("en-US"), () => boxSetBet(amt), { fs: 17, sel: myBet === amt }));
-      drawBtn(1800 - 90, BOXRING.y + BOXRING.h + 176, 180, 52, myRdy ? "✓ READY" : "READY", () => boxReady(), { fs: 22, sel: myRdy });
+      ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#000000"; ctx.textAlign = "center";
+      ctx.fillText(myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") : "Your bet: none — tap an amount, or READY with no bet", 1800, BOXRING.y + BOXRING.h - 24); /* inside the ring along its bottom side, in black (Jonathan 2026-10-31) */
+      CH_BETS.forEach((amt, k) => drawBtn(1800 - 479 + (k % 6) * 162, BOXRING.y + BOXRING.h + 66 + Math.floor(k / 6) * 68, 148, 56, amt.toLocaleString("en-US"), () => boxSetBet(amt), { fs: 24, sel: myBet === amt })); /* bigger bet buttons (Jonathan 2026-10-31): 104x40 fs17 -> 148x56 fs24 */
+      drawBtn(1800 - 90, BOXRING.y + BOXRING.h + 206, 180, 52, myRdy ? "✓ READY" : "READY", () => boxReady(), { fs: 22, sel: myRdy }); /* dropped 30px to stay clear of the enlarged bet rows */
     }
   }
   if (boxNote && performance.now() - boxNoteAt < 4200) {
@@ -8654,8 +8655,8 @@ function frame(now) {
     }
   }
   if (me.scene === "boxing" && boxSeat >= 0) {
-    /* a fighter's camera: the whole arena during the bout (the health bars live in the room's top corners), the ring and its betting row while seated */
-    const f = boxingBout ? { x: 0, y: 0, w: BOXROOM.w, h: BOXROOM.h } : { x: 1130, y: 380, w: 1340, h: 1250 };
+    /* a fighter's camera: the ring and its betting row, zoomed in — the betting phase AND the bout alike (Jonathan 2026-10-31: "make sure the arena zooms in when you begin a fight and are betting") */
+    const f = { x: 1130, y: 380, w: 1340, h: 1250 };
     SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
     camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
     camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
