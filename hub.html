@@ -43,7 +43,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
 #micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 #micbtn.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
-#chatlog{position:absolute;inset:52px 0 0 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#chatlog{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #chatblock{position:absolute;top:60px;left:50%;transform:translateX(-50%) translateY(-8px);background:rgba(40,6,16,.92);border:1.5px solid #ff5470;color:#ffd9de;font-weight:700;font-size:15px;padding:9px 18px;border-radius:999px;z-index:60;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;white-space:nowrap}
 #chatblock.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #logpanel{background:var(--panel);border:2px solid rgba(56,225,255,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(56,225,255,.25)}
@@ -182,7 +182,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   </div></div>
   <div id="chatblock">🚫 That message isn't allowed here.</div>
   <div id="chatlog"><div id="logpanel">
-    <h2>💬 Chat Log</h2>
+    <h2 id="logtitle">💬 Chat Log</h2>
     <div id="loglist"></div>
     <button id="logclose">Close</button>
   </div></div>
@@ -652,8 +652,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (v.hero === MECH_HERO || p.hero === MECH_HERO) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene); sfxSwap(); } /* the owner's transform just flipped on my screen: cyan smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (v.hero === MECH_HERO || p.hero === MECH_HERO) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene); sfxSwap(); } /* the owner's transform just flipped on my screen: cyan smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + onlineRoster().length + " online"; if (typeof renderOnlineList === "function") renderOnlineList();
@@ -662,6 +662,7 @@ try {
 let lastPub = 0, lastPubKey = "";
 function publish(force) {
   if (!db || !entered) return;
+  followChatLog(me.scene);
   const now = performance.now();
   const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : ""].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000) return;
@@ -1899,7 +1900,7 @@ function lkFetchToken(scene) {
       if (v && v.ts === reqTs && v.token && v.url) finish({ token: v.token, url: v.url });
     });
     try { base.child("lkreq").onDisconnect().remove(); base.child("lkres").onDisconnect().remove(); } catch (e) {}
-    base.child("lkreq").set({ room: "hub-" + scene, name: me.name || "Player", ts: reqTs }).catch(() => finish(null));
+    base.child("lkreq").set({ room: "hub-" + scene, name: me.name || "Player", ts: reqTs, srv: "self" }).catch(() => finish(null));
   });
 }
 async function lkEnsureMicStream() {
@@ -4242,25 +4243,79 @@ $("sendtokcancel").onclick = () => { closeSendTokens(); sfxClick(); };
 $("sendtok").addEventListener("click", e => { if (e.target === $("sendtok")) closeSendTokens(); });
 $("sendtokamt").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendTokensConfirm(); } });
 /* ============ chat log ============ */
-const chatLog = [];
+/* Server-saved by room (Jonathan 2026-10-31): every public chat message is
+   stored under hub/tables/chatlog/<scene> with the sender's session id and
+   chat id as its key, so every client can write the same message once
+   without making duplicates. Opening or entering a room follows that room's
+   latest 60 messages, including messages sent while this player was logged
+   out. The heading names the room whose log is on screen. Token-transfer
+   notes stay local to the receiving player and are never saved publicly. */
+const chatLogs = new Map();
 const loggedChatKeys = new Set();
-function logPeerChat(id, name, chatId, text) {
-  const k = id + ":" + chatId;
+let chatHistoryQuery = null, chatHistoryScene = "";
+function chatRoomLog(scene) {
+  if (!chatLogs.has(scene)) chatLogs.set(scene, []);
+  return chatLogs.get(scene);
+}
+function syncLogTitle() {
+  const el = $("logtitle");
+  if (el) el.textContent = "💬 Chat Log — " + onlineRoomName(chatHistoryScene || me.scene);
+}
+function addChatLogMessage(scene, name, text, ts, key) {
+  if (!ONLINE_ROOM_NAMES[scene] || !text) return;
+  const k = key || (scene + ":" + ts + ":" + name + ":" + text);
   if (loggedChatKeys.has(k)) return;
   loggedChatKeys.add(k);
-  logChat(name, text);
+  const rows = chatRoomLog(scene);
+  rows.push({ name: String(name || "?").slice(0, 24), text: String(text).slice(0, 300), ts: Number(ts) || 0, key: k });
+  rows.sort((a, b) => (a.ts - b.ts) || String(a.key).localeCompare(String(b.key)));
+  while (rows.length > 60) { const old = rows.shift(); if (old && old.key) loggedChatKeys.delete(old.key); }
+  if (scene === me.scene && $("chatlog").style.display === "flex") renderLog();
+}
+function saveChatMessage(scene, id, chatId, name, text) {
+  if (!ONLINE_ROOM_NAMES[scene] || !id || !chatId || !text) return;
+  const safeId = String(id).replace(/[.$#\[\]\/]/g, "_");
+  const key = safeId + "_" + Number(chatId);
+  addChatLogMessage(scene, name, text, Number(chatId), scene + ":" + key);
+  if (!db) return;
+  try {
+    db.ref("hub/tables/chatlog/" + scene + "/" + key).set({
+      name: String(name || "?").slice(0, 24),
+      text: String(text).slice(0, 300),
+      ts: Number(chatId)
+    }).catch(() => {});
+  } catch (e) {}
+}
+function followChatLog(scene) {
+  if (!db || !ONLINE_ROOM_NAMES[scene]) return;
+  if (chatHistoryQuery && chatHistoryScene === scene) { syncLogTitle(); return; }
+  if (chatHistoryQuery) { try { chatHistoryQuery.off(); } catch (e) {} chatHistoryQuery = null; }
+  chatHistoryScene = scene;
+  try {
+    const base = db.ref("hub/tables/chatlog/" + scene);
+    const query = base.orderByChild ? base.orderByChild("ts").limitToLast(60) : base;
+    chatHistoryQuery = query;
+    query.on("child_added", snap => {
+      const v = snap.val(); if (!v) return;
+      addChatLogMessage(scene, v.name, v.text, Number(v.ts) || 0, scene + ":" + snap.key);
+    });
+  } catch (e) { chatHistoryQuery = null; }
+  syncLogTitle();
+  if ($("chatlog").style.display === "flex") renderLog();
+}
+function logPeerChat(id, name, chatId, text, scene) {
+  saveChatMessage(scene, id, chatId, name, text);
 }
 function logChat(name, text) {
-  if (!text) return;
-  chatLog.push({ name: name || "?", text: String(text) });
-  if (chatLog.length > 60) chatLog.shift();
-  if ($("chatlog").style.display === "flex") renderLog();
+  addChatLogMessage(me.scene, name, text, Date.now(), "local:" + Date.now() + ":" + Math.random());
 }
 function renderLog() {
   const el = $("loglist"); if (!el) return;
+  syncLogTitle();
+  const rows = chatRoomLog(me.scene);
   el.innerHTML = "";
-  if (!chatLog.length) { el.innerHTML = '<div class="logempty">No messages yet — say something!</div>'; return; }
-  for (const m of chatLog) {
+  if (!rows.length) { el.innerHTML = '<div class="logempty">No messages yet — say something!</div>'; return; }
+  for (const m of rows) {
     const d = document.createElement("div"); d.className = "logrow";
     const b = document.createElement("b"); b.textContent = m.name + ": ";
     d.appendChild(b); d.appendChild(document.createTextNode(m.text));
@@ -4268,7 +4323,7 @@ function renderLog() {
   }
   requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
 }
-function openChatLog() { closeOnlineList(); $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); }
+function openChatLog() { closeOnlineList(); followChatLog(me.scene); $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); }
 function closeChatLog() { $("chatlog").style.display = "none"; }
 $("logbtn").onclick = openChatLog;
 $("logclose").onclick = closeChatLog;
@@ -4317,7 +4372,7 @@ function sendChat() {
   const t = chatIn.value.trim(); if (!t || !entered) return;
   if (chatBlocked(t)) { showChatBlock(); chatIn.value = ""; sfxBad(); return; }
   me.chat = t.slice(0, 300); me.chatId = Date.now(); me.chatAt = performance.now();
-  logChat(me.name, me.chat);
+  saveChatMessage(me.scene, myId, me.chatId, me.name, me.chat);
   chatIn.value = ""; chatIn.blur(); sfxPop(); publish(true);
   setTimeout(() => { if (me.chatId && performance.now() - me.chatAt > 4900) publish(true); }, 5100);
 }
