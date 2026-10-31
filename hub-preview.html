@@ -1250,29 +1250,32 @@ const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the 
    lounge's south-east edge — slightly smaller (0.66) and dimmed, with the
    club's own live people in it — so the eye reads the VIP as higher.
    VIPBELOW maps club-world points into lounge-world points:
-   (ox + s*x, oy + s*y). RAISED 2026-10-31 at Jonathan's word (the top
-   half of the club was hidden under the lounge and the view stopped
-   partway down the room): at oy 68 the layer spans the lounge's full
-   height — the club's top border (sign, bar, shelves) sits beside the
-   lounge's upper wall and its bottom border lands flush with the
-   lounge's bottom wall (68 + 1720*0.60 = 1100), so the WHOLE club
-   shows beside the lounge, top border to bottom border. The layer's
-   left part tucks UNDER the lounge's floor (covered when the lounge
-   paints right after — see frame's dispatch), and the drawing is
-   clipped to the layer's footprint, which IS the club's own border:
-   nothing is drawn beyond the club's right border.
-   A second placement (VIPBELOW_B) paints the same room again in the
-   band below the lounge's bottom wall, its top border at that wall —
-   the bottom view shows the room from its top border down.
+   (ox + s*x, oy + s*y). MOVED DOWN 2026-10-31 at Jonathan's word (the
+   view sat up at the top of the screen; he wants it toward the
+   bottom): at oy 300 the layer spans y 300..1332 — beside the lounge
+   (where the main pass is clip-bounded at the lounge's bottom wall)
+   the club shows from its TOP BORDER at 300 down to club y 1333, and
+   a second placement (VIPBELOW_B) paints the same room again in the
+   band below the lounge's bottom wall, from its top border down. The
+   layer's left part tucks UNDER the lounge's floor (covered when the
+   lounge paints right after — see frame's dispatch), and the drawing
+   is clipped to the layer's footprint, which IS the club's own
+   border: nothing is drawn beyond the club's right border.
+   ONE FRAME RULE: paintClubBelow applies SCALE + the pre-snap camera
+   ONCE, and drawClub — when vipBelowXf is set — adds ONLY the layer
+   transform, never the camera again. The room, its people, the clip
+   and the shade all live in that single frame, so a person in the
+   view stands exactly where they stand in the club itself.
    The layer renders with the PRE-SNAP camera (camX - vipCamOx): the
    balcony lean's snap moves YOUR floor only — the bottom floor never
    snaps (Jonathan 2026-10-31).
    vipBelowXf is the one-frame handoff to drawClub: paintClubBelow sets it
-   while the layer borrows the club's own draw path, and drawClub adds the
-   layer transform on top of the camera transform when it is set. It is
-   null everywhere else, so the club scene itself renders exactly as
-   before. Display only — nothing here is walkable, clickable or synced. */
-const VIPBELOW = { ox: 1200, oy: 68, s: 0.60 };
+   while the layer borrows the club's own draw path; with it set, drawClub
+   applies ONLY the layer transform (the camera is already applied by
+   paintClubBelow — never twice). It is null everywhere else, so the club
+   scene itself renders exactly as before. Display only — nothing here is
+   walkable, clickable or synced. */
+const VIPBELOW = { ox: 1200, oy: 300, s: 0.60 };
 const VIPBELOW_B = { ox: 1200, oy: 1100, s: 0.60 }; /* the bottom band's placement (Jonathan 2026-10-31): the SAME room painted again below the lounge's bottom wall (oy = the lounge's own height), so the bottom view shows the club from its TOP BORDER down */
 let vipBelowXf = null;
 /* ============ Quantum HQ (portal room) ============ */
@@ -6070,7 +6073,7 @@ function paintClubBelow(t, dt) {
     ctx.fillStyle = "rgba(5,2,14,0.30)"; ctx.fillRect(Lp.ox, Lp.oy, CLUBROOM.w * Lp.s, CLUBROOM.h * Lp.s);
     ctx.restore();
   }
-  paintLayer(L, [[fx, fy, fw, fh], [-vipCamOx, 0, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect — the rect SHIFTED by the snap: the lounge is drawn with the snapped camera, so in this pre-snap frame its wall sits vipCamOx further left, and the layer fills flush up to that wall (the club's points never move on screen; the sliding lounge simply uncovers more of the tucked part) */
+  paintLayer(L, [[fx, fy, fw, VIPROOM.h - fy], [-vipCamOx, 0, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect, and BOUNDED at the lounge's bottom wall (height VIPROOM.h - fy, not the full fh) — below that wall the band's from-the-top-border painting owns the view, so the main layer's lower stretch never double-draws under it. The lounge rect is SHIFTED by the snap: the lounge is drawn with the snapped camera, so in this pre-snap frame its wall sits vipCamOx further left, and the layer fills flush up to that wall (the club's points never move on screen; the sliding lounge simply uncovers more of the tucked part) */
   paintLayer(VIPBELOW_B, [[fx, VIPROOM.h, fw, fh]]); /* the bottom band: the room again, from its top border down */
   /* the lounge's own shadow falls across the seams */
   ctx.save();
@@ -6107,8 +6110,9 @@ function paintVipRail(t) {
 }
 function drawClub(t) {
   t = decorT(t); /* decorT: at graphics 1/4 club ambient decor (kick-beat neon, dance floor, disco sway) steps at ~15fps */
-  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  if (vipBelowXf) { ctx.translate(vipBelowXf.ox, vipBelowXf.oy); ctx.scale(vipBelowXf.s, vipBelowXf.s); } /* the VIP overlook (PREVIEW, Jonathan 2026-10-30): set only while paintClubBelow borrows this draw path for the club layered below the lounge — the club's own scene call leaves it null and this line does nothing at all */
+  ctx.save();
+  if (vipBelowXf) { ctx.translate(vipBelowXf.ox, vipBelowXf.oy); ctx.scale(vipBelowXf.s, vipBelowXf.s); } /* the VIP overlook (PREVIEW): paintClubBelow has ALREADY applied SCALE + the pre-snap camera before borrowing this draw, so the camera must NOT be applied a second time here — with it applied twice the room landed in a different frame from its people, its clip and its shade: floor spilled past the right border, the top border clipped away, and every person stood shifted off their real spot (Jonathan's screenshot 2026-10-31). One frame for all four. The club's own scene call leaves vipBelowXf null and takes the else path, byte-identical to before */
+  else { ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY); }
   const beat = Math.pow(1 - ((t % 480) / 480), 2); /* the club's kick-drum pulse — interior neon flashes together on it */
   /* wide screens (PREVIEW round 7, Jonathan 2026-10-30): the floor runs on past both side walls to the screen edges — the arcade apron's own fix, in the club's colours — so the starry space backdrop never shows past the room's left or right edge. Pure scenery: at least a full room width on each side and never less than the visible world width; the room's bounds, border, doors and every prop inside keep their exact spots */
   const extW = Math.max(CLUBROOM.w, Math.ceil(VW / SCALE));
