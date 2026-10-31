@@ -81,7 +81,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #sendtokgo{flex:1;background:linear-gradient(135deg,var(--gold),#e8a33d);border:none;color:#23180a;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #sendtokgo:disabled{opacity:.45;cursor:default}
 #sendtokcancel{flex:1;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
-#vipquiz{position:absolute;inset:52px 0 0 0;background:rgba(2,6,18,.45);z-index:36;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#vipquiz{position:absolute;inset:52px 0 0 0;background:transparent;z-index:36;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #vipquizpanel{background:var(--panel);border:2px solid rgba(255,215,106,.65);border-radius:18px;width:min(440px,96vw);display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,215,106,.30)}
 #vipquizpanel h2{margin:0 0 2px;font-size:21px;color:var(--gold);text-align:center}
 #vipquizsub{margin:0 0 10px;color:#9fd8ea;font-size:13.5px;text-align:center}
@@ -3273,6 +3273,7 @@ function standUpAll() {
   if (!mySeat) return;
   const g = mySeat.game, i = mySeat.idx;
   leftSeat = { game: g, idx: i }; /* mark the chair BEFORE anything else: until the removal echoes back, reclaimSeat must not hand this seat straight back (ghost-seat fix, 2026-10-30) */
+  bjSettle(); rouletteSettle(); /* bank a decided round BEFORE the chair is freed (Jonathan 2026-10-31): the settles read the shared record and settleOnce pays each win exactly once, so standing on WINNER can never lose it — both are no-ops until their table's phase is "done" with my result on it */
   if (g === "slot") {
     const s = slotSeats && slotSeats[slotKey(i)];
     /* free the chair for real: remove the record unless the freshest snapshot proves a DIFFERENT player holds it fresh right now. The old code removed it only when the local snapshot happened to show my pid at that instant, so any snapshot lag — or a pid-less leftover record — silently skipped the removal while mySeat cleared and the disconnect release was cancelled: the chair stayed "taken" under a ghost */
@@ -3649,6 +3650,7 @@ function hrStandUp() {
   if (hrSeat < 0) return;
   const i = hrSeat;
   hrLeft = i; /* mark the chair BEFORE anything else, like standUpAll — the reclaim must not hand it back */
+  hrSettle(); /* the same done-phase bank as the casino: standing after the result is in still collects the win */
   const st = hrState, s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
     /* standing up BEFORE the race starts never costs the stake (the casino rule, mirrored): the bet was charged at bet time, so it is handed back before the chair is freed */
@@ -3817,6 +3819,7 @@ function phStandUp() {
   if (phSeatT < 0) return;
   const t = phSeatT, i = phSeatI;
   phLeft = { t, i }; /* mark the chair BEFORE anything else, like standUpAll — the reclaim must not hand it back */
+  phSettle(t); /* bank a finished match's pot before the chair is freed — a no-op until the phase is "done" */
   if (phSim && phSim.t === t) phSim = null; /* abandoning a live roll: the table's forfeit path settles up */
   if (phAim && phAim.t === t) phAim = null;
   const st = phStates[t], s = st && st.seats && st.seats[i];
@@ -5739,6 +5742,16 @@ function hrcSetSeat(game, i) {
   if (i >= 0) mySeatPos = hrcPoss(game)[i];
   else if (bacSeat < 0 && craSeat < 0) mySeatPos = null;
 }
+/* the bottom sit prompts for the two High Rollers tables (Jonathan 2026-10-31): the same near test as the chairs' tap zones, the same sit action */
+function hrcNear(game) { const T = game === "bac" ? BACT : CRAT, seats = game === "bac" ? BACSEATS : CRASEATS; return me.scene === "highrollers" && (Math.hypot(me.x - (T.x + T.w / 2), me.y - (T.y + T.h + 60)) < 470 || nearSeatOf(seats)); }
+function hrcTrySit(game) {
+  if (hrcIdx(game) >= 0) return;
+  const st = hrcSt(game), seats = (st && st.seats) || {}, poss = hrcPoss(game);
+  let bi = -1, bd = 1e9;
+  poss.forEach((sp, i) => { const sd = seats[i]; if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) return; const d = Math.hypot(me.x - sp.x, me.y - sp.y); if (d < bd) { bd = d; bi = i; } });
+  if (bi < 0) { noteHRC("Every seat at that table is taken."); return; }
+  hrcSitAt(game, bi);
+}
 function hrcSitAt(game, i) {
   if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   pullChips();
@@ -5758,8 +5771,9 @@ function hrcStand(game) {
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
     if (st.phase === "bet" && s.bet) { addChips(s.bet); noteHRC("🚪 You stood up — your " + s.bet.toLocaleString("en-US") + " bet was returned."); }
-    else if (s.bet) noteHRC("🚪 You left mid-round — your spot and bet are forfeited.");
+    else if (s.bet && st.phase !== "done") noteHRC("🚪 You left mid-round — your spot and bet are forfeited."); /* "done" is not mid-round: the round is decided, standing then is clean and the win banks below */
   }
+  if (game === "bac") bacSettle(); else craSettle(); /* a decided round banks before the chair is freed */
   if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet(game + "/seats/" + i, null);
   seatOD(game, i, false);
   hrcSetSeat(game, -1);
@@ -5956,6 +5970,17 @@ function chSettle(t) {
   if (st && st.phase === "done" && chSeatT === t && chSeatI >= 0 && st.results && st.results[chSeatI]) settleOnce(CHTABLES[t] + st.roundId + "-" + chSeatI, st.results[chSeatI].amt || 0);
 }
 function chMySeatRec(t) { const st = chStates[t]; return (chSeatT === t && chSeatI >= 0 && st && st.seats && st.seats[chSeatI] && st.seats[chSeatI].pid === myId) ? st.seats[chSeatI] : null; }
+/* the bottom sit prompt for the boards (Jonathan 2026-10-31): the nearest board's free seat — the same sit action as tapping the chair */
+function chessNearT() { let bt = 0, bd = 1e9; for (let t = 0; t < 4; t++) { const b = CHBOARDS[t], d = Math.hypot(me.x - (b.x + b.w / 2), me.y - (b.y + b.h / 2)); if (d < bd) { bd = d; bt = t; } } return bt; }
+function chessNearBoard() { if (me.scene !== "chess") return false; const t = chessNearT(), b = CHBOARDS[t]; return Math.hypot(me.x - (b.x + b.w / 2), me.y - (b.y + b.h / 2)) < 720 || nearSeatOf(CHSEATS[t]); }
+function chessTrySit() {
+  if (chSeatT >= 0) return;
+  const t = chessNearT(), st = chStates[t], seats = (st && st.seats) || {};
+  let bi = -1, bd = 1e9;
+  CHSEATS[t].forEach((sp, i) => { const sd = seats[i]; if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) return; const d = Math.hypot(me.x - sp.x, me.y - sp.y); if (d < bd) { bd = d; bi = i; } });
+  if (bi < 0) { noteChess("Both seats are taken at this board."); return; }
+  chessSitAt(t, bi);
+}
 function chessSitAt(t, i) {
   if (!acctUser) { noteChess("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   pullChips();
@@ -5964,6 +5989,7 @@ function chessSitAt(t, i) {
   const st = chStates[t], sd = st && st.seats && st.seats[i];
   if (sd && sd.pid === myId) { chSeatT = t; chSeatI = i; mySeatPos = CHSEATS[t][i]; seatOD(CHTABLES[t], i, true); return; }
   if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) { noteChess("That seat is taken."); return; }
+  if (st && st.mode === "pc" && st.phase !== "bet") { noteChess("That board's mid-game against the computer — have a watch."); return; } /* the empty seat at a running vs-PC board is the PC's (the pool hall's rule) */
   tblSet(CHTABLES[t] + "/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, rdy: false, chips: profile ? (profile.chips || 0) : 0 });
   chSeatT = t; chSeatI = i; mySeatPos = CHSEATS[t][i]; seatOD(CHTABLES[t], i, true);
 }
@@ -5971,6 +5997,7 @@ function chessStandUp() {
   if (chSeatT < 0) return;
   const t = chSeatT, i = chSeatI, key = CHTABLES[t];
   chLeft = { t, i };
+  chSettle(t); /* bank a finished game's pot before the chair is freed — a no-op until the phase is "done" */
   const st = chStates[t], sd = st && st.seats && st.seats[i];
   if (sd && sd.pid === myId) {
     if (st.phase === "bet" && sd.bet) { addChips(sd.bet); noteChess("🚪 You stood up — your " + sd.bet.toLocaleString("en-US") + " bet was returned."); }
@@ -6159,7 +6186,7 @@ function chDoMove(t, mv) {
     const inChk = foeKing >= 0 && chAttacked(res.board, foeKing, myColor);
     upd.board = res.board.join(""); upd.castle = castle; upd.capBy1 = capBy1; upd.capBy0 = capBy0; upd.check = inChk ? 1 : 0;
     if (!foeMoves.length) {
-      const pot = ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0);
+      const pot = st.pot != null ? st.pot : ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0); /* a vs-PC game carries its pot (2x the stake) on the record */
       upd.phase = "done"; upd.doneTs = Date.now();
       if (inChk) { upd.winner = chSeatI; upd.results = { [chSeatI]: { res: "🏆 Checkmate! +" + pot.toLocaleString("en-US"), amt: pot } }; }
       else { upd.winner = -1; upd.results = { 0: { res: "Stalemate — bet returned", amt: (st.seats[0] && st.seats[0].bet) || 0 }, 1: { res: "Stalemate — bet returned", amt: (st.seats[1] && st.seats[1].bet) || 0 } }; }
@@ -6180,13 +6207,97 @@ function chDoMove(t, mv) {
       const foeMoves = ckMovesFor(res.board, foe, -1);
       const foePieces = res.board.some(p => p !== ".." && p[0] === foe);
       if (!foeMoves.length || !foePieces) {
-        const pot = ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0);
+        const pot = st.pot != null ? st.pot : ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0); /* a vs-PC game carries its pot (2x the stake) on the record */
         upd.phase = "done"; upd.doneTs = Date.now(); upd.winner = chSeatI;
         upd.results = { [chSeatI]: { res: "🏆 You win! +" + pot.toLocaleString("en-US"), amt: pot } };
       } else upd.turn = 1 - chSeatI;
     }
   }
   chSel = -1;
+  tblUpd(key, upd);
+  sfxClick();
+}
+
+/* ---- vs the computer (Jonathan 2026-10-31): the seated player's client plays the empty side with the board's own engines, mirroring the pool hall's ph vs-PC — the record carries mode "pc" and pot = 2x the stake; a win settles the pot through the normal results path, a loss just loses the stake (already charged at bet time) ---- */
+let chPcThink = [0, 0, 0, 0];
+function chPcPickChess(a, color, castle) {
+  const ms = chLegal(a, color, castle); if (!ms.length) return null;
+  const val = { P: 1, N: 3, B: 3, R: 5, Q: 9, K: 0 };
+  let best = -1, pick = ms[0];
+  for (const mv of ms) {
+    let sc = Math.random() * 0.6;
+    if (mv.cap >= 0 && a[mv.cap] !== "..") sc += val[a[mv.cap][1]] || 0;
+    const r = chApply(a, mv, color), foe = color === "w" ? "b" : "w", fk = r.board.indexOf(foe + "K");
+    if (fk >= 0 && chAttacked(r.board, fk, color)) sc += 0.5;
+    if (sc > best) { best = sc; pick = mv; }
+  }
+  return pick;
+}
+function chPcPickCheckers(a, color, chain) {
+  const ms = ckMovesFor(a, color, chain); if (!ms.length) return null;
+  let best = -1, pick = ms[0];
+  for (const mv of ms) {
+    let sc = Math.random() * 0.6;
+    if (mv.cap >= 0 && a[mv.cap] !== "..") sc += a[mv.cap][1] === "K" ? 2 : 1;
+    const rr2 = Math.floor(mv.to / 8); if ((color === "r" && rr2 === 0) || (color === "b" && rr2 === 7)) sc += 1.5; /* red crowns on row 0, black on row 7 */
+    if (sc > best) { best = sc; pick = mv; }
+  }
+  return pick;
+}
+function chDoPcMove(t) {
+  const st = chStates[t]; if (!st || st.phase !== "play" || st.mode !== "pc" || chSeatT !== t) return;
+  const key = CHTABLES[t], kind = CHKINDS[t], pcSeat = 1 - chSeatI;
+  const pcColor = kind === "chess" ? (pcSeat === 1 ? "w" : "b") : (pcSeat === 1 ? "r" : "b");
+  const a = chParse(st.board);
+  const capBy1 = (st.capBy1 || []).slice(), capBy0 = (st.capBy0 || []).slice();
+  const upd = {};
+  if (kind === "chess") {
+    const mv = chPcPickChess(a, pcColor, st.castle); if (!mv) return;
+    const res = chApply(a, mv, pcColor);
+    if (res.cap !== "..") (pcSeat === 1 ? capBy1 : capBy0).push(res.cap);
+    const castle = Object.assign({}, st.castle || { wK: 1, wQ: 1, bK: 1, bQ: 1 });
+    const moved = a[mv.from];
+    if (moved[1] === "K") { castle[pcColor + "K"] = 0; castle[pcColor + "Q"] = 0; }
+    if (moved === "wR" && mv.from === 63) castle.wK = 0;
+    if (moved === "wR" && mv.from === 56) castle.wQ = 0;
+    if (moved === "bR" && mv.from === 7) castle.bK = 0;
+    if (moved === "bR" && mv.from === 0) castle.bQ = 0;
+    if (mv.cap === 63) castle.wK = 0; if (mv.cap === 56) castle.wQ = 0;
+    if (mv.cap === 7) castle.bK = 0; if (mv.cap === 0) castle.bQ = 0;
+    const foe = pcColor === "w" ? "b" : "w";
+    const foeMoves = chLegal(res.board, foe, castle);
+    const foeKing = res.board.indexOf(foe + "K");
+    const inChk = foeKing >= 0 && chAttacked(res.board, foeKing, pcColor);
+    upd.board = res.board.join(""); upd.castle = castle; upd.capBy1 = capBy1; upd.capBy0 = capBy0; upd.check = inChk ? 1 : 0;
+    if (!foeMoves.length) {
+      const pot = st.pot != null ? st.pot : ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0);
+      upd.phase = "done"; upd.doneTs = Date.now();
+      if (inChk) { upd.winner = pcSeat; upd.results = { [pcSeat]: { res: "🏆 Checkmate!", amt: pot }, [chSeatI]: { res: "Checkmate", amt: 0 } }; }
+      else { upd.winner = -1; upd.results = { 0: { res: "Stalemate — bet returned", amt: (st.seats[0] && st.seats[0].bet) || 0 }, 1: { res: "Stalemate — bet returned", amt: (st.seats[1] && st.seats[1].bet) || 0 } }; }
+    } else upd.turn = chSeatI;
+  } else {
+    const mv = chPcPickCheckers(a, pcColor, (st.chain === undefined || st.chain === null) ? -1 : st.chain); if (!mv) return;
+    const res = ckApply(a, mv);
+    if (res.cap !== "..") (pcSeat === 1 ? capBy1 : capBy0).push(res.cap);
+    upd.board = res.board.join(""); upd.capBy1 = capBy1; upd.capBy0 = capBy0;
+    const foe = pcColor === "r" ? "b" : "r";
+    let chain = -1;
+    if (res.cap !== ".." && !res.kinged) {
+      const more = ckMovesFor(res.board, pcColor, mv.to).filter(m2 => m2.cap >= 0);
+      if (more.length) chain = mv.to; /* the jump chain continues with the same piece */
+    }
+    upd.chain = chain;
+    if (chain >= 0) upd.turn = pcSeat;
+    else {
+      const foeMoves = ckMovesFor(res.board, foe, -1);
+      const foePieces = res.board.some(p => p !== ".." && p[0] === foe);
+      if (!foeMoves.length || !foePieces) {
+        const pot = st.pot != null ? st.pot : ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0);
+        upd.phase = "done"; upd.doneTs = Date.now(); upd.winner = pcSeat;
+        upd.results = { [pcSeat]: { res: "🏆 PC wins", amt: pot }, [chSeatI]: { res: "You lose", amt: 0 } };
+      } else upd.turn = chSeatI;
+    }
+  }
   tblUpd(key, upd);
   sfxClick();
 }
@@ -6206,17 +6317,30 @@ function chessHostTick() {
         const s0 = seats[0], s1 = seats[1];
         if (s0.rdy && s1.rdy && s0.bet > 0 && s0.bet === s1.bet) {
           const kind = CHKINDS[t];
-          tblUpd(key, { phase: "play", board: kind === "chess" ? chInitChess() : chInitCheckers(), turn: 1, capBy1: [], capBy0: [], castle: { wK: 1, wQ: 1, bK: 1, bQ: 1 }, chain: -1, check: 0, winner: -1, results: null, startTs: now });
+          tblUpd(key, { phase: "play", mode: null, pot: null, board: kind === "chess" ? chInitChess() : chInitCheckers(), turn: 1, capBy1: [], capBy0: [], castle: { wK: 1, wQ: 1, bK: 1, bQ: 1 }, chain: -1, check: 0, winner: -1, results: null, startTs: now });
+        }
+      } else if (fresh.length === 1) {
+        const s0 = seats[fresh[0]];
+        if (s0.rdy && s0.bet > 0) {
+          /* vs the computer (Jonathan 2026-10-31): alone at the board with a bet down and READY, the game starts against the PC — the pool hall's model. The PC's seat stays EMPTY in the record; mode "pc" marks the game and pot carries twice my stake. I host my own board, so my client also drives the PC side (chDoPcMove, below) */
+          const kind = CHKINDS[t];
+          tblUpd(key, { phase: "play", mode: "pc", pot: s0.bet * 2, board: kind === "chess" ? chInitChess() : chInitCheckers(), turn: 1, capBy1: [], capBy0: [], castle: { wK: 1, wQ: 1, bK: 1, bQ: 1 }, chain: -1, check: 0, winner: -1, results: null, startTs: now });
         }
       }
     } else if (st.phase === "play") {
-      if (fresh.length === 1 && now - (st.startTs || now) > 3000) {
+      if (fresh.length === 1 && st.mode !== "pc" && now - (st.startTs || now) > 3000) { /* a vs-PC game's lone fresh seat is the design, not a walkout */
         const w = fresh[0], pot = ((seats[0] && seats[0].bet) || 0) + ((seats[1] && seats[1].bet) || 0);
         tblUpd(key, { phase: "done", winner: w, doneTs: now, results: { [w]: { res: "🏆 Won by forfeit — +" + pot.toLocaleString("en-US"), amt: pot } } });
       }
     } else if (st.phase === "done" && now - (st.doneTs || 0) > 4000) {
       Object.keys(seats).forEach(i => tblUpd(key + "/seats/" + i, { bet: 0, rdy: false }));
-      tblUpd(key, { phase: "bet", results: null, board: null, winner: -1, roundId: (st.roundId || 0) + 1 });
+      tblUpd(key, { phase: "bet", results: null, board: null, winner: -1, roundId: (st.roundId || 0) + 1, mode: null, pot: null });
+    }
+    if (st.phase === "play" && st.mode === "pc" && chSeatT === t && st.turn === 1 - chSeatI) {
+      /* the PC's move, driven by the seated player's own client after a short think — I host this board, so no other client writes it */
+      const nowP = Date.now();
+      if (!chPcThink[t]) chPcThink[t] = nowP + 650 + Math.random() * 700;
+      else if (nowP >= chPcThink[t]) { chPcThink[t] = 0; chDoPcMove(t); }
     }
   }
 }
@@ -6278,6 +6402,16 @@ function boxPhaseWatch() {
     if (boxSeat >= 0 && boxMyRec()) { me.x = BOXSEATS[boxSeat].x; me.y = BOXSEATS[boxSeat].y; mySeatPos = BOXSEATS[boxSeat]; publish(true); } /* back to your corner seat */
   }
 }
+/* the bottom enter-the-ring prompt (Jonathan 2026-10-31): near a free ring end — the same sit action as tapping the seat */
+function boxNear() { return me.scene === "boxing" && boxSeat < 0 && nearSeatOf(BOXSEATS); }
+function boxingTrySit() {
+  if (boxSeat >= 0) return;
+  const st = boxState, seats = (st && st.seats) || {};
+  let bi = -1, bd = 1e9;
+  BOXSEATS.forEach((sp, i) => { const sd = seats[i]; if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) return; const d = Math.hypot(me.x - sp.x, me.y - sp.y); if (d < bd) { bd = d; bi = i; } });
+  if (bi < 0) { noteBox("Both ends are taken."); return; }
+  boxingSitAt(bi);
+}
 function boxingSitAt(i) {
   if (!acctUser) { noteBox("🔒 Boxing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   pullChips();
@@ -6312,6 +6446,12 @@ function boxingStandUp() {
     const other = 1 - i, os = st.seats && st.seats[other];
     if (os && os.pid) tblUpd("box", { phase: "done", winner: other, doneTs: Date.now() });
     noteBox("🏳️ You gave up the bout.");
+  }
+  if (st && st.phase === "done" && sd && sd.pid === myId && st.seats) { /* standing after the final bell still banks the win: boxPhaseWatch's own settle, same key, so it can only ever pay once */
+    const pot = ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0);
+    const key = "box" + (st.roundId || 0) + "-" + i;
+    if (st.winner === i && pot > 0) settleOnce(key, pot);
+    else if (st.winner === -1 && (sd.bet || 0) > 0) settleOnce(key, sd.bet || 0);
   }
   boxingBout = null;
   if (!(sd && sd.pid && sd.pid !== myId && Date.now() - (sd.ts || 0) <= 25000)) tblSet("box/seats/" + i, null);
@@ -6424,9 +6564,8 @@ function drawHighRollers(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   casinoShell(HRROOM.w, HRROOM.h, "👑 HIGH ROLLERS CLUB 👑", "baccarat · craps — high stakes only: 5,000 and up");
   uiZones = [];
-  drawBooths(180, false); /* the top rows of private booths — three deep (Jonathan 2026-10-31) */
-  drawBooths(420, false);
-  drawBooths(660, false);
+  drawBooths(360, false); /* the top rows of private booths — two deep, raised a touch (Jonathan 2026-10-31: the top row is gone, the rest shifted up) */
+  drawBooths(600, false);
   /* the long divider between the booths and the tables */
   ctx.fillStyle = "#2a0a18"; rr(120, 872, HRROOM.w - 240, 26, 12); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(120, 872, HRROOM.w - 240, 26, 12); ctx.stroke();
@@ -6436,8 +6575,8 @@ function drawHighRollers(t) {
   /* the same divider again, below the tables' chairs, and the second booth row */
   ctx.fillStyle = "#2a0a18"; rr(120, 1692, HRROOM.w - 240, 26, 12); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(120, 1692, HRROOM.w - 240, 26, 12); ctx.stroke();
-  drawBooths(HRROOM.h - 370, true); /* a second row above the bottom row — the bottom is two deep, like the top (Jonathan 2026-10-31) */
-  drawBooths(HRROOM.h - 130, true);
+  drawBooths(HRROOM.h - 310, true); /* the bottom booths — two deep, dropped a touch to match the top rows' shift (Jonathan 2026-10-31) */
+  drawBooths(HRROOM.h - 70, true);
   /* exit door, left wall toward the bottom — the casino entry door's own height */
   ctx.fillStyle = "#0a1428"; ctx.fillRect(0, CASINODOORS_Y - 92, 36, 184);
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.strokeRect(0, CASINODOORS_Y - 92, 36, 184);
@@ -6500,7 +6639,7 @@ function hrcTableHead(T, game, status) {
     const amt = game === "bac" ? bacAmt : craAmt;
     HR_BETS.forEach((a, k) => drawBtn(T.x + 478 + k * 67, T.y + T.h - 74, 60, 22, a >= 1000 ? (a / 1000) + "k" : String(a), () => hrcSetAmt(game, a), { fs: 14, sel: amt === a, pad: 2 }));
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
-    ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - 86);
+    ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - (game === "bac" ? 79 : 86)); /* baccarat: centred in the slot between the TIE button's bottom edge (T.h-98) and the amount row's top edge (T.h-74) — Jonathan 2026-10-31 */
   }
 }
 function hrcStatus(st, dealWord, doneWord) {
@@ -6640,6 +6779,7 @@ function drawChess(t) {
 const CH_GLYPHS = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" };
 function chessFocusRect() {
   /* on the centre walkway the room reads whole; step into a corner and the camera frames THAT corner's board — the board, its two end chairs and its captured racks, not a half-room view (Jonathan 2026-10-31) */
+  if (chSeatT >= 0) { const st = chStates[chSeatT]; if (st && st.phase === "play") { const b = CHBOARDS[chSeatT], x = Math.max(0, b.x - 170), y = Math.max(0, b.y - 170); return { x, y, w: Math.min(CHESSROOM.w - x, b.w + 340), h: Math.min(CHESSROOM.h - y, b.h + 340) }; } } /* while MY game is live the camera sits tight on my board — the board itself plus a margin that still fits both captured racks (Jonathan 2026-10-31) */
   const frame = b => { const x = Math.max(0, b.x - 260), y = Math.max(0, b.y - 300); return { x, y, w: Math.min(CHESSROOM.w - x, b.w + 520), h: Math.min(CHESSROOM.h - y, b.h + 560) }; };
   if (me.x < 1200 && me.y < 1200) return frame(CHBOARDS[0]);
   if (me.x > 1440 && me.y < 1200) return frame(CHBOARDS[1]);
@@ -6724,6 +6864,7 @@ function drawChessBoard(ti) {
       if (sd.bet) { drawChip(sp.x, sp.y + 52, sd.bet); if (sd.rdy && st.phase === "bet") { ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 92); } }
       if (st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + (i === 0 ? -70 : 118)); }
     }
+    else if (st && st.mode === "pc" && st.phase !== "bet") { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfd4e2"; ctx.fillText("🤖 PC", sp.x, sp.y - 44); }
   });
   /* my controls while seated at THIS board */
   if (chSeatT === ti && st) {
@@ -6778,14 +6919,15 @@ function drawBoxing(t) {
   ctx.strokeStyle = "rgba(168,85,247,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(30, 30, BOXROOM.w - 60, BOXROOM.h - 60);
   ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("🥊 BOXING ARENA 🥊", 1800, 128);
-  /* bleachers: 3 stepped rows on the top, right and bottom */
+  /* bleachers: the horse track's own silver benches (drawSwBench — the bench the Track's banks are built from; Jonathan 2026-10-31: "the normal race bleachers"), banked inside the same BOXBLEACH rects and facing the ring. Pure scenery, walked over, exactly like the Track's */
   for (const B of BOXBLEACH) {
-    for (let r = 0; r < 3; r++) {
-      const horiz = B.w > B.h;
-      const bx = horiz ? B.x : B.x + r * (B.w / 3), by = horiz ? B.y + r * (B.h / 3) : B.y;
-      const bw = horiz ? B.w : B.w / 3, bh = horiz ? B.h / 3 : B.h;
-      ctx.fillStyle = ["#3d4d75", "#46587f", "#2f3d5f"][r]; ctx.fillRect(bx, by, bw, bh);
-      ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+    if (B.w > B.h) {
+      const north = B.y < BOXROOM.h / 2, n = Math.floor(B.w / 168), x0 = B.x + (B.w - (n - 1) * 168) / 2;
+      const rows = [B.y + 24, B.y + 84, B.y + 144]; if (!north) rows.reverse(); /* far row first, so the nearer rows overlap it — the Track's stepped read */
+      for (const ry of rows) for (let i = 0; i < n; i++) drawSwBench(x0 + i * 168, ry, north ? 0 : Math.PI);
+    } else {
+      const n = Math.floor(B.h / 168), y0 = B.y + (B.h - (n - 1) * 168) / 2;
+      for (const bx of [B.x + 116, B.x + 56]) for (let i = 0; i < n; i++) drawSwBench(bx, y0 + i * 168, Math.PI / 2); /* the side bank, facing west into the ring */
     }
   }
   /* the ring: white floor, apron, corner posts, red and blue ropes */
@@ -8626,6 +8768,10 @@ function frame(now) {
   else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
   else if (me.scene === "poolhall" && phSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = phStandUp; }
   else if (me.scene === "poolhall" && phNearTable() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Pool Table"; promptAction = () => phTrySit(phNearTable()); }
+  else if (me.scene === "chess" && chSeatT < 0 && chessNearBoard()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Board"; promptAction = chessTrySit; }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrcNear("bac")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Baccarat"; promptAction = () => hrcTrySit("bac"); }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrcNear("cra")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Craps"; promptAction = () => hrcTrySit("cra"); }
+  else if (me.scene === "boxing" && boxNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🥊 Enter the Ring"; promptAction = boxingTrySit; }
   else if (nearBJ()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Blackjack"; promptAction = () => trySit("bj"); }
   else if (nearRR()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎡 Sit at Roulette"; promptAction = () => trySit("rr"); }
   else if (me.scene === "casino" && nearSlot() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Slots"; promptAction = () => sitAtSlot(nearSlot()); }
