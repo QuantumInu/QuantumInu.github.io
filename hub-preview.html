@@ -1989,10 +1989,9 @@ function voiceInit() {
   if (!entered) return;
   if (lkRoom && lkScene !== me.scene) { voiceReset(); return; }
   if (!lkRoom && !lkJoining && Date.now() >= lkRetryAt) lkJoin(me.scene);
-  if (lkRoom && lkScene === me.scene && pttHeld && !lkJoining) {
-    if (lkMicTrack && lkMicTrack.readyState !== "live") lkMicTrack = null; /* the published track died after the fact (the old room's teardown landing late, an OS kill) — forget it so the healer replaces it */
-    if (!lkMicTrack) lkPublishMic(); /* a mic you left ON re-lights itself in the new room; a mic you turned off (pttHeld false) is never touched */
-  }
+  /* the mic assertion (a mic you left ON re-lighting itself; a dead published track being replaced)
+     lives in frame() now — per frame, not per tick. A mic you turned off (pttHeld false) is never
+     touched by either path. */
 }
 function voiceTick() { voiceInit(); }
 setInterval(voiceTick, 800);
@@ -6823,6 +6822,15 @@ function frame(now) {
   const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!entered) { drawStars(0, 0, 1); return; }
+  /* the voice mic assertion runs PER FRAME, not on the 800ms tick (Jonathan 2026-10-31: start the
+     reconnection faster): a published mic track that died (room-switch teardown, OS kill) is spotted
+     within a frame and the healer replaces it; a healthy published track short-circuits the check.
+     Room joins themselves are triggered instantly by the scene-change functions (they call
+     voiceReset directly); the 800ms tick remains the backstop for joins. */
+  if (lkRoom && lkScene === me.scene && pttHeld && !lkJoining) {
+    if (lkMicTrack && lkMicTrack.readyState !== "live") lkMicTrack = null;
+    if (!lkMicTrack) lkPublishMic();
+  }
   renderOnlineList();
   let vx = 0, vy = 0;
   if (holdId !== null) {
