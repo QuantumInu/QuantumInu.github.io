@@ -1267,9 +1267,12 @@ const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the 
    transform, never the camera again. The room, its people, the clip
    and the shade all live in that single frame, so a person in the
    view stands exactly where they stand in the club itself.
-   The layer renders with the PRE-SNAP camera (camX - vipCamOx): the
-   balcony lean's snap moves YOUR floor only — the bottom floor never
-   snaps (Jonathan 2026-10-31).
+   The layer renders with a FROZEN camera (Jonathan 2026-10-31, final):
+   the follow cam the lounge would have with you standing at its centre,
+   no lean. The camera pans the top floor only — walking and the balcony
+   lean alike never move the floor below; it keeps the arrangement it
+   has before you move toward the balcony, stuck to the top floor at
+   rest. The people down there still move as they really move.
    vipBelowXf is the one-frame handoff to drawClub: paintClubBelow sets it
    while the layer borrows the club's own draw path; with it set, drawClub
    applies ONLY the layer transform (the camera is already applied by
@@ -5917,19 +5920,27 @@ function paintClubBelow(t, dt) {
      is scene "club" only. A translucent shade plus the lounge's cast shadow over the seams sell the drop.
      Pure scenery: no hit tests read it, no presence is written, and the club scene itself never runs
      this code.
-     TWO placements of the one room (Jonathan 2026-10-31): the main layer spans the lounge's full height
-     (VIPBELOW, oy 68 — the WHOLE club beside the lounge's east wall, its top border up by the lounge's
-     top and its bottom border flush with the lounge's bottom wall), and a second pass paints the room
-     again in the band BELOW the lounge's bottom wall with the club's own TOP BORDER right at that wall
-     (VIPBELOW_B) — so the bottom view shows the room from its top border down. The bottom pass paints
-     after the main one, so where the two overlap below the wall, the bottom view wins.
-     THE BOTTOM FLOOR NEVER SNAPS (Jonathan 2026-10-31): everything here renders with the pre-snap camera
-     (camX - vipCamOx). The balcony lean's snap moves the lounge — your floor — only; the club below
-     behaves exactly as it did just before the snap and moves only with your normal walking.
+     TWO placements of the one room (Jonathan 2026-10-31): the main layer (VIPBELOW, oy 300 — moved down
+     at his word so it sits in the screen's lower half) spans from up by the lounge toward its bottom
+     wall, and a second pass paints the room again in the band BELOW the lounge's bottom wall with the
+     club's own TOP BORDER right at that wall (VIPBELOW_B) — so the bottom view shows the room from its
+     top border down. The bottom pass paints after the main one, so where the two overlap below the
+     lounge, the bottom view wins. Both passes clip out the lounge's own rect, so neither ever paints
+     over the lounge's floor.
+     THE BOTTOM FLOOR'S CAMERA IS FROZEN (Jonathan 2026-10-31, final word): everything here renders with
+     a fixed camera — the follow cam the lounge would have with you standing at its centre, no lean.
+     The live camera pans the lounge — your floor — only: walking and the balcony lean alike never move
+     the floor below, which keeps exactly the arrangement it has before you move toward the balcony.
+     The lounge is drawn with the LIVE camera, so in this frozen frame its rect sits shifted by
+     (shX, shY) = (camFx - camX, camFy - camY): the clip exclusions and the seam shadows use that shift.
      The actor list is built (and lerped) ONCE and shared by both passes — lerping per pass made the
      club's people glide twice as fast as they should. */
   const L = VIPBELOW, fx = L.ox, fy = L.oy, fw = CLUBROOM.w * L.s, fh = CLUBROOM.h * L.s;
-  const camXB = camX - vipCamOx; /* the pre-snap camera: the lean offset never reaches the bottom floor */
+  let camFx = Math.max(0, Math.min(VIPROOM.w - VW / SCALE, VIPROOM.w / 2 - VW / (2 * SCALE)));
+  let camFy = Math.max(0, Math.min(VIPROOM.h - VH / SCALE, VIPROOM.h / 2 - VH / (2 * SCALE)));
+  if (VIPROOM.w * SCALE < VW) camFx = (VIPROOM.w - VW / SCALE) / 2;
+  if (VIPROOM.h * SCALE < VH) camFy = (VIPROOM.h - VH / SCALE) / 2;
+  const shX = camFx - camX, shY = camFy - camY; /* where the lounge's rect sits in the frozen frame */
   const actors = [];
   for (const p of peers.values()) {
     if (p.scene !== "club") continue;
@@ -5941,7 +5952,7 @@ function paintClubBelow(t, dt) {
   actors.sort((a, b) => a.y - b.y);
   function paintLayer(Lp, clipRects) {
     ctx.save();
-    ctx.scale(SCALE, SCALE); ctx.translate(-camXB, -camY);
+    ctx.scale(SCALE, SCALE); ctx.translate(-camFx, -camFy);
     ctx.beginPath();
     for (const r of clipRects) ctx.rect(r[0], r[1], r[2], r[3]);
     ctx.clip("evenodd");
@@ -5963,18 +5974,18 @@ function paintClubBelow(t, dt) {
     ctx.fillStyle = "rgba(5,2,14,0.30)"; ctx.fillRect(Lp.ox, Lp.oy, CLUBROOM.w * Lp.s, CLUBROOM.h * Lp.s);
     ctx.restore();
   }
-  paintLayer(L, [[fx, fy, fw, VIPROOM.h - fy], [-vipCamOx, 0, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect, and BOUNDED at the lounge's bottom wall (height VIPROOM.h - fy, not the full fh) — below that wall the band's from-the-top-border painting owns the view, so the main layer's lower stretch never double-draws under it. The lounge rect is SHIFTED by the snap: the lounge is drawn with the snapped camera, so in this pre-snap frame its wall sits vipCamOx further left, and the layer fills flush up to that wall (the club's points never move on screen; the sliding lounge simply uncovers more of the tucked part) */
-  paintLayer(VIPBELOW_B, [[fx, VIPROOM.h, fw, fh]]); /* the bottom band: the room again, from its top border down */
+  paintLayer(L, [[fx, fy, fw, fh], [shX, shY, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect (shifted by (shX, shY) in this frozen frame — the lounge is drawn with the live camera) */
+  paintLayer(VIPBELOW_B, [[fx, VIPROOM.h, fw, fh], [shX, shY, VIPROOM.w, VIPROOM.h]]); /* the bottom band: the room again, from its top border down, likewise minus the lounge's rect */
   /* the lounge's own shadow falls across the seams */
   ctx.save();
-  ctx.scale(SCALE, SCALE); ctx.translate(-camXB, -camY);
-  ctx.beginPath(); ctx.rect(fx, fy, fw, fh * 2); ctx.rect(-vipCamOx, 0, VIPROOM.w, VIPROOM.h); ctx.clip("evenodd");
-  const shS = ctx.createLinearGradient(0, VIPROOM.h, 0, VIPROOM.h + 48);
+  ctx.scale(SCALE, SCALE); ctx.translate(-camFx, -camFy);
+  ctx.beginPath(); ctx.rect(fx, fy, fw, fh * 2); ctx.rect(shX, shY, VIPROOM.w, VIPROOM.h); ctx.clip("evenodd");
+  const shS = ctx.createLinearGradient(0, VIPROOM.h + shY, 0, VIPROOM.h + shY + 48);
   shS.addColorStop(0, "rgba(0,0,0,0.55)"); shS.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = shS; ctx.fillRect(fx, VIPROOM.h, VIPROOM.w - fx + 48, 48);
-  const shE = ctx.createLinearGradient(VIPROOM.w, 0, VIPROOM.w + 48, 0);
+  ctx.fillStyle = shS; ctx.fillRect(fx, VIPROOM.h + shY, VIPROOM.w - fx + 48, 48); /* the south shadow falls from the lounge's bottom wall as drawn — at VIPROOM.h + shY in this frozen frame */
+  const shE = ctx.createLinearGradient(VIPROOM.w + shX, 0, VIPROOM.w + shX + 48, 0);
   shE.addColorStop(0, "rgba(0,0,0,0.55)"); shE.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = shE; ctx.fillRect(VIPROOM.w - vipCamOx, fy, 48, VIPROOM.h - fy); /* the east shadow falls from the lounge's wall as drawn — snapped — so it starts vipCamOx left of the room's edge in this pre-snap frame */
+  ctx.fillStyle = shE; ctx.fillRect(VIPROOM.w + shX, fy, 48, VIPROOM.h - fy); /* the east shadow falls from the lounge's east wall as drawn — at VIPROOM.w + shX in this frozen frame */
   ctx.restore();
 }
 function paintVipRail(t) {
