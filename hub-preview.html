@@ -1268,11 +1268,15 @@ const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the 
    and the shade all live in that single frame, so a person in the
    view stands exactly where they stand in the club itself.
    The layer renders with a FROZEN camera (Jonathan 2026-10-31, final):
-   the follow cam the lounge would have with you standing at its centre,
-   no lean. The camera pans the top floor only — walking and the balcony
-   lean alike never move the floor below; it keeps the arrangement it
-   has before you move toward the balcony, stuck to the top floor at
-   rest. The people down there still move as they really move.
+   the follow cam the lounge would have with you standing at the
+   balcony (its east wall), no lean — on wide screens that is the same
+   centred value as a centre freeze; on phones it is the spot that
+   leaves the bottom floor's left edge attached to the lounge's right
+   edge when you lean. The camera pans the top floor only — walking and
+   the balcony lean alike never move the floor below; it keeps the
+   arrangement it has before you move toward the balcony, stuck to the
+   top floor at rest. The people down there still move as they really
+   move.
    vipBelowXf is the one-frame handoff to drawClub: paintClubBelow sets it
    while the layer borrows the club's own draw path; with it set, drawClub
    applies ONLY the layer transform (the camera is already applied by
@@ -5928,7 +5932,9 @@ function paintClubBelow(t, dt) {
      lounge, the bottom view wins. Both passes clip out the lounge's own rect, so neither ever paints
      over the lounge's floor.
      THE BOTTOM FLOOR'S CAMERA IS FROZEN (Jonathan 2026-10-31, final word): everything here renders with
-     a fixed camera — the follow cam the lounge would have with you standing at its centre, no lean.
+     a fixed camera — the follow cam the lounge would have with you standing at the balcony, no lean
+     (the same centred value on wide screens; on phones, the spot that keeps the two floors attached
+     at full lean).
      The live camera pans the lounge — your floor — only: walking and the balcony lean alike never move
      the floor below, which keeps exactly the arrangement it has before you move toward the balcony.
      The lounge is drawn with the LIVE camera, so in this frozen frame its rect sits shifted by
@@ -5936,7 +5942,7 @@ function paintClubBelow(t, dt) {
      The actor list is built (and lerped) ONCE and shared by both passes — lerping per pass made the
      club's people glide twice as fast as they should. */
   const L = VIPBELOW, fx = L.ox, fy = L.oy, fw = CLUBROOM.w * L.s, fh = CLUBROOM.h * L.s;
-  let camFx = Math.max(0, Math.min(VIPROOM.w - VW / SCALE, VIPROOM.w / 2 - VW / (2 * SCALE)));
+  let camFx = Math.max(0, Math.min(VIPROOM.w - VW / SCALE, VIPROOM.w - VW / (2 * SCALE))); /* the follow cam with you standing AT THE BALCONY (the room's east wall), no lean: on wide screens the room fits the view and this is the same centred value as a centre freeze, so desktop is unchanged; on phones the view is narrower than the room, and this resting spot is what makes the lounge's right edge land exactly on the bottom floor's left edge at full lean — attached, never a gap (Jonathan 2026-10-31, from his phone screenshot: on mobile a dark gap opened between the lounge's right border and the club when leaning). West of the balcony the layer simply tucks further under the lounge, as designed. */
   let camFy = Math.max(0, Math.min(VIPROOM.h - VH / SCALE, VIPROOM.h / 2 - VH / (2 * SCALE)));
   if (VIPROOM.w * SCALE < VW) camFx = (VIPROOM.w - VW / SCALE) / 2;
   if (VIPROOM.h * SCALE < VH) camFy = (VIPROOM.h - VH / SCALE) / 2;
