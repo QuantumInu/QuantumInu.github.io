@@ -3115,6 +3115,9 @@ function seatFocusRect() {
   if (mySeat.game === "slot") { const mch = SLOTM[mySeat.idx]; if (!mch) return null; return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 250 }; }
   return null;
 }
+/* the horse table's camera frames (Jonathan 2026-10-30): while the seated player is SELECTING — the bet phase: picking a horse, choosing a stake, READY-waiting — the camera zooms IN on the table and its chairs, framed with the casino tables' own seat-focus formula above; for the race and the result it takes the whole-room frame (the oval up top, the table below). hrCamRect is the seated track camera's only source — the frame loop reads it every frame while seated. */
+function hrTableFocusRect() { return { x: HRT.x - 60, y: HRT.y - 60, w: HRT.w + 120, h: HRT.h + 254 }; }
+function hrCamRect() { return (hrState && hrState.phase === "bet") ? hrTableFocusRect() : { x: 90, y: 30, w: 2320, h: 1520 }; }
 /* ---- cards ---- */
 const SUITS = ["♠", "♥", "♦", "♣"], RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 function newDeck() { const d = []; for (const s of SUITS) for (const r of RANKS) d.push(r + s); for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = d[i]; d[i] = d[j]; d[j] = tmp; } return d; }
@@ -4377,6 +4380,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   if (chat && chatAge < 5000) drawChatBubble(wx, ny - 26, chat);
 }
 let camX = 0, camY = 0, SCALE = 0.6;
+let hrCamGlide = null; /* the seated horse-table camera's glide state {s, x, y} (Jonathan 2026-10-30): the track focus EASES between the selecting close-up and the full-track race frame instead of jump-cutting. It lives only while the seated track focus block in frame() runs — standing up or leaving the room clears it, and the follow camera owns the view again. */
 let drawnScene = "";
 function worldToScreen(wx, wy) { return { x: (wx - camX) * SCALE, y: (wy - camY) * SCALE }; }
 
@@ -6733,15 +6737,19 @@ function frame(now) {
     }
   }
   if (me.scene === "track" && hrSeat >= 0) {
-    /* seated at the horse table the camera frames the whole room — the race up
-       top and the table below it — the gym court-focus pattern */
-    const f = { x: 90, y: 30, w: 2320, h: 1520 };
-    SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
-    camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
-    camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
-    if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
-    if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
-  }
+    /* seated at the horse table (Jonathan 2026-10-30): SELECTING zooms IN on the table (hrCamRect — the bet phase only: picking, staking, READY-waiting); the moment the race starts the view zooms back OUT to the whole-room frame for the race and the result, and back in when the table returns to selecting. The view GLIDES between the two frames through hrCamGlide rather than jump-cutting. Anyone not seated never enters this block — theirs is the follow camera above, untouched. */
+    const f = hrCamRect();
+    let tS = Math.min(VW / f.w, VH / f.h, 1.0);
+    let tX = Math.max(0, Math.min(roomW - VW / tS, f.x + f.w / 2 - VW / (2 * tS)));
+    let tY = Math.max(0, Math.min(roomH - VH / tS, f.y + f.h / 2 - VH / (2 * tS)));
+    if (roomW * tS < VW) tX = (roomW - VW / tS) / 2;
+    if (roomH * tS < VH) tY = (roomH - VH / tS) / 2;
+    if (!hrCamGlide) hrCamGlide = { s: SCALE, x: camX, y: camY }; /* a fresh glide starts from wherever the camera sits this frame (the follow view on the sit-down frame) */
+    const gk = 1 - Math.exp(-dt * 6.5);
+    hrCamGlide.s += (tS - hrCamGlide.s) * gk; hrCamGlide.x += (tX - hrCamGlide.x) * gk; hrCamGlide.y += (tY - hrCamGlide.y) * gk;
+    if (Math.abs(tS - hrCamGlide.s) < 0.0005 && Math.abs(tX - hrCamGlide.x) < 0.25 && Math.abs(tY - hrCamGlide.y) < 0.25) { hrCamGlide.s = tS; hrCamGlide.x = tX; hrCamGlide.y = tY; } /* close enough: land exactly on the frame, no endless crawl */
+    SCALE = hrCamGlide.s; camX = hrCamGlide.x; camY = hrCamGlide.y;
+  } else if (hrCamGlide) hrCamGlide = null; /* standing up or leaving the room ends the table focus on the spot — the follow camera owns the view again */
   if (me.scene === "poolhall" && phSeatT >= 0) {
     /* seated at a pool table the camera frames my table, its cushions and both chairs — the gym court-focus pattern */
     const T = PHT[phSeatT], f = { x: T.x - 210, y: T.y - 215, w: T.w + 420, h: T.h + 430 };
