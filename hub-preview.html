@@ -40,6 +40,10 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #runbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
 #tbtn{position:absolute;right:18px;bottom:174px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none}
 #tbtn.cd{opacity:.35}
+#punchl,#punchr{position:absolute;right:18px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(255,120,120,.5);background:rgba(40,10,14,.4);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#ffb3b3;touch-action:none;-webkit-user-select:none;user-select:none}
+#punchr{bottom:76px} /* R takes RUN's exact spot while boxing */
+#punchl{bottom:174px} /* L sits on top of R — where T would be, but there is no T while boxing: entering a bout untransforms you (Jonathan 2026-10-31) */
+#punchl.on,#punchr.on{background:rgba(212,42,42,.5);border-color:var(--gold)}
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
 #micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 #micbtn.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
@@ -172,6 +176,8 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <div id="joy"><div id="joystick"></div></div>
   <div id="runbtn">RUN</div>
   <div id="tbtn">T</div>
+  <div id="punchl">L</div>
+  <div id="punchr">R</div>
   <button id="prompt"></button>
   <div id="jukebox"><div id="jukepanel">
     <h2>🎵 Club Quantum Jukebox</h2>
@@ -204,7 +210,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     </div>
   </div></div>
   <div id="vipquiz" aria-hidden="true"><div id="vipquizpanel">
-    <h2>⭐ VIP Lounge</h2>
+    <h2 id="vipquiztitle">⭐ VIP Lounge</h2>
     <p id="vipquizsub">🤖 Q-Bot guards this door. Answer one question about the Hub to get in.</p>
     <p id="vipq"></p>
     <div id="vipchoices"></div>
@@ -1063,6 +1069,28 @@ function slotMachineByKey(k) { return SLOTM.find(m => String(m.id) === String(k)
 function slotSeatView() { const v = {}; SLOTM.forEach((m, i) => { const s = slotSeats && slotSeats[m.id]; if (s) v[i] = s; }); return v; }
 const LOUNGE = { x: 90, y: 900, w: 100, h: 640 };
 const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 80, w: 124, h: 44 }; /* plate raised above the gold border line (Jonathan 2026-10-29) */
+/* ============ CASINO EXPANSION (PREVIEW, Jonathan 2026-10-31) ============
+   Two side doors in the casino at the same height off the floor (1856 =
+   CASINOROOM.h - 344, the Hub's door height): HIGH ROLLERS CLUB in the
+   RIGHT wall (quiz-gated, like the club's VIP door) and the CHESS ROOM in
+   the LEFT wall. Plus a BOXING ARENA off the Sports Complex, through a
+   door at the east end of the gym's centre path. */
+const CASINODOORS_Y = CASINOROOM.h - 344; /* 1856: both casino side doors, and the High Rollers exit, share this height */
+const HRROOM = { w: 3200, h: 2200 }; /* the High Rollers Club: the casino's own size, carpet and border */
+const BACT = { x: 430, y: 980, w: 900, h: 430 }; /* baccarat felt — blackjack's rect, dark red */
+const CRAT = { x: 1870, y: 980, w: 900, h: 430 }; /* craps felt — roulette's rect, dark red */
+const BACSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BACT.x + 110 + i * 170, y: BACT.y + BACT.h + 150 }));
+const CRASEATS = [0, 1, 2, 3, 4].map(i => ({ x: CRAT.x + 110 + i * 170, y: CRAT.y + CRAT.h + 150 }));
+const HR_BETS = [5000, 10000, 50000, 100000, 500000, 1000000]; /* the only amounts in the High Rollers Club (Jonathan 2026-10-31) */
+const CHESSROOM = { w: 2640, h: 2640 }; /* four 1200x1200 square sections + a 240-wide centre cross */
+const CHBOARDS = [{ x: 220, y: 220, w: 760, h: 760 }, { x: 1660, y: 220, w: 760, h: 760 }, { x: 220, y: 1660, w: 760, h: 760 }, { x: 1660, y: 1660, w: 760, h: 760 }]; /* TL chess, TR checkers, BL checkers, BR chess */
+const CHSEATS = CHBOARDS.map(b => [{ x: b.x + b.w / 2, y: b.y - 92 }, { x: b.x + b.w / 2, y: b.y + b.h + 92 }]); /* a chair at the TOP end and the BOTTOM end of every board */
+const BOXROOM = { w: 2700, h: 1800 };
+const BOXHALL = { x1: 900, top: BOXROOM.h / 2 - 140, bot: BOXROOM.h / 2 + 140 }; /* the entry hallway, the theatre's shape */
+const BOXRING = { x: 1420, y: 520, w: 760, h: 760 }; /* the ring, centred in the arena (arena floor runs x 900..2700, centre 1800,900) */
+const BOXSEATS = [{ x: BOXRING.x - 92, y: 900 }, { x: BOXRING.x + BOXRING.w + 92, y: 900 }]; /* sit at the LEFT end or the RIGHT end of the ring */
+const BOXBLEACH = [{ x: 1000, y: 56, w: 1600, h: 180 }, { x: 2476, y: 320, w: 168, h: 1160 }, { x: 1000, y: BOXROOM.h - 236, w: 1600, h: 180 }]; /* 3 rows of bleachers: top, right, bottom */
+const BOXDOOR_Y = 1200; /* the gym's centre path (y 1100..1300) meets its right wall here */
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
 /* ============ the plaza swimming pool (PREVIEW, Jonathan 2026-10-30) ============
    Scenery in the open ground east of the casino, beside its building, on the
@@ -1139,7 +1167,7 @@ function hrRingPos(d, R) { /* a point d units along the oval from the start line
    each a shared record at hub/tables/ph1..ph4 on the casino tables' pattern.
    Scene id "poolhall". */
 const PHROOM = { w: 3200, h: 1800 };
-const PHEXIT = { y: PHROOM.h - 344, half: 92 }; /* the exit door, in the hall's RIGHT WALL (PREVIEW round 3): the theatre doorway's twin, gold ARCADE sign and all. Its centre stands exactly as far above this room's bottom border (344px) as the Arcade's Pool Hall door (PHDOOR_A) stands above the Arcade's — door answers door, at the same height off the floor */
+const PHEXIT = { y: PHROOM.h / 2, half: 92 }; /* CASINO EXPANSION preview (Jonathan 2026-10-31): the hall's Arcade door moved to the CENTRE of its right edge (PHROOM.h / 2 = 900), answering the Arcade door's new middle-of-the-left-edge spot */ /* the exit door, in the hall's RIGHT WALL (PREVIEW round 3): the theatre doorway's twin, gold ARCADE sign and all. Its centre stands exactly as far above this room's bottom border (344px) as the Arcade's Pool Hall door (PHDOOR_A) stands above the Arcade's — door answers door, at the same height off the floor */
 const PHT = [{ x: 370, y: 170 }, { x: 2050, y: 170 }, { x: 370, y: 1030 }, { x: 2050, y: 1030 }].map(r => ({ x: r.x, y: r.y, w: 780, h: 420 })); /* the four tables in a 2x2 grid, spread wide (900px of air between the columns, 440 between the rows) — round 3 shifted both columns 200px right with the room's widening, so only the chair-to-wall gaps grew — solid in their room, like the casino tables */
 const PHRAIL = 44; /* the rail's width: the play field sits this far inside each table rect */
 const PHSEATS = PHT.map(T => [{ x: T.x - 84, y: T.y + T.h / 2 }, { x: T.x + T.w + 84, y: T.y + T.h / 2 }]); /* two chairs per table, at the short ends */
@@ -1209,8 +1237,8 @@ const cabinets = [];
 (function buildCabinets() {
   const cw = 108, ch = 132, slots = [];
   for (let i = 0; i < 10; i++) slots.push({ x: 150 + i * ((ROOM.w - 300) / 10) + (((ROOM.w - 300) / 10) - cw) / 2, y: 108, row: 0 });
-  [330, 500, 670, 840, 1010].forEach(y => slots.push({ x: 46, y, row: 1 }));
-  [230, 400, 1020, 1190, 1360].forEach(y => slots.push({ x: ROOM.w - 46 - cw, y, row: 1 }));
+  [330, 500, 1020, 1190, 1360].forEach(y => slots.push({ x: 46, y, row: 1 })); /* CASINO EXPANSION preview: Echo, Rogue Chase and Snake moved down to stand even with Space Shooter, Sticker Battle and Spellmatch on the right (Jonathan 2026-10-31) */
+  [330, 500, 1020, 1190, 1360].forEach(y => slots.push({ x: ROOM.w - 46 - cw, y, row: 1 })); /* Sticker Tetris and Slots moved down to stand even with Quantum Flap and Sticker Breakout on the left (Jonathan 2026-10-31) — the two wall columns are now level, pair for pair */
   [430, 690, 950, 1210, 1470].forEach(y => { [330,450,570,690,810,1386,1506,1626,1746,1866].forEach(x => slots.push({ x, y, row: 2 })); });
   slots.forEach((s, i) => {
     const g = GAMES[i];
@@ -1220,7 +1248,7 @@ const cabinets = [];
   });
 })();
 const EXIT = { x: ROOM.w / 2 - 62, y: ROOM.h - 58, w: 124, h: 44 };
-const PHDOOR_A = { y: 1376, half: 92 }; /* the door to the Pool Hall, in the Arcade's LEFT WALL (PREVIEW round 3): the MOVIE THEATER doorway's mirror — same dark wall gap, gold wash and gold sign plate, the sign reading POOL HALL. It is centred in the gap between the last cabinet on the left side (the bottom one of the left column, its foot ends at y1142) and the 👾 floor poster's top edge (ROOM.h - 110 = 1610): (1142 + 1610) / 2 = 1376 */
+const PHDOOR_A = { y: ROOM.h / 2, half: 92 }; /* CASINO EXPANSION preview (Jonathan 2026-10-31): the Pool Hall door moved to the MIDDLE of the Arcade's left edge (ROOM.h / 2 = 860) — the wall columns are clear of its span (Breakout's foot ends at 632, Echo now starts at 1020) */ /* the door to the Pool Hall, in the Arcade's LEFT WALL (PREVIEW round 3): the MOVIE THEATER doorway's mirror — same dark wall gap, gold wash and gold sign plate, the sign reading POOL HALL. It is centred in the gap between the last cabinet on the left side (the bottom one of the left column, its foot ends at y1142) and the 👾 floor poster's top edge (ROOM.h - 110 = 1610): (1142 + 1610) / 2 = 1376 */
 const TDOOR = { y: ROOM.h / 2, half: 92 };
 const TH = { w: 2600, h: 1920 };
 const HALL = { x1: 620, top: TH.h / 2 - 140, bot: TH.h / 2 + 140 };
@@ -1325,7 +1353,7 @@ const STAGE_WALLS = [
 const booths = [];
 [520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : TH; }
 function obstacles() {
   if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B]; /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
@@ -1335,6 +1363,9 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
+  if (me.scene === "highrollers") return [BACT, CRAT]; /* the dividers and booths are walk-over (Jonathan 2026-10-31) — only the two felts are solid */
+  if (me.scene === "chess") return [...CHBOARDS];
+  if (me.scene === "boxing") return [...BOXBLEACH, ...(boxingBout ? [] : [BOXRING])]; /* the ring is solid until YOUR bout starts — then you are in it (pass D) */
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
   if (me.scene === "speedway") return [...SWTV, ...SWSTANDS]; /* on foot you can walk the whole arena — apron, track and infield; the ring clamp only bites while driving. The only solids are the infield monitors and the corner concession stands (Jonathan 2026-10-29); the benches stay walk-over scenery */
   return [SCREEN, PEDESTAL];
@@ -1370,11 +1401,32 @@ function collide(nx, ny) {
   } else if (me.scene === "hq") {
     nx = Math.max(56, Math.min(HQROOM.w - 56, nx)); ny = Math.max(70, Math.min(HQROOM.h - 46, ny));
   } else if (me.scene === "casino") {
+    if (nx > CASINOROOM.w - 66 && Math.abs(ny - CASINODOORS_Y) < 92) return { x: CASINOROOM.w - 66, y: ny, hrcdoor: true }; /* the HIGH ROLLERS CLUB door in the right wall — a HARD BLOCK like the VIP door: the quiz panel opens at the doorstep and only a right answer carries you through */
+    if (nx < 66 && Math.abs(ny - CASINODOORS_Y) < 92) return { x: nx, y: ny, chessdoor: true }; /* the CHESS ROOM door in the left wall, at the same height */
     if (nx > CAEXIT.x - 4 && nx < CAEXIT.x + CAEXIT.w + 4 && ny > CASINOROOM.h - 76) return { x: nx, y: ny, casinoexit: true };
     nx = Math.max(56, Math.min(CASINOROOM.w - 56, nx)); ny = Math.max(70, Math.min(CASINOROOM.h - 46, ny));
   } else if (me.scene === "gym") {
+    if (nx > GYMROOM.w - 66 && Math.abs(ny - BOXDOOR_Y) < 100) return { x: nx, y: ny, boxdoor: true }; /* the BOXING ARENA door at the east end of the centre path (CASINO EXPANSION preview) */
     if (nx > GEXIT.x - 4 && nx < GEXIT.x + GEXIT.w + 4 && ny > GYMROOM.h - 76) return { x: nx, y: ny, gymexit: true };
     nx = Math.max(56, Math.min(GYMROOM.w - 56, nx)); ny = Math.max(70, Math.min(GYMROOM.h - 46, ny));
+  } else if (me.scene === "highrollers") {
+    if (nx < 66 && Math.abs(ny - CASINODOORS_Y) < 92) return { x: nx, y: ny, hrcexit: true }; /* back to the casino, through the left wall at the entry door's own height */
+    nx = Math.max(56, Math.min(HRROOM.w - 56, nx)); ny = Math.max(70, Math.min(HRROOM.h - 46, ny));
+  } else if (me.scene === "chess") {
+    if (nx > CHESSROOM.w - 66 && Math.abs(ny - CHESSROOM.h / 2) < 92) return { x: nx, y: ny, chessexit: true }; /* the exit, centred in the right wall on the centre path */
+    nx = Math.max(56, Math.min(CHESSROOM.w - 56, nx)); ny = Math.max(70, Math.min(CHESSROOM.h - 46, ny));
+  } else if (me.scene === "boxing") {
+    if (boxingBout) { /* a fighter stays inside the ropes for the whole bout — the only way out is the final bell or giving up */
+      nx = Math.max(BOXRING.x + 42, Math.min(BOXRING.x + BOXRING.w - 42, nx));
+      ny = Math.max(BOXRING.y + 64, Math.min(BOXRING.y + BOXRING.h - 30, ny));
+      return { x: nx, y: ny };
+    }
+    if (nx < 48 && ny > BOXHALL.top && ny < BOXHALL.bot) return { x: nx, y: ny, boxexit: true }; /* out the hallway's west end, back to the gym */
+    nx = Math.max(46, Math.min(BOXROOM.w - 56, nx)); ny = Math.max(60, Math.min(BOXROOM.h - 46, ny));
+    if (nx - r < BOXHALL.x1 && (ny - r < BOXHALL.top || ny + r > BOXHALL.bot)) {
+      if (me.x - r >= BOXHALL.x1) nx = BOXHALL.x1 + r;
+      else ny = ny < BOXROOM.h / 2 ? BOXHALL.top + r : BOXHALL.bot - r;
+    }
   } else if (me.scene === "speedway") {
     /* on foot only — driving never passes through collide (stepSpeedway owns the car and clamps it to the ring) */
     if (nx > SWEXIT.x - 4 && nx < SWEXIT.x + SWEXIT.w + 4 && ny > SWROOM.h - 76) return { x: nx, y: ny, swexit: true };
@@ -1786,6 +1838,8 @@ const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
   if ((e.key === "t" || e.key === "T") && entered && isOwnerAcct()) { toggleMech(); return; } /* the owner's transform key on PC (Jonathan 2026-10-31) */
+  if ((e.key === "j" || e.key === "J") && boxingBout) { boxPunch("L"); return; } /* boxing on PC: J = left punch, K = right punch */
+  if ((e.key === "k" || e.key === "K") && boxingBout) { boxPunch("R"); return; }
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
@@ -1803,9 +1857,10 @@ function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = fal
 runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
 /* ---- the owner's mech transform (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; it exists ONLY on the owner account's phone, from the moment he is in ---- */
 const tEl = $("tbtn");
-function syncTBtn() { const show = entered && isOwnerAcct() && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function syncTBtn() { const show = entered && isOwnerAcct() && !boxingBout && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
 function toggleMech() {
   if (!entered || !isOwnerAcct()) return;
+  if (boxingBout) return; /* no transforming mid-bout (Jonathan 2026-10-31): entering the arena untransforms you and the T button is gone until the bout ends */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
   mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
   mechForm = !mechForm;
@@ -1816,6 +1871,19 @@ function toggleMech() {
 }
 tEl.addEventListener("pointerdown", e => { e.preventDefault(); toggleMech(); });
 setInterval(syncTBtn, 400);
+/* ---- the boxing punch buttons (PREVIEW): while YOUR bout runs, R replaces the RUN button outright and L stacks on top of it — both the RUN button's own size. On a PC the same punches are J (left) and K (right). ---- */
+const punchLEl = $("punchl"), punchREl = $("punchr");
+function syncBoxBtns() {
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const show = !!(entered && boxingBout && coarse);
+  const want = show ? "flex" : "none";
+  if (punchLEl.style.display !== want) punchLEl.style.display = want;
+  if (punchREl.style.display !== want) punchREl.style.display = want;
+  if (coarse) { const rw = show ? "none" : "flex"; if (runEl.style.display !== rw) runEl.style.display = rw; } /* RUN is replaced while boxing, and comes back when the bout ends */
+}
+setInterval(syncBoxBtns, 200);
+punchLEl.addEventListener("pointerdown", e => { e.preventDefault(); punchLEl.classList.add("on"); boxPunch("L"); setTimeout(() => punchLEl.classList.remove("on"), 130); });
+punchREl.addEventListener("pointerdown", e => { e.preventDefault(); punchREl.classList.add("on"); boxPunch("R"); setTimeout(() => punchREl.classList.remove("on"), 130); });
 let joyId = null;
 joyEl.addEventListener("pointerdown", e => { joyId = e.pointerId; joyEl.setPointerCapture(joyId); joyMove(e); });
 joyEl.addEventListener("pointermove", e => { if (e.pointerId === joyId) joyMove(e); });
@@ -1831,7 +1899,7 @@ function joyMove(e) {
 let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0;
 cv.addEventListener("pointerdown", e => {
   if (!entered) return;
-  if ((me.scene === "casino" || me.scene === "track" || me.scene === "poolhall" || me.scene === "vip") && uiZones.length) { /* the horse table's buttons live in the same uiZones the casino tables use — and so do the pool hall's and the VIP lounge slots' */
+  if ((me.scene === "casino" || me.scene === "track" || me.scene === "poolhall" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "chess" || me.scene === "boxing") && uiZones.length) { /* the horse table's buttons live in the same uiZones the casino tables use — and so do the pool hall's and the VIP lounge slots' */
     const r0 = cv.getBoundingClientRect();
     const wx = (e.clientX - r0.left) / SCALE + camX, wy = (e.clientY - r0.top) / SCALE + camY;
     for (const z of uiZones) { if (wx >= z.x && wx <= z.x + z.w && wy >= z.y && wy <= z.y + z.h) { z.fn(); sfxClick(); return; } }
@@ -3009,6 +3077,12 @@ function drawGym(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GEXIT.x, GEXIT.y, GEXIT.w, GEXIT.h, 8); ctx.stroke();
   ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", GEXIT.x + GEXIT.w / 2, GEXIT.y + 30);
+  /* BOXING ARENA door (CASINO EXPANSION preview): a dark gap in the right wall at the east end of the centre path, gold plate reading down the wall */
+  ctx.fillStyle = "#0a1428"; ctx.fillRect(GYMROOM.w - 36, BOXDOOR_Y - 92, 36, 184);
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.strokeRect(GYMROOM.w - 36, BOXDOOR_Y - 92, 36, 184);
+  ctx.save(); ctx.translate(GYMROOM.w - 66, BOXDOOR_Y); ctx.rotate(-Math.PI / 2);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("🥊 BOXING ARENA", 0, 9); ctx.restore();
   drawTableFx(t, "gym");
   ctx.restore();
 }
@@ -4106,7 +4180,7 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 /* ============ online list ============ */
 /* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot is excluded (Jonathan: "Exclude the bots") — neither of his presence records (plaza or Watchtower HQ) is listed or counted, so the roster and the Online button count people only and always agree. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
 const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "vip", "hq", "casino", "gym", "speedway", "track"];
-const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall" };
+const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena" };
 let onlineSig = "";
 function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
@@ -4421,7 +4495,8 @@ let vipQuizIdx = -1; /* the question currently on the panel (-1 = panel closed) 
 let guardBubble = "", guardBubbleAt = 0; /* the guard's speech bubble, set by the quiz outcomes — rendered by frame()'s actor pass for everyone on THIS screen */
 function vipGuardSay(txt) { guardBubble = txt; guardBubbleAt = Date.now(); }
 function openVipQuiz() {
-  if (vipQuizIdx >= 0) return; /* the panel is already open on this approach — never re-roll it under the player's finger (the standing-on-the-door bug he hit: the door flag fires every frame, and re-opening dealt a fresh question each time, far too fast to tap) */
+  if (vipQuizIdx >= 0 || hrQuizIdx >= 0) return;
+  $("vipquiztitle").textContent = "⭐ VIP Lounge"; $("vipquizsub").textContent = "🤖 Q-Bot guards this door. Answer one question about the Hub to get in."; /* the panel is already open on this approach — never re-roll it under the player's finger (the standing-on-the-door bug he hit: the door flag fires every frame, and re-opening dealt a fresh question each time, far too fast to tap) */
   vipQuizIdx = Math.floor(Math.random() * VIP_QUIZ.length);
   const q = VIP_QUIZ[vipQuizIdx];
   $("vipq").textContent = q[0];
@@ -4439,8 +4514,8 @@ function openVipQuiz() {
   sfxPop();
 }
 function closeVipQuiz() { vipQuizIdx = -1; $("vipquiz").style.display = "none"; $("vipquiz").setAttribute("aria-hidden", "true"); }
-$("vipclose").onclick = () => { closeVipQuiz(); sfxClick(); };
-$("vipquiz").addEventListener("click", e => { if (e.target === $("vipquiz")) closeVipQuiz(); });
+$("vipclose").onclick = () => { closeVipQuiz(); closeHRQuiz(); sfxClick(); };
+$("vipquiz").addEventListener("click", e => { if (e.target === $("vipquiz")) { closeVipQuiz(); closeHRQuiz(); } });
 function vipAnswer(correct) {
   if (vipQuizIdx < 0) return;
   if (correct) {
@@ -4456,6 +4531,57 @@ function vipAnswer(correct) {
   }
 }
 function tryVipDoor() { openVipQuiz(); } /* every approach asks — there is no pass to check (Jonathan 2026-10-30) */
+/* ============ High Rollers Club: the casino quiz gate (CASINO EXPANSION preview, Jonathan 2026-10-31) ============
+   The VIP door's twin, on the casino's right wall: ONE question per entry
+   from a pool of exactly TEN, all about the casino. Right answer carries
+   you in; wrong answer turns you away. Asked on EVERY entry, like the VIP. */
+const HR_QUIZ = [
+  ["How many chairs sit at the blackjack table?", "5", "4", "6", "7"],
+  ["You bet 100 on blackjack and hit blackjack — you get back…", "250", "200", "300", "150"],
+  ["What colour is the casino carpet?", "Burgundy", "Green", "Blue", "Purple"],
+  ["The roulette in this casino is…", "European, single zero", "American, double zero", "French rules", "Triple zero"],
+  ["The green roulette bet lands on…", "0", "7", "13", "36"],
+  ["What do you play with in the casino?", "Chips", "Real money", "Gems", "Tickets"],
+  ["A table round starts when every seated player taps…", "READY", "DEAL", "START", "SPIN"],
+  ["How many slot machines stand in the casino?", "11", "9", "10", "12"],
+  ["Which of these is NOT in the main casino?", "Craps", "Blackjack", "Roulette", "Slots"],
+  ["The Quantum Lounge's music is…", "Jazz", "Rock", "EDM", "Country"]
+];
+let hrQuizIdx = -1;
+function openHRQuiz() {
+  if (hrQuizIdx >= 0 || vipQuizIdx >= 0) return; /* never re-roll under the player's finger */
+  hrQuizIdx = Math.floor(Math.random() * HR_QUIZ.length);
+  const q = HR_QUIZ[hrQuizIdx];
+  $("vipquiztitle").textContent = "👑 High Rollers Club";
+  $("vipquizsub").textContent = "High rollers only. Answer one question about the casino to get in.";
+  $("vipq").textContent = q[0];
+  $("vipmsg").textContent = "";
+  const box = $("vipchoices"); box.innerHTML = "";
+  const order = [1, 2, 3, 4];
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = order[i]; order[i] = order[j]; order[j] = tmp; }
+  order.forEach(srcIdx => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "vipchoice"; b.textContent = q[srcIdx];
+    b.onclick = () => hrAnswer(srcIdx === 1);
+    box.appendChild(b);
+  });
+  $("vipquiz").style.display = "flex"; $("vipquiz").setAttribute("aria-hidden", "false");
+  sfxPop();
+}
+function closeHRQuiz() { if (hrQuizIdx < 0) return; hrQuizIdx = -1; if (vipQuizIdx < 0) { $("vipquiz").style.display = "none"; $("vipquiz").setAttribute("aria-hidden", "true"); } }
+function hrAnswer(correct) {
+  if (hrQuizIdx < 0) return;
+  closeHRQuiz();
+  if (correct) { sfxChime(); toHighRollers(); }
+  else { sfxBad(); me.x = Math.max(me.x - 90, 56); publish(true); /* turned away: a step back west, out of the doorway */ }
+}
+function tryHRDoor() { openHRQuiz(); }
+function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); hrListen(); pullChips(); }
+function toCasinoFromHR() { stopAllTones(); hrStandUpAll(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w - 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
+function toChess() { stopAllTones(); me.scene = "chess"; voiceReset(); me.x = CHESSROOM.w - 150; me.y = CHESSROOM.h / 2; sfxChime(); publish(true); chessListen(); pullChips(); }
+function toCasinoFromChess() { stopAllTones(); chessStandUp(); me.scene = "casino"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
+function toBoxing() { stopAllTones(); me.scene = "boxing"; voiceReset(); me.x = 120; me.y = BOXROOM.h / 2; sfxChime(); publish(true); boxingListen(); pullChips(); }
+function toGymFromBoxing() { stopAllTones(); boxingStandUp(); me.scene = "gym"; voiceReset(); me.x = GYMROOM.w - 150; me.y = BOXDOOR_Y; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toVip() { stopAllTones(); me.scene = "vip"; voiceReset(); me.x = VIPROOM.w - 150; me.y = VIPDOOR.y; sfxChime(); publish(true); syncJuke(); }
 function toClubFromVip() { stopAllTones(); me.scene = "club"; voiceReset(); me.x = 140; me.y = VIPDOOR.y; sfxChime(); publish(true); syncJuke(); }
 function toTrack() { stopAllTones(); me.scene = "track"; voiceReset(); me.x = TRACKROOM.w / 2; me.y = TRACKROOM.h - 170; sfxChime(); publish(true); trackListen(); hrFxSince = Date.now(); pullChips(); }
@@ -5530,6 +5656,1155 @@ function drawPoolHall(t) {
   ctx.fillText("🎮 ARCADE →", PHROOM.w - 194, PHEXIT.y + 7);
   ctx.restore();
 }
+
+/* ============ CASINO EXPANSION rooms (PREVIEW) ============ */
+let boxingBout = null; /* {seat} while MY bout is live: it frees the ring obstacle, clamps me inside the ropes, swaps RUN for the L/R punch buttons and locks the mech transform */
+/* ============ High Rollers Club tables: baccarat + craps (CASINO EXPANSION preview) ============
+   The casino pattern, carried into the club: a shared record per table at
+   hub/tables/bac and hub/tables/cra, five seats, the lowest fresh seat
+   hosts, bets charged the moment they are placed (re-staking refunds
+   first), a round starts only when EVERY fresh seated player holds a bet
+   and has tapped READY, and each client settles its own seat off the
+   shared results through settleOnce. The only stakes here are HR_BETS. */
+let bacState = null, craState = null, bacSeat = -1, craSeat = -1, bacLeft = -1, craLeft = -1, hrcHooked = false;
+let bacAmt = 5000, craAmt = 5000;
+let hrcNote = "", hrcNoteAt = 0;
+function noteHRC(txt) { hrcNote = txt; hrcNoteAt = performance.now(); }
+function hrListen() {
+  if (!db || hrcHooked) return; hrcHooked = true;
+  db.ref("hub/tables/bac").on("value", sn => { bacState = sn.val(); bacSettle(); });
+  db.ref("hub/tables/cra").on("value", sn => { craState = sn.val(); craSettle(); });
+  setInterval(hrcHostTick, 900);
+  setInterval(hrcSeatBeat, 4000);
+}
+function bacSettle() { const st = bacState; if (st && st.phase === "done" && bacSeat >= 0 && st.results && st.results[bacSeat]) settleOnce("bac" + st.roundId + "-" + bacSeat, st.results[bacSeat].amt || 0); }
+function craSettle() { const st = craState; if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
+function hrcSt(game) { return game === "bac" ? bacState : craState; }
+function hrcIdx(game) { return game === "bac" ? bacSeat : craSeat; }
+function hrcPoss(game) { return game === "bac" ? BACSEATS : CRASEATS; }
+function hrcMySeat(game) { const st = hrcSt(game), i = hrcIdx(game); return (i >= 0 && st && st.seats && st.seats[i] && st.seats[i].pid === myId) ? st.seats[i] : null; }
+function hrcSetSeat(game, i) {
+  if (game === "bac") bacSeat = i; else craSeat = i;
+  if (i >= 0) mySeatPos = hrcPoss(game)[i];
+  else if (bacSeat < 0 && craSeat < 0) mySeatPos = null;
+}
+function hrcSitAt(game, i) {
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  pullChips();
+  if (game === "bac") bacLeft = -1; else craLeft = -1;
+  const other = game === "bac" ? craSeat : bacSeat;
+  if (other >= 0) { noteHRC("Stand up from the other table first."); return; }
+  if (hrcIdx(game) >= 0) { if (hrcIdx(game) !== i) noteHRC("Stand up from your seat first."); return; }
+  const st = hrcSt(game), s = st && st.seats && st.seats[i];
+  if (s && s.pid === myId) { hrcSetSeat(game, i); seatOD(game, i, true); return; }
+  if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHRC("That seat is taken."); return; }
+  tblSet(game + "/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
+  hrcSetSeat(game, i); seatOD(game, i, true);
+}
+function hrcStand(game) {
+  const i = hrcIdx(game); if (i < 0) return;
+  if (game === "bac") bacLeft = i; else craLeft = i;
+  const st = hrcSt(game), s = st && st.seats && st.seats[i];
+  if (s && s.pid === myId) {
+    if (st.phase === "bet" && s.bet) { addChips(s.bet); noteHRC("🚪 You stood up — your " + s.bet.toLocaleString("en-US") + " bet was returned."); }
+    else if (s.bet) noteHRC("🚪 You left mid-round — your spot and bet are forfeited.");
+  }
+  if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet(game + "/seats/" + i, null);
+  seatOD(game, i, false);
+  hrcSetSeat(game, -1);
+}
+function hrStandUpAll() { hrcStand("bac"); hrcStand("cra"); }
+function hrcBeatOne(game) {
+  const left = game === "bac" ? bacLeft : craLeft;
+  if (hrcIdx(game) < 0) {
+    if (left >= 0) { const ls = hrcSt(game) && hrcSt(game).seats && hrcSt(game).seats[left]; if (!ls || ls.pid !== myId) { if (game === "bac") bacLeft = -1; else craLeft = -1; } }
+    const seats = (hrcSt(game) && hrcSt(game).seats) || {};
+    for (let i = 0; i < 5; i++) { const s = seats[i]; if (s && s.pid === myId && i !== left && Date.now() - (s.ts || 0) <= 25000) { hrcSetSeat(game, i); seatOD(game, i, true); return; } }
+    return;
+  }
+  const s = hrcSt(game) && hrcSt(game).seats && hrcSt(game).seats[hrcIdx(game)];
+  if (!s || s.pid !== myId) { hrcSetSeat(game, -1); return; }
+  tblUpd(game + "/seats/" + hrcIdx(game), { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+}
+function hrcSeatBeat() {
+  if (!db || !entered || me.scene !== "highrollers") return;
+  hrcBeatOne("bac"); hrcBeatOne("cra");
+}
+function hrcBet(game, type) {
+  const st = hrcSt(game), mine = hrcMySeat(game), amt = game === "bac" ? bacAmt : craAmt;
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch."); return; }
+  const prev = mine.bet || 0;
+  if (mine.betType === type && prev === amt) return;
+  if (!profile || (profile.chips || 0) + prev < amt) { noteHRC("Not enough chips for a " + amt.toLocaleString("en-US") + " bet."); return; }
+  if (prev) addChips(prev);
+  addChips(-amt);
+  tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, betType: type, ts: Date.now(), chips: profile ? profile.chips : 0 });
+  mine.bet = amt; mine.betType = type;
+  sfxClick();
+}
+function hrcSetAmt(game, amt) {
+  if (game === "bac") bacAmt = amt; else craAmt = amt;
+  const st = hrcSt(game), mine = hrcMySeat(game);
+  if (st && st.phase === "bet" && mine && mine.bet > 0 && mine.betType && mine.bet !== amt) {
+    if (!acctUser) return;
+    if (!profile || (profile.chips || 0) + mine.bet < amt) { noteHRC("Not enough chips for a " + amt.toLocaleString("en-US") + " bet."); if (game === "bac") bacAmt = mine.bet; else craAmt = mine.bet; return; }
+    addChips(mine.bet); addChips(-amt);
+    tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
+    mine.bet = amt;
+  }
+  sfxClick();
+}
+function hrcReady(game) {
+  const st = hrcSt(game), mine = hrcMySeat(game);
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch."); return; }
+  if (!(mine.bet > 0)) return;
+  const nr = !mine.rdy;
+  tblUpd(game + "/seats/" + hrcIdx(game), { rdy: nr, ts: Date.now() });
+  mine.rdy = nr;
+  sfxClick();
+}
+function hrcHostSeat(st) { if (!st || !st.seats) return -1; const ks = Object.keys(st.seats).map(Number).sort((a, b) => a - b); for (const i of ks) { const s = st.seats[i]; if (s && s.pid && Date.now() - (s.ts || 0) < 25000) return i; } return -1; }
+function hrcFreshReady(st) {
+  const now = Date.now(), seats = st.seats || {};
+  Object.keys(seats).forEach(k => { if (!seats[k].pid) tblSet((st === bacState ? "bac" : "cra") + "/seats/" + k, null); });
+  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
+  const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0);
+  return { fresh, ready, bettors: fresh.filter(i => seats[i].bet > 0) };
+}
+function bacVal(hand) { let v = 0; for (const c of (hand || [])) { const r = c.slice(0, c.length - 1); v += (r === "A") ? 1 : (("KQJ".indexOf(r) >= 0 || r === "10") ? 0 : parseInt(r, 10)); } return v % 10; }
+function bacDeal() {
+  const d = newDeck();
+  const p = [d[0], d[2]], b = [d[1], d[3]]; let i = 4;
+  const pv = bacVal(p), bv = bacVal(b);
+  if (pv < 8 && bv < 8) {
+    let pThird = null;
+    if (pv <= 5) { pThird = d[i++]; p.push(pThird); }
+    if (pThird === null) { if (bv <= 5) b.push(d[i++]); }
+    else {
+      const pt = bacVal([pThird]);
+      if (bv <= 2) b.push(d[i++]);
+      else if (bv === 3 && pt !== 8) b.push(d[i++]);
+      else if (bv === 4 && pt >= 2 && pt <= 7) b.push(d[i++]);
+      else if (bv === 5 && pt >= 4 && pt <= 7) b.push(d[i++]);
+      else if (bv === 6 && (pt === 6 || pt === 7)) b.push(d[i++]);
+    }
+  }
+  const fp = bacVal(p), fb = bacVal(b);
+  return { p, b, winner: fp > fb ? "player" : (fb > fp ? "banker" : "tie") };
+}
+function bacHostTick() {
+  if (!bacState) { tblSet("bac", { phase: "bet", seats: {}, roundId: 0, ts: Date.now() }); return; }
+  const hi = hrcHostSeat(bacState); if (hi < 0 || bacState.seats[hi].pid !== myId) return;
+  const st = bacState, now = Date.now();
+  const { fresh, ready, bettors } = hrcFreshReady(st);
+  if (st.phase === "bet") {
+    if (fresh.length && ready.length === fresh.length) {
+      const deal = bacDeal();
+      tblUpd("bac", { phase: "deal", pHand: deal.p, bHand: deal.b, winner: deal.winner, dealTs: srvNow(), results: null });
+    }
+  } else if (st.phase === "deal" && srvNow() - (st.dealTs || 0) > 5000) {
+    const results = {};
+    bettors.forEach(i => {
+      const s = st.seats[i]; let amt = 0, res = "no win";
+      if (st.winner === "tie") {
+        if (s.betType === "tie") { amt = s.bet * 9; res = "🎉 TIE pays 8 to 1! +" + amt.toLocaleString("en-US"); }
+        else { amt = s.bet; res = "Tie — your bet is returned"; }
+      } else if (s.betType === st.winner) {
+        amt = s.betType === "banker" ? Math.floor(s.bet * 1.95) : s.bet * 2;
+        res = "🎉 WIN +" + amt.toLocaleString("en-US");
+      }
+      results[i] = { res, amt };
+    });
+    tblUpd("bac", { phase: "done", results, doneTs: now });
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
+    Object.keys(st.seats || {}).forEach(i => tblUpd("bac/seats/" + i, { bet: 0, betType: "", rdy: false }));
+    tblUpd("bac", { phase: "bet", results: null, pHand: null, bHand: null, winner: null, roundId: (st.roundId || 0) + 1 });
+  }
+}
+function craHostTick() {
+  if (!craState) { tblSet("cra", { phase: "bet", seats: {}, roundId: 0, point: 0, ts: Date.now() }); return; }
+  const hi = hrcHostSeat(craState); if (hi < 0 || craState.seats[hi].pid !== myId) return;
+  const st = craState, now = Date.now();
+  const { fresh, ready, bettors } = hrcFreshReady(st);
+  const rollDice = () => [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
+  if (st.phase === "bet") {
+    if (fresh.length && ready.length === fresh.length) tblUpd("cra", { phase: "roll", dice: rollDice(), point: 0, rollTs: srvNow(), results: null });
+  } else if (st.phase === "roll" && srvNow() - (st.rollTs || 0) > 2800) {
+    const sum = (st.dice ? st.dice[0] + st.dice[1] : 0), point = st.point || 0;
+    let end = null;
+    if (!point) {
+      if (sum === 7 || sum === 11) end = "pass";
+      else if (sum === 2 || sum === 3) end = "dontpass";
+      else if (sum === 12) end = "pushdp";
+      else { tblUpd("cra", { point: sum, dice: rollDice(), rollTs: srvNow() }); return; }
+    } else {
+      if (sum === point) end = "pass";
+      else if (sum === 7) end = "dontpass";
+      else { tblUpd("cra", { dice: rollDice(), rollTs: srvNow() }); return; }
+    }
+    const results = {};
+    bettors.forEach(i => {
+      const s = st.seats[i]; let amt = 0, res = "no win";
+      if (s.betType === "pass" && end === "pass") { amt = s.bet * 2; res = "🎉 PASS WINS! +" + amt.toLocaleString("en-US"); }
+      else if (s.betType === "dontpass" && end === "dontpass") { amt = s.bet * 2; res = "🎉 DON'T PASS WINS! +" + amt.toLocaleString("en-US"); }
+      else if (s.betType === "dontpass" && end === "pushdp") { amt = s.bet; res = "Bar 12 — your bet is returned"; }
+      results[i] = { res, amt };
+    });
+    tblUpd("cra", { phase: "done", results, doneTs: now, end });
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
+    Object.keys(st.seats || {}).forEach(i => tblUpd("cra/seats/" + i, { bet: 0, betType: "", rdy: false }));
+    tblUpd("cra", { phase: "bet", results: null, point: 0, dice: null, end: null, roundId: (st.roundId || 0) + 1 });
+  }
+}
+function hrcHostTick() {
+  if (!entered || me.scene !== "highrollers" || !db) return;
+  if (bacState && !["bet", "deal", "done"].includes(bacState.phase)) tblSet("bac", { phase: "bet", seats: {}, roundId: 0, ts: Date.now() });
+  if (craState && !["bet", "roll", "done"].includes(craState.phase)) tblSet("cra", { phase: "bet", seats: {}, roundId: 0, point: 0, ts: Date.now() });
+  tableIdleClear("bac", bacState, { phase: "bet", seats: {}, roundId: (bacState && bacState.roundId) || 0, ts: Date.now() });
+  tableIdleClear("cra", craState, { phase: "bet", seats: {}, roundId: (craState && craState.roundId) || 0, point: 0, ts: Date.now() });
+  bacHostTick(); craHostTick();
+}
+function hrcFocusRect() {
+  if (bacSeat >= 0) return { x: BACT.x - 60, y: BACT.y - 60, w: BACT.w + 120, h: BACT.h + 254 };
+  if (craSeat >= 0) return { x: CRAT.x - 60, y: CRAT.y - 60, w: CRAT.w + 120, h: CRAT.h + 254 };
+  return null;
+}
+/* hrStandUpAll is defined with the High Rollers engine above */
+/* ============ Chess Room: chess + checkers (CASINO EXPANSION preview) ============
+   The Pool Hall carried to boards: four shared tables at hub/tables/chs1
+   (chess, top-left), chk1 (checkers, top-right), chk2 (checkers,
+   bottom-left), chs2 (chess, bottom-right). Two seats per board — TOP end
+   and BOTTOM end; the bottom seat plays White/Red and moves first. Bets
+   are the normal casino amounts and MUST MATCH (the pool rule): the game
+   starts only when both seats are fresh, both hold the same stake and
+   both tapped READY. Winner takes the pot (2x the stake); a draw refunds.
+   Moves are turn-gated writes — the player to move writes the new board,
+   exactly as the pool shooter writes the shot. Captured pieces ride the
+   record (capBy1 = taken by the bottom seat, capBy0 = by the top seat)
+   and paint as racks beside the board, like the pool sunk-ball racks.
+   Chess: full legal moves with castling and auto-queen promotion (no en
+   passant in this build). Checkers: American rules — captures are
+   mandatory, jumps chain, men king on the far row. */
+const CHTABLES = ["chs1", "chk1", "chk2", "chs2"];
+const CHKINDS = ["chess", "checkers", "checkers", "chess"];
+const CH_BETS = [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
+let chStates = [null, null, null, null], chSeatT = -1, chSeatI = -1, chLeft = null, chHooked = false;
+let chAmt = 100, chSel = -1;
+let chNote = "", chNoteAt = 0;
+function noteChess(txt) { chNote = txt; chNoteAt = performance.now(); }
+function chessListen() {
+  if (!db || chHooked) return; chHooked = true;
+  CHTABLES.forEach((k, t) => { db.ref("hub/tables/" + k).on("value", sn => { chStates[t] = sn.val(); chSettle(t); }); });
+  setInterval(chessHostTick, 900);
+  setInterval(chessSeatBeat, 4000);
+}
+function chSettle(t) {
+  const st = chStates[t];
+  if (st && st.phase === "done" && chSeatT === t && chSeatI >= 0 && st.results && st.results[chSeatI]) settleOnce(CHTABLES[t] + st.roundId + "-" + chSeatI, st.results[chSeatI].amt || 0);
+}
+function chMySeatRec(t) { const st = chStates[t]; return (chSeatT === t && chSeatI >= 0 && st && st.seats && st.seats[chSeatI] && st.seats[chSeatI].pid === myId) ? st.seats[chSeatI] : null; }
+function chessSitAt(t, i) {
+  if (!acctUser) { noteChess("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  pullChips();
+  chLeft = null;
+  if (chSeatT >= 0) { if (!(chSeatT === t && chSeatI === i)) noteChess("Stand up from your board first."); return; }
+  const st = chStates[t], sd = st && st.seats && st.seats[i];
+  if (sd && sd.pid === myId) { chSeatT = t; chSeatI = i; mySeatPos = CHSEATS[t][i]; seatOD(CHTABLES[t], i, true); return; }
+  if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) { noteChess("That seat is taken."); return; }
+  tblSet(CHTABLES[t] + "/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, rdy: false, chips: profile ? (profile.chips || 0) : 0 });
+  chSeatT = t; chSeatI = i; mySeatPos = CHSEATS[t][i]; seatOD(CHTABLES[t], i, true);
+}
+function chessStandUp() {
+  if (chSeatT < 0) return;
+  const t = chSeatT, i = chSeatI, key = CHTABLES[t];
+  chLeft = { t, i };
+  const st = chStates[t], sd = st && st.seats && st.seats[i];
+  if (sd && sd.pid === myId) {
+    if (st.phase === "bet" && sd.bet) { addChips(sd.bet); noteChess("🚪 You stood up — your " + sd.bet.toLocaleString("en-US") + " bet was returned."); }
+    else if (st.phase === "play" && sd.bet) {
+      const other = 1 - i, os = st.seats && st.seats[other];
+      if (os && os.pid) tblUpd(key, { phase: "done", winner: other, doneTs: Date.now(), results: { [other]: { res: "🏆 Won by forfeit — +" + ((sd.bet || 0) + (os.bet || 0)).toLocaleString("en-US"), amt: (sd.bet || 0) + (os.bet || 0) } } });
+      noteChess("🚪 You left mid-game — your bet is forfeited.");
+    }
+  }
+  if (!(sd && sd.pid && sd.pid !== myId && Date.now() - (sd.ts || 0) <= 25000)) tblSet(key + "/seats/" + i, null);
+  seatOD(key, i, false);
+  chSeatT = -1; chSeatI = -1; chSel = -1;
+  if (bacSeat < 0 && craSeat < 0) mySeatPos = null;
+}
+function chessSeatBeat() {
+  if (!db || !entered || me.scene !== "chess") return;
+  if (chSeatT < 0) {
+    if (chLeft) { const ls = chStates[chLeft.t] && chStates[chLeft.t].seats && chStates[chLeft.t].seats[chLeft.i]; if (!ls || ls.pid !== myId) chLeft = null; }
+    for (let t = 0; t < 4; t++) {
+      const seats = (chStates[t] && chStates[t].seats) || {};
+      for (let i = 0; i < 2; i++) { const sd = seats[i]; if (sd && sd.pid === myId && !(chLeft && chLeft.t === t && chLeft.i === i) && Date.now() - (sd.ts || 0) <= 25000) { chSeatT = t; chSeatI = i; mySeatPos = CHSEATS[t][i]; seatOD(CHTABLES[t], i, true); return; } }
+    }
+    return;
+  }
+  const sd = chStates[chSeatT] && chStates[chSeatT].seats && chStates[chSeatT].seats[chSeatI];
+  if (!sd || sd.pid !== myId) { chSeatT = -1; chSeatI = -1; chSel = -1; if (bacSeat < 0 && craSeat < 0) mySeatPos = null; return; }
+  tblUpd(CHTABLES[chSeatT] + "/seats/" + chSeatI, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+}
+function chessBet(amt) {
+  const mine = chSeatT >= 0 ? chMySeatRec(chSeatT) : null, st = chSeatT >= 0 ? chStates[chSeatT] : null;
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteChess("🔒 Playing takes an account — guests can watch."); return; }
+  chAmt = amt;
+  const prev = mine.bet || 0;
+  if (prev === amt) return;
+  if (!profile || (profile.chips || 0) + prev < amt) { noteChess("Not enough chips for that bet."); return; }
+  if (prev) addChips(prev);
+  addChips(-amt);
+  tblUpd(CHTABLES[chSeatT] + "/seats/" + chSeatI, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
+  mine.bet = amt;
+  sfxClick();
+}
+function chessReady() {
+  const mine = chSeatT >= 0 ? chMySeatRec(chSeatT) : null, st = chSeatT >= 0 ? chStates[chSeatT] : null;
+  if (!st || st.phase !== "bet" || !mine || !(mine.bet > 0)) return;
+  const nr = !mine.rdy;
+  tblUpd(CHTABLES[chSeatT] + "/seats/" + chSeatI, { rdy: nr, ts: Date.now() });
+  mine.rdy = nr;
+  sfxClick();
+}
+/* ---- board strings: 64 cells x 2 chars, row 0 = the top of the room ---- */
+function chInitChess() { return "bRbNbBbQbKbBbNbR" + "bP".repeat(8) + "..".repeat(32) + "wP".repeat(8) + "wRwNwBwQwKwBwNwR"; }
+function chInitCheckers() {
+  const a = [];
+  for (let i = 0; i < 64; i++) { const r = Math.floor(i / 8), c = i % 8; a.push(((r + c) % 2 === 1) ? (r < 3 ? "bM" : (r > 4 ? "rM" : "..")) : ".."); }
+  return a.join("");
+}
+function chParse(bs) { const a = []; for (let i = 0; i < 64; i++) a.push(bs.substr(i * 2, 2)); return a; }
+/* ---- chess rules ---- */
+function chAttacked(a, sq, by) {
+  const r = Math.floor(sq / 8), c = sq % 8;
+  const pr = by === "w" ? r + 1 : r - 1;
+  for (const dc of [-1, 1]) { const cc = c + dc; if (pr >= 0 && pr < 8 && cc >= 0 && cc < 8 && a[pr * 8 + cc] === by + "P") return true; }
+  for (const [dr, dc] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]]) { const rr2 = r + dr, cc = c + dc; if (rr2 >= 0 && rr2 < 8 && cc >= 0 && cc < 8 && a[rr2 * 8 + cc] === by + "N") return true; }
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { if (!dr && !dc) continue; const rr2 = r + dr, cc = c + dc; if (rr2 >= 0 && rr2 < 8 && cc >= 0 && cc < 8 && a[rr2 * 8 + cc] === by + "K") return true; }
+  const rayGroups = [{ d: [[-1, -1], [-1, 1], [1, -1], [1, 1]], k: "BQ" }, { d: [[-1, 0], [1, 0], [0, -1], [0, 1]], k: "RQ" }];
+  for (const g of rayGroups) {
+    for (const [dr, dc] of g.d) {
+      let rr2 = r + dr, cc = c + dc;
+      while (rr2 >= 0 && rr2 < 8 && cc >= 0 && cc < 8) {
+        const p = a[rr2 * 8 + cc];
+        if (p !== "..") { if (p[0] === by && g.k.indexOf(p[1]) >= 0) return true; break; }
+        rr2 += dr; cc += dc;
+      }
+    }
+  }
+  return false;
+}
+function chPseudo(a, color, castle) {
+  const moves = [], foe = color === "w" ? "b" : "w";
+  const dir = color === "w" ? -1 : 1, homeRow = color === "w" ? 6 : 1, lastRow = color === "w" ? 0 : 7;
+  for (let i = 0; i < 64; i++) {
+    const p = a[i]; if (p === ".." || p[0] !== color) continue;
+    const r = Math.floor(i / 8), c = i % 8, kind = p[1];
+    const push = (to, capSq) => moves.push({ from: i, to, cap: capSq !== undefined ? capSq : to });
+    if (kind === "P") {
+      const one = i + dir * 8;
+      if (one >= 0 && one < 64 && a[one] === "..") { push(one); const two = i + dir * 16; if (r === homeRow && a[two] === "..") push(two); }
+      for (const dc of [-1, 1]) { const cc = c + dc, to = i + dir * 8 + dc; if (cc >= 0 && cc < 8 && to >= 0 && to < 64 && a[to] !== ".." && a[to][0] === foe) push(to); }
+    } else if (kind === "N" || kind === "K") {
+      const offs = kind === "N" ? [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]] : [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+      for (const [dr, dc] of offs) { const rr2 = r + dr, cc = c + dc; if (rr2 < 0 || rr2 > 7 || cc < 0 || cc > 7) continue; const to = rr2 * 8 + cc; if (a[to] === ".." || a[to][0] === foe) push(to); }
+      if (kind === "K" && castle) {
+        const base = color === "w" ? 60 : 4;
+        if (i === base) {
+          const rights = castle[color + "K"], rightsQ = castle[color + "Q"];
+          if (rights && a[base + 1] === ".." && a[base + 2] === ".." && a[base + 3] === color + "R" && !chAttacked(a, base, foe) && !chAttacked(a, base + 1, foe) && !chAttacked(a, base + 2, foe)) moves.push({ from: i, to: base + 2, cap: -1, castle: "K" });
+          if (rightsQ && a[base - 1] === ".." && a[base - 2] === ".." && a[base - 3] === ".." && a[base - 4] === color + "R" && !chAttacked(a, base, foe) && !chAttacked(a, base - 1, foe) && !chAttacked(a, base - 2, foe)) moves.push({ from: i, to: base - 2, cap: -1, castle: "Q" });
+        }
+      }
+    } else {
+      const dirs = kind === "B" ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] : kind === "R" ? [[-1, 0], [1, 0], [0, -1], [0, 1]] : [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+      for (const [dr, dc] of dirs) {
+        let rr2 = r + dr, cc = c + dc;
+        while (rr2 >= 0 && rr2 < 8 && cc >= 0 && cc < 8) {
+          const to = rr2 * 8 + cc;
+          if (a[to] === "..") push(to);
+          else { if (a[to][0] === foe) push(to); break; }
+          rr2 += dr; cc += dc;
+        }
+      }
+    }
+  }
+  return moves;
+}
+function chApply(a, mv, color) {
+  const b = a.slice(), piece = b[mv.from];
+  let cap = "..";
+  if (mv.cap >= 0 && b[mv.cap] !== "..") cap = b[mv.cap];
+  if (mv.cap >= 0) b[mv.cap] = "..";
+  b[mv.from] = "..";
+  let placed = piece;
+  if (piece[1] === "P" && (Math.floor(mv.to / 8) === 0 || Math.floor(mv.to / 8) === 7)) placed = color + "Q"; /* auto-queen */
+  b[mv.to] = placed;
+  if (mv.castle === "K") { const base = color === "w" ? 60 : 4; b[base + 1] = color + "R"; b[base + 3] = ".."; }
+  if (mv.castle === "Q") { const base = color === "w" ? 60 : 4; b[base - 1] = color + "R"; b[base - 4] = ".."; }
+  return { board: b, cap };
+}
+function chLegal(a, color, castle) {
+  const foe = color === "w" ? "b" : "w";
+  return chPseudo(a, color, castle).filter(mv => {
+    const { board } = chApply(a, mv, color);
+    const k = board.indexOf(color + "K");
+    return k >= 0 && !chAttacked(board, k, foe);
+  });
+}
+/* ---- checkers rules (American): captures mandatory, jumps chain ---- */
+function ckMovesFor(a, color, onlySq) {
+  const men = [], caps = [];
+  const dirsFor = p => (p[1] === "K") ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] : (p[0] === "r" ? [[-1, -1], [-1, 1]] : [[1, -1], [1, 1]]);
+  for (let i = 0; i < 64; i++) {
+    const p = a[i]; if (p === ".." || p[0] !== color) continue;
+    if (onlySq >= 0 && i !== onlySq) continue;
+    const r = Math.floor(i / 8), c = i % 8;
+    for (const [dr, dc] of dirsFor(p)) {
+      const r1 = r + dr, c1 = c + dc, r2 = r + 2 * dr, c2 = c + 2 * dc;
+      if (r1 >= 0 && r1 < 8 && c1 >= 0 && c1 < 8 && a[r1 * 8 + c1] === "..") men.push({ from: i, to: r1 * 8 + c1, cap: -1 });
+      if (r2 >= 0 && r2 < 8 && c2 >= 0 && c2 < 8 && a[r1 * 8 + c1] !== ".." && a[r1 * 8 + c1][0] !== color && a[r2 * 8 + c2] === "..") caps.push({ from: i, to: r2 * 8 + c2, cap: r1 * 8 + c1 });
+    }
+  }
+  return caps.length ? caps : men; /* a capture anywhere must be taken; mid-chain only the chain piece moves and only to capture (the caller passes onlySq) */
+}
+function ckApply(a, mv) {
+  const b = a.slice(), piece = b[mv.from];
+  let cap = "..";
+  if (mv.cap >= 0) { cap = b[mv.cap]; b[mv.cap] = ".."; }
+  b[mv.from] = "..";
+  let placed = piece, kinged = false;
+  if (piece[1] === "M" && ((piece[0] === "r" && Math.floor(mv.to / 8) === 0) || (piece[0] === "b" && Math.floor(mv.to / 8) === 7))) { placed = piece[0] + "K"; kinged = true; }
+  b[mv.to] = placed;
+  return { board: b, cap, kinged };
+}
+/* ---- making a move: only the seat to move writes ---- */
+function chDoMove(t, mv) {
+  const st = chStates[t]; if (!st || st.phase !== "play" || chSeatT !== t) return;
+  const key = CHTABLES[t], kind = CHKINDS[t];
+  const myColor = kind === "chess" ? (chSeatI === 1 ? "w" : "b") : (chSeatI === 1 ? "r" : "b");
+  const a = chParse(st.board);
+  const capBy1 = (st.capBy1 || []).slice(), capBy0 = (st.capBy0 || []).slice();
+  const upd = {};
+  if (kind === "chess") {
+    const res = chApply(a, mv, myColor);
+    if (res.cap !== "..") (chSeatI === 1 ? capBy1 : capBy0).push(res.cap);
+    const castle = Object.assign({}, st.castle || { wK: 1, wQ: 1, bK: 1, bQ: 1 });
+    const moved = a[mv.from];
+    if (moved[1] === "K") { castle[myColor + "K"] = 0; castle[myColor + "Q"] = 0; }
+    if (moved === "wR" && mv.from === 63) castle.wK = 0;
+    if (moved === "wR" && mv.from === 56) castle.wQ = 0;
+    if (moved === "bR" && mv.from === 7) castle.bK = 0;
+    if (moved === "bR" && mv.from === 0) castle.bQ = 0;
+    if (mv.cap === 63) castle.wK = 0; if (mv.cap === 56) castle.wQ = 0;
+    if (mv.cap === 7) castle.bK = 0; if (mv.cap === 0) castle.bQ = 0;
+    const foe = myColor === "w" ? "b" : "w";
+    const foeMoves = chLegal(res.board, foe, castle);
+    const foeKing = res.board.indexOf(foe + "K");
+    const inChk = foeKing >= 0 && chAttacked(res.board, foeKing, myColor);
+    upd.board = res.board.join(""); upd.castle = castle; upd.capBy1 = capBy1; upd.capBy0 = capBy0; upd.check = inChk ? 1 : 0;
+    if (!foeMoves.length) {
+      const pot = ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0);
+      upd.phase = "done"; upd.doneTs = Date.now();
+      if (inChk) { upd.winner = chSeatI; upd.results = { [chSeatI]: { res: "🏆 Checkmate! +" + pot.toLocaleString("en-US"), amt: pot } }; }
+      else { upd.winner = -1; upd.results = { 0: { res: "Stalemate — bet returned", amt: (st.seats[0] && st.seats[0].bet) || 0 }, 1: { res: "Stalemate — bet returned", amt: (st.seats[1] && st.seats[1].bet) || 0 } }; }
+    } else upd.turn = 1 - chSeatI;
+  } else {
+    const res = ckApply(a, mv);
+    if (res.cap !== "..") (chSeatI === 1 ? capBy1 : capBy0).push(res.cap);
+    upd.board = res.board.join(""); upd.capBy1 = capBy1; upd.capBy0 = capBy0;
+    const foe = myColor === "r" ? "b" : "r";
+    let chain = -1;
+    if (res.cap !== ".." && !res.kinged) {
+      const more = ckMovesFor(res.board, myColor, mv.to).filter(m2 => m2.cap >= 0);
+      if (more.length) chain = mv.to; /* the jump chain continues with the same piece */
+    }
+    upd.chain = chain;
+    if (chain >= 0) upd.turn = chSeatI;
+    else {
+      const foeMoves = ckMovesFor(res.board, foe, -1);
+      const foePieces = res.board.some(p => p !== ".." && p[0] === foe);
+      if (!foeMoves.length || !foePieces) {
+        const pot = ((st.seats[0] && st.seats[0].bet) || 0) + ((st.seats[1] && st.seats[1].bet) || 0);
+        upd.phase = "done"; upd.doneTs = Date.now(); upd.winner = chSeatI;
+        upd.results = { [chSeatI]: { res: "🏆 You win! +" + pot.toLocaleString("en-US"), amt: pot } };
+      } else upd.turn = 1 - chSeatI;
+    }
+  }
+  chSel = -1;
+  tblUpd(key, upd);
+  sfxClick();
+}
+function chessHostTick() {
+  if (!entered || me.scene !== "chess" || !db) return;
+  for (let t = 0; t < 4; t++) {
+    const key = CHTABLES[t], st = chStates[t];
+    if (st && !["bet", "play", "done"].includes(st.phase)) { tblSet(key, { phase: "bet", seats: {}, roundId: 0, ts: Date.now() }); continue; }
+    tableIdleClear(key, st, { phase: "bet", seats: {}, roundId: (st && st.roundId) || 0, ts: Date.now() });
+    if (!st) { tblSet(key, { phase: "bet", seats: {}, roundId: 0, ts: Date.now() }); continue; }
+    const seats = st.seats || {}, now = Date.now();
+    const fresh = [0, 1].filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
+    const iAmHost = fresh.length && seats[fresh[0]] && seats[fresh[0]].pid === myId;
+    if (!iAmHost) continue;
+    if (st.phase === "bet") {
+      if (fresh.length === 2) {
+        const s0 = seats[0], s1 = seats[1];
+        if (s0.rdy && s1.rdy && s0.bet > 0 && s0.bet === s1.bet) {
+          const kind = CHKINDS[t];
+          tblUpd(key, { phase: "play", board: kind === "chess" ? chInitChess() : chInitCheckers(), turn: 1, capBy1: [], capBy0: [], castle: { wK: 1, wQ: 1, bK: 1, bQ: 1 }, chain: -1, check: 0, winner: -1, results: null, startTs: now });
+        }
+      }
+    } else if (st.phase === "play") {
+      if (fresh.length === 1 && now - (st.startTs || now) > 3000) {
+        const w = fresh[0], pot = ((seats[0] && seats[0].bet) || 0) + ((seats[1] && seats[1].bet) || 0);
+        tblUpd(key, { phase: "done", winner: w, doneTs: now, results: { [w]: { res: "🏆 Won by forfeit — +" + pot.toLocaleString("en-US"), amt: pot } } });
+      }
+    } else if (st.phase === "done" && now - (st.doneTs || 0) > 4000) {
+      Object.keys(seats).forEach(i => tblUpd(key + "/seats/" + i, { bet: 0, rdy: false }));
+      tblUpd(key, { phase: "bet", results: null, board: null, winner: -1, roundId: (st.roundId || 0) + 1 });
+    }
+  }
+}
+/* chessStandUp is defined with the Chess Room engine above */
+/* ============ Boxing Arena: the bouts (CASINO EXPANSION preview) ============
+   One shared record at hub/tables/box. Sit at the LEFT end or the RIGHT
+   end of the ring; when both ends are taken the host (the left seat's
+   client) rings the bell: both fighters are carried into the ring, health
+   at 100 each. Entering a bout UNTRANSFORMS you — if you walk in as the
+   mech you step into the ring as yourself, and there is no T button (and
+   no transforming) until the bout is over (Jonathan 2026-10-31). While
+   you box, the RUN button is replaced by R with L on top of it, both the
+   RUN button's size (PC: J/K). A punch lands inside reach for 6-10
+   damage; first to 0 health loses. No bets — the arena is for pride.
+   Both fighters staying seated after a bout starts the rematch. */
+let boxState = null, boxSeat = -1, boxLeft = -1, boxHooked = false, boxPrevPhase = "";
+let boxLastPunchAt = 0, myPunchAt = 0, myPunchSide = "";
+let boxNote = "", boxNoteAt = 0;
+function noteBox(txt) { boxNote = txt; boxNoteAt = performance.now(); }
+function boxingListen() {
+  if (!db || boxHooked) return; boxHooked = true;
+  db.ref("hub/tables/box").on("value", sn => { boxState = sn.val(); boxPhaseWatch(); });
+  setInterval(boxHostTick, 900);
+  setInterval(boxSeatBeat, 4000);
+}
+function boxMyRec() { const st = boxState; return (boxSeat >= 0 && st && st.seats && st.seats[boxSeat] && st.seats[boxSeat].pid === myId) ? st.seats[boxSeat] : null; }
+function boxPhaseWatch() {
+  const st = boxState; if (!st) return;
+  const ph = st.phase || "sit";
+  /* the KO call runs on EVERY snapshot, ahead of the phase-change work below: health changes do not change the phase, so a call gated on phase changes would never land */
+  if (ph === "fight" && st.hp && boxSeat >= 0 && boxMyRec()) {
+    const mine = st.hp[boxSeat] || 0, theirs = st.hp[1 - boxSeat] || 0;
+    if (theirs <= 0 && mine > 0) tblUpd("box", { phase: "done", winner: boxSeat, doneTs: Date.now() });
+    else if (mine <= 0 && theirs <= 0) tblUpd("box", { phase: "done", winner: -1, doneTs: Date.now() });
+  }
+  if (ph === boxPrevPhase) return;
+  const was = boxPrevPhase; boxPrevPhase = ph;
+  if (ph === "fight" && boxSeat >= 0 && boxMyRec()) {
+    /* stepping into the ring: the mech stays at the door (Jonathan 2026-10-31) */
+    if (mechForm) { mechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); }
+    boxingBout = { seat: boxSeat };
+    mySeatPos = null; /* off the chair, into the ring */
+    me.x = boxSeat === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130;
+    me.y = 900; me.flip = boxSeat === 0;
+    publish(true);
+    noteBox("🥊 FIGHT!");
+  }
+  if ((ph === "done" || ph === "sit") && was === "fight") {
+    boxingBout = null;
+    if (boxSeat >= 0 && boxMyRec()) { me.x = BOXSEATS[boxSeat].x; me.y = BOXSEATS[boxSeat].y; mySeatPos = BOXSEATS[boxSeat]; publish(true); } /* back to your corner seat */
+  }
+}
+function boxingSitAt(i) {
+  if (!acctUser) { noteBox("🔒 Boxing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  pullChips();
+  boxLeft = -1;
+  if (boxSeat >= 0) { if (boxSeat !== i) noteBox("Stand up from your end first."); return; }
+  const st = boxState, sd = st && st.seats && st.seats[i];
+  if (sd && sd.pid === myId) { boxSeat = i; mySeatPos = BOXSEATS[i]; seatOD("box", i, true); return; }
+  if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) { noteBox("That end is taken."); return; }
+  tblSet("box/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+  boxSeat = i; mySeatPos = BOXSEATS[i]; seatOD("box", i, true);
+}
+function boxingStandUp() {
+  if (boxSeat < 0) return;
+  const i = boxSeat;
+  boxLeft = i;
+  const st = boxState, sd = st && st.seats && st.seats[i];
+  if (boxingBout && st && st.phase === "fight") {
+    const other = 1 - i, os = st.seats && st.seats[other];
+    if (os && os.pid) tblUpd("box", { phase: "done", winner: other, doneTs: Date.now() });
+    noteBox("🏳️ You gave up the bout.");
+  }
+  boxingBout = null;
+  if (!(sd && sd.pid && sd.pid !== myId && Date.now() - (sd.ts || 0) <= 25000)) tblSet("box/seats/" + i, null);
+  seatOD("box", i, false);
+  boxSeat = -1;
+  if (bacSeat < 0 && craSeat < 0 && chSeatT < 0) mySeatPos = null; else if (chSeatT >= 0) mySeatPos = CHSEATS[chSeatT][chSeatI];
+}
+function boxSeatBeat() {
+  if (!db || !entered || me.scene !== "boxing") return;
+  if (boxSeat < 0) {
+    if (boxLeft >= 0) { const ls = boxState && boxState.seats && boxState.seats[boxLeft]; if (!ls || ls.pid !== myId) boxLeft = -1; }
+    const seats = (boxState && boxState.seats) || {};
+    for (let i = 0; i < 2; i++) { const sd = seats[i]; if (sd && sd.pid === myId && i !== boxLeft && Date.now() - (sd.ts || 0) <= 25000) { boxSeat = i; if (!boxingBout) mySeatPos = BOXSEATS[i]; seatOD("box", i, true); return; } }
+    return;
+  }
+  const sd = boxState && boxState.seats && boxState.seats[boxSeat];
+  if (!sd || sd.pid !== myId) { boxSeat = -1; boxingBout = null; if (bacSeat < 0 && craSeat < 0 && chSeatT < 0) mySeatPos = null; return; }
+  tblUpd("box/seats/" + boxSeat, { pid: myId, name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+}
+function boxPunch(side) {
+  if (!boxingBout || !boxState || boxState.phase !== "fight") return;
+  const now = Date.now();
+  if (now - boxLastPunchAt < 380) return; /* a real swing takes a beat */
+  if (srvNow() < (boxState.fightTs || 0) + 1200) return; /* gloves up until the bell settles */
+  boxLastPunchAt = now; myPunchAt = performance.now(); myPunchSide = side;
+  const st = boxState, opp = 1 - boxSeat, os = st.seats && st.seats[opp];
+  let hit = false, dmg = 0;
+  if (os && os.pid) {
+    let ox = null, oy = null;
+    for (const p of peers.values()) if (p.pid === os.pid && p.scene === "boxing") { ox = p.x; oy = p.y; }
+    if (ox !== null && Math.hypot(me.x - ox, me.y - oy) < 150) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
+  }
+  tblUpd("box", { punch: { by: boxSeat, side, ts: srvNow(), hit: hit ? 1 : 0 } });
+  if (hit) {
+    const cur = (st.hp && st.hp[opp]) || 0;
+    tblSet("box/hp/" + opp, Math.max(0, cur - dmg));
+    tone(150, 55, 0.09, "square", 0.22, 0);
+  } else tone(700, 300, 0.05, "sine", 0.05, 0); /* the whiff */
+}
+function boxHostTick() {
+  if (!entered || me.scene !== "boxing" || !db) return;
+  const st = boxState;
+  if (!st) { tblSet("box", { phase: "sit", seats: {}, roundId: 0, ts: Date.now() }); return; }
+  if (!["sit", "fight", "done"].includes(st.phase)) { tblSet("box", { phase: "sit", seats: {}, roundId: (st.roundId || 0), ts: Date.now() }); return; }
+  const seats = st.seats || {}, now = Date.now();
+  const fresh = [0, 1].filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
+  if (!fresh.length) { /* nobody at the ring: any leftover bout clears (the tables' last-seat rule) */
+    if (st.phase !== "sit" || st.hp) tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1 });
+    return;
+  }
+  if (!(seats[fresh[0]] && seats[fresh[0]].pid === myId)) return; /* the lowest fresh seat hosts */
+  if (st.phase === "sit" && fresh.length === 2) {
+    tblUpd("box", { phase: "fight", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, roundId: (st.roundId || 0) + 1 });
+  } else if (st.phase === "fight" && fresh.length === 1) {
+    tblUpd("box", { phase: "done", winner: fresh[0], doneTs: now }); /* your opponent is gone — the bout is yours */
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 4500) {
+    if (fresh.length === 2) tblUpd("box", { phase: "fight", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, roundId: (st.roundId || 0) + 1 }); /* both stayed in their seats: the rematch bell rings itself */
+    else tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1 });
+  }
+}
+/* boxingStandUp is defined with the Boxing Arena engine above */
+function casinoShell(w, h, title, sub) {
+  /* the casino's own floor and border, shared by the High Rollers Club and the Chess Room (Jonathan: same carpet, colours and border) */
+  ctx.fillStyle = "#40081b"; ctx.fillRect(0, 0, w, h);
+  ctx.save(); ctx.beginPath(); ctx.rect(34, 34, w - 68, h - 68); ctx.clip();
+  for (let gx = 60; gx < w; gx += 120) for (let gy = 60; gy < h; gy += 120) {
+    ctx.fillStyle = ((gx + gy) / 120) % 2 ? "rgba(255,110,130,0.045)" : "rgba(0,0,0,0.10)";
+    ctx.beginPath(); ctx.moveTo(gx, gy - 26); ctx.lineTo(gx + 26, gy); ctx.lineTo(gx, gy + 26); ctx.lineTo(gx - 26, gy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,215,106,0.05)"; ctx.beginPath(); ctx.arc(gx, gy, 4, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+  ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 6; ctx.strokeRect(14, 14, w - 28, h - 28);
+  ctx.strokeStyle = "rgba(168,85,247,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(30, 30, w - 60, h - 60);
+  ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = "#ffd76a"; ctx.fillText(title, w / 2, 128);
+  ctx.font = "700 25px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.8)";
+  ctx.fillText(sub, w / 2, 172);
+}
+function drawBooths(y, flip) {
+  /* a row of private booths along a wall: a curved bench + a little table each. Walk-over floor dressing (Jonathan 2026-10-31) */
+  for (let i = 0; i < 8; i++) {
+    const bx = 260 + i * 350, by = y;
+    ctx.fillStyle = "#5b1030"; ctx.beginPath(); ctx.arc(bx, by, 86, flip ? Math.PI : 0, flip ? 0 : Math.PI); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bx, by, 86, flip ? Math.PI : 0, flip ? 0 : Math.PI); ctx.stroke();
+    ctx.fillStyle = "#7a1a3e"; ctx.beginPath(); ctx.arc(bx, by, 58, flip ? Math.PI : 0, flip ? 0 : Math.PI); ctx.fill();
+    ctx.fillStyle = "#2a0a18"; ctx.beginPath(); ctx.arc(bx, by + (flip ? -34 : 34), 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bx, by + (flip ? -34 : 34), 30, 0, 7); ctx.stroke();
+    ctx.font = "24px sans-serif"; ctx.fillText("🍸", bx - 12, by + (flip ? -26 : 42));
+  }
+}
+function drawHRFelt(T, label) {
+  /* a casino table shell with DARK RED felt (Jonathan), gold rail, name plate */
+  ctx.fillStyle = "#20040c"; rr(T.x - 18, T.y - 18, T.w + 36, T.h + 36, 26); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.75)"; ctx.lineWidth = 3; rr(T.x - 18, T.y - 18, T.w + 36, T.h + 36, 26); ctx.stroke();
+  ctx.fillStyle = "#6e0a1a"; rr(T.x, T.y, T.w, T.h, 18); ctx.fill();
+  ctx.strokeStyle = "rgba(255,160,170,0.35)"; ctx.lineWidth = 2; rr(T.x + 14, T.y + 14, T.w - 28, T.h - 28, 12); ctx.stroke();
+  ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,220,225,0.85)";
+  ctx.fillText(label, T.x + T.w / 2, T.y + 64);
+}
+function drawChairs(seats) {
+  for (const st of seats) {
+    ctx.fillStyle = "#2a0a18"; ctx.beginPath(); ctx.arc(st.x, st.y, 34, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(st.x, st.y, 34, 0, 7); ctx.stroke();
+    ctx.fillStyle = "#57102a"; ctx.beginPath(); ctx.arc(st.x, st.y, 24, 0, 7); ctx.fill();
+  }
+}
+function drawHighRollers(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  casinoShell(HRROOM.w, HRROOM.h, "👑 HIGH ROLLERS CLUB 👑", "baccarat · craps — high stakes only: 5,000 and up");
+  uiZones = [];
+  drawBooths(300, false); /* the top row of private booths */
+  /* the long divider between the booths and the tables */
+  ctx.fillStyle = "#2a0a18"; rr(120, 872, HRROOM.w - 240, 26, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(120, 872, HRROOM.w - 240, 26, 12); ctx.stroke();
+  drawHRFelt(BACT, "🎴 BACCARAT");
+  drawHRFelt(CRAT, "🎲 CRAPS");
+  /* the chairs themselves are painted by the table pass (drawHRTableFx), which also owns their tap zones */
+  /* the same divider again, below the tables' chairs, and the second booth row */
+  ctx.fillStyle = "#2a0a18"; rr(120, 1692, HRROOM.w - 240, 26, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(120, 1692, HRROOM.w - 240, 26, 12); ctx.stroke();
+  drawBooths(HRROOM.h - 130, true);
+  /* exit door, left wall toward the bottom — the casino entry door's own height */
+  ctx.fillStyle = "#0a1428"; ctx.fillRect(0, CASINODOORS_Y - 92, 36, 184);
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.strokeRect(0, CASINODOORS_Y - 92, 36, 184);
+  ctx.save(); ctx.translate(66, CASINODOORS_Y); ctx.rotate(-Math.PI / 2);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("🚪 CASINO", 0, 9); ctx.restore();
+  drawHRTableFx(t);
+  ctx.restore();
+}
+function hrcSeatsRow(list, st, game) {
+  list.forEach((sp, i) => {
+    const occ = st && st.seats && st.seats[i] && st.seats[i].pid && Date.now() - (st.seats[i].ts || 0) < 25000;
+    if (!occ && bacSeat < 0 && craSeat < 0) {
+      const T = game === "bac" ? BACT : CRAT;
+      if (Math.hypot(me.x - (T.x + T.w / 2), me.y - (T.y + T.h + 60)) < 470 || Math.hypot(me.x - sp.x, me.y - sp.y) < 150)
+        uiZones.push({ x: sp.x - 34, y: sp.y - 34, w: 68, h: 68, fn: () => hrcSitAt(game, i) });
+    }
+    ctx.fillStyle = occ ? "#ffd76a" : "#4a2a72";
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = occ ? "#fff2c4" : "rgba(255,215,106,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", sp.x, sp.y + 7);
+    if (occ && st.seats[i].chips !== undefined) {
+      const txt = "🪙 " + Number(st.seats[i].chips || 0).toLocaleString("en-US");
+      ctx.font = "700 19px 'Segoe UI',sans-serif";
+      const w = ctx.measureText(txt).width + 22;
+      ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(sp.x - w / 2, sp.y + 40, w, 30, 15); ctx.fill();
+      ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(sp.x - w / 2, sp.y + 40, w, 30, 15); ctx.stroke();
+      ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, sp.x, sp.y + 62);
+    }
+  });
+}
+function hrcSeatBets(list, st, game) {
+  list.forEach((sp, i) => {
+    const sd = st && st.seats && st.seats[i];
+    if (!sd || Date.now() - (sd.ts || 0) > 25000) return;
+    const T = game === "bac" ? BACT : CRAT;
+    const ax = T.x + 110 + i * 170, ay = T.y + T.h - 128;
+    if (sd.bet) {
+      drawChip(ax, ay, sd.bet);
+      ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center";
+      ctx.fillText(sd.betType ? sd.betType.toUpperCase().replace("DONTPASS", "DON'T PASS") : "", ax, ay + 38);
+      if (sd.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", ax, ay - 32); }
+    }
+    if (st.phase === "done" && st.results && st.results[i]) {
+      ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.textAlign = "center";
+      ctx.fillText(st.results[i].res, sp.x, sp.y - 48);
+    }
+  });
+}
+function hrcTableHead(T, game, status) {
+  ctx.textAlign = "center"; ctx.font = "700 23px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+  ctx.fillText(status, T.x + 664, T.y + 96);
+  const mine = hrcMySeat(game), st = hrcSt(game);
+  if (st && st.phase === "bet" && mine) {
+    const hasBet = (mine.bet || 0) > 0, isRdy = !!(mine.rdy && hasBet);
+    drawBtn(T.x + T.w - 168, T.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? () => hrcReady(game) : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+  }
+  if (hrcIdx(game) >= 0) {
+    const amt = game === "bac" ? bacAmt : craAmt;
+    HR_BETS.forEach((a, k) => drawBtn(T.x + 478 + k * 67, T.y + T.h - 40, 60, 22, a >= 1000 ? (a / 1000) + "k" : String(a), () => hrcSetAmt(game, a), { fs: 14, sel: amt === a, pad: 2 }));
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
+    ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - 52);
+  }
+}
+function hrcStatus(st, dealWord, doneWord) {
+  if (!st) return "Setting up the table…";
+  const ss = st.seats || {}, nowS = Date.now();
+  const fr = Object.keys(ss).filter(k => ss[k] && ss[k].pid && nowS - (ss[k].ts || 0) < 25000);
+  if (!fr.length && st.phase !== "bet") return "Place your bets";
+  if (st.phase === "bet") {
+    const bt = fr.filter(k => ss[k].bet > 0), rd = fr.filter(k => ss[k].rdy && ss[k].bet > 0);
+    return bt.length ? "Waiting for everyone to tap READY — " + rd.length + "/" + fr.length + " ready" : "Place your bets";
+  }
+  if (st.phase === "done") return doneWord;
+  return dealWord;
+}
+function drawBacTable() {
+  const st = bacState, T = BACT;
+  hrcTableHead(T, "bac", hrcStatus(st, "No more bets — dealing!", "Next hand soon…"));
+  const mine = hrcMySeat("bac"), canBet = !!(st && st.phase === "bet" && mine);
+  const picks = [["player", "🙂 PLAYER · pays 1 to 1", "#1d4e89"], ["banker", "🏦 BANKER · pays 0.95 to 1", "#7a1a1a"], ["tie", "🤝 TIE · pays 8 to 1", "#0a6e4a"]];
+  picks.forEach((tp, k) => {
+    const bx = T.x + 478, by = T.y + 116 + k * 76, bw = 392;
+    const sel = !!mine && mine.betType === tp[0];
+    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), () => hrcBet("bac", tp[0]), { fs: 20, fill: tp[2], sel, pad: 6 });
+    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
+  });
+  if (st && (st.phase === "deal" || st.phase === "done") && st.pHand && st.bHand) {
+    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.fillStyle = "#9fd0ff"; ctx.fillText("PLAYER — " + bacVal(st.pHand), T.x + 130, T.y + 108);
+    ctx.fillStyle = "#ffb3b3"; ctx.fillText("BANKER — " + bacVal(st.bHand), T.x + 330, T.y + 108);
+    st.pHand.forEach((c, i) => drawCard(T.x + 56 + i * 74, T.y + 128, 64, 92, c, false));
+    st.bHand.forEach((c, i) => drawCard(T.x + 256 + i * 74, T.y + 128, 64, 92, c, false));
+    if (st.phase === "done" && st.winner) {
+      ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+      ctx.fillText(st.winner === "tie" ? "🤝 TIE!" : (st.winner === "player" ? "🙂 PLAYER WINS!" : "🏦 BANKER WINS!"), T.x + 224, T.y + 268);
+    }
+  } else {
+    ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)"; ctx.textAlign = "center";
+    ctx.fillText("closest to 9 wins — the dealer follows the tableau, no decisions to make", T.x + 224, T.y + 170);
+  }
+  hrcSeatBets(BACSEATS, st, "bac");
+  hrcSeatsRow(BACSEATS, st, "bac");
+}
+function drawCraTable() {
+  const st = craState, T = CRAT;
+  hrcTableHead(T, "cra", hrcStatus(st, "No more bets — rolling!", "Next roll soon…"));
+  const mine = hrcMySeat("cra"), canBet = !!(st && st.phase === "bet" && mine);
+  const picks = [["pass", "✅ PASS LINE · pays 1 to 1", "#1d4e89"], ["dontpass", "🚫 DON'T PASS · pays 1 to 1", "#7a1a1a"]];
+  picks.forEach((tp, k) => {
+    const bx = T.x + 478, by = T.y + 116 + k * 76, bw = 392;
+    const sel = !!mine && mine.betType === tp[0];
+    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), () => hrcBet("cra", tp[0]), { fs: 20, fill: tp[2], sel, pad: 6 });
+    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
+  });
+  const drawDie = (cx, cy, v) => {
+    ctx.fillStyle = "#f6f2e8"; rr(cx - 34, cy - 34, 68, 68, 12); ctx.fill();
+    ctx.strokeStyle = "rgba(10,10,20,0.55)"; ctx.lineWidth = 2; rr(cx - 34, cy - 34, 68, 68, 12); ctx.stroke();
+    ctx.fillStyle = "#1c2440";
+    const offs = v === 1 ? [[0, 0]] : v === 2 ? [[-16, -16], [16, 16]] : v === 3 ? [[-16, -16], [0, 0], [16, 16]] : v === 4 ? [[-16, -16], [16, -16], [-16, 16], [16, 16]] : v === 5 ? [[-16, -16], [16, -16], [0, 0], [-16, 16], [16, 16]] : [[-16, -16], [16, -16], [-16, 0], [16, 0], [-16, 16], [16, 16]];
+    for (const [ox, oy] of offs) { ctx.beginPath(); ctx.arc(cx + ox, cy + oy, 7, 0, 7); ctx.fill(); }
+  };
+  if (st && st.dice && (st.phase === "roll" || st.phase === "done")) {
+    drawDie(T.x + 160, T.y + 190, st.dice[0]);
+    drawDie(T.x + 260, T.y + 190, st.dice[1]);
+    ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("🎲 " + (st.dice[0] + st.dice[1]), T.x + 210, T.y + 292);
+    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+    ctx.fillText(st.point ? "POINT IS " + st.point : "COME-OUT ROLL", T.x + 210, T.y + 120);
+    if (st.phase === "done" && st.end) {
+      ctx.font = "800 28px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+      ctx.fillText(st.end === "pass" ? "✅ PASS WINS!" : st.end === "dontpass" ? "🚫 DON'T PASS WINS!" : "Bar 12 — don't pass pushes", T.x + 224, T.y + 340);
+    }
+  } else {
+    ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)"; ctx.textAlign = "center";
+    ctx.fillText("pass line only — come-out 7 or 11 wins, 2 · 3 · 12 loses, then make the point before a 7", T.x + 224, T.y + 170);
+  }
+  hrcSeatBets(CRASEATS, st, "cra");
+  hrcSeatsRow(CRASEATS, st, "cra");
+}
+function drawHRTableFx(t) {
+  drawBacTable();
+  drawCraTable();
+  if (hrcNote && performance.now() - hrcNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(hrcNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.93)"; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(hrcNote, me.x, me.y - 133);
+  }
+}
+function drawChess(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  casinoShell(CHESSROOM.w, CHESSROOM.h, "♟️ CHESS ROOM ♟️", "chess · checkers — match your opponent's bet, winner takes the pot");
+  /* the centre cross walkway, the Sports Complex's pattern: dark strips edged in gold */
+  ctx.fillStyle = "rgba(0,0,0,0.22)"; ctx.fillRect(1200, 0, 240, CHESSROOM.h); ctx.fillRect(0, 1200, CHESSROOM.w, 240);
+  ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(1200, 0); ctx.lineTo(1200, CHESSROOM.h); ctx.moveTo(1440, 0); ctx.lineTo(1440, CHESSROOM.h); ctx.moveTo(0, 1200); ctx.lineTo(CHESSROOM.w, 1200); ctx.moveTo(0, 1440); ctx.lineTo(CHESSROOM.w, 1440); ctx.stroke();
+  const names = ["♞ CHESS", "⛀ CHECKERS", "⛀ CHECKERS", "♞ CHESS"];
+  CHBOARDS.forEach((b, i) => {
+    ctx.fillStyle = "#20040c"; rr(b.x - 18, b.y - 18, b.w + 36, b.h + 36, 20); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.75)"; ctx.lineWidth = 3; rr(b.x - 18, b.y - 18, b.w + 36, b.h + 36, 20); ctx.stroke();
+    const sq = b.w / 8, ck = (i === 1 || i === 2);
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      ctx.fillStyle = (r + c) % 2 ? (ck ? "#8e2323" : "#9a5b2e") : (ck ? "#e9e2d2" : "#e8c890");
+      ctx.fillRect(b.x + c * sq, b.y + r * sq, sq, sq);
+    }
+    ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText(names[i], b.x + b.w / 2, b.y - 34);
+    /* chairs are painted by drawChessFx, which also owns their tap zones */
+  });
+  /* exit door, centre of the right wall on the centre path */
+  ctx.fillStyle = "#0a1428"; ctx.fillRect(CHESSROOM.w - 36, CHESSROOM.h / 2 - 92, 36, 184);
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.strokeRect(CHESSROOM.w - 36, CHESSROOM.h / 2 - 92, 36, 184);
+  ctx.save(); ctx.translate(CHESSROOM.w - 66, CHESSROOM.h / 2); ctx.rotate(-Math.PI / 2);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("🚪 CASINO", 0, 9); ctx.restore();
+  drawChessFx(t);
+  ctx.restore();
+}
+const CH_GLYPHS = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" };
+function chessFocusRect() {
+  /* the Sports Complex camera, carried to the Chess Room (Jonathan 2026-10-31): on the centre walkway the room reads whole; step off it into a corner section and the camera snaps to that corner */
+  if (me.x < 1200 && me.y < 1200) return { x: 0, y: 0, w: 1440, h: 1440 };
+  if (me.x > 1440 && me.y < 1200) return { x: 1200, y: 0, w: 1440, h: 1440 };
+  if (me.x < 1200 && me.y > 1440) return { x: 0, y: 1200, w: 1440, h: 1440 };
+  if (me.x > 1440 && me.y > 1440) return { x: 1200, y: 1200, w: 1440, h: 1440 };
+  return null;
+}
+function drawChessFx(t) {
+  for (let ti = 0; ti < 4; ti++) drawChessBoard(ti);
+  if (chNote && performance.now() - chNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(chNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.93)"; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(chNote, me.x, me.y - 133);
+  }
+}
+function drawChessBoard(ti) {
+  const b = CHBOARDS[ti], kind = CHKINDS[ti], st = chStates[ti], sq = b.w / 8;
+  const boardStr = (st && st.board) || (kind === "chess" ? chInitChess() : chInitCheckers());
+  const a = chParse(boardStr);
+  /* status line above the board */
+  ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#eaf6ff";
+  let status = "Take a seat at either end";
+  if (st) {
+    const ss = st.seats || {}, nowS = Date.now();
+    const f0 = ss[0] && ss[0].pid && nowS - (ss[0].ts || 0) < 25000, f1 = ss[1] && ss[1].pid && nowS - (ss[1].ts || 0) < 25000;
+    if (st.phase === "bet") {
+      if (f0 && f1) {
+        if (ss[0].bet > 0 && ss[1].bet > 0 && ss[0].bet !== ss[1].bet) status = "⚠️ Bets must match — " + ss[0].bet.toLocaleString("en-US") + " vs " + ss[1].bet.toLocaleString("en-US");
+        else if (ss[0].bet > 0 && ss[0].bet === ss[1].bet) status = (ss[0].rdy && ss[1].rdy) ? "Starting…" : "Matched at " + ss[0].bet.toLocaleString("en-US") + " — both tap READY";
+        else status = "Both players stake the same amount, then READY";
+      } else if (f0 || f1) status = "Waiting for an opponent to sit down";
+    } else if (st.phase === "play") {
+      const turnSeat = st.turn, nm = ss[turnSeat] ? ss[turnSeat].name : "…";
+      status = (chSeatT === ti && chSeatI === turnSeat) ? "♟️ Your move" + (kind === "chess" && st.check ? " — CHECK!" : "") : nm + " to move" + (kind === "chess" && st.check ? " — check!" : "");
+      if (kind === "checkers" && st.chain !== undefined && st.chain >= 0 && st.chain !== null) status += " — jump again!";
+    } else if (st.phase === "done") {
+      status = st.winner >= 0 && ss[st.winner] ? "🏆 " + ss[st.winner].name + " wins the pot!" : "🤝 A draw — bets returned";
+    }
+  }
+  ctx.fillText(status, b.x + b.w / 2, b.y - 64);
+  /* pieces */
+  for (let i = 0; i < 64; i++) {
+    const p = a[i]; if (p === "..") continue;
+    const r = Math.floor(i / 8), c = i % 8, cx = b.x + c * sq + sq / 2, cy = b.y + r * sq + sq / 2;
+    if (kind === "chess") {
+      ctx.font = Math.round(sq * 0.74) + "px sans-serif"; ctx.textAlign = "center";
+      ctx.lineWidth = 5; ctx.strokeStyle = p[0] === "w" ? "rgba(20,16,8,0.85)" : "rgba(246,242,232,0.9)";
+      ctx.strokeText(CH_GLYPHS[p[1]], cx, cy + sq * 0.27);
+      ctx.fillStyle = p[0] === "w" ? "#fff8ea" : "#181818";
+      ctx.fillText(CH_GLYPHS[p[1]], cx, cy + sq * 0.27);
+    } else {
+      const red = p[0] === "r";
+      ctx.fillStyle = red ? "#c62f3b" : "#1c1c22"; ctx.beginPath(); ctx.arc(cx, cy, sq * 0.36, 0, 7); ctx.fill();
+      ctx.strokeStyle = red ? "#ffb3b3" : "#cfd4e2"; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.beginPath(); ctx.arc(cx, cy, sq * 0.24, 0, 7); ctx.fill();
+      if (p[1] === "K") { ctx.font = Math.round(sq * 0.4) + "px sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center"; ctx.fillText("♛", cx, cy + sq * 0.15); }
+    }
+  }
+  /* captured racks: the bottom seat's takes down the board's left side, the top seat's down its right — the pool sunk-ball racks, stood on end */
+  const rack = (list, x, top) => {
+    if (!list || !list.length) return;
+    ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,233,168,0.75)";
+    ctx.fillText("CAPTURED", x + 42, top - 12);
+    list.forEach((p, k) => {
+      const cx = x + 22 + (k % 2) * 42, cy = top + 20 + Math.floor(k / 2) * 44;
+      if (kind === "chess") {
+        ctx.font = "30px sans-serif"; ctx.lineWidth = 4; ctx.strokeStyle = p[0] === "w" ? "rgba(20,16,8,0.85)" : "rgba(246,242,232,0.9)";
+        ctx.strokeText(CH_GLYPHS[p[1]], cx, cy + 11);
+        ctx.fillStyle = p[0] === "w" ? "#fff8ea" : "#181818"; ctx.fillText(CH_GLYPHS[p[1]], cx, cy + 11);
+      } else {
+        ctx.fillStyle = p[0] === "r" ? "#c62f3b" : "#1c1c22"; ctx.beginPath(); ctx.arc(cx, cy, 15, 0, 7); ctx.fill();
+        ctx.strokeStyle = p[0] === "r" ? "#ffb3b3" : "#cfd4e2"; ctx.lineWidth = 2; ctx.stroke();
+        if (p[1] === "K") { ctx.font = "16px sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("♛", cx, cy + 6); }
+      }
+    });
+  };
+  if (st && st.phase !== "bet") { rack(st.capBy1, b.x - 148, b.y + 30); rack(st.capBy0, b.x + b.w + 62, b.y + 30); }
+  /* seats: chairs, names, stakes — and the sit tap zones */
+  CHSEATS[ti].forEach((sp, i) => {
+    const sd = st && st.seats && st.seats[i];
+    const occ = sd && sd.pid && Date.now() - (sd.ts || 0) < 25000;
+    if (!occ && chSeatT < 0) {
+      if (Math.hypot(me.x - (b.x + b.w / 2), me.y - (b.y + b.h / 2)) < 720 || Math.hypot(me.x - sp.x, me.y - sp.y) < 150)
+        uiZones.push({ x: sp.x - 34, y: sp.y - 34, w: 68, h: 68, fn: () => chessSitAt(ti, i) });
+    }
+    ctx.fillStyle = occ ? "#ffd76a" : "#4a2a72";
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = occ ? "#fff2c4" : "rgba(255,215,106,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", sp.x, sp.y + 7);
+    if (occ) {
+      ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
+      ctx.fillText(sd.name || "", sp.x, sp.y - 44);
+      if (sd.bet) { drawChip(sp.x, sp.y + 52, sd.bet); if (sd.rdy && st.phase === "bet") { ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 92); } }
+      if (st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + (i === 0 ? -70 : 118)); }
+    }
+  });
+  /* my controls while seated at THIS board */
+  if (chSeatT === ti && st) {
+    const mine = chMySeatRec(ti);
+    if (st.phase === "bet" && mine) {
+      CH_BETS.forEach((amt, k) => drawBtn(b.x + b.w / 2 - 201 + (k % 6) * 67, b.y + b.h - 66 + Math.floor(k / 6) * 26, 60, 22, amt >= 1000 ? (amt / 1000) + "k" : String(amt), () => chessBet(amt), { fs: 14, sel: (mine.bet || 0) === amt, pad: 2 }));
+      const hasBet = (mine.bet || 0) > 0, isRdy = !!(mine.rdy && hasBet);
+      drawBtn(b.x + b.w / 2 - 70, b.y + b.h - 140, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? chessReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+    }
+    if (st.phase === "play" && st.turn === chSeatI) {
+      /* move input: tap one of my pieces, then a lit target square */
+      const myColor = kind === "chess" ? (chSeatI === 1 ? "w" : "b") : (chSeatI === 1 ? "r" : "b");
+      const legal = kind === "chess" ? chLegal(a, myColor, st.castle) : ckMovesFor(a, myColor, (st.chain === undefined || st.chain === null) ? -1 : st.chain);
+      const froms = [...new Set(legal.map(mv => mv.from))];
+      if (chSel >= 0 && !froms.includes(chSel)) chSel = -1;
+      for (const f of froms) {
+        const r = Math.floor(f / 8), c = f % 8;
+        ctx.strokeStyle = "rgba(125,255,176,0.85)"; ctx.lineWidth = 3; ctx.strokeRect(b.x + c * sq + 3, b.y + r * sq + 3, sq - 6, sq - 6);
+        uiZones.push({ x: b.x + c * sq, y: b.y + r * sq, w: sq, h: sq, fn: () => { chSel = f; sfxClick(); } });
+      }
+      if (chSel >= 0) {
+        const r0 = Math.floor(chSel / 8), c0 = chSel % 8;
+        ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 5; ctx.strokeRect(b.x + c0 * sq + 2, b.y + r0 * sq + 2, sq - 4, sq - 4);
+        legal.filter(mv => mv.from === chSel).forEach(mv => {
+          const r = Math.floor(mv.to / 8), c = mv.to % 8, cx = b.x + c * sq + sq / 2, cy = b.y + r * sq + sq / 2;
+          ctx.fillStyle = mv.cap >= 0 && a[mv.cap] !== ".." ? "rgba(255,90,90,0.9)" : "rgba(125,255,176,0.9)";
+          ctx.beginPath(); ctx.arc(cx, cy, 13, 0, 7); ctx.fill();
+          uiZones.push({ x: b.x + c * sq, y: b.y + r * sq, w: sq, h: sq, fn: () => chDoMove(ti, mv) });
+        });
+      }
+    }
+  }
+}
+function drawBoxing(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  ctx.fillStyle = "#07040e"; ctx.fillRect(-900, -900, BOXROOM.w + 1800, BOXROOM.h + 1800);
+  /* the entry hallway (the theatre's shape): a lit strip running west-east into the arena */
+  ctx.fillStyle = "#2c0f1e"; ctx.fillRect(0, BOXHALL.top, BOXHALL.x1, BOXHALL.bot - BOXHALL.top);
+  ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(0, BOXHALL.top); ctx.lineTo(BOXHALL.x1, BOXHALL.top); ctx.moveTo(0, BOXHALL.bot); ctx.lineTo(BOXHALL.x1, BOXHALL.bot); ctx.stroke();
+  ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(207,234,255,0.75)";
+  ctx.fillText("🥊 this way to the arena →", BOXHALL.x1 / 2, BOXROOM.h / 2 + 90);
+  /* the arena: blue carpet */
+  ctx.fillStyle = "#17336e"; ctx.fillRect(BOXHALL.x1, 0, BOXROOM.w - BOXHALL.x1, BOXROOM.h);
+  ctx.save(); ctx.beginPath(); ctx.rect(BOXHALL.x1 + 34, 34, BOXROOM.w - BOXHALL.x1 - 68, BOXROOM.h - 68); ctx.clip();
+  for (let gx = BOXHALL.x1 + 60; gx < BOXROOM.w; gx += 120) for (let gy = 60; gy < BOXROOM.h; gy += 120) {
+    ctx.fillStyle = ((gx + gy) / 120) % 2 ? "rgba(140,180,255,0.05)" : "rgba(0,0,0,0.10)";
+    ctx.beginPath(); ctx.moveTo(gx, gy - 26); ctx.lineTo(gx + 26, gy); ctx.lineTo(gx, gy + 26); ctx.lineTo(gx - 26, gy); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 6; ctx.strokeRect(14, 14, BOXROOM.w - 28, BOXROOM.h - 28);
+  ctx.strokeStyle = "rgba(168,85,247,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(30, 30, BOXROOM.w - 60, BOXROOM.h - 60);
+  ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("🥊 BOXING ARENA 🥊", 1800, 128);
+  /* bleachers: 3 stepped rows on the top, right and bottom */
+  for (const B of BOXBLEACH) {
+    for (let r = 0; r < 3; r++) {
+      const horiz = B.w > B.h;
+      const bx = horiz ? B.x : B.x + r * (B.w / 3), by = horiz ? B.y + r * (B.h / 3) : B.y;
+      const bw = horiz ? B.w : B.w / 3, bh = horiz ? B.h / 3 : B.h;
+      ctx.fillStyle = ["#3d4d75", "#46587f", "#2f3d5f"][r]; ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+    }
+  }
+  /* the ring: white floor, apron, corner posts, red and blue ropes */
+  ctx.fillStyle = "#d8dce6"; ctx.fillRect(BOXRING.x - 46, BOXRING.y - 46, BOXRING.w + 92, BOXRING.h + 92);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(BOXRING.x, BOXRING.y, BOXRING.w, BOXRING.h);
+  ctx.strokeStyle = "rgba(90,110,160,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(BOXRING.x + 16, BOXRING.y + 16, BOXRING.w - 32, BOXRING.h - 32);
+  ctx.font = "44px sans-serif"; ctx.fillStyle = "#7a8db5"; ctx.fillText("⚛", 1800, 916);
+  const posts = [[BOXRING.x - 46, BOXRING.y - 46, "#d42a2a"], [BOXRING.x + BOXRING.w + 46, BOXRING.y - 46, "#e8e8e8"], [BOXRING.x - 46, BOXRING.y + BOXRING.h + 46, "#e8e8e8"], [BOXRING.x + BOXRING.w + 46, BOXRING.y + BOXRING.h + 46, "#2a4fd4"]];
+  for (const [px, py, col] of posts) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 20, 0, 7); ctx.fill(); ctx.strokeStyle = "#10131c"; ctx.lineWidth = 3; ctx.stroke(); }
+  ctx.lineWidth = 7; ctx.strokeStyle = "#d42a2a"; rr(BOXRING.x - 46, BOXRING.y - 46, BOXRING.w + 92, BOXRING.h + 92, 10); ctx.stroke();
+  ctx.lineWidth = 7; ctx.strokeStyle = "#2a4fd4"; rr(BOXRING.x - 24, BOXRING.y - 24, BOXRING.w + 48, BOXRING.h + 48, 8); ctx.stroke();
+  drawChairs(BOXSEATS);
+  /* exit plate at the hallway's west end */
+  ctx.fillStyle = "#0a1428"; rr(56, BOXROOM.h / 2 - 110, 200, 44, 8); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(56, BOXROOM.h / 2 - 110, 200, 44, 8); ctx.stroke();
+  ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("🚪 SPORTS COMPLEX", 156, BOXROOM.h / 2 - 80);
+  drawBoxingFx(t);
+  ctx.restore();
+}
+function drawBoxingFx(t) {
+  const st = boxState;
+  /* the two corner seats */
+  BOXSEATS.forEach((sp, i) => {
+    const sd = st && st.seats && st.seats[i];
+    const occ = sd && sd.pid && Date.now() - (sd.ts || 0) < 25000;
+    if (!occ && boxSeat < 0) {
+      if (Math.hypot(me.x - sp.x, me.y - sp.y) < 190 || Math.hypot(me.x - 1800, me.y - 900) < 620)
+        uiZones.push({ x: sp.x - 34, y: sp.y - 34, w: 68, h: 68, fn: () => boxingSitAt(i) });
+    }
+    ctx.fillStyle = occ ? "#ffd76a" : "#4a2a72";
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = occ ? "#fff2c4" : "rgba(255,215,106,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", sp.x, sp.y + 7);
+    ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
+    ctx.fillText(i === 0 ? "RED corner" : "BLUE corner", sp.x, sp.y + 58);
+    if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); }
+  });
+  if (st && (st.phase === "fight" || st.phase === "done")) {
+    /* health bars under the title: left seat left, right seat right */
+    const bar = (i, x, dir) => {
+      const hp = Math.max(0, (st.hp && st.hp[i]) || 0), nm = (st.seats && st.seats[i] && st.seats[i].name) || "—";
+      ctx.fillStyle = "rgba(8,10,24,0.85)"; rr(x, 168, 470, 40, 10); ctx.fill();
+      ctx.strokeStyle = i === 0 ? "#d42a2a" : "#2a4fd4"; ctx.lineWidth = 2.5; rr(x, 168, 470, 40, 10); ctx.stroke();
+      const w = 462 * (hp / 100);
+      ctx.fillStyle = hp > 50 ? "#39d353" : hp > 25 ? "#e8b93c" : "#d42a2a";
+      if (dir > 0) ctx.fillRect(x + 4, 172, w, 32); else ctx.fillRect(x + 466 - w, 172, w, 32);
+      ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
+      ctx.fillText((i === 0 ? "🔴 " : "🔵 ") + nm + " · " + hp, x + 235, 196);
+    };
+    bar(0, 1800 - 500 - 470, 1); bar(1, 1800 + 500, -1);
+    if (st.phase === "fight" && srvNow() < (st.fightTs || 0) + 1200) {
+      ctx.font = "800 54px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+      ctx.fillText("🥊 GET READY…", 1800, 880);
+    }
+    if (st.phase === "done") {
+      ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+      const wnm = st.winner >= 0 && st.seats && st.seats[st.winner] ? st.seats[st.winner].name : null;
+      ctx.fillText(wnm ? "🏆 " + wnm + " WINS!" : "🤝 DOUBLE KO — A DRAW!", 1800, 880);
+      ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.85)";
+      ctx.fillText("stay in your seats for the rematch", 1800, 920);
+    }
+    /* the gloves: two big gloves on every fighter, stacked one over the other on the side they face — the top glove throws the left punch, the lower one the right; a fresh punch record lunges its glove */
+    const drawGloves = (fx, fy, flip, punchSide, punchAge) => {
+      const sideSign = flip ? 1 : -1;
+      const glove = (dy, isTop) => {
+        let lx = fx + sideSign * 40, ly = fy - 58 + dy;
+        const mine = (punchSide === (isTop ? "L" : "R"));
+        if (mine && punchAge < 200) lx += sideSign * 26 * (1 - punchAge / 200);
+        ctx.fillStyle = isTop ? "#d42a2a" : "#2a4fd4";
+        ctx.beginPath(); ctx.arc(lx, ly, 27, 0, 7); ctx.fill();
+        ctx.strokeStyle = "rgba(10,10,20,0.6)"; ctx.lineWidth = 3; ctx.stroke();
+        ctx.fillStyle = "#f6f2e8"; ctx.fillRect(lx - (flip ? 30 : -3), ly - 8, 30, 16); /* the cuff, behind the fist */
+        ctx.strokeStyle = "rgba(10,10,20,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(lx - (flip ? 30 : -3), ly - 8, 30, 16);
+      };
+      glove(0, true); glove(40, false);
+    };
+    const punchAge = st.punch ? (srvNow() - (st.punch.ts || 0)) : 1e9;
+    for (let i = 0; i < 2; i++) {
+      const sd = st.seats && st.seats[i]; if (!sd || !sd.pid) continue;
+      let fx = null, fy = null, flip = i === 1;
+      if (sd.pid === myId) { fx = me.x; fy = me.y; flip = me.flip; }
+      else for (const p of peers.values()) if (p.pid === sd.pid && p.scene === "boxing") { fx = p.x; fy = p.y; flip = p.flip; }
+      if (fx === null) continue;
+      const side = (st.punch && st.punch.by === i) ? st.punch.side : (sd.pid === myId ? myPunchSide : "");
+      const age = (st.punch && st.punch.by === i) ? punchAge : (sd.pid === myId ? performance.now() - myPunchAt : 1e9);
+      drawGloves(fx, fy, flip, side, age);
+      if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 220) { /* the impact star on the fighter just hit */
+        ctx.font = "34px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥", fx + (flip ? -34 : 34), fy - 66);
+      }
+    }
+  } else if (st && st.phase === "sit") {
+    const ss = st.seats || {}, nowS = Date.now();
+    const both = [0, 1].every(i => ss[i] && ss[i].pid && nowS - (ss[i].ts || 0) < 25000);
+    ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(207,234,255,0.85)";
+    ctx.fillText(both ? "Both corners filled — the bell is about to ring!" : "Sit at the red end or the blue end — a bout starts when both ends are taken", 1800, 330);
+  }
+  if (boxNote && performance.now() - boxNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(boxNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.93)"; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(boxNote, me.x, me.y - 133);
+  }
+}
+
 function drawCasino(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* burgundy carpet with a woven diamond texture (Jonathan 2026-10-29) */
@@ -5573,6 +6848,15 @@ function drawCasino(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(CAEXIT.x, CAEXIT.y, CAEXIT.w, CAEXIT.h, 8); ctx.stroke();
   ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", CAEXIT.x + CAEXIT.w / 2, CAEXIT.y + 30);
+  /* the two side doors (CASINO EXPANSION preview): dark gaps in the side walls at CASINODOORS_Y, gold plates reading down each wall, the arcade doors' style */
+  ctx.fillStyle = "#0a1428"; ctx.fillRect(CASINOROOM.w - 36, CASINODOORS_Y - 92, 36, 184); ctx.fillRect(0, CASINODOORS_Y - 92, 36, 184);
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.strokeRect(CASINOROOM.w - 36, CASINODOORS_Y - 92, 36, 184); ctx.strokeRect(0, CASINODOORS_Y - 92, 36, 184);
+  ctx.save(); ctx.translate(CASINOROOM.w - 66, CASINODOORS_Y); ctx.rotate(-Math.PI / 2);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("👑 HIGH ROLLERS CLUB", 0, 9); ctx.restore();
+  ctx.save(); ctx.translate(66, CASINODOORS_Y); ctx.rotate(-Math.PI / 2);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("♟️ CHESS ROOM", 0, 9); ctx.restore();
   drawTableFx(t, "casino");
   if (casinoNote && performance.now() - casinoNoteAt < 4200) {
     ctx.font = "700 20px 'Segoe UI',sans-serif";
@@ -7045,6 +8329,13 @@ function frame(now) {
     if (res.trackexit) toPlazaFromTrack();
     if (res.phall) toPoolHall();
     if (res.phexit) toArcadeFromPoolHall();
+    if (res.hrcdoor) tryHRDoor();
+    if (hrQuizIdx >= 0 && (me.scene !== "casino" || me.x < CASINOROOM.w - 130 || Math.abs(me.y - CASINODOORS_Y) > 92 + 44)) closeHRQuiz(); /* the High Rollers question belongs to its doorstep, like the VIP one */
+    if (res.hrcexit) toCasinoFromHR();
+    if (res.chessdoor) toChess();
+    if (res.chessexit) toCasinoFromChess();
+    if (res.boxdoor) toBoxing();
+    if (res.boxexit) toGymFromBoxing();
     if (res.casinodoor) toCasino();
     if (res.casinoexit) toPlazaFromCasino();
     if (res.gymdoor) toGym();
@@ -7078,6 +8369,16 @@ function frame(now) {
     vipCamOx += (vipLean - vipCamOx) * Math.min(1, dt * 5);
     if (vipCamOx > 0.5) camX += vipCamOx;
   } else vipCamOx = 0;
+  if (me.scene === "highrollers" && mySeatPos) {
+    const f = hrcFocusRect();
+    if (f) {
+      SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
+      camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
+      camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
+      if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+      if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+    }
+  }
   if (me.scene === "casino" && mySeatPos) {
     const f = seatFocusRect();
     if (f) {
@@ -7091,6 +8392,16 @@ function frame(now) {
   drawStars(camX, camY, SCALE);
   if (me.scene === "gym") {
     const f = courtFocusRect();
+    if (f) {
+      SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
+      camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
+      camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
+      if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+      if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+    }
+  }
+  if (me.scene === "chess") {
+    const f = chessFocusRect();
     if (f) {
       SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
       camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
@@ -7125,7 +8436,7 @@ function frame(now) {
   if (fxPrevScene !== null && me.scene !== fxPrevScene) clearRoomFx(); /* a room change wipes every pending room effect — nothing earned in one room replays in the next */
   fxPrevScene = me.scene;
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else if (me.scene === "highrollers") drawHighRollers(now); else if (me.scene === "chess") drawChess(now); else if (me.scene === "boxing") drawBoxing(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
@@ -7199,6 +8510,9 @@ function frame(now) {
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
   else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
+  else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
+  else if (me.scene === "chess" && chSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = chessStandUp; }
+  else if (me.scene === "boxing" && boxSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = boxingBout ? "🏳️ Give up" : "🚪 Stand up"; promptAction = boxingStandUp; }
   else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
   else if (me.scene === "poolhall" && phSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = phStandUp; }
   else if (me.scene === "poolhall" && phNearTable() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Pool Table"; promptAction = () => phTrySit(phNearTable()); }
