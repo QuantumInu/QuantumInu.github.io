@@ -2200,6 +2200,7 @@ wireMic(micBtn);
 /* Free-play bump sports (Jonathan 2026-10-28): step onto a court and your side is the half you are standing on (A = cyan/left, B = pink/right). */
 /* Q-BOT REFEREE (2026-10-29): the sports balls are refereed by a server-side Q-Bot, the ONLY writer of hub/tables/sports/<court> = { ball: {x,y,vx,vy,ts,seq,gen,host:"qbot",lastHit,lastSide,crossed,shotX,shotY}, score: {a,b}, lastScore: {side,pts,ts} }. seq is monotonic per court; gen bumps on every respawn/reset. This page is a PURE FOLLOWER: it subscribes to the referee's stream, renders it by snapshot interpolation, and derives my court/side locally from where I stand. It NEVER writes to hub/tables/sports — if the referee is down, the ball simply rests at its last state; no client resurrects hosting. Scores and celebrations arrive through score/lastScore (see spFxCheck). */
 let spState = { bb: null, fb: null, tn: null }, spHooked = false;
+let spStateAt = {}; /* local Date.now() of the last CHANGE to each court record — the stale-record detector for the resting-ball resync in stepSports */
 let myCourt = null, mySide = null;
 let spBallVis = {}, spScoreSeen = {};
 const SP_WRITE_MS = 33; /* the referee's ball publish cadence (~30Hz) — used only as the fallback snapshot spacing in spBufPush when a payload carries no writer timestamp */
@@ -2219,7 +2220,7 @@ function bbEase(t) { const R = BB3.R, dxB = Math.sqrt(R * R - BB3.DYB * BB3.DYB)
 function bbThree(acx, dir, sx, sy, r, cy) { const rel = (sx - acx) * dir, dy = Math.abs(sy - cy), aD = r.h / 2 - 55, R = BB3.R; if (dy > aD) return true; if (dy <= BB3.DYB) return Math.hypot(rel, dy) > R; let lo = 0, hi = 1; for (let i = 0; i < 32; i++) { const m = (lo + hi) / 2; if (bbEase(m)[1] > dy) lo = m; else hi = m; } return rel > bbEase((lo + hi) / 2)[0]; } /* 2 vs 3 test matching the drawn 3pt line exactly: past the straight ends = 3, behind the curve = outside the 430 arc, in the ease band the drawn ease itself is the threshold */
 function sportsListen() {
   if (!db || spHooked) return; spHooked = true;
-  for (const pr of COURTS) { const k = pr[0]; db.ref("hub/tables/sports/" + k).on("value", s => { spState[k] = s.val(); spFxCheck(k); }); }
+  for (const pr of COURTS) { const k = pr[0]; db.ref("hub/tables/sports/" + k).on("value", s => { const nv = s.val(), nb = nv && nv.ball, ob = spState[k] && spState[k].ball; if (!ob || !nb || nb.seq !== ob.seq || nb.gen !== ob.gen || nb.x !== ob.x || nb.y !== ob.y) spStateAt[k] = Date.now(); spState[k] = nv; spFxCheck(k); }); }
 }
 /* score celebrations: driven by the SHARED lastScore, so everyone in the gym sees and hears the same moment (the tableResultFx pattern) — the sounds are the original per-sport sting + cheer; only the room-themes crowd swell was removed (Jonathan 2026-10-29) */
 let hoopAnim = { L: 0, R: 0 };
@@ -2263,7 +2264,9 @@ function stepSports(dt) {
       if (v.bx === undefined) { v.bx = v.x; v.by = v.y; v.bvx = v.vx || 0; v.bvy = v.vy || 0; v.rxT = performance.now(); if (v.seq === undefined) v.seq = -1; if (v.gen === undefined) v.gen = -1; v.ps = v.ps || 0; }
       if (!v.buf) v.buf = [];
       const sq = sb.seq || 0, gn = sb.gen || 0;
-      if (gn > v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
+      /* resting-ball resync (Jonathan 2026-10-31): the record has sat unchanged for over 2s with the ball at rest, yet the visual disagrees with it (a change was missed while this page was in another scene or backgrounded) — the record is the truth, so snap onto it and reseed the clock offset instead of interpolating a stale buffer. During live play the record changes ~30x/s and this never fires. */
+      if (!(sb.vx || 0) && !(sb.vy || 0) && spStateAt[k] && Date.now() - spStateAt[k] > 2000 && (gn !== v.gen || sq !== v.seq || Math.hypot(v.x - sb.x, v.y - sb.y) > 40)) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = 0; v.bvy = 0; v.rxT = performance.now(); v.buf.length = 0; v.off = undefined; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = 0; v.vy = 0; }
+      else if (gn > v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
       else if (gn === v.gen && sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.rxT = performance.now(); spBufPush(v, sb); }
       /* snapshot interpolation (2026-10-29): the ball is drawn SP_INTERP_MS behind the newest accepted state, walking the snapshot buffer on the WRITER's timeline (mapped onto local time by the smoothed offset in spBufPush). The old render chased the latest point with a fast ease and lurched at the write rate — the follower's lag; walking the real path is continuous, corrections join it in the past, and a light final ease absorbs the one break interpolation can't hide: a bounce the buffer only learns about after the render has already extrapolated past it. Only a gen change snaps (handled above). Past the newest snapshot the ball extrapolates on its velocity for at most 120ms, then holds. */
       const wNow = Date.now() - (v.off || 0) - SP_INTERP_MS, sbuf = v.buf; /* the buffer only ever holds accepted states, so the walk is always on the live chain */
@@ -2326,9 +2329,10 @@ function drawSportsBall(k, t) {
 /* One shared beach ball in the Quantum Pool, refereed exactly like the gym balls: the Q-Bot referee is the ONLY writer of hub/tables/sports/pool = { ball: {x,y,vx,vy,ts,seq,gen,host:"qbot",...}, score: {a:0,b:0} } — it spawns at the water's exact centre (3720, 1280), swimmers bump it with their sprites, it bounces off the WATER's edges and never leaves the water for the deck, and when the pool area empties the referee returns it to the centre (the gym courts' reset rule). This page is a PURE FOLLOWER, the stepSports machinery at one remove: subscribe, snapshot-interpolate, draw. It NEVER writes the pool record — with no referee record yet (or the referee down) the ball simply rests at the centre. */
 const POOL_BALL_R = 26;
 let poolState = null, poolHooked = false, poolBallVis = null;
+let poolStateAt = 0; /* local Date.now() of the last CHANGE to the pool record — the stepPoolBall resync stamp, as spStateAt */
 function poolBallListen() {
   if (!db || poolHooked) return; poolHooked = true;
-  db.ref("hub/tables/sports/pool").on("value", s => { poolState = s.val(); });
+  db.ref("hub/tables/sports/pool").on("value", s => { const nv = s.val(), nb = nv && nv.ball, ob = poolState && poolState.ball; if (!ob || !nb || nb.seq !== ob.seq || nb.gen !== ob.gen || nb.x !== ob.x || nb.y !== ob.y) poolStateAt = Date.now(); poolState = nv; });
 }
 function poolCentreBall() { const cx = POOLW.x + POOLW.w / 2, cy = POOLW.y + POOLW.h / 2; return { x: cx, y: cy, vx: 0, vy: 0, seq: -1, gen: -1, bx: cx, by: cy, bvx: 0, bvy: 0, buf: [], rot: 0 }; } /* the local default visual at the water's exact centre (never written anywhere) */
 function stepPoolBall(dt) {
@@ -2339,7 +2343,9 @@ function stepPoolBall(dt) {
     if (!v) v = poolBallVis = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, seq: -1, gen: -1, bx: sb.x, by: sb.y, bvx: sb.vx || 0, bvy: sb.vy || 0, buf: [], rot: 0 };
     if (!v.buf) v.buf = [];
     const sq = sb.seq || 0, gn = sb.gen || 0;
-    if (gn > v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
+    /* resting-ball resync, as stepSports (Jonathan 2026-10-31) */
+    if (!(sb.vx || 0) && !(sb.vy || 0) && poolStateAt && Date.now() - poolStateAt > 2000 && (gn !== v.gen || sq !== v.seq || Math.hypot(v.x - sb.x, v.y - sb.y) > 40)) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = 0; v.bvy = 0; v.buf.length = 0; v.off = undefined; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = 0; v.vy = 0; }
+    else if (gn > v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
     else if (gn === v.gen && sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; spBufPush(v, sb); }
     /* snapshot interpolation on the writer's timeline, as stepSports: drawn SP_INTERP_MS behind the newest accepted state, extrapolating at most 120ms past it */
     const wNow = Date.now() - (v.off || 0) - SP_INTERP_MS, sbuf = v.buf;
