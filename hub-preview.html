@@ -261,6 +261,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.0/dist/livekit-client.umd.min.js"></script>
 <script>
 "use strict";
 /* ============ data ============ */
@@ -1835,239 +1836,126 @@ cv.addEventListener("pointermove", e => {
 });
 cv.addEventListener("pointerup", e => { if (phAim && e.pointerId === phAim.id) phAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; });
 cv.addEventListener("pointercancel", e => { if (phAim && e.pointerId === phAim.id) phAim = null; holdId = null; holdVec = { x: 0, y: 0 }; });
-/* ============ voice chat (push to talk) ============ */
-const VOICE_RANGE = 600;
+/* ============ voice chat (tap to talk) — LiveKit (Jonathan 2026-10-31) ============
+   Voice rides LiveKit Cloud now, not player-to-player connections: everyone
+   in a scene joins that scene's LiveKit room ("hub-<scene>") and the server
+   relays the audio, so a strict router or a botched pair handshake can no
+   longer silence one pair while the rest work — the mesh's exact failure
+   (7daytonic: mic on, registered, unheard). Joining needs a signed pass:
+   the page writes a request at hub/voice/<myId>/lkreq and the token minter
+   on the Q-Bot host (~/workspace/quantum-hub/lkminter.py) answers at lkres
+   with a short-lived JWT — the API secret never reaches the page (a fresh
+   hub/lk node is denied by the RTDB rules, proven by a live write test, so
+   the channel rides the existing voice node). His standing voice rules
+   carry over unchanged: per room, constant full volume, every room change
+   leaves and rejoins, mic is tap-to-toggle and tapping off ends the
+   recording outright. The speaking set rides LiveKit's active-speaker
+   feed. The old mesh, its Cloudflare TURN credentials and its _state
+   diagnostics are retired with this block. */
 let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
-const voicePeers = new Map();
-let voiceTickN = 0;
 const speakingNow = new Set();
-function voiceDesired(pid) {
-  const p = peers.get(pid); if (!p || !entered) return false;
-  if (p.scene !== me.scene) return false;
-  return Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE;
+let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null;
+function lkFetchToken(scene) {
+  return new Promise(resolve => {
+    if (!db || !myId || !window.LivekitClient) { resolve(null); return; }
+    const base = db.ref("hub/voice/" + myId);
+    const reqTs = Date.now();
+    let done = false, ref = null;
+    const finish = v => { if (done) return; done = true; clearTimeout(tid); if (ref) { try { ref.off(); } catch (e) {} } resolve(v); };
+    const tid = setTimeout(() => finish(null), 9000);
+    ref = base.child("lkres");
+    ref.on("value", s => {
+      const v = s.val();
+      if (v && v.ts === reqTs && v.token && v.url) finish({ token: v.token, url: v.url });
+    });
+    try { base.child("lkreq").onDisconnect().remove(); base.child("lkres").onDisconnect().remove(); } catch (e) {}
+    base.child("lkreq").set({ room: "hub-" + scene, name: me.name || "Player", ts: reqTs }).catch(() => finish(null));
+  });
 }
-function voiceSceneMate(pid) {
-  if (NPC_PIDS.has(pid)) return false; /* both Q-Bot records (plaza + HQ): voice never connects to Q-Bot */
-  const p = peers.get(pid); if (!p || !entered) return false;
-  return p.scene === me.scene;
+async function lkPublishMic() {
+  if (!lkRoom || !pttHeld || !micStream || !window.LivekitClient) return;
+  const tr = micStream.getAudioTracks()[0]; if (!tr) return;
+  if (lkMicTrack === tr) return;
+  lkMicTrack = tr;
+  try { await lkRoom.localParticipant.publishTrack(tr, { name: "mic", source: LivekitClient.Track.Source.Microphone }); }
+  catch (e) { lkMicTrack = null; }
+}
+async function lkUnpublishMic() {
+  if (!lkRoom || !lkMicTrack) { lkMicTrack = null; return; }
+  const tr = lkMicTrack; lkMicTrack = null;
+  try { await lkRoom.localParticipant.unpublishTrack(tr); } catch (e) {}
+}
+async function lkLeave() {
+  const room = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null;
+  speakingNow.clear();
+  if (room) { try { await room.disconnect(); } catch (e) {} }
+}
+async function lkJoin(scene) {
+  const C = window.LivekitClient;
+  if (!C || lkJoining || !entered || !db || !myId) return;
+  if (lkRoom && lkScene === scene) return;
+  lkJoining = true;
+  try {
+    if (lkRoom) await lkLeave();
+    const pass = await lkFetchToken(scene);
+    if (!pass) { lkRetryAt = Date.now() + 5000; lkJoining = false; return; }
+    if (!entered || me.scene !== scene) { lkJoining = false; return; } /* the room changed while the pass was minted — the tick joins the right one */
+    const room = new C.Room({});
+    lkRoom = room; lkScene = scene;
+    room.on(C.RoomEvent.TrackSubscribed, track => {
+      if (track.kind !== "audio") return;
+      try {
+        const el = track.attach();
+        el.volume = 1; el.style.display = "none";
+        document.body.appendChild(el);
+        if (el.play) el.play().catch(() => {});
+      } catch (e) {}
+    });
+    room.on(C.RoomEvent.TrackUnsubscribed, track => { try { track.detach().forEach(el => el.remove()); } catch (e) {} });
+    room.on(C.RoomEvent.ActiveSpeakersChanged, speakers => {
+      speakingNow.clear();
+      for (const sp of speakers) if (sp && sp.identity) speakingNow.add(sp.identity);
+    });
+    room.on(C.RoomEvent.Disconnected, () => {
+      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkRetryAt = Date.now() + 3000; }
+    });
+    await room.connect(pass.url, pass.token);
+    lkRetryAt = 0;
+    if (pttHeld && micStream) lkPublishMic();
+  } catch (e) {
+    if (lkRoom) { const r = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null; try { r.disconnect(); } catch (err) {} }
+    lkRetryAt = Date.now() + 5000;
+  }
+  lkJoining = false;
 }
 function voiceReset() {
-  for (const pid of [...voicePeers.keys()]) voiceClose(pid);
-  voiceBackoff.clear();
-  if (entered) { for (const pid of peers.keys()) { try { vref.child("voice").child(myId).child(pid).remove().catch(() => {}); } catch (e) {} } }
-}
-function detachMic(V) {
-  if (!V.pc) return;
-  try {
-    const snd = V.pc.getSenders().find(s => s.track && s.track.kind === "audio");
-    if (snd) snd.replaceTrack(null).catch(() => {});
-  } catch (e) {}
-}
-const CF_TURN_ID = "b7901936772140280f6a49ec67156b9d", CF_TURN_TOKEN = "6648df285f3f9e73a576f9366924eb28162f0464190a752044e30ff53f9ccb72";
-let cfIce = null, cfIceAt = 0, cfFetching = false, cfSettled = false;
-const voiceBackoff = new Map();
-async function fetchCfIce() {
-  if (cfFetching || (cfIce && Date.now() - cfIceAt < 6 * 3600 * 1000)) return;
-  cfFetching = true;
-  try {
-    const r = await fetch("https://rtc.live.cloudflare.com/v1/turn/keys/" + CF_TURN_ID + "/credentials/generate", { method: "POST", headers: { "Authorization": "Bearer " + CF_TURN_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ ttl: 86400 }) });
-    if (r.ok) { const j = await r.json(); if (j && j.iceServers) { cfIce = j.iceServers; cfIceAt = Date.now(); } }
-  } catch (e) {}
-  cfFetching = false; cfSettled = true;
+  lkLeave();
+  if (entered) lkJoin(me.scene);
 }
 function voiceInit() {
-  if (voiceInitDone || !db || !myId) return; voiceInitDone = true;
-  fetchCfIce();
-  const mail = db.ref("hub/voice/" + myId);
-  mail.onDisconnect().remove();
-  mail.on("child_added", s => onVoiceMail(s.key, s.val()));
-  mail.on("child_changed", s => onVoiceMail(s.key, s.val()));
-  if (!window.__qhUnlock) {
-    window.__qhUnlock = true;
-    document.addEventListener("pointerdown", () => {
-      voicePeers.forEach((V2) => { if (V2.audio && V2.audio.paused) V2.audio.play().catch(() => {}); });
-      if (AC) AC.resume().catch(() => {});
-    }, true);
-  }
-}
-function attachMic(V) {
-  if (!micStream || !V.pc) return;
-  const tr = micStream.getAudioTracks()[0]; if (!tr) return;
-  try {
-    let snd = V.pc.getSenders().find(s => s.track === tr);
-    if (!snd) snd = V.pc.getSenders().find(s => !s.track || s.track.kind === "audio");
-    if (snd && snd.track !== tr) snd.replaceTrack(tr).catch(() => {});
-    if (snd) V.sender = snd;
-  } catch (e) {}
-}
-async function renegotiate(pid) {
-  const V = voicePeers.get(pid);
-  if (!V || V.makingOffer || !V.pc || V.pc.signalingState !== "stable") return;
-  V.makingOffer = true;
-  try {
-    const off = await V.pc.createOffer();
-    await V.pc.setLocalDescription(off);
-    db.ref("hub/voice/" + pid + "/" + myId).update({ type: "offer", sdp: V.pc.localDescription.sdp, ts: Date.now() });
-  } catch (e) {}
-  V.makingOffer = false;
-}
-function voiceConnect(pid) {
-  if (voicePeers.has(pid)) return;
-  const bo = voiceBackoff.get(pid); if (bo && Date.now() < bo) return;
-  if (!cfIce && !cfSettled) { fetchCfIce(); return; }
-  const V = { pc: null, sender: null, audio: null, analyser: null, remoteSet: false, iceQ: [], handledOffer: 0, handledAnswer: 0, levelAt: 0, makingOffer: false, iceRef: null, usedTurn: !!cfIce, bornAt: Date.now(), iceRestarted: false };
-  voicePeers.set(pid, V);
-  let pc;
-  const servers = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
-  if (cfIce) servers.push(cfIce);
-  try { pc = new RTCPeerConnection({ iceServers: servers }); }
-  catch (e) { voicePeers.delete(pid); return; }
-  V.pc = pc;
-  pc.addTransceiver("audio", { direction: "sendrecv" });
-  attachMic(V);
-  pc.onicecandidate = e => { if (e.candidate) { try { db.ref("hub/voice/" + pid + "/" + myId + "/ice").push(JSON.stringify(e.candidate)); } catch (err) {} } };
-  pc.ontrack = e => {
-    if (!V.rstream) { try { V.rstream = new MediaStream(); } catch (err) { return; } }
-    const addT = t => { if (t && !V.rstream.getTracks().includes(t)) { try { V.rstream.addTrack(t); } catch (err) {} } };
-    addT(e.track);
-    if (e.streams && e.streams[0]) e.streams[0].getTracks().forEach(addT);
-    attachRemote(pid, V.rstream);
-  };
-  pc.onnegotiationneeded = () => renegotiate(pid);
-  pc.onconnectionstatechange = () => { voiceReport(pid); if (pc.connectionState === "failed") { voiceBackoff.set(pid, Date.now() + 4000); voiceClose(pid); } };
-  pc.oniceconnectionstatechange = () => { voiceReport(pid); if (pc.iceConnectionState === "failed" && !V.iceRestarted) { V.iceRestarted = true; try { pc.restartIce(); } catch (e) {} if (myId < pid) renegotiate(pid); } };
-  V.iceRef = db.ref("hub/voice/" + myId + "/" + pid + "/ice");
-  try { V.iceRef.remove(); } catch (e) {}
-  V.iceRef.on("child_added", s => {
-    const c = s.val(); if (!c) return; let cand; try { cand = JSON.parse(c); } catch (e) { return; }
-    if (V.remoteSet) pc.addIceCandidate(cand).catch(() => {}); else V.iceQ.push(cand);
-  });
-  if (myId < pid) renegotiate(pid);
-}
-async function onVoiceMail(fromId, val) {
-  if (!val || !val.sdp || !val.type || fromId === myId) return;
-  if (val.type === "offer") {
-    let V = voicePeers.get(fromId);
-    if (V && V.handledOffer === val.ts) return;
-    if (!V) { if (!voiceSceneMate(fromId)) return; voiceConnect(fromId); V = voicePeers.get(fromId); if (!V) return; }
-    const glare = V.makingOffer || V.pc.signalingState !== "stable";
-    if (glare && myId < fromId) return;
-    V.handledOffer = val.ts;
-    try {
-      if (glare) await V.pc.setLocalDescription({ type: "rollback" });
-      await V.pc.setRemoteDescription({ type: "offer", sdp: val.sdp });
-      V.remoteSet = true; V.iceQ.forEach(c => V.pc.addIceCandidate(c).catch(() => {})); V.iceQ = [];
-      attachMic(V);
-      const ans = await V.pc.createAnswer();
-      await V.pc.setLocalDescription(ans);
-      db.ref("hub/voice/" + fromId + "/" + myId).update({ type: "answer", sdp: V.pc.localDescription.sdp, ts: Date.now() });
-    } catch (e) {}
-  } else if (val.type === "answer") {
-    const V = voicePeers.get(fromId);
-    if (!V || V.handledAnswer === val.ts || V.pc.signalingState !== "have-local-offer") return;
-    V.handledAnswer = val.ts;
-    try {
-      await V.pc.setRemoteDescription({ type: "answer", sdp: val.sdp });
-      V.remoteSet = true; V.iceQ.forEach(c => V.pc.addIceCandidate(c).catch(() => {})); V.iceQ = [];
-    } catch (e) {}
-  }
-}
-function voiceReport(pid) {
-  const V = voicePeers.get(pid); if (!V || !V.pc || !db) return;
-  try {
-    V.pc.getStats().then(rep => {
-      let so = 0, si = 0, via = "";
-      const byId = {}; rep.forEach(s => { byId[s.id] = s; });
-      rep.forEach(s => {
-        if (s.type === "outbound-rtp" && s.kind === "audio") so = s.bytesSent || 0;
-        if (s.type === "inbound-rtp" && s.kind === "audio") { si = s.bytesReceived || 0; if ((s.audioLevel || 0) > 0.02) V.levelAt = performance.now(); }
-        if (s.type === "candidate-pair" && (s.state === "succeeded" || s.selected)) { const lc = byId[s.localCandidateId]; if (lc) via = lc.candidateType || ""; }
-      });
-      db.ref("hub/voice/" + myId + "/_state/" + pid).set({ c: V.pc.connectionState, i: V.pc.iceConnectionState, so, si, via, ts: Date.now(), ae: V.audio ? (V.audio.paused ? "paused" : "playing") : "none", av: V.audio ? Math.round(V.audio.volume * 100) : -1, am: V.audio ? (V.audio.muted ? 1 : 0) : -1, rs: V.audio ? V.audio.readyState : -1, tm: V.rtrack ? (V.rtrack.muted ? 1 : 0) : -1 });
-    }).catch(() => {});
-  } catch (e) {}
-}
-function attachRemote(pid, stream) {
-  const V = voicePeers.get(pid); if (!V) return;
-  try { V.rtrack = stream.getAudioTracks()[0]; } catch (e) {}
-  try {
-    if (!V.audio) {
-      const a = document.createElement("audio");
-      a.autoplay = true; a.muted = false; a.setAttribute("playsinline", ""); a.style.display = "none";
-      document.body.appendChild(a); V.audio = a;
+  if (!db || !myId) return;
+  if (!voiceInitDone) {
+    voiceInitDone = true;
+    try { db.ref("hub/voice/" + myId).onDisconnect().remove(); } catch (e) {}
+    if (!window.__qhUnlock) {
+      window.__qhUnlock = true;
+      document.addEventListener("pointerdown", () => {
+        if (lkRoom) { try { const p = lkRoom.startAudio(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+        if (AC) AC.resume().catch(() => {});
+      }, true);
     }
-    V.audio.srcObject = stream;
-    V.audio.play().catch(() => {});
-  } catch (e) {}
-}
-function voiceClose(pid) {
-  const V = voicePeers.get(pid); if (!V) return;
-  voicePeers.delete(pid); speakingNow.delete(pid);
-  try { if (V.iceRef) V.iceRef.off(); } catch (e) {}
-  try { if (V.pc) V.pc.close(); } catch (e) {}
-  try { if (V.audio) { V.audio.srcObject = null; V.audio.remove(); } } catch (e) {}
-  try { db.ref("hub/voice/" + pid + "/" + myId).remove(); } catch (e) {}
-}
-function voiceTick() {
-  if (!entered || !db) return;
-  voiceInit();
-  if (!cfIce) fetchCfIce();
-  for (const p of peers.values()) if (voiceSceneMate(p.id)) voiceConnect(p.id);
-  for (const [pid, V] of [...voicePeers.entries()]) {
-    const p = peers.get(pid);
-    if (!p || p.scene !== me.scene) { voiceClose(pid); continue; }
-    if (cfIce && !V.usedTurn && V.pc && V.pc.connectionState !== "connected" && Date.now() - V.bornAt > 5000) { voiceClose(pid); voiceConnect(pid); continue; }
-    const d = Math.hypot(me.x - p.tx, me.y - p.ty);
-    if (V.audio) { try { V.audio.volume = 1; if (V.audio.paused) V.audio.play().catch(() => {}); } catch (e) {} }
-    if (V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
   }
-  if (pttHeld && micStream) speakingNow.add(myId); else speakingNow.delete(myId);
-  voiceTickN = (voiceTickN + 1) % 3; if (voiceTickN === 0) for (const pid of voicePeers.keys()) voiceReport(pid);
+  if (!entered) return;
+  if (lkRoom && lkScene !== me.scene) { voiceReset(); return; }
+  if (!lkRoom && !lkJoining && Date.now() >= lkRetryAt) lkJoin(me.scene);
 }
+function voiceTick() { voiceInit(); }
 setInterval(voiceTick, 800);
-/* ============ voice watchdog (Jonathan 2026-10-30) ============
-   His dropped call: the connection to two people in his room died — he
-   could see them but not hear them, and nothing recovered until a room
-   change ran voiceReset. So every 5 seconds this reconciles the room.
-   The DESIRED set is the fresh presence in my current scene (Q-Bot is
-   never desired — voice never connects to it): a desired peer with no
-   connection gets one through the normal connect path; a connection in
-   a terminal state (failed / closed) is torn down and rebuilt at once;
-   a merely "disconnected" one gets a grace pass and is rebuilt only if
-   it is still disconnected at the next check, so a blip that would heal
-   itself is never thrashed; a connection born over 20s ago that never
-   reached "connected" is rebuilt too. A connection to someone no
-   longer in the room is closed. Healthy connections are NEVER touched,
-   and the microphone is NEVER re-grabbed — no getUserMedia here: an
-   existing mic stream is simply re-attached by the connect path, and
-   with the mic off the rebuild still restores hearing. Every rebuild
-   re-checks the room at the moment it happens, so it can never
-   resurrect a connection to a room just left. */
-function voiceWatchdog() {
-  if (!entered || !db) return;
-  voiceInit();
-  const sc = me.scene;
-  for (const pid of [...voicePeers.keys()]) {
-    if (pid === myId || NPC_PIDS.has(pid) || !voiceSceneMate(pid)) voiceClose(pid); /* gone, wrong room, or a bot: this connection should not exist */
-  }
-  for (const p of peers.values()) {
-    const pid = p.id;
-    if (pid === myId || NPC_PIDS.has(pid) || !voiceSceneMate(pid)) continue;
-    const V = voicePeers.get(pid);
-    if (!V) { voiceConnect(pid); continue; } /* should be connected but has no connection at all */
-    if (!V.pc) continue;
-    const cs = V.pc.connectionState, is = V.pc.iceConnectionState;
-    const dead = cs === "failed" || cs === "closed" || is === "failed" || is === "closed";
-    const stuck = cs === "disconnected" || is === "disconnected";
-    const stillborn = (cs === "new" || cs === "connecting") && Date.now() - (V.bornAt || 0) > 20000;
-    if (dead || stillborn || (stuck && V.badAt && Date.now() - V.badAt >= 4000)) {
-      voiceBackoff.delete(pid); /* a watchdog rebuild is a fresh start, never gated by the failure backoff */
-      voiceClose(pid);
-      if (me.scene === sc && voiceSceneMate(pid)) voiceConnect(pid); /* re-check the room at the moment of the rebuild */
-    } else if (stuck) { if (!V.badAt) V.badAt = Date.now(); }
-    else V.badAt = 0;
-  }
-}
+/* voice watchdog: with the server move the reconciler is simple — the
+   800ms tick already asserts I'm in my scene's room; this 5-second pass is
+   the same assertion as a backstop. It never touches a healthy connection
+   and never re-grabs the microphone. */
+function voiceWatchdog() { voiceInit(); }
 setInterval(voiceWatchdog, 5000);
 const micBtn = $("micbtn");
 function flashMicDenied() {
@@ -2083,19 +1971,21 @@ async function pttStart() {
     catch (e) { micDenied = true; flashMicDenied(); }
     if (micStream) {
       micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
-      for (const [pid, V] of voicePeers.entries()) { attachMic(V); renegotiate(pid); }
+      lkPublishMic();
     }
   } else if (micStream) {
     micStream.getAudioTracks().forEach(t => t.enabled = true);
+    lkPublishMic();
   } else if (micDenied) flashMicDenied();
 }
 function pttEnd() {
   if (!pttHeld) return; pttHeld = false;
   me.mic = false; publish(true);
   micBtn.classList.remove("on");
+  lkUnpublishMic();
   // mic off = the recording truly ends: stop the tracks and release the
   // microphone (the phone's recording session ends with it). Hearing is
-  // untouched — voice connections and players stay exactly as they were.
+  // untouched — the room connection stays exactly as it was.
   if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
 }
 function wireMic(el) {
