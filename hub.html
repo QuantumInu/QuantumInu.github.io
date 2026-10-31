@@ -1252,7 +1252,7 @@ const VIPDOOR = { y: 420, half: 64 }; /* the door zone in the club's left wall, 
 const VIPROOM = { w: 1500, h: 1100 };
 const VIPBAR = { x: 56, y: 76, w: 500, h: 60 }; /* the lounge's own little bar counter, in the club bars' style */
 const VIPBOOTH = [{ x: 56, y: 420, w: 210, h: 190 }, { x: 56, y: 700, w: 210, h: 190 }]; /* two private booths down the west wall, the club booths' style */
-const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the jukebox, moved here from the club (PREVIEW round 3, Jonathan 2026-10-30): the lounge's BOTTOM-RIGHT corner, on the same margins the DJ booth kept while it stood here (its right edge 86px off the east wall, its base 96px off the south wall), sized as itself (104x148). Its function never changed: nearJuke + tap opens the same song picker, and the pick writes the one shared hub/club song that plays in both rooms. (Round 2's three lounge slot machines stood along the top wall — removed entirely in round 3, and the DJ booth went back to the club stage; see DJBOOTH in the club block.) */
+const JUKE = { x: VIPROOM.w - 406, y: 114, w: 104, h: 148 }; /* the jukebox, moved here from the club (PREVIEW round 3, Jonathan 2026-10-30) and moved again at Jonathan's word 2026-10-31: it now stands LEFT of the album-art TV, its bottom edge on the TV screen's bottom edge (40 + 222 = 262) and its right edge 30px clear of the TV housing's left edge (1238 - 10 = 1228). Sized as itself (104x148). Its function never changed: nearJuke + tap opens the same song picker, and the pick writes the one shared hub/club song that plays in both rooms. (Round 2's three lounge slot machines stood along the top wall — removed entirely in round 3, and the DJ booth went back to the club stage; see DJBOOTH in the club block.) */
 /* ============ The VIP overlook (PREVIEW, Jonathan 2026-10-30) ============
    The lounge is a RAISED floor over Club Quantum: while you stand in the
    VIP, the real club is layered further down and to the right, off the
@@ -1328,7 +1328,7 @@ booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 
 function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : TH; }
 function obstacles() {
   if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B]; /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
-  if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox in the bottom-right corner (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
+  if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
@@ -6301,7 +6301,7 @@ function drawClub(t) {
     ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff8fb5";
     ctx.fillText("BOOTH", bt.x + bt.w / 2, bt.y + 38);
   }
-  /* the jukebox stood here until PREVIEW round 3 — it lives in the VIP lounge's bottom-right corner now (drawVip paints it); the song picker and the shared song never changed */
+  /* the jukebox stood here until PREVIEW round 3 — it lives in the VIP lounge now, left of the album-art TV (drawVip paints it); the song picker and the shared song never changed */
   /* now playing on the wall */
   if (clubSongActive()) {
     ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
@@ -6387,8 +6387,7 @@ function drawVip(t) {
   }
   ctx.globalAlpha = 1;
   ctx.strokeStyle = "rgba(255,215,106,0.7)"; ctx.lineWidth = 2.5; ctx.strokeRect(600, 830, 480, 160);
-  /* the DJ booth stood in this corner through PREVIEW round 2 — it went back to the club stage in round 3; the jukebox stands here now (below) */
-  /* the jukebox, in the bottom-right corner (PREVIEW round 3): the club's own prop, painted exactly as drawClub used to paint it — near it, tap it or use the prompt to open the song picker */
+  /* the jukebox (PREVIEW round 3, moved left of the album-art TV 2026-10-31): the club's own prop, painted exactly as drawClub used to paint it — near it, tap it or use the prompt to open the song picker */
   const jx = JUKE.x, jy = JUKE.y;
   ctx.save(); ctx.shadowColor = "rgba(255,93,143,0.7)"; ctx.shadowBlur = 16;
   ctx.fillStyle = "#2b0f2e"; rr(jx, jy + 26, JUKE.w, JUKE.h - 26, 12); ctx.fill(); ctx.restore();
