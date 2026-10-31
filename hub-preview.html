@@ -293,6 +293,7 @@ const GAMES = [
 ["QI Quantum Pinball","qi-quantum-pinball.html","qi-quantum-pinball.jpg"]];
 /* the site's full song library: [slug, title, artist, genre, seconds] */
 const SONGS = [
+["the-long-game","The Long Game","Phat Boi J","Techno",352],
 ["quantum-sports-complex","Quantum Sports Complex","Phat Boi J","Rap",290],
 ["holding-through-the-rain","Holding Through The Rain","Phat Boi J","Rock",277],
 ["beyond-the-moment","Beyond The Moment","Phat Boi J","Trance",371],
@@ -1013,12 +1014,13 @@ const POOL = { x: 3260, y: 1080, w: 920, h: 400 }; /* the stone deck's outer edg
 const POOLW = { x: 3306, y: 1126, w: 828, h: 308 }; /* the water itself, inset by the deck rim */
 /* the waterfall boulders and the rock archway that first stood here were removed at Jonathan's word (2026-10-30) — the pool is open water with its deck now, no rockwork, nothing solid in or around it */
 function inPoolWater(x, y) { return x > POOLW.x && x < POOLW.x + POOLW.w && y > POOLW.y && y < POOLW.y + POOLW.h; } /* standing IN the water (feet inside the water rect): drives the half-submerged render, the splashes and the wading pace */
-function poolSubmersion(x, y) { /* the waterline (PREVIEW round 3 — the pre-round-2 read, restored at Jonathan's word): when the band shows, the water cuts the sprite exactly in HALF — the band is always the sprite's lower half. Round 2's true-overlap band is gone: pinned to the water's top edge it tinted the whole sprite the deeper you waded, and read as completely underwater. What round 3 sets is WHEN the band appears, by the edge the sprite overlaps the water from: from the TOP or BOTTOM edge, only once HALF the sprite is inside the water; from the LEFT or RIGHT edge, only once the sprite is FULLY inside. Splashes and the wading pace still key off the feet (inPoolWater), untouched. Returns { top, h } in world space, or null while dry. */
+function poolSubmersion(x, y) { /* the waterline (PREVIEW round 3 — the pre-round-2 read, restored at Jonathan's word): when the band shows, the water cuts the sprite exactly in HALF — the band is always the sprite's lower half. Round 2's true-overlap band is gone: pinned to the water's top edge it tinted the whole sprite the deeper you waded, and read as completely underwater. What round 3 sets is WHEN the band appears, by the edge the sprite overlaps the water from: from the TOP or BOTTOM edge, only once HALF the sprite is inside the water; from the LEFT or RIGHT edge, only once the sprite is FULLY inside. Splashes and the wading pace still key off the feet (inPoolWater), untouched. Returns { top, h } in world space, or null while dry. ROUND 4 added one exception, the bottom edge only: feet past the water's bottom edge force the band off at once (see the off switch at the return). */
   const sx0 = x - 29, sx1 = x + 29, sy0 = y - 96, sy1 = y; /* the sprite's own span (drawPlayer: 58 wide, 96 tall, anchored at the feet) */
   const oy = Math.min(sy1, POOLW.y + POOLW.h) - Math.max(sy0, POOLW.y); /* how much of the sprite stands inside the water, measured vertically */
   if (oy <= 0) return null; /* no overlap at all — up on the deck, dry */
   if (sx0 < POOLW.x || sx1 > POOLW.x + POOLW.w) return null; /* overlapping from the left or right edge: the band waits until the sprite is FULLY inside the water */
   if (oy < 48) return null; /* overlapping from the top or bottom edge: the band appears once HALF the sprite (48 of its 96) is inside */
+  if (y > POOLW.y + POOLW.h) return null; /* the BOTTOM-edge off switch (PREVIEW round 4, his word): the moment the feet cross below the water's bottom edge the band is GONE — a sprite stepping out southward stands on the deck, dry, however much of it still overlaps the water. Bottom edge ONLY: the top/left/right thresholds above are exactly as round 3 left them */
   return { top: y - 48, h: 48 }; /* the waterline cuts halfway through the sprite */
 }
 const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
@@ -4888,12 +4890,11 @@ function drawTrack(t) {
   /* the start/finish line across the bottom straight */
   ctx.fillStyle = "#f6f2e8"; ctx.fillRect(HR_CX1 - 4, HR_CY + HR_LANES[0] - 34, 8, (HR_LANES[3] + 34) - (HR_LANES[0] - 34));
   ctx.fillStyle = "#12233f"; for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 2; xx++) if ((xx + yy) % 2) ctx.fillRect(HR_CX1 - 4 + xx * 4, HR_CY + HR_LANES[0] - 34 + yy * ((HR_LANES[3] + 34 - HR_LANES[0] + 34) / 8), 4, (HR_LANES[3] + 34 - HR_LANES[0] + 34) / 8);
-  /* the infield atom, the plaza roundabout's mark at track scale */
+  /* the infield atom (PREVIEW round 4, his word): the plaza roundabout's spinning atom itself at the oval's centre — the same three cyan orbit rings (87x31, turning on t/2600) around the same gold nucleus (r18), at the plaza's own size. Atom ONLY here: no ring around this one (the smaller circled mark that stood here before is replaced). Pure infield scenery — the inner rail runs at radius 212, the atom reaches 87 */
   ctx.save(); ctx.translate((HR_CX1 + HR_CX2) / 2, HR_CY);
-  ctx.strokeStyle = "rgba(46,255,140,0.35)"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 74, 0, 7); ctx.stroke();
-  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 3;
-  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 55, 20, 0, 0, 7); ctx.stroke(); ctx.restore(); }
-  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(56,225,255,0.65)"; ctx.lineWidth = 4;
+  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 87, 31, 0, 0, 7); ctx.stroke(); ctx.restore(); }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill();
   ctx.restore();
   /* the horses, back markers first so the inside lanes paint over cleanly */
   for (let h = 3; h >= 0; h--) drawHrHorse(h, t);
@@ -4951,12 +4952,12 @@ function drawTrack(t) {
     }
   }
   hrSeatsRow();
-  /* my controls, on the felt: the horse picks and the casino tables' twelve amounts */
+  /* my controls, on the felt: the horse picks and the twelve amounts. The amounts are the TRACK's own size (PREVIEW round 4, his word: up a bit, bigger a bit) — 118x27 at fs 18 (the casino tables' 96x22 grown by ~23%), two rows of six at a 126 step spanning 748 centred, the block riding 6px higher (anchored HRT.h - 72, rows at a 31 step). The horse picks, the READY button and every other table's buttons keep their exact sizes — this panel only */
   if (hrSeat >= 0 && st && st.phase === "bet" && myHrSeat()) {
     const mine = myHrSeat();
     HR_HORSES.forEach((hse, i) => drawBtn(cx - 320 + i * 163, HRT.y + 118, 154, 42, "🐎 " + hse.name, () => hrPick(i), { fs: 19, fill: hse.dark, color: "#ffffff", sel: mine.pick === i }));
-    const by = HRT.y + HRT.h - 66;
-    [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 308 + (k % 6) * 104, by + Math.floor(k / 6) * 26, 96, 22, "BET " + amt.toLocaleString("en-US"), () => hrBet(amt), { fs: 15 }));
+    const by = HRT.y + HRT.h - 72;
+    [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 374 + (k % 6) * 126, by + Math.floor(k / 6) * 31, 118, 27, "BET " + amt.toLocaleString("en-US"), () => hrBet(amt), { fs: 18 }));
   }
   drawTableFx(t, "track");
   /* the note line, the casino note's twin */
@@ -4985,22 +4986,37 @@ function phBallDraw(b, n) {
   }
   ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.arc(b.x - 4, b.y - 5, 3, 0, 7); ctx.fill();
 }
+function phOverlayGeom(T) { return { x: T.x + (T.w - 768) / 2, y: T.y + (T.h - 312) / 2, w: 768, h: 312 }; } /* the pool table's betting overlay (PREVIEW round 4): a 768x312 panel centred inside the table's own 780x420 bounds — the ONE geometry the overlay's drawing and (through drawBtn) its tap zones share, so what is painted is exactly what is tappable */
 function drawPhTable(tt, t) {
   const T = PHT[tt], f = phField(tt), st = phStates[tt];
   /* the rail: dark wood with a gold line, then the felt */
   ctx.fillStyle = "#2a1a12"; rr(T.x - 14, T.y - 14, T.w + 28, T.h + 28, 26); ctx.fill();
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(T.x - 14, T.y - 14, T.w + 28, T.h + 28, 26); ctx.stroke();
   ctx.fillStyle = "#0a5c34"; rr(T.x, T.y, T.w, T.h, 18); ctx.fill();
-  ctx.fillStyle = "#0d6e3e"; rr(f.x - 10, f.y - 10, f.w + 20, f.h + 20, 12); ctx.fill(); /* the cushion ring */
   ctx.fillStyle = "#0a5c34"; rr(f.x - 3, f.y - 3, f.w + 6, f.h + 6, 10); ctx.fill();
+  /* the cushions (PREVIEW round 4): six runs of cushion that STOP at the pockets instead of one ring painted under them — each run ends in a jaw cut, its felt-side nose reaching 12px nearer the pocket than its rail-side back, the funnel a real table's jaws make. The runs leave a 34px gap around each corner pocket centre and a 32px gap around each side pocket centre, and the sockets below sit in those gaps. The band runs f-13 (rail side) to f-1 (felt side). Rendering only — the physics field and pocket centres are untouched */
+  ctx.fillStyle = "#0d6e3e";
+  function cushRun(pts) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fill(); }
+  const CG = 34, SG = 32, JW = 12, fmx = f.x + f.w / 2;
+  cushRun([[f.x + CG + JW, f.y - 13], [fmx - SG - JW, f.y - 13], [fmx - SG, f.y - 1], [f.x + CG, f.y - 1]]); /* top side, west of the side pocket */
+  cushRun([[fmx + SG + JW, f.y - 13], [f.x + f.w - CG - JW, f.y - 13], [f.x + f.w - CG, f.y - 1], [fmx + SG, f.y - 1]]); /* top side, east of it */
+  cushRun([[f.x + CG, f.y + f.h + 1], [fmx - SG, f.y + f.h + 1], [fmx - SG - JW, f.y + f.h + 13], [f.x + CG + JW, f.y + f.h + 13]]); /* bottom side, west */
+  cushRun([[fmx + SG, f.y + f.h + 1], [f.x + f.w - CG, f.y + f.h + 1], [f.x + f.w - CG - JW, f.y + f.h + 13], [fmx + SG + JW, f.y + f.h + 13]]); /* bottom side, east */
+  cushRun([[f.x - 1, f.y + CG], [f.x - 1, f.y + f.h - CG], [f.x - 13, f.y + f.h - CG - JW], [f.x - 13, f.y + CG + JW]]); /* the west short side, one run between its corner pockets */
+  cushRun([[f.x + f.w + 1, f.y + CG], [f.x + f.w + 13, f.y + CG + JW], [f.x + f.w + 13, f.y + f.h - CG - JW], [f.x + f.w + 1, f.y + f.h - CG]]); /* the east short side */
   /* diamond sights on the rails */
   ctx.fillStyle = "rgba(255,233,168,0.85)";
   for (let i = 1; i <= 3; i++) { const dx = T.x + (T.w / 4) * i; ctx.beginPath(); ctx.arc(dx, T.y - 2, 3.5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(dx, T.y + T.h + 2, 3.5, 0, 7); ctx.fill(); }
   for (let i = 1; i <= 1; i++) { const dy = T.y + (T.h / 2) * i; ctx.beginPath(); ctx.arc(T.x - 2, dy, 3.5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(T.x + T.w + 2, dy, 3.5, 0, 7); ctx.fill(); }
-  /* the pockets: black mouths with a brass rim */
+  /* the pockets (PREVIEW round 4): SOCKETS sunk into the rail line, not flat circles on the felt — a dark-wood seat (r30) set into the rail, a leather cup (r27) inside it, then the hole itself (r23) shaded with a radial gradient, black at the heart and lifting at the walls, a hard rim line and a breath of light on the lower inner wall for depth. Centred exactly on phPocketsAt's physics centres, so a ball drops into the hole it visually falls into. Rendering only */
   for (const p of phPocketsAt(f)) {
-    ctx.fillStyle = "#c9a227"; ctx.beginPath(); ctx.arc(p.x, p.y, 25, 0, 7); ctx.fill();
-    ctx.fillStyle = "#05070a"; ctx.beginPath(); ctx.arc(p.x, p.y, 21, 0, 7); ctx.fill();
+    ctx.fillStyle = "#2a1a12"; ctx.beginPath(); ctx.arc(p.x, p.y, 30, 0, 7); ctx.fill();
+    ctx.fillStyle = "#17100b"; ctx.beginPath(); ctx.arc(p.x, p.y, 27, 0, 7); ctx.fill();
+    const pg = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, 23);
+    pg.addColorStop(0, "#000000"); pg.addColorStop(0.72, "#030304"); pg.addColorStop(1, "#26262c");
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(p.x, p.y, 23, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 23, 0, 7); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,240,200,0.14)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 21, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
   }
   /* the balls, as this client renders them (the shooter's sim, or the followed published state) */
   const view = phViews[tt];
@@ -5039,21 +5055,6 @@ function drawPhTable(tt, t) {
       ctx.fillText("🎯 your shot — pull back on the felt to aim, release to shoot", cue.x, cue.y - 34);
     }
   }
-  /* the bets, ON the table (PREVIEW round 2): during the bet phase each seated player's stake sits on the felt at their end of the table, in both modes — your stake against an opponent's, or yours alone against the house */
-  if (st && st.phase === "bet") {
-    const ss = st.seats || {};
-    [0, 1].forEach(i => {
-      const sr = ss[i];
-      if (!sr || !sr.pid || Date.now() - (sr.ts || 0) >= 25000 || !(sr.bet > 0)) return;
-      const txt = "🪙 " + Number(sr.bet).toLocaleString("en-US");
-      ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-      const w = ctx.measureText(txt).width + 26;
-      const px = i === 0 ? T.x + 92 : T.x + T.w - 92, py = T.y + T.h / 2;
-      ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(px - w / 2, py - 17, w, 34, 17); ctx.fill();
-      ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(px - w / 2, py - 17, w, 34, 17); ctx.stroke();
-      ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, px, py + 7);
-    });
-  }
   /* the chairs, the hrSeatsRow pattern at this table's two ends */
   PHSEATS[tt].forEach((s, i) => {
     const occ = st && st.seats && st.seats[i] && st.seats[i].pid && Date.now() - (st.seats[i].ts || 0) < 25000; /* a chair is occupied only by a pid-bearing fresh record (the casino rule) */
@@ -5083,52 +5084,51 @@ function drawPhTable(tt, t) {
     else if (st.phase === "done") { const wn = ss[st.winner]; status = "🏆 TABLE " + (tt + 1) + " — " + (st.mode === "pc" && !wn ? "🤖 PC" : (wn ? wn.name : "A player")) + " took the pot!"; }
   }
   ctx.fillText(status, T.x + T.w / 2, T.y + T.h + 44);
-  /* the table's own control panel, hanging under the south rail (PREVIEW round 3): when I'm seated, my betting controls live HERE, inside the table view the seat camera frames — the casino tables' presentation — instead of down in the hall's south strip. The panel is sized to sit inside the seat-focus frame (T.y - 215 .. T.y + 635) with the table */
+  /* the betting controls OVERLAY the table (PREVIEW round 4, his word — round 3 hung them in a panel under the south rail, which is NOT how the casino tables do it): before the game, a seated player's controls sit ON TOP of the table itself, drawn over the felt and the balls, like the blackjack/roulette panels. One geometry (phOverlayGeom) centres the panel inside the table's bounds; every button below is drawn — and tap-zoned, by drawBtn — from that same rect, so the taps land exactly on the paint. The metrics are the casino tables' OWN, copied from drawBJTable/drawRouletteTable: READY 140x48 at the panel's top-right (P.x + P.w - 168, P.y + 18, the title row's own offset) in the same purple states; the twelve amounts 96x22 at a 104 step in two rows of six (26 step) anchored off the panel's bottom (P.y + P.h - 66), comma labels, fs 15; the title in feltBase's 30px voice at P.y + 52. Placement only — the betting logic, re-stake, READY gate, RPS flow, vs-PC, pot, refunds and forfeits are all exactly as they were */
   if (st && (st.phase === "bet" || st.phase === "rps")) {
-    const P = { x: T.x + T.w / 2 - 500, y: T.y + T.h + 46, w: 1000, h: 164 }, pcx = P.x + P.w / 2;
+    const P = phOverlayGeom(T), pcx = P.x + P.w / 2;
     const ss2 = st.seats || {}, fr2 = [0, 1].filter(i => ss2[i] && ss2[i].pid && Date.now() - (ss2[i].ts || 0) < 25000);
     const seated = tt === phSeatT, mine2 = seated ? myPhSeatRec() : null;
     if (st.phase === "bet" && seated && mine2) {
-      ctx.fillStyle = "rgba(10,16,28,0.92)"; rr(P.x, P.y, P.w, P.h, 18); ctx.fill();
+      ctx.fillStyle = "rgba(10,16,28,0.94)"; rr(P.x, P.y, P.w, P.h, 18); ctx.fill();
       ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 18); ctx.stroke();
-      ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "left";
-      ctx.fillText("🎱 TABLE " + (tt + 1), P.x + 36, P.y + 46);
-      /* my stake, on the title row (the stake itself also sits on the felt as a pill, round 2) */
-      ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.textAlign = "right";
-      ctx.fillText(mine2.bet ? ("Your stake: 🪙 " + mine2.bet.toLocaleString()) : "No stake yet", P.x + P.w - 190, P.y + 46);
-      ctx.textAlign = "center";
-      /* the status line, the same words the south strip used to carry */
+      /* the title row: my stake on the left, the table's name centred in feltBase's voice, READY top-right (the stake also sits on the felt as a pill — see the end of this function) */
+      ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "left";
+      ctx.fillText(mine2.bet ? ("Your stake: 🪙 " + mine2.bet.toLocaleString()) : "No stake yet", P.x + 36, P.y + 50);
+      ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("🎱 TABLE " + (tt + 1), pcx, P.y + 52);
+      /* the status line, the same words the south strip carries */
       const opp2 = ss2[1 - phSeatI];
       let pstatus;
       if (fr2.length < 2) pstatus = (mine2.bet > 0) ? "🤖 Bet down — tap READY to play the PC (the house covers its side), or wait for an opponent" : "Bet & tap READY — play the PC solo, or wait for an opponent";
       else if (!(mine2.bet > 0)) pstatus = "Pick your stake — both players stake the same amount";
       else if (opp2 && (opp2.bet || 0) > 0 && opp2.bet !== mine2.bet) pstatus = "Stakes must match — the table plays for 🪙 " + Math.max(mine2.bet || 0, opp2.bet || 0).toLocaleString() + " each";
       else { const rd = fr2.filter(i => ss2[i].rdy && ss2[i].bet > 0); pstatus = "Waiting for READY — " + rd.length + "/2 ready"; }
-      ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-      ctx.fillText(pstatus, pcx, P.y + 92);
-      /* READY: the casino tables' own — top-right of the panel, purple, dim until a bet is down */
+      ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+      ctx.fillText(pstatus, pcx, P.y + 104);
+      /* READY: the casino tables' own — top-right of the panel on the title row, purple, dim until a bet is down */
       const hasBet = (mine2.bet || 0) > 0, isRdy = !!(mine2.rdy && hasBet);
-      drawBtn(P.x + P.w - 168, P.y + 14, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? phReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
-      /* the twelve amounts, two rows of six in the casino tables' exact geometry */
-      [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(pcx - 308 + (k % 6) * 104, P.y + 106 + Math.floor(k / 6) * 26, 96, 22, "BET " + amt.toLocaleString("en-US"), () => phBet(amt), { fs: 15 }));
+      drawBtn(P.x + P.w - 168, P.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? phReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+      /* the twelve amounts, two rows of six in the casino tables' exact geometry, anchored off the panel's bottom the way theirs anchor off the felt's */
+      [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(pcx - 308 + (k % 6) * 104, P.y + P.h - 66 + Math.floor(k / 6) * 26, 96, 22, "BET " + amt.toLocaleString("en-US"), () => phBet(amt), { fs: 15 }));
     }
     if (st.phase === "rps") {
-      /* rock paper scissors for the break (PREVIEW round 3): the throw is played here, in the table view, where every seat and every spectator can see it */
-      ctx.fillStyle = "rgba(10,16,28,0.92)"; rr(P.x, P.y, P.w, P.h, 18); ctx.fill();
+      /* rock paper scissors for the break (PREVIEW round 3, moved ONTO the table with the rest of the overlay in round 4): the throw is played here, on the felt, where every seat and every spectator can see it */
+      ctx.fillStyle = "rgba(10,16,28,0.94)"; rr(P.x, P.y, P.w, P.h, 18); ctx.fill();
       ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 18); ctx.stroke();
-      ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
-      ctx.fillText("✊✋✌️ ROCK · PAPER · SCISSORS — WINNER BREAKS", pcx, P.y + 42);
+      ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
+      ctx.fillText("✊✋✌️ ROCK · PAPER · SCISSORS — WINNER BREAKS", pcx, P.y + 52);
       const show = st.rpsShow, myPick = st.rps ? st.rps[phSeatI] : null;
       if (show) { /* the reveal: both throws and the result, the same on every screen (it lives on the table node) */
         ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-        ctx.fillText(PH_RPS_EMOJI[show.a] + " " + String(show.a).toUpperCase() + "  vs  " + String(show.b).toUpperCase() + " " + PH_RPS_EMOJI[show.b], pcx, P.y + 92);
+        ctx.fillText(PH_RPS_EMOJI[show.a] + " " + String(show.a).toUpperCase() + "  vs  " + String(show.b).toUpperCase() + " " + PH_RPS_EMOJI[show.b], pcx, P.y + 128);
         ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
         const wn = show.res >= 0 ? (ss2[show.res] ? ss2[show.res].name : (st.mode === "pc" ? "🤖 PC" : "A player")) : null;
-        ctx.fillText(show.res < 0 ? "Tie — throw again!" : ("🏆 " + wn + " takes the break!"), pcx, P.y + 130);
+        ctx.fillText(show.res < 0 ? "Tie — throw again!" : ("🏆 " + wn + " takes the break!"), pcx, P.y + 172);
       } else if (seated && mine2 && !myPick) { /* my throw: three big picks */
         ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-        ctx.fillText(st.mode === "pc" ? "Throw against the PC — winner takes the break!" : "Pick your throw — winner takes the break!", pcx, P.y + 74);
-        PH_RPS.forEach((p, i) => drawBtn(pcx - 265 + i * 180, P.y + 92, 170, 52, PH_RPS_EMOJI[p] + " " + p.toUpperCase(), () => phRpsPick(p), { fs: 20 }));
+        ctx.fillText(st.mode === "pc" ? "Throw against the PC — winner takes the break!" : "Pick your throw — winner takes the break!", pcx, P.y + 100);
+        PH_RPS.forEach((p, i) => drawBtn(pcx - 265 + i * 180, P.y + 128, 170, 52, PH_RPS_EMOJI[p] + " " + p.toUpperCase(), () => phRpsPick(p), { fs: 20 }));
       } else { /* waiting on the other throw — mine is locked in, or I'm watching: the seats' state, read off the shared record */
         ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
         const line = [0, 1].map(i => {
@@ -5136,16 +5136,31 @@ function drawPhTable(tt, t) {
           const has = !!(st.rps && st.rps[i]);
           return nm + (has ? " ✓ threw" : " …choosing");
         }).join("    vs    ");
-        ctx.fillText(line, pcx, P.y + 96);
+        ctx.fillText(line, pcx, P.y + 140);
       }
     }
   }
+  /* the bets, ON the table (PREVIEW round 2): during the bet phase each seated player's stake sits on the felt at their end of the table, in both modes — your stake against an opponent's, or yours alone against the house. Painted LAST in the table (PREVIEW round 4) so the pills stay visible over the betting overlay's edges — the overlay covers the felt's centre, the pills ride its left and right ends */
+  if (st && st.phase === "bet") {
+    const ss = st.seats || {};
+    [0, 1].forEach(i => {
+      const sr = ss[i];
+      if (!sr || !sr.pid || Date.now() - (sr.ts || 0) >= 25000 || !(sr.bet > 0)) return;
+      const txt = "🪙 " + Number(sr.bet).toLocaleString("en-US");
+      ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+      const w = ctx.measureText(txt).width + 26;
+      const px = i === 0 ? T.x + 92 : T.x + T.w - 92, py = T.y + T.h / 2;
+      ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(px - w / 2, py - 17, w, 34, 17); ctx.fill();
+      ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(px - w / 2, py - 17, w, 34, 17); ctx.stroke();
+      ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, px, py + 7);
+    });
+  }
 }
 function drawPhPanel(t) {
-  /* the strip along the hall's south wall: the welcome line when I'm not seated, and my table's status while a match runs. My BETTING controls are NOT here anymore (PREVIEW round 3): they live in the table's own panel, inside the table view — see drawPhTable — so while I'm seated in the bet phase this strip stays out of the way entirely */
+  /* the strip along the hall's south wall: the welcome line when I'm not seated, and my table's status while a match runs. My BETTING controls are NOT here: they OVERLAY the table itself (PREVIEW round 4 — see drawPhTable) — so while I'm seated in the bet phase this strip stays out of the way entirely */
   const P = { x: PHROOM.w / 2 - 750, y: PHROOM.h - 254, w: 1500, h: 158 }; /* the panel follows the room: centred, riding 254px above the floor's bottom edge, exactly where it sat in the smaller hall */
   const st0 = phSeatT >= 0 ? phStates[phSeatT] : null;
-  if (phSeatT >= 0 && myPhSeatRec() && st0 && st0.phase === "bet") return; /* seated and betting: the table's own panel carries everything (PREVIEW round 3) */
+  if (phSeatT >= 0 && myPhSeatRec() && st0 && st0.phase === "bet") return; /* seated and betting: the table's own overlay carries everything (PREVIEW round 4) */
   ctx.fillStyle = "rgba(10,16,28,0.92)"; rr(P.x, P.y, P.w, P.h, 18); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 18); ctx.stroke();
   const cx = P.x + P.w / 2;
@@ -5198,6 +5213,13 @@ function drawPoolHall(t) {
   ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.85)"; ctx.shadowBlur = 16;
   ctx.fillStyle = "#ffd76a"; ctx.fillText("🎱 QUANTUM POOL HALL 🎱", PHROOM.w / 2, 78); ctx.restore();
+  /* the plaza's spinning atom at the hall's heart (PREVIEW round 4, his word): the roundabout's own mark copied line for line — the green ring (the plaza circle's exact green, rgba(46,255,140,0.35), lineWidth 5, r118), three cyan orbit rings (87x31) turning on t/2600, gold nucleus (r18) — as a floor emblem at the room's centre (1600, 900), between the four tables (clear of every table and chair). Floor scenery only: no obstacle, no gameplay effect, walked over like the plaza's */
+  ctx.save(); ctx.translate(PHROOM.w / 2, PHROOM.h / 2);
+  ctx.strokeStyle = "rgba(46,255,140,0.35)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, 118, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(56,225,255,0.65)"; ctx.lineWidth = 4;
+  for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 87, 31, 0, 0, 7); ctx.stroke(); ctx.restore(); }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill();
+  ctx.restore();
   uiZones = [];
   for (let tt = 0; tt < 4; tt++) drawPhTable(tt, t);
   drawPhPanel(t);
@@ -5993,10 +6015,10 @@ function drawVip(t) {
   for (let gy = jy + 104; gy < jy + JUKE.h - 12; gy += 10) for (let gx = jx + 16; gx < jx + JUKE.w - 12; gx += 10) ctx.fillRect(gx, gy, 3, 3);
   ctx.font = "700 12.5px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd3e2";
   ctx.fillText("JUKEBOX", jx + JUKE.w / 2, jy + JUKE.h + 18);
-  /* now playing — the club's song, carried in (the lounge has no jukebox of its own) */
+  /* now playing — the club's song, carried in (the lounge has no jukebox of its own). PREVIEW round 4, his word: the line sits DIRECTLY UNDER the room's title at the top — the title's baseline is 74 in 40px type, so one line height (48) plus a small margin puts this baseline at 128, centred on the title's own x */
   if (clubSongActive()) {
     ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", VIPROOM.w / 2, 380);
+    ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", VIPROOM.w / 2, 128);
   }
   drawTableFx(t, "vip");
   /* the return door in the right wall — gold like the door it answers, back to the club */
@@ -6009,9 +6031,9 @@ function drawVip(t) {
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(VIPROOM.w - 44, vdy, 4.5, 0, 7); ctx.fill();
   ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("CLUB →", VIPROOM.w - 130, vdy - 58);
-  /* neon room border, gold for the lounge, pulsing on the same club beat */
-  ctx.save(); ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 3 + 22 * beat;
-  ctx.strokeStyle = "rgba(255,215,106," + (0.65 + 0.3 * beat) + ")"; ctx.lineWidth = 5; ctx.strokeRect(4, 4, VIPROOM.w - 8, VIPROOM.h - 8); ctx.restore();
+  /* neon room border (PREVIEW round 4, his word): the CLUB's border, not the lounge's old gold — the club's exact pink, its exact pulse: shadowColor #ff5d8f, shadowBlur 3 + 22*beat, stroke alpha 0.7 + 0.3*beat, lineWidth 5, copied from drawClub's border line for line */
+  ctx.save(); ctx.shadowColor = "#ff5d8f"; ctx.shadowBlur = 3 + 22 * beat;
+  ctx.strokeStyle = "rgba(255,93,143," + (0.7 + 0.3 * beat) + ")"; ctx.lineWidth = 5; ctx.strokeRect(4, 4, VIPROOM.w - 8, VIPROOM.h - 8); ctx.restore();
   ctx.restore();
 }
 function drawArcade(t) {
