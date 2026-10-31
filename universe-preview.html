@@ -433,6 +433,9 @@ const sfxLose = () => tone(220, 150, 0.28, "sine", 0.05);
 const sfxBad = () => tone(196, 130, 0.22, "sawtooth", 0.05); /* the refusal buzz — called by the tab-lock warning and the chat-block path since before this build but never defined until now (PREVIEW fix: those paths threw a ReferenceError after their visible effect); the VIP guard's wrong answer uses it too */
 const sfxPush = () => tone(520, 520, 0.08, "triangle", 0.04);
 const sfxTick = () => tone(1250, 900, 0.03, "square", 0.014);
+/* boxing punches (Jonathan 2026-10-31): a LANDED punch is a deep thump + body smack — a square body (110->38Hz), a sub sine under it (64->30Hz) and a short lowpassed noise smack; a MISS is a light bandpass-noise whoosh (1600->500Hz) with a faint sine sweep under it */
+const sfxPunchHit = () => { tone(110, 38, 0.16, "square", 0.26, 0); tone(64, 30, 0.20, "sine", 0.30, 0); noiseBurst(0.07, "lowpass", 900, 300, 0.20, 0); };
+const sfxPunchMiss = () => { noiseBurst(0.09, "bandpass", 1600, 500, 0.055, 0); tone(640, 260, 0.06, "sine", 0.035, 0); };
 const sfxCard = () => tone(280 + Math.random() * 120, 170, 0.05, "triangle", 0.028);
 /* slow swelling pad chord — detuned triangle pairs through long fades, for a cinematic-strings feel */
 function padChord(freqs, dur, vol) {
@@ -544,7 +547,7 @@ function startMusic() {
       if (tick % 16 === 0) padChord([98.0, 146.8, 196.0, 293.7], 8.6, 0.0075);
       tick++; return;
     }
-    if (sc === "gym") { gymThemeTick(tick); tick++; return; }
+    if (sc === "gym" || sc === "boxing") { gymThemeTick(tick); tick++; return; } /* the Boxing Arena plays the Sports Complex's own theme (Jonathan 2026-10-31) — it is a room of that building, entered through its east door; before this it fell through to the default melody */
     if (sc === "casino") { casinoThemeTick(tick); tick++; return; }
     tone(seq[tick % seq.length], 0, 0.5, "sine", 0.022);
     if (tick % 4 === 0) tone(seq[tick % seq.length] / 2, 0, 1.6, "triangle", 0.016);
@@ -1365,7 +1368,7 @@ function obstacles() {
   if (me.scene === "casino") return [BJT, RRT, LOUNGE, ...SLOTM];
   if (me.scene === "highrollers") return [BACT, CRAT]; /* the dividers and booths are walk-over (Jonathan 2026-10-31) — only the two felts are solid */
   if (me.scene === "chess") return [...CHBOARDS];
-  if (me.scene === "boxing") return [...BOXBLEACH, ...(boxingBout ? [] : [BOXRING])]; /* the ring is solid until YOUR bout starts — then you are in it (pass D) */
+  if (me.scene === "boxing") return boxingBout ? [] : [BOXRING]; /* the bleachers are walk-over scenery (Jonathan 2026-10-31) — only the ring is solid, and only until YOUR bout starts (pass D) */
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
   if (me.scene === "speedway") return [...SWTV, ...SWSTANDS]; /* on foot you can walk the whole arena — apron, track and infield; the ring clamp only bites while driving. The only solids are the infield monitors and the corner concession stands (Jonathan 2026-10-29); the benches stay walk-over scenery */
   return [SCREEN, PEDESTAL];
@@ -2885,6 +2888,8 @@ function drawSpeedway(t) {
   drawSwLapRow(t); /* the lap counters ride right under the centrepiece, part of the same centre display */
   ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,200,0.65)";
   ctx.fillText("walk into a car to drive it — just for fun", 1800, 1330);
+  ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,196,120,0.9)";
+  ctx.fillText("SPACE TO BOOST", 1800, SW_CY + SW_RO + 130); /* at the bottom of the field (Jonathan 2026-10-31): baseline 2130 = the track's outer bottom edge (2000) + 130 — on the open floor in the centre gap of the bottom bench row (the row splits around x 1800), clear of the benches' feet (2196) and the exit plate (2342). Shown at all times in the room */
   /* infield monitors — Daily Life racing feeds, one centred in each half of the grass (Jonathan 2026-10-29) */
   SWTV.forEach((tv, ti) => drawSwMonitor(tv, ti));
   /* car smoke — under the cars, so a puff reads as trailing behind the tail (Jonathan 2026-10-29) */
@@ -3083,12 +3088,20 @@ function drawGym(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GEXIT.x, GEXIT.y, GEXIT.w, GEXIT.h, 8); ctx.stroke();
   ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", GEXIT.x + GEXIT.w / 2, GEXIT.y + 30);
-  /* BOXING ARENA door (CASINO EXPANSION preview): a dark gap in the right wall at the east end of the centre path, gold plate reading down the wall */
-  ctx.fillStyle = "#0a1428"; ctx.fillRect(GYMROOM.w - 36, BOXDOOR_Y - 92, 36, 184);
-  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.strokeRect(GYMROOM.w - 36, BOXDOOR_Y - 92, 36, 184);
-  ctx.save(); ctx.translate(GYMROOM.w - 66, BOXDOOR_Y); ctx.rotate(-Math.PI / 2);
+  /* BOXING ARENA door (CASINO EXPANSION preview): the ARCADE doors' own look — dark gap in the right wall at the east end of the centre path, gold wash, corner ticks, chevrons, and a gold sign plate on the floor in front reading where it leads; the plate's font shrinks per label so the text always fits inside it (Jonathan 2026-10-31) */
+  ctx.fillStyle = "#050914"; ctx.fillRect(GYMROOM.w - 12, BOXDOOR_Y - 92, 12, 184);
+  const bdg = ctx.createLinearGradient(GYMROOM.w - 90, 0, GYMROOM.w, 0); bdg.addColorStop(0, "rgba(255,215,106,0)"); bdg.addColorStop(1, "rgba(255,215,106,0.4)");
+  ctx.fillStyle = bdg; ctx.fillRect(GYMROOM.w - 90, BOXDOOR_Y - 92, 90, 184);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(GYMROOM.w - 14, BOXDOOR_Y - 98, 10, 16); ctx.fillRect(GYMROOM.w - 14, BOXDOOR_Y + 82, 10, 16);
   ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("🥊 BOXING ARENA", 0, 9); ctx.restore();
+  ctx.fillText("❯", GYMROOM.w - 58, BOXDOOR_Y - 12); ctx.fillText("❯", GYMROOM.w - 58, BOXDOOR_Y + 34);
+  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
+  ctx.fillStyle = "#150b31"; rr(GYMROOM.w - 320, BOXDOOR_Y - 22, 252, 44, 11); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(GYMROOM.w - 320, BOXDOOR_Y - 22, 252, 44, 11); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  const blw = ctx.measureText("🥊 BOXING ARENA →").width, bfs = blw > 228 ? Math.max(10, Math.floor(17 * 228 / blw)) : 17;
+  if (bfs !== 17) ctx.font = "800 " + bfs + "px 'Segoe UI',sans-serif";
+  ctx.fillText("🥊 BOXING ARENA →", GYMROOM.w - 194, BOXDOOR_Y + 7);
   drawTableFx(t, "gym");
   ctx.restore();
 }
@@ -6434,6 +6447,8 @@ function boxSetBet(amt) {
 }
 function boxReady() {
   if (boxSeat < 0) return;
+  const sd = boxMyRec();
+  if (!sd || !(sd.bet > 0)) { noteBox("Place a bet first — no bet, no fight."); return; } /* READY only counts with a stake down (Jonathan 2026-10-31) */
   tblUpd("box/seats/" + boxSeat, { rdy: true });
 }
 function boxingStandUp() {
@@ -6488,8 +6503,8 @@ function boxPunch(side) {
   if (hit) {
     const cur = (st.hp && st.hp[opp]) || 0;
     tblSet("box/hp/" + opp, Math.max(0, cur - dmg));
-    tone(150, 55, 0.09, "square", 0.22, 0);
-  } else tone(700, 300, 0.05, "sine", 0.05, 0); /* the whiff */
+    sfxPunchHit(); /* the deep thump of a landed punch (was a lone 150->55 square blip) */
+  } else sfxPunchMiss(); /* the whoosh of a swing that finds air (was a thin sine whiff) */
 }
 function boxHostTick() {
   if (!entered || me.scene !== "boxing" || !db) return;
@@ -6505,7 +6520,7 @@ function boxHostTick() {
   if (!(seats[fresh[0]] && seats[fresh[0]].pid === myId)) return; /* the lowest fresh seat hosts */
   if (st.phase === "sit" && fresh.length === 2) {
     const s0 = seats[0], s1 = seats[1];
-    if (s0.rdy && s1.rdy && (s0.bet || 0) === (s1.bet || 0)) tblUpd("box", { phase: "fight", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, roundId: (st.roundId || 0) + 1 }); /* both READY and the bets match (or neither bet) — the bell */
+    if (s0.rdy && s1.rdy && (s0.bet || 0) > 0 && (s0.bet || 0) === (s1.bet || 0)) tblUpd("box", { phase: "fight", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, roundId: (st.roundId || 0) + 1 }); /* both READY with MATCHED BETS — the bell (a bet is required to fight, Jonathan 2026-10-31: "dont allow that unless they bet") */
   } else if (st.phase === "fight" && fresh.length === 1) {
     tblUpd("box", { phase: "done", winner: fresh[0], doneTs: now }); /* your opponent is gone — the bout is yours */
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 4500) {
@@ -6846,6 +6861,14 @@ function drawChessBoard(ti) {
     });
   };
   if (st && st.phase !== "bet") { rack(st.capBy1, b.x - 148, b.y + 30); rack(st.capBy0, b.x + b.w + 62, b.y + 30); }
+  /* whose turn (Jonathan 2026-10-31): during play, a gold label on the side of the player to move — top seat: top right, ABOVE the board; bottom seat: bottom right, BELOW the board; right-aligned to the board's right edge */
+  if (st && st.phase === "play") {
+    const tn = st.turn, tsd = st.seats && st.seats[tn];
+    const who = (tsd && tsd.pid === myId) ? "Your turn" : (st.mode === "pc" && !(tsd && tsd.pid)) ? "🤖 PC's turn" : ((tsd && tsd.name) || "Opponent") + "'s turn";
+    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "right";
+    if (tn === 0) ctx.fillText(who, b.x + b.w, b.y - 30);
+    else ctx.fillText(who, b.x + b.w, b.y + b.h + 44);
+  }
   /* seats: chairs, names, stakes — and the sit tap zones */
   CHSEATS[ti].forEach((sp, i) => {
     const sd = st && st.seats && st.seats[i];
@@ -6940,10 +6963,20 @@ function drawBoxing(t) {
   ctx.lineWidth = 7; ctx.strokeStyle = "#d42a2a"; rr(BOXRING.x - 46, BOXRING.y - 46, BOXRING.w + 92, BOXRING.h + 92, 10); ctx.stroke();
   ctx.lineWidth = 7; ctx.strokeStyle = "#2a4fd4"; rr(BOXRING.x - 24, BOXRING.y - 24, BOXRING.w + 48, BOXRING.h + 48, 8); ctx.stroke();
   drawChairs(BOXSEATS);
-  /* exit plate at the hallway's west end */
-  ctx.fillStyle = "#0a1428"; rr(56, BOXROOM.h / 2 - 110, 200, 44, 8); ctx.fill();
-  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(56, BOXROOM.h / 2 - 110, 200, 44, 8); ctx.stroke();
-  ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("🚪 SPORTS COMPLEX", 156, BOXROOM.h / 2 - 80);
+  /* exit at the hallway's west end (Jonathan 2026-10-31): the ARCADE doors' own look — dark gap in the end wall, gold wash, corner ticks, chevrons, and a gold sign plate on the hallway floor in front of it naming the room it leads back to; the plate's font shrinks per label so the text always fits inside it */
+  ctx.fillStyle = "#050914"; ctx.fillRect(0, BOXROOM.h / 2 - 92, 12, 184);
+  const xdg = ctx.createLinearGradient(0, 0, 90, 0); xdg.addColorStop(0, "rgba(255,215,106,0.4)"); xdg.addColorStop(1, "rgba(255,215,106,0)");
+  ctx.fillStyle = xdg; ctx.fillRect(0, BOXROOM.h / 2 - 92, 90, 184);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(2, BOXROOM.h / 2 - 98, 10, 16); ctx.fillRect(2, BOXROOM.h / 2 + 82, 10, 16);
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("❮", 58, BOXROOM.h / 2 - 12); ctx.fillText("❮", 58, BOXROOM.h / 2 + 34);
+  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
+  ctx.fillStyle = "#150b31"; rr(68, BOXROOM.h / 2 - 22, 252, 44, 11); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(68, BOXROOM.h / 2 - 22, 252, 44, 11); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  const xlw = ctx.measureText("← SPORTS ARENA").width, xfs = xlw > 228 ? Math.max(10, Math.floor(17 * 228 / xlw)) : 17;
+  if (xfs !== 17) ctx.font = "800 " + xfs + "px 'Segoe UI',sans-serif";
+  ctx.fillText("← SPORTS ARENA", 194, BOXROOM.h / 2 + 7);
   drawBoxingFx(t);
   ctx.restore();
 }
@@ -6990,18 +7023,21 @@ function drawBoxingFx(t) {
       ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.85)";
       ctx.fillText("stay in your seats for the rematch", 1800, 920);
     }
-    /* the gloves: two big gloves on every fighter, stacked one over the other on the side they face — the top glove throws the left punch, the lower one the right; a fresh punch record lunges its glove */
-    const drawGloves = (fx, fy, flip, punchSide, punchAge) => {
+    /* the gloves: two big gloves on every fighter, stacked one over the other on the side they face — the top glove throws the left punch, the lower one the right. Each fighter wears THEIR END's colour (red end red, blue end blue) and there is NO white cuff bar anywhere on them (Jonathan 2026-10-31). A fresh punch record lunges its glove: reach 34 (was 26), out on a snap curve (170ms, holds near full reach then whips back) with a touch of recoil past rest (130ms) */
+    const drawGloves = (fx, fy, flip, punchSide, punchAge, seat) => {
       const sideSign = flip ? 1 : -1;
       const glove = (dy, isTop) => {
         let lx = fx + sideSign * 40, ly = fy - 58 + dy;
         const mine = (punchSide === (isTop ? "L" : "R"));
-        if (mine && punchAge < 200) lx += sideSign * 26 * (1 - punchAge / 200);
-        ctx.fillStyle = "#d42a2a"; /* BOTH gloves red — top and lower, both fighters (Jonathan 2026-10-31) */
+        if (mine && punchAge < 300) {
+          let k;
+          if (punchAge < 170) k = Math.pow(1 - punchAge / 170, 0.55); /* snap: holds near the peak, then whips back */
+          else k = -0.14 * Math.sin((punchAge - 170) / 130 * Math.PI); /* recoil: a few px past rest on the way home */
+          lx += sideSign * 34 * k;
+        }
+        ctx.fillStyle = seat === 1 ? "#2a4fd4" : "#d42a2a"; /* the blue end wears blue, the red end red (Jonathan 2026-10-31) */
         ctx.beginPath(); ctx.arc(lx, ly, 27, 0, 7); ctx.fill();
         ctx.strokeStyle = "rgba(10,10,20,0.6)"; ctx.lineWidth = 3; ctx.stroke();
-        ctx.fillStyle = "#f6f2e8"; ctx.fillRect(lx - 15, ly + 27, 30, 16); /* the cuff (the white stick) BELOW the fist (Jonathan 2026-10-31) */
-        ctx.strokeStyle = "rgba(10,10,20,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(lx - 15, ly + 27, 30, 16);
       };
       glove(0, true); glove(40, false);
     };
@@ -7013,11 +7049,17 @@ function drawBoxingFx(t) {
       else for (const p of peers.values()) if (p.id === sd.pid && p.scene === "boxing") { fx = p.x; fy = p.y; flip = p.flip; }
       if (fx === null && (st.phase === "fight" || st.phase === "done")) { fx = i === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130; fy = 900; flip = i === 0; } /* a seated fighter in a live bout is in the ring, even if their presence has not caught up on this screen */
       if (fx === null) continue;
+      if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 130) { /* a landed punch rattles the fighter it hit: a few px of shake, decaying over ~130ms — the fighter only, never the camera (Jonathan 2026-10-31) */
+        const jk = (1 - punchAge / 130) * 5;
+        fx += (punchAge % 26 < 13) ? jk : -jk;
+        fy += (punchAge % 34 < 17) ? jk * 0.6 : -jk * 0.6;
+      }
       const side = (st.punch && st.punch.by === i) ? st.punch.side : (sd.pid === myId ? myPunchSide : "");
       const age = (st.punch && st.punch.by === i) ? punchAge : (sd.pid === myId ? performance.now() - myPunchAt : 1e9);
-      drawGloves(fx, fy, flip, side, age);
-      if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 220) { /* the impact star on the fighter just hit */
-        ctx.font = "34px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥", fx + (flip ? -34 : 34), fy - 66);
+      drawGloves(fx, fy, flip, side, age, i);
+      if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 260) { /* the impact star on the fighter just hit: lands at 62px with a scale-pop, settles to 46px (was a flat 34px for 220ms) */
+        const pop = 46 + 16 * Math.max(0, 1 - punchAge / 150);
+        ctx.font = Math.round(pop) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥", fx + (flip ? -40 : 40), fy - 70);
       }
     }
   } else if (st && st.phase === "sit") {
@@ -7029,13 +7071,14 @@ function drawBoxingFx(t) {
       const b0 = ss[0].bet || 0, b1 = ss[1].bet || 0;
       if (b0 !== b1) line = "⚠️ Bets must match — " + (ss[0].name || "RED") + " " + b0.toLocaleString("en-US") + " vs " + (ss[1].name || "BLUE") + " " + b1.toLocaleString("en-US");
       else if (ss[0].rdy && ss[1].rdy) line = "Both READY — the bell is about to ring!";
-      else line = (b0 > 0 ? "Bets matched at " + b0.toLocaleString("en-US") + " — " : "No bets — ") + "both fighters tap READY to start";
+      else line = b0 > 0 ? "Bets matched at " + b0.toLocaleString("en-US") + " — both fighters tap READY to start" : "Both fighters must place a bet to start";
     }
     ctx.fillText(line, 1800, 382); /* directly under the title (Jonathan 2026-10-31) */
     if (boxSeat >= 0) {
       const myBet = (ss[boxSeat] && ss[boxSeat].bet) || 0, myRdy = !!(ss[boxSeat] && ss[boxSeat].rdy);
       ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#000000"; ctx.textAlign = "center";
-      ctx.fillText(myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") : "Your bet: none — tap an amount, or READY with no bet", 1800, BOXRING.y + BOXRING.h - 24); /* inside the ring along its bottom side, in black (Jonathan 2026-10-31) */
+      if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) ctx.fillText("Q or E to punch", 1800, BOXRING.y + BOXRING.h - 54); /* the punch-key hint, one line above the your-bet line — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
+      ctx.fillText(myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") : "Your bet: none — place a bet to fight", 1800, BOXRING.y + BOXRING.h - 24); /* inside the ring along its bottom side, in black (Jonathan 2026-10-31) */
       CH_BETS.forEach((amt, k) => drawBtn(1800 - 479 + (k % 6) * 162, BOXRING.y + BOXRING.h + 66 + Math.floor(k / 6) * 68, 148, 56, amt.toLocaleString("en-US"), () => boxSetBet(amt), { fs: 24, sel: myBet === amt })); /* bigger bet buttons (Jonathan 2026-10-31): 104x40 fs17 -> 148x56 fs24 */
       drawBtn(1800 - 90, BOXRING.y + BOXRING.h + 206, 180, 52, myRdy ? "✓ READY" : "READY", () => boxReady(), { fs: 22, sel: myRdy }); /* dropped 30px to stay clear of the enlarged bet rows */
     }
@@ -7092,15 +7135,32 @@ function drawCasino(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(CAEXIT.x, CAEXIT.y, CAEXIT.w, CAEXIT.h, 8); ctx.stroke();
   ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", CAEXIT.x + CAEXIT.w / 2, CAEXIT.y + 30);
-  /* the two side doors (CASINO EXPANSION preview): dark gaps in the side walls at CASINODOORS_Y, gold plates reading down each wall, the arcade doors' style */
-  ctx.fillStyle = "#0a1428"; ctx.fillRect(CASINOROOM.w - 36, CASINODOORS_Y - 92, 36, 184); ctx.fillRect(0, CASINODOORS_Y - 92, 36, 184);
-  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.strokeRect(CASINOROOM.w - 36, CASINODOORS_Y - 92, 36, 184); ctx.strokeRect(0, CASINODOORS_Y - 92, 36, 184);
-  ctx.save(); ctx.translate(CASINOROOM.w - 66, CASINODOORS_Y); ctx.rotate(-Math.PI / 2);
+  /* the two side doors (CASINO EXPANSION preview): the ARCADE doors' own look, exactly as the Pool Hall door wears it in the Arcade — dark gap in the wall, gold wash, corner ticks, chevrons, and a gold sign plate on the floor in front reading where it leads (Jonathan 2026-10-31). The plate's font shrinks per label so the text ALWAYS fits inside the plate (max text width = plate 252 - 24 of margin) */
+  const casinoDoorPlate = (px, label) => {
+    ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
+    ctx.fillStyle = "#150b31"; rr(px, CASINODOORS_Y - 22, 252, 44, 11); ctx.fill(); ctx.restore();
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(px, CASINODOORS_Y - 22, 252, 44, 11); ctx.stroke();
+    ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+    const lw = ctx.measureText(label).width, fs = lw > 228 ? Math.max(10, Math.floor(17 * 228 / lw)) : 17;
+    if (fs !== 17) ctx.font = "800 " + fs + "px 'Segoe UI',sans-serif";
+    ctx.fillText(label, px + 126, CASINODOORS_Y + 7);
+  };
+  /* the CHESS ROOM door in the left wall — the Arcade's Pool Hall doorway, wall for wall */
+  ctx.fillStyle = "#050914"; ctx.fillRect(0, CASINODOORS_Y - 92, 12, 184);
+  const cdg = ctx.createLinearGradient(0, 0, 90, 0); cdg.addColorStop(0, "rgba(255,215,106,0.4)"); cdg.addColorStop(1, "rgba(255,215,106,0)");
+  ctx.fillStyle = cdg; ctx.fillRect(0, CASINODOORS_Y - 92, 90, 184);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(2, CASINODOORS_Y - 98, 10, 16); ctx.fillRect(2, CASINODOORS_Y + 82, 10, 16);
   ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("👑 HIGH ROLLERS CLUB", 0, 9); ctx.restore();
-  ctx.save(); ctx.translate(66, CASINODOORS_Y); ctx.rotate(-Math.PI / 2);
+  ctx.fillText("❮", 58, CASINODOORS_Y - 12); ctx.fillText("❮", 58, CASINODOORS_Y + 34);
+  casinoDoorPlate(68, "← ♟️ CHESS ROOM");
+  /* the HIGH ROLLERS CLUB door in the right wall — the Arcade's Theatre doorway, wall for wall */
+  ctx.fillStyle = "#050914"; ctx.fillRect(CASINOROOM.w - 12, CASINODOORS_Y - 92, 12, 184);
+  const hdg = ctx.createLinearGradient(CASINOROOM.w - 90, 0, CASINOROOM.w, 0); hdg.addColorStop(0, "rgba(255,215,106,0)"); hdg.addColorStop(1, "rgba(255,215,106,0.4)");
+  ctx.fillStyle = hdg; ctx.fillRect(CASINOROOM.w - 90, CASINODOORS_Y - 92, 90, 184);
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(CASINOROOM.w - 14, CASINODOORS_Y - 98, 10, 16); ctx.fillRect(CASINOROOM.w - 14, CASINODOORS_Y + 82, 10, 16);
   ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("♟️ CHESS ROOM", 0, 9); ctx.restore();
+  ctx.fillText("❯", CASINOROOM.w - 58, CASINODOORS_Y - 12); ctx.fillText("❯", CASINOROOM.w - 58, CASINODOORS_Y + 34);
+  casinoDoorPlate(CASINOROOM.w - 320, "👑 HIGH ROLLERS CLUB →");
   drawTableFx(t, "casino");
   if (casinoNote && performance.now() - casinoNoteAt < 4200) {
     ctx.font = "700 20px 'Segoe UI',sans-serif";
