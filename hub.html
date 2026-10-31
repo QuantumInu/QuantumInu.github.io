@@ -1862,7 +1862,7 @@ cv.addEventListener("pointercancel", e => { if (phAim && e.pointerId === phAim.i
    diagnostics are retired with this block. */
 let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
 const speakingNow = new Set();
-let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null;
+let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null, lkMicRetryAt = 0, lkMicBusy = false;
 function lkFetchToken(scene) {
   return new Promise(resolve => {
     if (!db || !myId || !window.LivekitClient) { resolve(null); return; }
@@ -1880,13 +1880,36 @@ function lkFetchToken(scene) {
     base.child("lkreq").set({ room: "hub-" + scene, name: me.name || "Player", ts: reqTs }).catch(() => finish(null));
   });
 }
+async function lkEnsureMicStream() {
+  /* the mic stream does not survive a room switch: leaving a room disconnects
+     it and the browser ends the underlying track, so the stream object can be
+     present but dead (Jonathan 2026-10-31: "the mic disengaging between
+     rooms" — it only came back after tapping off and on). A dead or missing
+     track is quietly replaced with a fresh capture; permission was already
+     granted in pttStart, so this never prompts again in practice. Failures
+     back off instead of spinning, and a real denial (micDenied) is final. */
+  const tr = micStream && micStream.getAudioTracks()[0];
+  if (tr && tr.readyState === "live") return true;
+  if (micDenied) return false;
+  if (Date.now() < lkMicRetryAt) return false;
+  try {
+    if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
+    return true;
+  } catch (e) { lkMicRetryAt = Date.now() + 3000; return false; }
+}
 async function lkPublishMic() {
-  if (!lkRoom || !pttHeld || !micStream || !window.LivekitClient) return;
-  const tr = micStream.getAudioTracks()[0]; if (!tr) return;
-  if (lkMicTrack === tr) return;
-  lkMicTrack = tr;
-  try { await lkRoom.localParticipant.publishTrack(tr, { name: "mic", source: LivekitClient.Track.Source.Microphone }); }
-  catch (e) { lkMicTrack = null; }
+  if (!lkRoom || !pttHeld || !window.LivekitClient || lkMicBusy) return;
+  lkMicBusy = true;
+  try {
+    if (!await lkEnsureMicStream()) return;
+    const tr = micStream.getAudioTracks()[0]; if (!tr) return;
+    if (lkMicTrack === tr) return;
+    lkMicTrack = tr;
+    try { await lkRoom.localParticipant.publishTrack(tr, { name: "mic", source: LivekitClient.Track.Source.Microphone }); }
+    catch (e) { lkMicTrack = null; }
+  } finally { lkMicBusy = false; }
 }
 async function lkUnpublishMic() {
   if (!lkRoom || !lkMicTrack) { lkMicTrack = null; return; }
@@ -1929,7 +1952,7 @@ async function lkJoin(scene) {
     });
     await room.connect(pass.url, pass.token);
     lkRetryAt = 0;
-    if (pttHeld && micStream) lkPublishMic();
+    if (pttHeld) lkPublishMic(); /* through the healer: the old stream may be a corpse after the switch */
   } catch (e) {
     if (lkRoom) { const r = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null; try { r.disconnect(); } catch (err) {} }
     lkRetryAt = Date.now() + 5000;
@@ -1956,13 +1979,15 @@ function voiceInit() {
   if (!entered) return;
   if (lkRoom && lkScene !== me.scene) { voiceReset(); return; }
   if (!lkRoom && !lkJoining && Date.now() >= lkRetryAt) lkJoin(me.scene);
+  if (lkRoom && lkScene === me.scene && pttHeld && !lkMicTrack && !lkJoining) lkPublishMic(); /* a mic you left ON re-lights itself in the new room; a mic you turned off (pttHeld false) is never touched */
 }
 function voiceTick() { voiceInit(); }
 setInterval(voiceTick, 800);
 /* voice watchdog: with the server move the reconciler is simple — the
    800ms tick already asserts I'm in my scene's room; this 5-second pass is
    the same assertion as a backstop. It never touches a healthy connection
-   and never re-grabs the microphone. */
+   and never turns a microphone on — it only restores one you left on when
+   a room switch killed its stream. */
 function voiceWatchdog() { voiceInit(); }
 setInterval(voiceWatchdog, 5000);
 const micBtn = $("micbtn");
