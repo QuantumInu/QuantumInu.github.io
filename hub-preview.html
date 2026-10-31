@@ -1862,7 +1862,7 @@ cv.addEventListener("pointercancel", e => { if (phAim && e.pointerId === phAim.i
    diagnostics are retired with this block. */
 let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
 const speakingNow = new Set();
-let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null, lkMicRetryAt = 0, lkMicBusy = false;
+let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null, lkMicRetryAt = 0, lkMicBusy = false, lkMicBusyAt = 0, lkMutedSince = 0;
 function lkFetchToken(scene) {
   return new Promise(resolve => {
     if (!db || !myId || !window.LivekitClient) { resolve(null); return; }
@@ -1894,7 +1894,10 @@ async function lkEnsureMicStream() {
   if (Date.now() < lkMicRetryAt) return false;
   try {
     if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    micStream = await Promise.race([
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("mic-timeout")), 4000))
+    ]);
     micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
     return true;
   } catch (e) { lkMicRetryAt = Date.now() + 1000; return false; } /* a passing failure retries in a second, not three (heal faster) */
@@ -1909,8 +1912,9 @@ function lkDropMicStream() {
   if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
 }
 async function lkPublishMic() {
-  if (!lkRoom || !pttHeld || !window.LivekitClient || lkMicBusy) return;
-  lkMicBusy = true;
+  if (!lkRoom || !pttHeld || !window.LivekitClient) return;
+  if (lkMicBusy && Date.now() - lkMicBusyAt < 6000) return; /* a publish is really running */
+  lkMicBusy = true; lkMicBusyAt = Date.now(); /* an older busy flag is a wedge (a capture that never came back after the screen slept) — take over */
   try {
     if (!await lkEnsureMicStream()) return;
     const tr = micStream.getAudioTracks()[0]; if (!tr) return;
@@ -2001,6 +2005,15 @@ async function lkJoin(scene) {
   }
   lkJoining = false;
 }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !entered) return;
+  /* the screen going off suspends the page and the voice connection dies
+     with it (Jonathan 2026-10-31). On wake: rejoin NOW, don't sit out a
+     retry wait — and if the mic was left on, the join re-lights it. */
+  if (!lkRoom && !lkJoining) { lkRetryAt = 0; lkJoin(me.scene); }
+  else if (lkRoom && lkScene !== me.scene) voiceReset();
+  else if (pttHeld && micStream) lkDropMicStream(); /* even when the room survived the sleep, the pre-sleep mic track may not have — capture fresh in the woken session */
+});
 function voiceReset() {
   if (entered) lkJoin(me.scene); /* make-before-break: the join itself closes the old room once the new one is live */
   else lkLeave();
@@ -2043,6 +2056,7 @@ async function pttStart() {
   me.mic = true; publish(true);
   micBtn.classList.add("on");
   ac();
+  if (!lkRoom || lkScene !== me.scene) { lkRetryAt = 0; lkJoin(me.scene); } /* "i press the mic button to connect" (Jonathan 2026-10-31): if the voice room died while the screen was off, the tap brings it back first, then the mic lights as usual */
   if (!micStream) {
     /* a fresh tap ALWAYS tries again (Jonathan 2026-10-31, on mobile:
        "sometimes i turn on the mic and nothing happens"). The old code
@@ -6879,6 +6893,19 @@ function frame(now) {
      voiceReset directly); the 800ms tick remains the backstop for joins. */
   if (lkRoom && lkScene === me.scene && pttHeld && !lkJoining) {
     if (lkMicTrack && lkMicTrack.readyState !== "live") lkMicTrack = null;
+    if (lkMicTrack && lkMicTrack.muted) {
+      /* a third way a mic dies (Jonathan 2026-10-31: the screen slept, and
+         "no amount of refreshing fixes the mic"): iOS can hand back a track
+         that is alive, enabled and published — but muted BY THE SYSTEM,
+         because the phone's sound session was left in the wrong mode. It
+         sends pure silence and survives refreshes, because it is the
+         PHONE's state, not the page's. The page never checked the muted
+         flag before. If the mute holds past a couple of seconds (a passing
+         interruption lifts on its own), throw the track away and capture
+         again in the current session. */
+      if (!lkMutedSince) lkMutedSince = Date.now();
+      else if (Date.now() - lkMutedSince > 2500) { lkMutedSince = 0; lkDropMicStream(); }
+    } else lkMutedSince = 0;
     if (!lkMicTrack) lkPublishMic();
   }
   renderOnlineList();
