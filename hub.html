@@ -1862,7 +1862,7 @@ cv.addEventListener("pointercancel", e => { if (phAim && e.pointerId === phAim.i
    diagnostics are retired with this block. */
 let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
 const speakingNow = new Set();
-let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null, lkMicRetryAt = 0, lkMicBusy = false, lkMicBusyAt = 0;
+let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null, lkMicRetryAt = 0, lkMicBusy = false, lkMicBusyAt = 0, lkMutedSince = 0;
 function lkFetchToken(scene) {
   return new Promise(resolve => {
     if (!db || !myId || !window.LivekitClient) { resolve(null); return; }
@@ -2012,6 +2012,7 @@ document.addEventListener("visibilitychange", () => {
      retry wait — and if the mic was left on, the join re-lights it. */
   if (!lkRoom && !lkJoining) { lkRetryAt = 0; lkJoin(me.scene); }
   else if (lkRoom && lkScene !== me.scene) voiceReset();
+  else if (pttHeld && micStream) lkDropMicStream(); /* even when the room survived the sleep, the pre-sleep mic track may not have — capture fresh in the woken session */
 });
 function voiceReset() {
   if (entered) lkJoin(me.scene); /* make-before-break: the join itself closes the old room once the new one is live */
@@ -6892,6 +6893,19 @@ function frame(now) {
      voiceReset directly); the 800ms tick remains the backstop for joins. */
   if (lkRoom && lkScene === me.scene && pttHeld && !lkJoining) {
     if (lkMicTrack && lkMicTrack.readyState !== "live") lkMicTrack = null;
+    if (lkMicTrack && lkMicTrack.muted) {
+      /* a third way a mic dies (Jonathan 2026-10-31: the screen slept, and
+         "no amount of refreshing fixes the mic"): iOS can hand back a track
+         that is alive, enabled and published — but muted BY THE SYSTEM,
+         because the phone's sound session was left in the wrong mode. It
+         sends pure silence and survives refreshes, because it is the
+         PHONE's state, not the page's. The page never checked the muted
+         flag before. If the mute holds past a couple of seconds (a passing
+         interruption lifts on its own), throw the track away and capture
+         again in the current session. */
+      if (!lkMutedSince) lkMutedSince = Date.now();
+      else if (Date.now() - lkMutedSince > 2500) { lkMutedSince = 0; lkDropMicStream(); }
+    } else lkMutedSince = 0;
     if (!lkMicTrack) lkPublishMic();
   }
   renderOnlineList();
