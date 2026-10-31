@@ -1332,6 +1332,7 @@ function enterHub() {
   gate.style.display = "none";
   ac(); startMusic(); sfxChime();
   publish(true);
+  poolBallListen(); /* the plaza is home: follow the pool's beach ball from the moment I step in */
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
@@ -2143,6 +2144,59 @@ function drawSportsBall(k, t) {
   else if (k === "fb") { ctx.fillStyle = "#f7faf7"; ctx.fill(); ctx.strokeStyle = "#20302a"; ctx.lineWidth = 2; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); const pent = (px, py, pr, rot) => { ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = rot + i * (Math.PI * 2 / 5) - Math.PI / 2, X = px + Math.cos(a) * pr, Y = py + Math.sin(a) * pr; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); } ctx.closePath(); ctx.fillStyle = "#182420"; ctx.fill(); }; pent(v.x, v.y, R * 0.34, 0); for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; pent(v.x + Math.cos(a) * R * 0.98, v.y + Math.sin(a) * R * 0.98, R * 0.30, a + Math.PI / 5); } ctx.strokeStyle = "rgba(24,36,32,0.55)"; ctx.lineWidth = 1.4; for (let i = 0; i < 5; i++) { const a = i * (Math.PI * 2 / 5) - Math.PI / 2; ctx.beginPath(); ctx.moveTo(v.x + Math.cos(a) * R * 0.30, v.y + Math.sin(a) * R * 0.30); ctx.lineTo(v.x + Math.cos(a) * R * 0.72, v.y + Math.sin(a) * R * 0.72); ctx.stroke(); } ctx.restore(); }
   else { const g = ctx.createRadialGradient(v.x - R * 0.3, v.y - R * 0.3, R * 0.2, v.x, v.y, R); g.addColorStop(0, "#eaff7a"); g.addColorStop(1, "#a8c81e"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(110,140,20,0.6)"; ctx.lineWidth = 1.6; ctx.stroke(); ctx.save(); ctx.beginPath(); ctx.arc(v.x, v.y, R - 1, 0, 7); ctx.clip(); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(v.x - R * 1.05, v.y, R * 0.72, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(v.x + R * 1.05, v.y, R * 0.72, 0, 7); ctx.stroke(); ctx.restore(); }
 }
+/* ============ the plaza swimming pool's BEACH BALL (PREVIEW round 5) ============ */
+/* One shared beach ball in the Quantum Pool, refereed exactly like the gym balls: the Q-Bot referee is the ONLY writer of hub/tables/sports/pool = { ball: {x,y,vx,vy,ts,seq,gen,host:"qbot",...}, score: {a:0,b:0} } — it spawns at the water's exact centre (3720, 1280), swimmers bump it with their sprites, it bounces off the WATER's edges and never leaves the water for the deck, and when the pool area empties the referee returns it to the centre (the gym courts' reset rule). This page is a PURE FOLLOWER, the stepSports machinery at one remove: subscribe, snapshot-interpolate, draw. It NEVER writes the pool record — with no referee record yet (or the referee down) the ball simply rests at the centre. */
+const POOL_BALL_R = 26;
+let poolState = null, poolHooked = false, poolBallVis = null;
+function poolBallListen() {
+  if (!db || poolHooked) return; poolHooked = true;
+  db.ref("hub/tables/sports/pool").on("value", s => { poolState = s.val(); });
+}
+function poolCentreBall() { const cx = POOLW.x + POOLW.w / 2, cy = POOLW.y + POOLW.h / 2; return { x: cx, y: cy, vx: 0, vy: 0, seq: -1, gen: -1, bx: cx, by: cy, bvx: 0, bvy: 0, buf: [], rot: 0 }; } /* the local default visual at the water's exact centre (never written anywhere) */
+function stepPoolBall(dt) {
+  /* follow the referee's shared ball — the stepSports acceptance rules verbatim: a HIGHER gen snaps (the ball was re-placed: a reset), within a gen only a HIGHER seq joins the snapshot buffer, anything stale is ignored whole */
+  const sb = poolState && poolState.ball;
+  let v = poolBallVis;
+  if (sb) {
+    if (!v) v = poolBallVis = { x: sb.x, y: sb.y, vx: sb.vx || 0, vy: sb.vy || 0, seq: -1, gen: -1, bx: sb.x, by: sb.y, bvx: sb.vx || 0, bvy: sb.vy || 0, buf: [], rot: 0 };
+    if (!v.buf) v.buf = [];
+    const sq = sb.seq || 0, gn = sb.gen || 0;
+    if (gn > v.gen) { v.gen = gn; v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; v.buf.length = 0; spBufPush(v, sb); v.x = sb.x; v.y = sb.y; v.vx = v.bvx; v.vy = v.bvy; }
+    else if (gn === v.gen && sq > v.seq) { v.seq = sq; v.bx = sb.x; v.by = sb.y; v.bvx = sb.vx || 0; v.bvy = sb.vy || 0; spBufPush(v, sb); }
+    /* snapshot interpolation on the writer's timeline, as stepSports: drawn SP_INTERP_MS behind the newest accepted state, extrapolating at most 120ms past it */
+    const wNow = Date.now() - (v.off || 0) - SP_INTERP_MS, sbuf = v.buf;
+    if (sbuf.length) {
+      let ix, iy;
+      if (wNow <= sbuf[0].wts) { ix = sbuf[0].x; iy = sbuf[0].y; }
+      else {
+        let i2 = sbuf.length - 1;
+        while (i2 > 0 && sbuf[i2].wts > wNow) i2--;
+        const s0 = sbuf[i2];
+        if (i2 === sbuf.length - 1) { const ex = Math.min((wNow - s0.wts) / 1000, 0.12); ix = s0.x + s0.vx * ex; iy = s0.y + s0.vy * ex; }
+        else { const s1 = sbuf[i2 + 1], span = Math.max(1, s1.wts - s0.wts), al = Math.min(1, Math.max(0, (wNow - s0.wts) / span)); ix = s0.x + (s1.x - s0.x) * al; iy = s0.y + (s1.y - s0.y) * al; }
+      }
+      const ez = Math.min(1, dt * 20);
+      v.x += (ix - v.x) * ez; v.y += (iy - v.y) * ez;
+    }
+    v.vx = v.bvx; v.vy = v.bvy;
+    v.rot = (v.rot || 0) + Math.hypot(v.vx || 0, v.vy || 0) * dt * 0.006; /* the panels turn as the ball rolls */
+  } else if (!v) poolBallVis = poolCentreBall(); /* no referee record yet: rest at the centre */
+}
+function drawPoolBall(t) {
+  const v = poolBallVis; if (!v) return;
+  const R = POOL_BALL_R, bob = Math.sin(t / 620) * 1.6, x = v.x, y = v.y + bob; /* it floats: a slow bob on the surface, above the water, in the scene pass like the gym balls sit in theirs */
+  ctx.fillStyle = "rgba(6,30,54,0.35)"; ctx.beginPath(); ctx.ellipse(x, v.y + R * 0.74, R * 0.95, R * 0.32, 0, 0, 7); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, R, 0, 7); ctx.clip();
+  const cols = ["#e0393e", "#f7f3e8", "#ffd23e", "#f7f3e8", "#2277d8", "#f7f3e8"]; /* the classic beach ball: red, yellow and blue gores on white */
+  const rot = v.rot || 0;
+  for (let i = 0; i < 6; i++) { ctx.fillStyle = cols[i]; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R + 1, rot + i * Math.PI / 3, rot + (i + 1) * Math.PI / 3); ctx.closePath(); ctx.fill(); }
+  const g = ctx.createRadialGradient(x - R * 0.35, y - R * 0.4, R * 0.15, x, y, R);
+  g.addColorStop(0, "rgba(255,255,255,0.35)"); g.addColorStop(0.6, "rgba(255,255,255,0)"); g.addColorStop(1, "rgba(10,20,50,0.18)");
+  ctx.fillStyle = g; ctx.fillRect(x - R, y - R, R * 2, R * 2);
+  ctx.beginPath(); ctx.arc(x, y, R * 0.30, 0, 7); ctx.fillStyle = "rgba(247,243,232,0.92)"; ctx.fill(); /* the pale inflation cap at the heart */
+  ctx.restore();
+  ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, R - 1, 0, 7); ctx.stroke();
+}
 /* ============ Quantum Speedway: shared cars (RTDB hub/tables/speedway) ============ */
 /* Free driving, just for fun (Jonathan 2026-10-29): 4 cars staged on the start line, one per lane — RED, BLUE, YELLOW, GREEN. Walk into a free car to sit in it; the stick drives it around the oval at 2.2x walk speed, clamped to the track ring. One driver per car; an empty car returns to its staging spot after ~4 seconds. Car state is shared, so everyone in the room sees the same cars. */
 let swState = null, swHooked = false;
@@ -2627,11 +2681,12 @@ function drawSpeedway(t) {
   /* staging boxes */
   ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2;
   for (let i = 0; i < 4; i++) { const s = swStage(i); ctx.strokeRect(s.x - 48, s.y - 27, 96, 54); }
-  /* silver spectator benches on all four sides of the oval (Jonathan 2026-10-29): inside the arena, OFF the track surface (outer edge: y 400 top / y 2000 bottom / x 300 left / x 3300 right), facing the racing. The bottom row splits around the centre so the entry spawn (1800,2240), the step-out spot below the staged cars and the walk down to the exit plate stay clear. */
+  /* silver spectator benches on all four sides of the oval (Jonathan 2026-10-29): inside the arena, OFF the track surface (outer edge: y 400 top / y 2000 bottom / x 300 left / x 3300 right), facing the racing. The bottom row splits around the centre so the entry spawn (1800,2240), the step-out spot below the staged cars and the walk down to the exit plate stay clear. Round 6 (2026-10-30): a SECOND top row above the first — its top edge (147 − 24 = 123) sits halfway between the top wall (y 0) and the top of the original top row (270 − 24 = 246) — same span, same step; and the side banks shift 40px toward their walls (170 → 130, 3430 → 3470), still well clear of the track's outer edge (x 300 / x 3300) */
+  for (let bx = 700; bx <= 2900; bx += 168) drawSwBench(bx, 147, 0);
   for (let bx = 700; bx <= 2900; bx += 168) drawSwBench(bx, 270, 0);
   for (let bx = 732; bx <= 1404; bx += 168) drawSwBench(bx, 2130, Math.PI);
   for (let bx = 2196; bx <= 2868; bx += 168) drawSwBench(bx, 2130, Math.PI);
-  for (let by = 780; by <= 1620; by += 168) { drawSwBench(170, by, -Math.PI / 2); drawSwBench(3430, by, Math.PI / 2); }
+  for (let by = 780; by <= 1620; by += 168) { drawSwBench(130, by, -Math.PI / 2); drawSwBench(3470, by, Math.PI / 2); }
   /* concession stands in the arena's four corners (Jonathan 2026-10-29) */
   for (const sc of SWSTAND_C) drawSwStand(sc[0], sc[1]);
   /* infield centrepiece: the atom mark + the name, sports-complex style */
@@ -3332,22 +3387,41 @@ function hrGallopTick() { /* the gallop (Jonathan 2026-10-30): hoofbeats while a
   hrGallopNext = t + (b === 4 ? 200 : 112);
   return b < 4;
 }
-function hrProgress(h, srvT) { /* one horse's race progress 0..1, a pure function of the shared record — every screen computes the identical run */
+function hrSeeded(seed, n) { /* a deterministic 0..1 hash of (seed, n) — the pack model's only dice: every screen derives the identical race from the written seed, no Math.random anywhere below this line */
+  let x = (seed >>> 0) ^ Math.imul(n + 1, 0x9E3779B1);
+  x = Math.imul(x ^ (x >>> 15), 0x2C1B3C6D);
+  x = Math.imul(x ^ (x >>> 12), 0x297A2D39);
+  return ((x ^ (x >>> 15)) >>> 0) / 4294967296;
+}
+function hrProgress(h, srvT) { /* one horse's race progress 0..1, a pure function of the shared record — every screen computes the identical run. PREVIEW round 5 — THE PACK MODEL (Jonathan's word): the field runs as ONE pack to the shared duration in times[0..3] (all four equal now): a common eased pace, per-horse seeded noise so the lead keeps changing hands, and ONE seeded surge per horse — a breakaway that can open a real gap mid-race and gets reeled back in. Every deviation ramps in off the gate (nothing shoves a horse at the line) and washes out down the final stretch into the finishing offsets: the drawn winner's offset is 0, so it crosses at exactly u = 1; each beaten horse's is a seeded gap of 0.8–2% of the lap, so it is still running at u = 1 and crosses within the next 5% of the duration, close behind. The old model (each horse on its own finish time, the winner the strict minimum, the field strung out by its time ratios) is gone */
   const st = hrState;
   if (!st || !st.times || st.phase === "bet") return 0;
-  const u = (srvT - (st.startTs || 0)) / st.times[h];
+  const D = Math.max(...st.times); /* the shared duration — every horse runs to the same clock now */
+  const u = (srvT - (st.startTs || 0)) / D;
   if (u <= 0) return 0;
-  if (u >= 1) return 1;
-  const burst = Math.sin(u * Math.PI * 2 * (1 + (h % 3)) + ((st.seed || 0) % 628) / 100 + h * 1.7) * 0.03 * (1 - u) * Math.min(1, u / 0.15); /* a mid-race surge that dies out at the line, so it can never change who finishes first — and it ramps in over the opening stretch, so nothing shoves a horse at the gate */
-  return Math.max(0, Math.min(1, Math.pow(u, 1.28) + burst)); /* the launch eases out of the gate (Jonathan 2026-10-30): u^1.28 starts at zero speed and builds through the opening stretch, where the old u^0.92 jumped straight off the line; it still lands on exactly 1 at u = 1, so the written finish order never changes */
+  const seed = st.seed || 0, winner = st.winner || 0;
+  const gap = h === winner ? 0 : 0.008 + hrSeeded(seed, 40 + h) * 0.012; /* this horse's finishing offset: the winner's is zero by construction, the rest close behind */
+  if (u >= 1) { if (h === winner) return 1; const k = Math.min(1, (u - 1) / 0.05); return (1 - gap) + gap * k; } /* the winner is home the instant the duration runs out; the beaten horses cross inside the next 5% — the done window */
+  const base = Math.pow(u, 1.22); /* the pack's common pace — the launch still eases out of the gate (zero speed at the gun, building through the opening stretch) and lands on exactly 1 at u = 1 */
+  const ph = hrSeeded(seed, h) * Math.PI * 2, fr = 2 + Math.floor(hrSeeded(seed, 10 + h) * 2); /* this horse's noise: 2–3 full swings a race at its own phase */
+  let dev = Math.sin(u * Math.PI * 2 * fr + ph) * 0.014 + Math.sin(u * Math.PI * 2 * (fr + 2) + ph * 1.7) * 0.006;
+  const sc = 0.22 + hrSeeded(seed, 20 + h) * 0.5, sw = 0.07 + hrSeeded(seed, 30 + h) * 0.04; /* the surge: centred between 22% and 72% of the race, a smooth bell 0.07–0.11 wide */
+  const dz = (u - sc) / sw;
+  dev += Math.exp(-dz * dz) * (0.03 + hrSeeded(seed, 50 + h) * 0.014); /* +3.0–4.4% of a lap at its peak — a horse CAN pull ahead by a lot */
+  const ramp = Math.min(1, u / 0.12); /* deviations grow in over the opening stretch, never at the gate */
+  const settle = u < 0.84 ? 0 : (u - 0.84) / 0.16, sCurve = settle * settle * (3 - 2 * settle); /* down the final stretch the noise and surges wash out into the finishing offsets */
+  dev = dev * ramp * (1 - sCurve) + (-gap) * sCurve;
+  return Math.max(0, Math.min(1, base + dev));
 }
-function hrHorsePos(h, srvT) {
-  const R = HR_LANES[h], st = hrState;
+function hrHorseDist(h, srvT) { /* the horse's distance along its lane — ONE source for placement (hrHorsePos) and facing (drawHrHorse), so the two can never disagree about where the horse is */
+  const st = hrState;
   /* a frozen race with nobody seated must never present as a live race (the casino tables' resting rule): with no fresh seat the field stands at rest, whatever the stored phase says, until the idle reset clears the state itself */
   const live = !!(st && st.seats && Object.keys(st.seats).some(k => st.seats[k] && st.seats[k].pid && Date.now() - (st.seats[k].ts || 0) < 25000));
   const racing = live && st && (st.phase === "race" || st.phase === "done") && st.times;
-  const d = racing ? h * 48 + hrProgress(h, srvT) * (hrPerimeter(R) - h * 48) : h * 48; /* at rest the field stands staggered at the start line — and the race starts FROM that stagger (Jonathan 2026-10-30): progress carries each horse from its own gate spot to the full lap, so nothing snaps back to a stack at the line when the race is written or when the gun goes */
-  return hrRingPos(d, R);
+  return racing ? hrProgress(h, srvT) * hrPerimeter(HR_LANES[h]) : 0; /* at rest the field stands on the start line itself (PREVIEW round 5, Jonathan's word): every horse at distance 0 in its own lane — one straight line across the track, no stagger — and the race starts FROM that line, so nothing snaps when the outcome is written or the gun goes */
+}
+function hrHorsePos(h, srvT) {
+  return hrRingPos(hrHorseDist(h, srvT), HR_LANES[h]);
 }
 function hrNear() { return me.scene === "track" && (Math.hypot(me.x - (HRT.x + HRT.w / 2), me.y - (HRT.y + HRT.h + 60)) < 470 || nearSeatOf(HRSEATS)); }
 function hrSitAt(i) {
@@ -3441,10 +3515,10 @@ function hrHostTick() {
   const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0 && seats[i].pick >= 0); /* ready counts only alongside a real bet on a picked horse */
   if (st.phase === "bet") {
     if (fresh.length && ready.length === fresh.length) {
-      /* the outcome is drawn ONCE, here, and written on the shared timeline: winner, each horse's finish time, a seed for the mid-race surges, and the start instant on server time (srvNow — the roulette rule: one clock for every screen) */
+      /* the outcome is drawn ONCE, here, and written on the shared timeline: the winner (a fair 1-in-4 draw), the SHARED duration the whole pack runs to, a seed for the pack's noise and surges, and the start instant on server time (srvNow — the roulette rule: one clock for every screen). PREVIEW round 5: times no longer carry per-horse finish times — hrProgress derives every horse's run from winner + seed + this one duration, and the drawn winner crosses first exactly as it runs out */
       const winner = Math.floor(Math.random() * 4);
       const wT = 8200 + Math.floor(Math.random() * 900);
-      const times = [0, 1, 2, 3].map(h => h === winner ? wT : Math.round(wT * (1.06 + Math.random() * 0.16)));
+      const times = [wT, wT, wT, wT];
       tblUpd("hr", { phase: "race", winner, times, seed: Math.floor(Math.random() * 1000000000), startTs: srvNow() + 1500, results: null, msg: "" });
     }
   } else if (st.phase === "race" && srvNow() - (st.startTs || 0) > Math.max(...(st.times || [0])) + 700) {
@@ -4473,15 +4547,15 @@ function drawTrackBuilding(t) {
   ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
   /* the roof (PREVIEW round 3): a PEAKED GABLE now — a real racing-stable silhouette in the round-2 colours: cream faces, burgundy trim, the thin burgundy stripes clipped into the slopes, a burgundy fascia along the eaves. The chasing bulbs that ran the old flat band's edge are GONE from the roof entirely (his word); the marquee below keeps its own, untouched. Unmistakably NOT the Sports Complex's flat green band or the Speedway's flat dark crown — those are bands, this is a peak */
-  ctx.beginPath(); ctx.moveTo(b.x - 18, b.y + 10); ctx.lineTo(cx, b.y - 96); ctx.lineTo(b.x + b.w + 18, b.y + 10); ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(b.x, b.y + 10); ctx.lineTo(cx, b.y - 96); ctx.lineTo(b.x + b.w, b.y + 10); ctx.closePath();
   ctx.fillStyle = "#f5eeda"; ctx.fill();
   ctx.save(); ctx.clip();
   ctx.fillStyle = "rgba(122,31,43,0.5)";
   for (let sx = b.x + 16; sx <= b.x + b.w - 20; sx += 46) ctx.fillRect(sx, b.y - 96, 7, 106); /* the thin stripes, clipped to the gable */
   ctx.restore();
-  ctx.beginPath(); ctx.moveTo(b.x - 18, b.y + 10); ctx.lineTo(cx, b.y - 96); ctx.lineTo(b.x + b.w + 18, b.y + 10); ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(b.x, b.y + 10); ctx.lineTo(cx, b.y - 96); ctx.lineTo(b.x + b.w, b.y + 10); ctx.closePath();
   ctx.strokeStyle = "#7a1f2b"; ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.fillStyle = "#7a1f2b"; ctx.fillRect(b.x - 18, b.y + 4, b.w + 36, 6); /* the burgundy fascia along the eaves */
+  ctx.fillStyle = "#7a1f2b"; ctx.fillRect(b.x, b.y + 4, b.w, 6); /* the burgundy fascia along the eaves — flush with the facade since round 6: the old ±18 overshoot ended in a little red spike past each end of the roof (his screenshot), so the gable's eaves and the fascia now land exactly on the building's corners */
   ctx.font = "26px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🧲", cx, b.y - 110); /* the golden horseshoe rides just over the peak (it floated over the old flat band on this same centre line) */
   /* marquee — charcoal panel, cream trim, cream-and-red bulbs (his restyle: different from the old gold-on-green) */
   ctx.fillStyle = "#1d1d24"; rr(b.x + 110, b.y + 40, b.w - 220, 92, 12); ctx.fill();
@@ -4552,8 +4626,9 @@ function drawPlazaPool(t) {
   /* the name, gold on the deck's south rim */
   ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.fillStyle = "#ffd76a"; ctx.fillText("🏊 QUANTUM POOL", P.x + P.w / 2, P.y + P.h - 14);
-  /* two palms at the deck's south corners, the casino palms' idiom */
+  /* palms at the deck's corners, the casino palms' idiom: the south pair, and (round 6) the same pair mirrored to the north corners — same size, same 34px inset from the side edges, the glyph box the same distance off the top edge as the south pair's is off the bottom */
   ctx.font = "46px sans-serif"; ctx.fillText("🌴", P.x + 34, P.y + P.h - 26); ctx.fillText("🌴", P.x + P.w - 34, P.y + P.h - 26);
+  ctx.fillText("🌴", P.x + 34, P.y + 54); ctx.fillText("🌴", P.x + P.w - 34, P.y + 54);
 }
 /* ============ casino rendering: the tables are the game ============ */
 let uiZones = [];
@@ -4835,7 +4910,7 @@ function hrStadiumPath(R) {
 function drawHrHorse(h, t) {
   const st = hrState, pos = hrHorsePos(h, srvNow());
   const racing = st && (st.phase === "race" || st.phase === "done") && st.times && hrProgress(h, srvNow()) > 0 && hrProgress(h, srvNow()) < 1;
-  const ahead = hrRingPos((racing || (st && st.phase === "race") ? hrProgress(h, srvNow()) * hrPerimeter(HR_LANES[h]) : h * 48) + 14, HR_LANES[h]);
+  const ahead = hrRingPos(hrHorseDist(h, srvNow()) + 14, HR_LANES[h]); /* facing (PREVIEW round 5): the lookahead rides the horse's OWN distance — the same d hrHorsePos placed it at — so the flip always reads the segment the horse is actually in, straights and caps alike. The old line sampled progress*perimeter on its own, a different spot than the horse whenever the two formulas disagreed, and the glyph ran backwards through whole stretches */
   const bob = racing ? -Math.abs(Math.sin(t / 88 + h * 1.35)) * 7 : Math.sin(t / 640 + h * 1.7) * 1.6; /* the gallop bounce while running, an idle sway at rest */
   const won = st && st.phase === "done" && st.winner === h;
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(pos.x, pos.y + 6, 30, 9, 0, 0, 7); ctx.fill();
@@ -5694,7 +5769,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawPlazaPool(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -6625,6 +6700,7 @@ function frame(now) {
     else if (me.scene === "hq") checkPortal(HQPORTAL, toPlazaFromHQ);
   }
   if (me.scene === "gym") stepSports(dt);
+  if (me.scene === "plaza") stepPoolBall(dt);
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
