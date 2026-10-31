@@ -261,6 +261,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.0/dist/livekit-client.umd.min.js"></script>
 <script>
 "use strict";
 /* ============ data ============ */
@@ -1244,6 +1245,48 @@ const VIPROOM = { w: 1500, h: 1100 };
 const VIPBAR = { x: 56, y: 76, w: 500, h: 60 }; /* the lounge's own little bar counter, in the club bars' style */
 const VIPBOOTH = [{ x: 56, y: 420, w: 210, h: 190 }, { x: 56, y: 700, w: 210, h: 190 }]; /* two private booths down the west wall, the club booths' style */
 const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the jukebox, moved here from the club (PREVIEW round 3, Jonathan 2026-10-30): the lounge's BOTTOM-RIGHT corner, on the same margins the DJ booth kept while it stood here (its right edge 86px off the east wall, its base 96px off the south wall), sized as itself (104x148). Its function never changed: nearJuke + tap opens the same song picker, and the pick writes the one shared hub/club song that plays in both rooms. (Round 2's three lounge slot machines stood along the top wall — removed entirely in round 3, and the DJ booth went back to the club stage; see DJBOOTH in the club block.) */
+/* ============ The VIP overlook (PREVIEW, Jonathan 2026-10-30) ============
+   The lounge is a RAISED floor over Club Quantum: while you stand in the
+   VIP, the real club is layered further down and to the right, off the
+   lounge's south-east edge — slightly smaller (0.66) and dimmed, with the
+   club's own live people in it — so the eye reads the VIP as higher.
+   VIPBELOW maps club-world points into lounge-world points:
+   (ox + s*x, oy + s*y). MOVED DOWN 2026-10-31 at Jonathan's word (the
+   view sat up at the top of the screen; he wants it toward the
+   bottom): at oy 300 the layer spans y 300..1332 — beside the lounge
+   the club shows from its TOP BORDER at 300 down to club y 1333, and
+   its lower stretch continues past the lounge's bottom wall on that
+   side. ONE placement only: a second pass once repeated the room in
+   a band below the lounge, and Jonathan saw the room twice on his
+   phone and ordered the repeat gone (2026-10-31) — under the lounge
+   itself it is simply dark now. The
+   layer's left part tucks UNDER the lounge's floor (covered when the
+   lounge paints right after — see frame's dispatch), and the drawing
+   is clipped to the layer's footprint, which IS the club's own
+   border: nothing is drawn beyond the club's right border.
+   ONE FRAME RULE: paintClubBelow applies SCALE + the frozen camera
+   ONCE, and drawClub — when vipBelowXf is set — adds ONLY the layer
+   transform, never the camera again. The room, its people, the clip
+   and the shade all live in that single frame, so a person in the
+   view stands exactly where they stand in the club itself.
+   The layer renders with a FROZEN camera (Jonathan 2026-10-31, final):
+   the follow cam the lounge would have with you standing at the
+   balcony (its east wall), no lean — on wide screens that is the same
+   centred value as a centre freeze; on phones it is the spot that
+   leaves the bottom floor's left edge attached to the lounge's right
+   edge when you lean. The camera pans the top floor only — walking and
+   the balcony lean alike never move the floor below; it keeps the
+   arrangement it has before you move toward the balcony, stuck to the
+   top floor at rest. The people down there still move as they really
+   move.
+   vipBelowXf is the one-frame handoff to drawClub: paintClubBelow sets it
+   while the layer borrows the club's own draw path; with it set, drawClub
+   applies ONLY the layer transform (the camera is already applied by
+   paintClubBelow — never twice). It is null everywhere else, so the club
+   scene itself renders exactly as before. Display only — nothing here is
+   walkable, clickable or synced. */
+const VIPBELOW = { ox: 1200, oy: 300, s: 0.60 };
+let vipBelowXf = null;
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
 const PORTAL = { x: 1600, y: 2080 }; /* moved 2026-10-29: from the west lawn (430,620) to its own circle directly below the spawn roundabout, on a new purple spur path */
@@ -1801,239 +1844,126 @@ cv.addEventListener("pointermove", e => {
 });
 cv.addEventListener("pointerup", e => { if (phAim && e.pointerId === phAim.id) phAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; });
 cv.addEventListener("pointercancel", e => { if (phAim && e.pointerId === phAim.id) phAim = null; holdId = null; holdVec = { x: 0, y: 0 }; });
-/* ============ voice chat (push to talk) ============ */
-const VOICE_RANGE = 600;
+/* ============ voice chat (tap to talk) — LiveKit (Jonathan 2026-10-31) ============
+   Voice rides LiveKit Cloud now, not player-to-player connections: everyone
+   in a scene joins that scene's LiveKit room ("hub-<scene>") and the server
+   relays the audio, so a strict router or a botched pair handshake can no
+   longer silence one pair while the rest work — the mesh's exact failure
+   (7daytonic: mic on, registered, unheard). Joining needs a signed pass:
+   the page writes a request at hub/voice/<myId>/lkreq and the token minter
+   on the Q-Bot host (~/workspace/quantum-hub/lkminter.py) answers at lkres
+   with a short-lived JWT — the API secret never reaches the page (a fresh
+   hub/lk node is denied by the RTDB rules, proven by a live write test, so
+   the channel rides the existing voice node). His standing voice rules
+   carry over unchanged: per room, constant full volume, every room change
+   leaves and rejoins, mic is tap-to-toggle and tapping off ends the
+   recording outright. The speaking set rides LiveKit's active-speaker
+   feed. The old mesh, its Cloudflare TURN credentials and its _state
+   diagnostics are retired with this block. */
 let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
-const voicePeers = new Map();
-let voiceTickN = 0;
 const speakingNow = new Set();
-function voiceDesired(pid) {
-  const p = peers.get(pid); if (!p || !entered) return false;
-  if (p.scene !== me.scene) return false;
-  return Math.hypot(me.x - p.tx, me.y - p.ty) <= VOICE_RANGE;
+let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null;
+function lkFetchToken(scene) {
+  return new Promise(resolve => {
+    if (!db || !myId || !window.LivekitClient) { resolve(null); return; }
+    const base = db.ref("hub/voice/" + myId);
+    const reqTs = Date.now();
+    let done = false, ref = null;
+    const finish = v => { if (done) return; done = true; clearTimeout(tid); if (ref) { try { ref.off(); } catch (e) {} } resolve(v); };
+    const tid = setTimeout(() => finish(null), 9000);
+    ref = base.child("lkres");
+    ref.on("value", s => {
+      const v = s.val();
+      if (v && v.ts === reqTs && v.token && v.url) finish({ token: v.token, url: v.url });
+    });
+    try { base.child("lkreq").onDisconnect().remove(); base.child("lkres").onDisconnect().remove(); } catch (e) {}
+    base.child("lkreq").set({ room: "hub-" + scene, name: me.name || "Player", ts: reqTs }).catch(() => finish(null));
+  });
 }
-function voiceSceneMate(pid) {
-  if (NPC_PIDS.has(pid)) return false; /* both Q-Bot records (plaza + HQ): voice never connects to Q-Bot */
-  const p = peers.get(pid); if (!p || !entered) return false;
-  return p.scene === me.scene;
+async function lkPublishMic() {
+  if (!lkRoom || !pttHeld || !micStream || !window.LivekitClient) return;
+  const tr = micStream.getAudioTracks()[0]; if (!tr) return;
+  if (lkMicTrack === tr) return;
+  lkMicTrack = tr;
+  try { await lkRoom.localParticipant.publishTrack(tr, { name: "mic", source: LivekitClient.Track.Source.Microphone }); }
+  catch (e) { lkMicTrack = null; }
+}
+async function lkUnpublishMic() {
+  if (!lkRoom || !lkMicTrack) { lkMicTrack = null; return; }
+  const tr = lkMicTrack; lkMicTrack = null;
+  try { await lkRoom.localParticipant.unpublishTrack(tr); } catch (e) {}
+}
+async function lkLeave() {
+  const room = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null;
+  speakingNow.clear();
+  if (room) { try { await room.disconnect(); } catch (e) {} }
+}
+async function lkJoin(scene) {
+  const C = window.LivekitClient;
+  if (!C || lkJoining || !entered || !db || !myId) return;
+  if (lkRoom && lkScene === scene) return;
+  lkJoining = true;
+  try {
+    if (lkRoom) await lkLeave();
+    const pass = await lkFetchToken(scene);
+    if (!pass) { lkRetryAt = Date.now() + 5000; lkJoining = false; return; }
+    if (!entered || me.scene !== scene) { lkJoining = false; return; } /* the room changed while the pass was minted — the tick joins the right one */
+    const room = new C.Room({});
+    lkRoom = room; lkScene = scene;
+    room.on(C.RoomEvent.TrackSubscribed, track => {
+      if (track.kind !== "audio") return;
+      try {
+        const el = track.attach();
+        el.volume = 1; el.style.display = "none";
+        document.body.appendChild(el);
+        if (el.play) el.play().catch(() => {});
+      } catch (e) {}
+    });
+    room.on(C.RoomEvent.TrackUnsubscribed, track => { try { track.detach().forEach(el => el.remove()); } catch (e) {} });
+    room.on(C.RoomEvent.ActiveSpeakersChanged, speakers => {
+      speakingNow.clear();
+      for (const sp of speakers) if (sp && sp.identity) speakingNow.add(sp.identity);
+    });
+    room.on(C.RoomEvent.Disconnected, () => {
+      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkRetryAt = Date.now() + 3000; }
+    });
+    await room.connect(pass.url, pass.token);
+    lkRetryAt = 0;
+    if (pttHeld && micStream) lkPublishMic();
+  } catch (e) {
+    if (lkRoom) { const r = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null; try { r.disconnect(); } catch (err) {} }
+    lkRetryAt = Date.now() + 5000;
+  }
+  lkJoining = false;
 }
 function voiceReset() {
-  for (const pid of [...voicePeers.keys()]) voiceClose(pid);
-  voiceBackoff.clear();
-  if (entered) { for (const pid of peers.keys()) { try { vref.child("voice").child(myId).child(pid).remove().catch(() => {}); } catch (e) {} } }
-}
-function detachMic(V) {
-  if (!V.pc) return;
-  try {
-    const snd = V.pc.getSenders().find(s => s.track && s.track.kind === "audio");
-    if (snd) snd.replaceTrack(null).catch(() => {});
-  } catch (e) {}
-}
-const CF_TURN_ID = "b7901936772140280f6a49ec67156b9d", CF_TURN_TOKEN = "6648df285f3f9e73a576f9366924eb28162f0464190a752044e30ff53f9ccb72";
-let cfIce = null, cfIceAt = 0, cfFetching = false, cfSettled = false;
-const voiceBackoff = new Map();
-async function fetchCfIce() {
-  if (cfFetching || (cfIce && Date.now() - cfIceAt < 6 * 3600 * 1000)) return;
-  cfFetching = true;
-  try {
-    const r = await fetch("https://rtc.live.cloudflare.com/v1/turn/keys/" + CF_TURN_ID + "/credentials/generate", { method: "POST", headers: { "Authorization": "Bearer " + CF_TURN_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ ttl: 86400 }) });
-    if (r.ok) { const j = await r.json(); if (j && j.iceServers) { cfIce = j.iceServers; cfIceAt = Date.now(); } }
-  } catch (e) {}
-  cfFetching = false; cfSettled = true;
+  lkLeave();
+  if (entered) lkJoin(me.scene);
 }
 function voiceInit() {
-  if (voiceInitDone || !db || !myId) return; voiceInitDone = true;
-  fetchCfIce();
-  const mail = db.ref("hub/voice/" + myId);
-  mail.onDisconnect().remove();
-  mail.on("child_added", s => onVoiceMail(s.key, s.val()));
-  mail.on("child_changed", s => onVoiceMail(s.key, s.val()));
-  if (!window.__qhUnlock) {
-    window.__qhUnlock = true;
-    document.addEventListener("pointerdown", () => {
-      voicePeers.forEach((V2) => { if (V2.audio && V2.audio.paused) V2.audio.play().catch(() => {}); });
-      if (AC) AC.resume().catch(() => {});
-    }, true);
-  }
-}
-function attachMic(V) {
-  if (!micStream || !V.pc) return;
-  const tr = micStream.getAudioTracks()[0]; if (!tr) return;
-  try {
-    let snd = V.pc.getSenders().find(s => s.track === tr);
-    if (!snd) snd = V.pc.getSenders().find(s => !s.track || s.track.kind === "audio");
-    if (snd && snd.track !== tr) snd.replaceTrack(tr).catch(() => {});
-    if (snd) V.sender = snd;
-  } catch (e) {}
-}
-async function renegotiate(pid) {
-  const V = voicePeers.get(pid);
-  if (!V || V.makingOffer || !V.pc || V.pc.signalingState !== "stable") return;
-  V.makingOffer = true;
-  try {
-    const off = await V.pc.createOffer();
-    await V.pc.setLocalDescription(off);
-    db.ref("hub/voice/" + pid + "/" + myId).update({ type: "offer", sdp: V.pc.localDescription.sdp, ts: Date.now() });
-  } catch (e) {}
-  V.makingOffer = false;
-}
-function voiceConnect(pid) {
-  if (voicePeers.has(pid)) return;
-  const bo = voiceBackoff.get(pid); if (bo && Date.now() < bo) return;
-  if (!cfIce && !cfSettled) { fetchCfIce(); return; }
-  const V = { pc: null, sender: null, audio: null, analyser: null, remoteSet: false, iceQ: [], handledOffer: 0, handledAnswer: 0, levelAt: 0, makingOffer: false, iceRef: null, usedTurn: !!cfIce, bornAt: Date.now(), iceRestarted: false };
-  voicePeers.set(pid, V);
-  let pc;
-  const servers = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
-  if (cfIce) servers.push(cfIce);
-  try { pc = new RTCPeerConnection({ iceServers: servers }); }
-  catch (e) { voicePeers.delete(pid); return; }
-  V.pc = pc;
-  pc.addTransceiver("audio", { direction: "sendrecv" });
-  attachMic(V);
-  pc.onicecandidate = e => { if (e.candidate) { try { db.ref("hub/voice/" + pid + "/" + myId + "/ice").push(JSON.stringify(e.candidate)); } catch (err) {} } };
-  pc.ontrack = e => {
-    if (!V.rstream) { try { V.rstream = new MediaStream(); } catch (err) { return; } }
-    const addT = t => { if (t && !V.rstream.getTracks().includes(t)) { try { V.rstream.addTrack(t); } catch (err) {} } };
-    addT(e.track);
-    if (e.streams && e.streams[0]) e.streams[0].getTracks().forEach(addT);
-    attachRemote(pid, V.rstream);
-  };
-  pc.onnegotiationneeded = () => renegotiate(pid);
-  pc.onconnectionstatechange = () => { voiceReport(pid); if (pc.connectionState === "failed") { voiceBackoff.set(pid, Date.now() + 4000); voiceClose(pid); } };
-  pc.oniceconnectionstatechange = () => { voiceReport(pid); if (pc.iceConnectionState === "failed" && !V.iceRestarted) { V.iceRestarted = true; try { pc.restartIce(); } catch (e) {} if (myId < pid) renegotiate(pid); } };
-  V.iceRef = db.ref("hub/voice/" + myId + "/" + pid + "/ice");
-  try { V.iceRef.remove(); } catch (e) {}
-  V.iceRef.on("child_added", s => {
-    const c = s.val(); if (!c) return; let cand; try { cand = JSON.parse(c); } catch (e) { return; }
-    if (V.remoteSet) pc.addIceCandidate(cand).catch(() => {}); else V.iceQ.push(cand);
-  });
-  if (myId < pid) renegotiate(pid);
-}
-async function onVoiceMail(fromId, val) {
-  if (!val || !val.sdp || !val.type || fromId === myId) return;
-  if (val.type === "offer") {
-    let V = voicePeers.get(fromId);
-    if (V && V.handledOffer === val.ts) return;
-    if (!V) { if (!voiceSceneMate(fromId)) return; voiceConnect(fromId); V = voicePeers.get(fromId); if (!V) return; }
-    const glare = V.makingOffer || V.pc.signalingState !== "stable";
-    if (glare && myId < fromId) return;
-    V.handledOffer = val.ts;
-    try {
-      if (glare) await V.pc.setLocalDescription({ type: "rollback" });
-      await V.pc.setRemoteDescription({ type: "offer", sdp: val.sdp });
-      V.remoteSet = true; V.iceQ.forEach(c => V.pc.addIceCandidate(c).catch(() => {})); V.iceQ = [];
-      attachMic(V);
-      const ans = await V.pc.createAnswer();
-      await V.pc.setLocalDescription(ans);
-      db.ref("hub/voice/" + fromId + "/" + myId).update({ type: "answer", sdp: V.pc.localDescription.sdp, ts: Date.now() });
-    } catch (e) {}
-  } else if (val.type === "answer") {
-    const V = voicePeers.get(fromId);
-    if (!V || V.handledAnswer === val.ts || V.pc.signalingState !== "have-local-offer") return;
-    V.handledAnswer = val.ts;
-    try {
-      await V.pc.setRemoteDescription({ type: "answer", sdp: val.sdp });
-      V.remoteSet = true; V.iceQ.forEach(c => V.pc.addIceCandidate(c).catch(() => {})); V.iceQ = [];
-    } catch (e) {}
-  }
-}
-function voiceReport(pid) {
-  const V = voicePeers.get(pid); if (!V || !V.pc || !db) return;
-  try {
-    V.pc.getStats().then(rep => {
-      let so = 0, si = 0, via = "";
-      const byId = {}; rep.forEach(s => { byId[s.id] = s; });
-      rep.forEach(s => {
-        if (s.type === "outbound-rtp" && s.kind === "audio") so = s.bytesSent || 0;
-        if (s.type === "inbound-rtp" && s.kind === "audio") { si = s.bytesReceived || 0; if ((s.audioLevel || 0) > 0.02) V.levelAt = performance.now(); }
-        if (s.type === "candidate-pair" && (s.state === "succeeded" || s.selected)) { const lc = byId[s.localCandidateId]; if (lc) via = lc.candidateType || ""; }
-      });
-      db.ref("hub/voice/" + myId + "/_state/" + pid).set({ c: V.pc.connectionState, i: V.pc.iceConnectionState, so, si, via, ts: Date.now(), ae: V.audio ? (V.audio.paused ? "paused" : "playing") : "none", av: V.audio ? Math.round(V.audio.volume * 100) : -1, am: V.audio ? (V.audio.muted ? 1 : 0) : -1, rs: V.audio ? V.audio.readyState : -1, tm: V.rtrack ? (V.rtrack.muted ? 1 : 0) : -1 });
-    }).catch(() => {});
-  } catch (e) {}
-}
-function attachRemote(pid, stream) {
-  const V = voicePeers.get(pid); if (!V) return;
-  try { V.rtrack = stream.getAudioTracks()[0]; } catch (e) {}
-  try {
-    if (!V.audio) {
-      const a = document.createElement("audio");
-      a.autoplay = true; a.muted = false; a.setAttribute("playsinline", ""); a.style.display = "none";
-      document.body.appendChild(a); V.audio = a;
+  if (!db || !myId) return;
+  if (!voiceInitDone) {
+    voiceInitDone = true;
+    try { db.ref("hub/voice/" + myId).onDisconnect().remove(); } catch (e) {}
+    if (!window.__qhUnlock) {
+      window.__qhUnlock = true;
+      document.addEventListener("pointerdown", () => {
+        if (lkRoom) { try { const p = lkRoom.startAudio(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+        if (AC) AC.resume().catch(() => {});
+      }, true);
     }
-    V.audio.srcObject = stream;
-    V.audio.play().catch(() => {});
-  } catch (e) {}
-}
-function voiceClose(pid) {
-  const V = voicePeers.get(pid); if (!V) return;
-  voicePeers.delete(pid); speakingNow.delete(pid);
-  try { if (V.iceRef) V.iceRef.off(); } catch (e) {}
-  try { if (V.pc) V.pc.close(); } catch (e) {}
-  try { if (V.audio) { V.audio.srcObject = null; V.audio.remove(); } } catch (e) {}
-  try { db.ref("hub/voice/" + pid + "/" + myId).remove(); } catch (e) {}
-}
-function voiceTick() {
-  if (!entered || !db) return;
-  voiceInit();
-  if (!cfIce) fetchCfIce();
-  for (const p of peers.values()) if (voiceSceneMate(p.id)) voiceConnect(p.id);
-  for (const [pid, V] of [...voicePeers.entries()]) {
-    const p = peers.get(pid);
-    if (!p || p.scene !== me.scene) { voiceClose(pid); continue; }
-    if (cfIce && !V.usedTurn && V.pc && V.pc.connectionState !== "connected" && Date.now() - V.bornAt > 5000) { voiceClose(pid); voiceConnect(pid); continue; }
-    const d = Math.hypot(me.x - p.tx, me.y - p.ty);
-    if (V.audio) { try { V.audio.volume = 1; if (V.audio.paused) V.audio.play().catch(() => {}); } catch (e) {} }
-    if (V.levelAt && performance.now() - V.levelAt < 700) speakingNow.add(pid); else speakingNow.delete(pid);
   }
-  if (pttHeld && micStream) speakingNow.add(myId); else speakingNow.delete(myId);
-  voiceTickN = (voiceTickN + 1) % 3; if (voiceTickN === 0) for (const pid of voicePeers.keys()) voiceReport(pid);
+  if (!entered) return;
+  if (lkRoom && lkScene !== me.scene) { voiceReset(); return; }
+  if (!lkRoom && !lkJoining && Date.now() >= lkRetryAt) lkJoin(me.scene);
 }
+function voiceTick() { voiceInit(); }
 setInterval(voiceTick, 800);
-/* ============ voice watchdog (Jonathan 2026-10-30) ============
-   His dropped call: the connection to two people in his room died — he
-   could see them but not hear them, and nothing recovered until a room
-   change ran voiceReset. So every 5 seconds this reconciles the room.
-   The DESIRED set is the fresh presence in my current scene (Q-Bot is
-   never desired — voice never connects to it): a desired peer with no
-   connection gets one through the normal connect path; a connection in
-   a terminal state (failed / closed) is torn down and rebuilt at once;
-   a merely "disconnected" one gets a grace pass and is rebuilt only if
-   it is still disconnected at the next check, so a blip that would heal
-   itself is never thrashed; a connection born over 20s ago that never
-   reached "connected" is rebuilt too. A connection to someone no
-   longer in the room is closed. Healthy connections are NEVER touched,
-   and the microphone is NEVER re-grabbed — no getUserMedia here: an
-   existing mic stream is simply re-attached by the connect path, and
-   with the mic off the rebuild still restores hearing. Every rebuild
-   re-checks the room at the moment it happens, so it can never
-   resurrect a connection to a room just left. */
-function voiceWatchdog() {
-  if (!entered || !db) return;
-  voiceInit();
-  const sc = me.scene;
-  for (const pid of [...voicePeers.keys()]) {
-    if (pid === myId || NPC_PIDS.has(pid) || !voiceSceneMate(pid)) voiceClose(pid); /* gone, wrong room, or a bot: this connection should not exist */
-  }
-  for (const p of peers.values()) {
-    const pid = p.id;
-    if (pid === myId || NPC_PIDS.has(pid) || !voiceSceneMate(pid)) continue;
-    const V = voicePeers.get(pid);
-    if (!V) { voiceConnect(pid); continue; } /* should be connected but has no connection at all */
-    if (!V.pc) continue;
-    const cs = V.pc.connectionState, is = V.pc.iceConnectionState;
-    const dead = cs === "failed" || cs === "closed" || is === "failed" || is === "closed";
-    const stuck = cs === "disconnected" || is === "disconnected";
-    const stillborn = (cs === "new" || cs === "connecting") && Date.now() - (V.bornAt || 0) > 20000;
-    if (dead || stillborn || (stuck && V.badAt && Date.now() - V.badAt >= 4000)) {
-      voiceBackoff.delete(pid); /* a watchdog rebuild is a fresh start, never gated by the failure backoff */
-      voiceClose(pid);
-      if (me.scene === sc && voiceSceneMate(pid)) voiceConnect(pid); /* re-check the room at the moment of the rebuild */
-    } else if (stuck) { if (!V.badAt) V.badAt = Date.now(); }
-    else V.badAt = 0;
-  }
-}
+/* voice watchdog: with the server move the reconciler is simple — the
+   800ms tick already asserts I'm in my scene's room; this 5-second pass is
+   the same assertion as a backstop. It never touches a healthy connection
+   and never re-grabs the microphone. */
+function voiceWatchdog() { voiceInit(); }
 setInterval(voiceWatchdog, 5000);
 const micBtn = $("micbtn");
 function flashMicDenied() {
@@ -2049,19 +1979,21 @@ async function pttStart() {
     catch (e) { micDenied = true; flashMicDenied(); }
     if (micStream) {
       micStream.getAudioTracks().forEach(t => t.enabled = pttHeld);
-      for (const [pid, V] of voicePeers.entries()) { attachMic(V); renegotiate(pid); }
+      lkPublishMic();
     }
   } else if (micStream) {
     micStream.getAudioTracks().forEach(t => t.enabled = true);
+    lkPublishMic();
   } else if (micDenied) flashMicDenied();
 }
 function pttEnd() {
   if (!pttHeld) return; pttHeld = false;
   me.mic = false; publish(true);
   micBtn.classList.remove("on");
+  lkUnpublishMic();
   // mic off = the recording truly ends: stop the tracks and release the
   // microphone (the phone's recording session ends with it). Hearing is
-  // untouched — voice connections and players stay exactly as they were.
+  // untouched — the room connection stays exactly as it was.
   if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
 }
 function wireMic(el) {
@@ -4435,6 +4367,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   if (chat && chatAge < 5000) drawChatBubble(wx, ny - 26, chat);
 }
 let camX = 0, camY = 0, SCALE = 0.6;
+let vipCamOx = 0; /* the VIP overlook camera lean (PREVIEW, Jonathan 2026-10-31): eased extra camX while up against the balcony, so the club below comes into frame — a phone's view is narrower than the room, so without the lean the overlook never reaches its screen */
 let hrCamGlide = null; /* the seated horse-table camera's glide state {s, x, y} (Jonathan 2026-10-30): the track focus EASES between the selecting close-up and the full-track race frame instead of jump-cutting. It lives only while the seated track focus block in frame() runs — standing up or leaving the room clears it, and the follow camera owns the view again. */
 let drawnScene = "";
 function worldToScreen(wx, wy) { return { x: (wx - camX) * SCALE, y: (wy - camY) * SCALE }; }
@@ -5981,9 +5914,110 @@ function drawDJBooth(t) {
   ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ff8fb5";
   ctx.fillText("🎧 DJ", dj.x + dj.w / 2, dj.y + dj.h - 12);
 }
+function paintClubBelow(t, dt) {
+  /* the club below the lounge (PREVIEW, Jonathan 2026-10-30 — see VIPBELOW): painted by frame() ONLY while
+     me.scene === "vip", immediately before the lounge itself, so the lounge's floor covers the layer's
+     tucked-under part and the club shows only where it spills past the lounge's south-east edge. The room
+     is the club's own drawClub riding one extra transform (vipBelowXf), and the people are the club's real
+     presence records, smoothed with frame()'s own lerp and drawn with frame()'s own drawPlayer, at their
+     real club spots mapped through the layer — they move down there exactly as they move. The door guard
+     comes along: he is part of the room down there. Nobody in the lounge is ever in this list — the filter
+     is scene "club" only. A translucent shade plus the lounge's cast shadow over the seams sell the drop.
+     Pure scenery: no hit tests read it, no presence is written, and the club scene itself never runs
+     this code.
+     ONE placement of the room (VIPBELOW, oy 300 — moved down at his word so it sits in the screen's
+     lower half): it spans from up by the lounge down past the lounge's bottom wall on the east side,
+     clipped by the lounge's own rect so it never paints over the lounge's floor. A second pass once
+     repeated the room in a band below the lounge; Jonathan saw the room twice and ordered the repeat
+     gone (2026-10-31) — the bottom floor shows ONCE, on phone and desktop alike.
+     THE BOTTOM FLOOR'S CAMERA IS FROZEN (Jonathan 2026-10-31, final word): everything here renders with
+     a fixed camera — the follow cam the lounge would have with you standing at the balcony, no lean
+     (the same centred value on wide screens; on phones, the spot that keeps the two floors attached
+     at full lean).
+     The live camera pans the lounge — your floor — only: walking and the balcony lean alike never move
+     the floor below, which keeps exactly the arrangement it has before you move toward the balcony.
+     The lounge is drawn with the LIVE camera, so in this frozen frame its rect sits shifted by
+     (shX, shY) = (camFx - camX, camFy - camY): the clip exclusions and the seam shadows use that shift.
+     The actor list is built (and lerped) ONCE and shared by both passes — lerping per pass made the
+     club's people glide twice as fast as they should. */
+  const L = VIPBELOW, fx = L.ox, fy = L.oy, fw = CLUBROOM.w * L.s, fh = CLUBROOM.h * L.s;
+  let camFx = Math.max(0, Math.min(VIPROOM.w - VW / SCALE, VIPROOM.w - VW / (2 * SCALE))); /* the follow cam with you standing AT THE BALCONY (the room's east wall), no lean: on wide screens the room fits the view and this is the same centred value as a centre freeze, so desktop is unchanged; on phones the view is narrower than the room, and this resting spot is what makes the lounge's right edge land exactly on the bottom floor's left edge at full lean — attached, never a gap (Jonathan 2026-10-31, from his phone screenshot: on mobile a dark gap opened between the lounge's right border and the club when leaning). West of the balcony the layer simply tucks further under the lounge, as designed. */
+  let camFy = Math.max(0, Math.min(VIPROOM.h - VH / SCALE, VIPROOM.h / 2 - VH / (2 * SCALE)));
+  if (VIPROOM.w * SCALE < VW) camFx = (VIPROOM.w - VW / SCALE) / 2;
+  if (VIPROOM.h * SCALE < VH) camFy = (VIPROOM.h - VH / SCALE) / 2;
+  const shX = camFx - camX, shY = camFy - camY; /* where the lounge's rect sits in the frozen frame */
+  const actors = [];
+  for (const p of peers.values()) {
+    if (p.scene !== "club") continue;
+    if (p.snap) { p.x = p.tx; p.y = p.ty; p.snap = false; }
+    p.x += (p.tx - p.x) * Math.min(1, dt * 9); p.y += (p.ty - p.y) * Math.min(1, dt * 9);
+    actors.push(p);
+  }
+  actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the same synthetic guard frame() composes into the club's actor pass — same post, same bubble */
+  actors.sort((a, b) => a.y - b.y);
+  function paintLayer(Lp, clipRects) {
+    ctx.save();
+    ctx.scale(SCALE, SCALE); ctx.translate(-camFx, -camFy);
+    ctx.beginPath();
+    for (const r of clipRects) ctx.rect(r[0], r[1], r[2], r[3]);
+    ctx.clip("evenodd");
+    ctx.save();
+    vipBelowXf = Lp;
+    try { drawClub(t); } finally { vipBelowXf = null; }
+    ctx.translate(Lp.ox, Lp.oy); ctx.scale(Lp.s, Lp.s);
+    for (const a of actors) {
+      const moving = Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7;
+      let phase = a.bob * 7;
+      if (a.run && moving) { a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr; }
+      const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999);
+      drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, false, t, moving);
+      if (a.x > DJBOOTH.x - 16 && a.x < DJBOOTH.x + DJBOOTH.w + 16 && a.y >= DJBOOTH.y - 6 && a.y <= DJBOOTH.y + 26) drawDJBooth(decorT(t)); /* atDJBooth's own geometry, without its scene test (me.scene is "vip" here): the counter repaints over a DJ standing behind it, exactly as frame() does in the club */
+      if (speakingNow.has(a.id) || a.mic) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
+    }
+    ctx.restore();
+    /* one floor down: the whole layer sits in shade */
+    ctx.fillStyle = "rgba(5,2,14,0.30)"; ctx.fillRect(Lp.ox, Lp.oy, CLUBROOM.w * Lp.s, CLUBROOM.h * Lp.s);
+    ctx.restore();
+  }
+  paintLayer(L, [[fx, fy, fw, fh], [shX, shY, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect (shifted by (shX, shY) in this frozen frame — the lounge is drawn with the live camera) */
+  /* the lounge's own shadow falls across the seams */
+  ctx.save();
+  ctx.scale(SCALE, SCALE); ctx.translate(-camFx, -camFy);
+  ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.rect(shX, shY, VIPROOM.w, VIPROOM.h); ctx.clip("evenodd");
+  const shS = ctx.createLinearGradient(0, VIPROOM.h + shY, 0, VIPROOM.h + shY + 48);
+  shS.addColorStop(0, "rgba(0,0,0,0.55)"); shS.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = shS; ctx.fillRect(fx, VIPROOM.h + shY, VIPROOM.w - fx + 48, 48); /* the south shadow falls from the lounge's bottom wall as drawn — at VIPROOM.h + shY in this frozen frame */
+  const shE = ctx.createLinearGradient(VIPROOM.w + shX, 0, VIPROOM.w + shX + 48, 0);
+  shE.addColorStop(0, "rgba(0,0,0,0.55)"); shE.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = shE; ctx.fillRect(VIPROOM.w + shX, fy, 48, VIPROOM.h - fy); /* the east shadow falls from the lounge's east wall as drawn — at VIPROOM.w + shX in this frozen frame */
+  ctx.restore();
+}
+function paintVipRail(t) {
+  /* the overlook railing (PREVIEW, Jonathan 2026-10-30; the SOUTH run removed at his word 2026-10-31 —
+     only the east run stays): a low gold-railed balustrade INSIDE the lounge along the east wall, from
+     just below the CLUB door's carpet (which ends at y 464) down to the corner. frame() paints it right
+     after the lounge, so it stands on the lounge's floor. The club beat pulses its top rail, the room's
+     own neon habit. Scenery only — collide() never heard of it, same as the couches. */
+  const beat = Math.pow(1 - ((t % 480) / 480), 2);
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(VIPROOM.w - 7, 520, 7, VIPROOM.h - 520); /* the floor's shaded lip where it drops away */
+  ctx.fillStyle = "#241031";
+  for (let py = 528; py <= VIPROOM.h - 12; py += 92) ctx.fillRect(VIPROOM.w - 36, py - 3, 34, 6); /* east posts */
+  ctx.fillStyle = "#ffd76a"; /* the posts' gold caps */
+  for (let py = 528; py <= VIPROOM.h - 12; py += 92) { ctx.beginPath(); ctx.arc(VIPROOM.w - 37, py, 4, 0, 7); ctx.fill(); }
+  ctx.save(); ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 3 + 18 * beat;
+  ctx.fillStyle = "rgba(255,215,106," + (0.75 + 0.25 * beat) + ")";
+  ctx.fillRect(VIPROOM.w - 42, 520, 5, VIPROOM.h - 520); /* east top rail */
+  ctx.restore();
+  ctx.fillStyle = "rgba(255,215,106,0.45)";
+  ctx.fillRect(VIPROOM.w - 22, 520, 3, VIPROOM.h - 520); /* east mid rail */
+  ctx.restore();
+}
 function drawClub(t) {
   t = decorT(t); /* decorT: at graphics 1/4 club ambient decor (kick-beat neon, dance floor, disco sway) steps at ~15fps */
-  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  ctx.save();
+  if (vipBelowXf) { ctx.translate(vipBelowXf.ox, vipBelowXf.oy); ctx.scale(vipBelowXf.s, vipBelowXf.s); } /* the VIP overlook (PREVIEW): paintClubBelow has ALREADY applied SCALE + the pre-snap camera before borrowing this draw, so the camera must NOT be applied a second time here — with it applied twice the room landed in a different frame from its people, its clip and its shade: floor spilled past the right border, the top border clipped away, and every person stood shifted off their real spot (Jonathan's screenshot 2026-10-31). One frame for all four. The club's own scene call leaves vipBelowXf null and takes the else path, byte-identical to before */
+  else { ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY); }
   const beat = Math.pow(1 - ((t % 480) / 480), 2); /* the club's kick-drum pulse — interior neon flashes together on it */
   /* wide screens (PREVIEW round 7, Jonathan 2026-10-30): the floor runs on past both side walls to the screen edges — the arcade apron's own fix, in the club's colours — so the starry space backdrop never shows past the room's left or right edge. Pure scenery: at least a full room width on each side and never less than the visible world width; the room's bounds, border, doors and every prop inside keep their exact spots */
   const extW = Math.max(CLUBROOM.w, Math.ceil(VW / SCALE));
@@ -6824,6 +6858,11 @@ function frame(now) {
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
   if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
   if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+  if (me.scene === "vip") {
+    const vipLean = (me.y > VIPROOM.h - 170 || me.x > VIPROOM.w - 170) ? 300 : 0; /* up against the balcony (the south edge or the east edge): lean the camera right so the club below slides into view, past the usual room clamp */
+    vipCamOx += (vipLean - vipCamOx) * Math.min(1, dt * 5);
+    if (vipCamOx > 0.5) camX += vipCamOx;
+  } else vipCamOx = 0;
   if (me.scene === "casino" && mySeatPos) {
     const f = seatFocusRect();
     if (f) {
@@ -6871,7 +6910,7 @@ function frame(now) {
   if (fxPrevScene !== null && me.scene !== fxPrevScene) clearRoomFx(); /* a room change wipes every pending room effect — nothing earned in one room replays in the next */
   fxPrevScene = me.scene;
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") drawVip(now); else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
