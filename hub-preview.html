@@ -1899,6 +1899,15 @@ async function lkEnsureMicStream() {
     return true;
   } catch (e) { lkMicRetryAt = Date.now() + 3000; return false; }
 }
+function lkDropMicStream() {
+  /* throw the current mic stream away (tracks stopped by US, now). Used on a
+     room switch: the old room's disconnect finishes whenever it finishes and
+     can only ever stop the track IT published — a stream captured after this
+     drop is a different track it never knew, so it cannot be killed by the
+     old room's late teardown. */
+  lkMicTrack = null;
+  if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
+}
 async function lkPublishMic() {
   if (!lkRoom || !pttHeld || !window.LivekitClient || lkMicBusy) return;
   lkMicBusy = true;
@@ -1952,7 +1961,8 @@ async function lkJoin(scene) {
     });
     await room.connect(pass.url, pass.token);
     lkRetryAt = 0;
-    if (pttHeld) lkPublishMic(); /* through the healer: the old stream may be a corpse after the switch */
+    try { const ap = room.startAudio(); if (ap && ap.catch) ap.catch(() => {}); } catch (e) {} /* hearing resumes without waiting for the next tap where the browser allows it */
+    if (pttHeld) { lkDropMicStream(); lkPublishMic(); } /* a mic you left on gets a FRESH stream in the new room — never the old room's track (see lkDropMicStream) */
   } catch (e) {
     if (lkRoom) { const r = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null; try { r.disconnect(); } catch (err) {} }
     lkRetryAt = Date.now() + 5000;
@@ -1979,7 +1989,10 @@ function voiceInit() {
   if (!entered) return;
   if (lkRoom && lkScene !== me.scene) { voiceReset(); return; }
   if (!lkRoom && !lkJoining && Date.now() >= lkRetryAt) lkJoin(me.scene);
-  if (lkRoom && lkScene === me.scene && pttHeld && !lkMicTrack && !lkJoining) lkPublishMic(); /* a mic you left ON re-lights itself in the new room; a mic you turned off (pttHeld false) is never touched */
+  if (lkRoom && lkScene === me.scene && pttHeld && !lkJoining) {
+    if (lkMicTrack && lkMicTrack.readyState !== "live") lkMicTrack = null; /* the published track died after the fact (the old room's teardown landing late, an OS kill) — forget it so the healer replaces it */
+    if (!lkMicTrack) lkPublishMic(); /* a mic you left ON re-lights itself in the new room; a mic you turned off (pttHeld false) is never touched */
+  }
 }
 function voiceTick() { voiceInit(); }
 setInterval(voiceTick, 800);
