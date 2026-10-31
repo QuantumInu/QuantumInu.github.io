@@ -1250,16 +1250,18 @@ const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the 
    lounge's south-east edge — slightly smaller (0.66) and dimmed, with the
    club's own live people in it — so the eye reads the VIP as higher.
    VIPBELOW maps club-world points into lounge-world points:
-   (ox + s*x, oy + s*y). The layer's top-left corner tucks UNDER the
-   lounge's floor at (1200, 680); only the part past the lounge's right
-   wall (x 1500) or bottom wall (y 1100) ever shows — the rest is covered
-   by the lounge itself, which paints right after (see frame's dispatch).
+   (ox + s*x, oy + s*y). The layer's top edge — the club's own top
+   border — sits right at the lounge's bottom wall (oy = 1100,
+   Jonathan 2026-10-31: the view below shows the room from its top
+   border down); only the part past the lounge's right wall (x 1500)
+   or bottom wall (y 1100) ever shows — the rest is covered by the
+   lounge itself, which paints right after (see frame's dispatch).
    vipBelowXf is the one-frame handoff to drawClub: paintClubBelow sets it
    while the layer borrows the club's own draw path, and drawClub adds the
    layer transform on top of the camera transform when it is set. It is
    null everywhere else, so the club scene itself renders exactly as
    before. Display only — nothing here is walkable, clickable or synced. */
-const VIPBELOW = { ox: 1200, oy: 680, s: 0.66 };
+const VIPBELOW = { ox: 1200, oy: 1100, s: 0.66 }; /* oy = the lounge's own bottom wall (Jonathan 2026-10-31): the club's TOP BORDER sits right at the lounge's bottom edge, so the view below shows the room from its top border down. ox and the 0.66 scale are exactly where they were */
 let vipBelowXf = null;
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
@@ -4452,6 +4454,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   if (chat && chatAge < 5000) drawChatBubble(wx, ny - 26, chat);
 }
 let camX = 0, camY = 0, SCALE = 0.6;
+let vipCamOx = 0; /* the VIP overlook camera lean (PREVIEW, Jonathan 2026-10-31): eased extra camX while up against the balcony, so the club below comes into frame — a phone's view is narrower than the room, so without the lean the overlook never reaches its screen */
 let hrCamGlide = null; /* the seated horse-table camera's glide state {s, x, y} (Jonathan 2026-10-30): the track focus EASES between the selecting close-up and the full-track race frame instead of jump-cutting. It lives only while the seated track focus block in frame() runs — standing up or leaving the room clears it, and the follow camera owns the view again. */
 let drawnScene = "";
 function worldToScreen(wx, wy) { return { x: (wx - camX) * SCALE, y: (wy - camY) * SCALE }; }
@@ -6048,28 +6051,23 @@ function paintClubBelow(t, dt) {
   ctx.restore();
 }
 function paintVipRail(t) {
-  /* the overlook railing (PREVIEW, Jonathan 2026-10-30): a low gold-railed balustrade INSIDE the lounge along
-     the two edges that overlook the club below — the south wall from x 820 to the corner, and the east wall
-     from just below the CLUB door's carpet (which ends at y 464) down to the same corner. frame() paints it
-     right after the lounge, so it stands on the lounge's floor; the jukebox (x 1310..1414, base y 1004)
-     clears the south run, and the dance rug (bottom edge y 990) clears it too. The club beat pulses its
-     top rail, the room's own neon habit. Scenery only — collide() never heard of it, same as the couches. */
+  /* the overlook railing (PREVIEW, Jonathan 2026-10-30; the SOUTH run removed at his word 2026-10-31 —
+     only the east run stays): a low gold-railed balustrade INSIDE the lounge along the east wall, from
+     just below the CLUB door's carpet (which ends at y 464) down to the corner. frame() paints it right
+     after the lounge, so it stands on the lounge's floor. The club beat pulses its top rail, the room's
+     own neon habit. Scenery only — collide() never heard of it, same as the couches. */
   const beat = Math.pow(1 - ((t % 480) / 480), 2);
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(820, VIPROOM.h - 7, VIPROOM.w - 820, 7); ctx.fillRect(VIPROOM.w - 7, 520, 7, VIPROOM.h - 520); /* the floor's shaded lip where it drops away */
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(VIPROOM.w - 7, 520, 7, VIPROOM.h - 520); /* the floor's shaded lip where it drops away */
   ctx.fillStyle = "#241031";
-  for (let px = 826; px <= VIPROOM.w - 10; px += 92) ctx.fillRect(px - 3, VIPROOM.h - 36, 6, 34); /* south posts */
   for (let py = 528; py <= VIPROOM.h - 12; py += 92) ctx.fillRect(VIPROOM.w - 36, py - 3, 34, 6); /* east posts */
   ctx.fillStyle = "#ffd76a"; /* the posts' gold caps */
-  for (let px = 826; px <= VIPROOM.w - 10; px += 92) { ctx.beginPath(); ctx.arc(px, VIPROOM.h - 37, 4, 0, 7); ctx.fill(); }
   for (let py = 528; py <= VIPROOM.h - 12; py += 92) { ctx.beginPath(); ctx.arc(VIPROOM.w - 37, py, 4, 0, 7); ctx.fill(); }
   ctx.save(); ctx.shadowColor = "#ffd76a"; ctx.shadowBlur = 3 + 18 * beat;
   ctx.fillStyle = "rgba(255,215,106," + (0.75 + 0.25 * beat) + ")";
-  ctx.fillRect(820, VIPROOM.h - 42, VIPROOM.w - 820, 5); /* south top rail */
   ctx.fillRect(VIPROOM.w - 42, 520, 5, VIPROOM.h - 520); /* east top rail */
   ctx.restore();
   ctx.fillStyle = "rgba(255,215,106,0.45)";
-  ctx.fillRect(820, VIPROOM.h - 22, VIPROOM.w - 820, 3); /* south mid rail */
   ctx.fillRect(VIPROOM.w - 22, 520, 3, VIPROOM.h - 520); /* east mid rail */
   ctx.restore();
 }
@@ -6917,6 +6915,11 @@ function frame(now) {
   camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
   if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
   if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+  if (me.scene === "vip") {
+    const vipLean = (me.y > VIPROOM.h - 170 || me.x > VIPROOM.w - 170) ? 300 : 0; /* up against the balcony (the south edge or the east edge): lean the camera right so the club below slides into view, past the usual room clamp */
+    vipCamOx += (vipLean - vipCamOx) * Math.min(1, dt * 5);
+    if (vipCamOx > 0.5) camX += vipCamOx;
+  } else vipCamOx = 0;
   if (me.scene === "casino" && mySeatPos) {
     const f = seatFocusRect();
     if (f) {
