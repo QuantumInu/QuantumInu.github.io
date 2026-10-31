@@ -4484,8 +4484,9 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
     ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
     ctx.strokeText(name, wx, wy - 104); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, wy - 104);
     ctx.restore(); return; }
-  const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * 11 : Math.sin(t / 620 + phase) * 1.4;
-  const H = hero === MECH_HERO ? 288 : 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8); /* the mech stands 3x taller than the dog (Jonathan 2026-10-31); the shadow ellipse takes its width from W, so the shadow widens with the form, as he asked; the name tag rides H the same way */
+  const bobAmp = hero === MECH_HERO ? 26 : 11; /* the mech's walking/running bop is more than doubled so its steps read at its size (Jonathan 2026-10-31) — a 2x body on the dog's 11px bounce barely moved */
+  const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * bobAmp : Math.sin(t / 620 + phase) * 1.4;
+  const H = hero === MECH_HERO ? 192 : 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8); /* the mech stands twice as tall as the dog (Jonathan 2026-10-31, corrected from 3x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
   ctx.save(); ctx.translate(wx, wy - H / 2 + bob);
@@ -6967,6 +6968,7 @@ function frame(now) {
   if (sprinting && !wading && now - dustAt > 65) {
     dustAt = now;
     dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 14, y: me.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 });
+    if (mechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction) */
   }
   if (wading && me.moving && now - splashAt > 130) { /* a step in the water throws droplets and a ring, walking or running */
     splashAt = now;
@@ -7112,7 +7114,7 @@ function frame(now) {
     const aWading = me.scene === "plaza" && inPoolWater(a.x, a.y); /* a peer in the pool splashes and never kicks dust (PREVIEW) */
     if (!isMe && a.run && moving) {
       a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr;
-      if (!aWading && now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); }
+      if (!aWading && now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); if (a.hero === MECH_HERO) { for (let i = 0; i < 2; i++) dust.push({ x: a.x + (Math.random() - 0.5) * 20, y: a.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } } /* the room sees the mech's extra regular running smoke too (Jonathan 2026-10-31) */
     }
     if (!isMe && aWading && moving && now - (a.splashAt || 0) > 130) { /* a wading peer's steps splash on my screen too */
       a.splashAt = now;
