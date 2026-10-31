@@ -1079,7 +1079,8 @@ const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 80, w: 124, h: 44 }
    door at the east end of the gym's centre path. */
 const CASINODOORS_Y = CASINOROOM.h - 344; /* 1856: both casino side doors, and the High Rollers exit, share this height */
 const HRROOM = { w: 3200, h: 2200 }; /* the High Rollers Club: the casino's own size, carpet and border */
-const HRBAR_L = { x: 56, y: 76, w: 560, h: 60 }, HRBAR_R = { x: HRROOM.w - 616, y: 76, w: 560, h: 60 }; /* the club's two bar counters (BAR_L/BAR_R: 560x60 at a 56px inset from the top corners) carried into the High Rollers room (Jonathan 2026-10-31), casino-themed and solid exactly like theirs — placed clear of the settled booth rows: the top booth benches start at y 274, the bars and their stool rows end at y ~187 */
+const HRBAR_L = { x: 56, y: 100, w: 560, h: 60 }, HRBAR_R = { x: HRROOM.w - 616, y: 100, w: 560, h: 60 };
+const HRDIV_T = { x: 120, y: 872, w: HRROOM.w - 240, h: 26 }, HRDIV_B = { x: 120, y: 1692, w: HRROOM.w - 240, h: 26 }; /* the two long dividers between the booths and the tables — SOLID (Jonathan 2026-10-31): you cannot walk over them, you go around their ends */ /* the club's two bar counters (BAR_L/BAR_R: 560x60 at a 56px inset from the top corners) carried into the High Rollers room (Jonathan 2026-10-31), casino-themed and solid exactly like theirs — placed clear of the settled booth rows: the top booth benches start at y 274, the bars and their stool rows end at y ~211 */
 const BACT = { x: 430, y: 980, w: 900, h: 430 }; /* baccarat felt — blackjack's rect, dark red */
 const CRAT = { x: 1870, y: 980, w: 900, h: 430 }; /* craps felt — roulette's rect, dark red */
 const BACSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BACT.x + 110 + i * 170, y: BACT.y + BACT.h + 150 }));
@@ -1366,7 +1367,7 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, ...SLOTM]; /* the LOUNGE block left this list with the lounge's removal (Jonathan 2026-10-31) */
-  if (me.scene === "highrollers") return [BACT, CRAT, HRBAR_L, HRBAR_R]; /* the dividers and booths are walk-over (Jonathan 2026-10-31) — only the two felts are solid, and now the two bar counters, solid exactly like Club Quantum's bars */
+  if (me.scene === "highrollers") return [BACT, CRAT, HRBAR_L, HRBAR_R, HRDIV_T, HRDIV_B]; /* the booths are walk-over (Jonathan 2026-10-31) — the felts, the two bar counters and the two dividers are solid; the dividers you go around, not over */
   if (me.scene === "chess") return [...CHBOARDS];
   if (me.scene === "boxing") return boxingBout ? [] : [BOXRING]; /* the bleachers are walk-over scenery (Jonathan 2026-10-31) — only the ring is solid, and only until YOUR bout starts (pass D) */
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
@@ -1413,7 +1414,7 @@ function collide(nx, ny) {
     if (nx > GEXIT.x - 4 && nx < GEXIT.x + GEXIT.w + 4 && ny > GYMROOM.h - 76) return { x: nx, y: ny, gymexit: true };
     nx = Math.max(56, Math.min(GYMROOM.w - 56, nx)); ny = Math.max(70, Math.min(GYMROOM.h - 46, ny));
   } else if (me.scene === "highrollers") {
-    if (nx < 66 && Math.abs(ny - HRROOM.h / 2) < 92) return { x: nx, y: ny, hrcexit: true }; /* back to the casino, through the MIDDLE of the left wall (Jonathan 2026-10-31): the exit moved up from the entry door's height (CASINODOORS_Y 1856) to HRROOM.h / 2 = 1100, the Pool Hall exit's mid-wall convention — trigger and drawing moved together. The arrival spawn inside this room is separate geometry (toHighRollers lands at x 150, entry height) and did NOT move with it */
+    if (nx < 66 && Math.abs(ny - HRROOM.h / 2) < 92) return { x: nx, y: ny, hrcexit: true }; /* back to the casino, through the MIDDLE of the left wall (Jonathan 2026-10-31): the exit moved up from the entry door's height (CASINODOORS_Y 1856) to HRROOM.h / 2 = 1100, the Pool Hall exit's mid-wall convention — trigger and drawing moved together. The arrival spawn matches the door (toHighRollers lands at x 150, this same height) */
     nx = Math.max(56, Math.min(HRROOM.w - 56, nx)); ny = Math.max(70, Math.min(HRROOM.h - 46, ny));
   } else if (me.scene === "chess") {
     if (nx > CHESSROOM.w - 66 && Math.abs(ny - CHESSROOM.h / 2) < 92) return { x: nx, y: ny, chessexit: true }; /* the exit, centred in the right wall on the centre path */
@@ -1853,8 +1854,8 @@ const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
   if ((e.key === "t" || e.key === "T") && entered && isOwnerAcct()) { toggleMech(); return; } /* the owner's transform key on PC (Jonathan 2026-10-31) */
-  if ((e.key === "q" || e.key === "Q") && boxingBout) { boxPunch("L"); return; } /* boxing on PC: Q = left punch, E = right punch (Jonathan 2026-10-31; replaces J/K) */
-  if ((e.key === "e" || e.key === "E") && boxingBout) { boxPunch("R"); return; }
+  if ((e.key === "q" || e.key === "Q" || e.key === "j" || e.key === "J") && boxingBout) { boxPunch("L"); return; } /* boxing on PC: Q or J = left punch, E or K = right punch (Jonathan 2026-10-31) */
+  if ((e.key === "e" || e.key === "E" || e.key === "k" || e.key === "K") && boxingBout) { boxPunch("R"); return; }
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
@@ -4664,7 +4665,7 @@ function hrAnswer(correct) {
   else { sfxBad(); me.x = Math.max(me.x - 90, 56); publish(true); /* turned away: a step back west, out of the doorway */ }
 }
 function tryHRDoor() { openHRQuiz(); }
-function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); hrListen(); pullChips(); }
+function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = HRROOM.h / 2; sfxChime(); publish(true); hrListen(); pullChips(); }
 function toCasinoFromHR() { stopAllTones(); hrStandUpAll(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w - 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toChess() { stopAllTones(); me.scene = "chess"; voiceReset(); me.x = CHESSROOM.w - 150; me.y = CHESSROOM.h / 2; sfxChime(); publish(true); chessListen(); pullChips(); }
 function toCasinoFromChess() { stopAllTones(); chessStandUp(); me.scene = "casino"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
@@ -6663,11 +6664,11 @@ function drawHighRollers(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   casinoShell(HRROOM.w, HRROOM.h, "👑 HIGH ROLLERS CLUB 👑", "baccarat · craps — high stakes only: 5,000 and up");
   uiZones = [];
-  /* bar counters in the top corners (Jonathan 2026-10-31): Club Quantum's bars, measurement for measurement — the 560x60 counter at the same 56px corner inset, the bottle shelf above it (560x46 at y 18, sixteen bottles), the stool row below (r17 every 62px) — re-skinned in the CASINO's materials: burgundy counter body, gold top edge and gold stool trim where the club wears pink neon and cyan, dark casino-red shelf and stools. Solid like the club's (see obstacles) */
+  /* bar counters in the top corners (Jonathan 2026-10-31): Club Quantum's bars, measurement for measurement — the 560x60 counter at the same 56px corner inset, the bottle shelf above it (560x46 at y 42, sixteen bottles), the stool row below (r17 every 62px) — re-skinned in the CASINO's materials: burgundy counter body, gold top edge and gold stool trim where the club wears pink neon and cyan, dark casino-red shelf and stools. Solid like the club's (see obstacles) */
   for (const bx of [HRBAR_L.x, HRBAR_R.x]) {
-    ctx.fillStyle = "#2a0a18"; ctx.fillRect(bx, 18, 560, 46);
+    ctx.fillStyle = "#2a0a18"; ctx.fillRect(bx, 42, 560, 46);
     const bottleCols = ["#ffd76a", "#ff8fa8", "#7dffb0", "#ffe9a8", "#d4a017"];
-    for (let i = 0; i < 16; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(bx + 14 + i * 34, 30 - (i % 3) * 4, 9, 26 + (i % 3) * 4); }
+    for (let i = 0; i < 16; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(bx + 14 + i * 34, 54 - (i % 3) * 4, 9, 26 + (i % 3) * 4); }
     ctx.globalAlpha = 1;
   }
   for (const bar of [HRBAR_L, HRBAR_R]) {
@@ -6683,14 +6684,14 @@ function drawHighRollers(t) {
   drawBooths(360, false); /* the top rows of private booths — two deep, raised a touch (Jonathan 2026-10-31: the top row is gone, the rest shifted up) */
   drawBooths(600, false);
   /* the long divider between the booths and the tables */
-  ctx.fillStyle = "#2a0a18"; rr(120, 872, HRROOM.w - 240, 26, 12); ctx.fill();
-  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(120, 872, HRROOM.w - 240, 26, 12); ctx.stroke();
+  ctx.fillStyle = "#2a0a18"; rr(HRDIV_T.x, HRDIV_T.y, HRDIV_T.w, HRDIV_T.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(HRDIV_T.x, HRDIV_T.y, HRDIV_T.w, HRDIV_T.h, 12); ctx.stroke();
   drawHRFelt(BACT, "🎴 BACCARAT");
   drawHRFelt(CRAT, "🎲 CRAPS");
   /* the chairs themselves are painted by the table pass (drawHRTableFx), which also owns their tap zones */
   /* the same divider again, below the tables' chairs, and the second booth row */
-  ctx.fillStyle = "#2a0a18"; rr(120, 1692, HRROOM.w - 240, 26, 12); ctx.fill();
-  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(120, 1692, HRROOM.w - 240, 26, 12); ctx.stroke();
+  ctx.fillStyle = "#2a0a18"; rr(HRDIV_B.x, HRDIV_B.y, HRDIV_B.w, HRDIV_B.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(HRDIV_B.x, HRDIV_B.y, HRDIV_B.w, HRDIV_B.h, 12); ctx.stroke();
   drawBooths(HRROOM.h - 310, true); /* the bottom booths — two deep, dropped a touch to match the top rows' shift (Jonathan 2026-10-31) */
   drawBooths(HRROOM.h - 70, true);
   /* exit door, MIDDLE of the left wall (Jonathan 2026-10-31) — moved up from the entry door's height (CASINODOORS_Y 1856) to HRROOM.h / 2 = 1100, and drawn in the Arcade door style batch 11 gave the casino's own side doors: dark gap, gold wash running into the room, corner ticks, chevrons, and a horizontal floor plaque in front naming the way back — "← CASINO", the boxing exit's "← SPORTS ARENA" pattern — with the same fitted-text rule (measured at draw time, shrunk to fit the plaque with margin). The old plain plate + rotated label are gone */
@@ -6881,6 +6882,11 @@ function drawChess(t) {
   ctx.fillStyle = "rgba(0,0,0,0.22)"; ctx.fillRect(1200, 0, 240, CHESSROOM.h); ctx.fillRect(0, 1200, CHESSROOM.w, 240);
   ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(1200, 0); ctx.lineTo(1200, CHESSROOM.h); ctx.moveTo(1440, 0); ctx.lineTo(1440, CHESSROOM.h); ctx.moveTo(0, 1200); ctx.lineTo(CHESSROOM.w, 1200); ctx.moveTo(0, 1440); ctx.lineTo(CHESSROOM.w, 1440); ctx.stroke();
+  /* the room title and its line, painted AGAIN over the centre cross at full strength (Jonathan 2026-10-31): casinoShell lays them down first and the walkway's dark strip and gold edges wash them out — up here both are 100% visible */
+  ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("♟️ CHESS ROOM ♟️", CHESSROOM.w / 2, 128);
+  ctx.font = "700 25px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfeaff";
+  ctx.fillText("chess · checkers — match your opponent's bet, winner takes the pot", CHESSROOM.w / 2, 172);
   CHBOARDS.forEach((b, i) => {
     ctx.fillStyle = "#20040c"; rr(b.x - 18, b.y - 18, b.w + 36, b.h + 36, 20); ctx.fill();
     ctx.strokeStyle = "rgba(255,215,106,0.75)"; ctx.lineWidth = 3; rr(b.x - 18, b.y - 18, b.w + 36, b.h + 36, 20); ctx.stroke();
@@ -7118,10 +7124,11 @@ function drawBoxingFx(t) {
       const w = (bw - 8) * (hp / 100);
       ctx.fillStyle = hp > 50 ? "#39d353" : hp > 25 ? "#e8b93c" : "#d42a2a";
       if (dir > 0) ctx.fillRect(x + 4, by + 4, w, 32); else ctx.fillRect(x + bw - 4 - w, by + 4, w, 32);
-      ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
+      ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000";
       ctx.fillText((i === 0 ? "🔴 " : "🔵 ") + nm + " · " + hp, x + bw / 2, by + 28);
     };
     bar(0, BOXRING.x + 14, 1); bar(1, BOXRING.x + BOXRING.w - 364, -1); /* the ring's own top corners: x 1434 and x 1816, y 534 */
+    if (st.phase === "fight" && boxSeat >= 0 && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; ctx.fillText("Q / E or J / K to punch", 1800, BOXRING.y + BOXRING.h - 54); } /* while fighting, the punch-key hint shows in the ring too — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
     if (st.phase === "fight" && srvNow() < (st.fightTs || 0) + 1200) {
       ctx.font = "800 54px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
       ctx.fillText("🥊 GET READY…", 1800, 880);
@@ -7196,7 +7203,7 @@ function drawBoxingFx(t) {
     if (boxSeat >= 0) {
       const myBet = (ss[boxSeat] && ss[boxSeat].bet) || 0, myRdy = !!(ss[boxSeat] && ss[boxSeat].rdy);
       ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#000000"; ctx.textAlign = "center";
-      if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) ctx.fillText("Q or E to punch", 1800, BOXRING.y + BOXRING.h - 54); /* the punch-key hint, one line above the your-bet line — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
+      if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) ctx.fillText("Q / E or J / K to punch", 1800, BOXRING.y + BOXRING.h - 54); /* the punch-key hint, one line above the your-bet line — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
       ctx.fillText(myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") : "Your bet: none — place a bet to fight", 1800, BOXRING.y + BOXRING.h - 24); /* inside the ring along its bottom side, in black (Jonathan 2026-10-31) */
       CH_BETS.forEach((amt, k) => drawBtn(1800 - 479 + (k % 6) * 162, BOXRING.y + BOXRING.h + 66 + Math.floor(k / 6) * 68, 148, 56, amt.toLocaleString("en-US"), () => boxSetBet(amt), { fs: 24, sel: myBet === amt })); /* bigger bet buttons (Jonathan 2026-10-31): 104x40 fs17 -> 148x56 fs24 */
       drawBtn(1800 - 90, BOXRING.y + BOXRING.h + 206, 180, 52, myRdy ? "✓ READY" : "READY", () => boxReady(), { fs: 22, sel: myRdy }); /* dropped 30px to stay clear of the enlarged bet rows */
@@ -7277,7 +7284,7 @@ function drawCasino(t) {
   ctx.fillStyle = "#ffd76a"; ctx.fillRect(CASINOROOM.w - 14, CASINODOORS_Y - 98, 10, 16); ctx.fillRect(CASINOROOM.w - 14, CASINODOORS_Y + 82, 10, 16);
   ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("❯", CASINOROOM.w - 58, CASINODOORS_Y - 12); ctx.fillText("❯", CASINOROOM.w - 58, CASINODOORS_Y + 34);
-  casinoDoorPlate(CASINOROOM.w - 320, "👑 HIGH ROLLERS CLUB →");
+  casinoDoorPlate(CASINOROOM.w - 466, "👑 HIGH ROLLERS CLUB →");
   /* the guard's door lettering — the club VIP door's own (Jonathan 2026-10-31): ⭐ VIP over his head at the club's own offsets mirrored (x CASINOROOM.w - 118, door y - 128 so it clears his name tag, exactly why the club's sits at -128), MEMBERS ONLY under the door */
   ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("⭐ VIP", CASINOROOM.w - 118, CASINODOORS_Y - 128);
