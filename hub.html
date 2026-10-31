@@ -105,6 +105,10 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #chipspill{font-weight:800;color:var(--gold)}
 #loadline{color:var(--gold);font-size:13px;margin:10px 0 4px;min-height:17px}
 #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:10px;width:min(880px,96vw);margin-top:8px}
+#genderbar{display:flex;width:min(880px,96vw);margin-top:14px;border:1px solid rgba(56,225,255,.35);border-radius:999px;overflow:hidden;background:rgba(5,10,24,.55)}
+.genseg{flex:1;padding:9px 0;background:transparent;border:none;border-left:1px solid rgba(56,225,255,.18);color:#7d9dbd;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit}
+.genseg:first-child{border-left:none}
+.genseg.sel{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800}
 .cell{background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.10);border-radius:14px;padding:6px 4px 5px;cursor:pointer;text-align:center;transition:border-color .12s,transform .12s}
 .cell:hover{transform:translateY(-2px)}
 .cell.sel{border-color:var(--gold);box-shadow:0 0 14px rgba(255,215,106,.45)}
@@ -247,6 +251,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
       <div id="acctmsg"></div>
     </div>
   </div>
+  <div id="genderbar" role="group" aria-label="Hero gender"><button type="button" class="genseg" id="gensegm">&#9794; Male</button><button type="button" class="genseg" id="gensegf">&#9792; Female</button></div>
   <div id="grid"></div>
   <button class="enterbtn" id="enterbtn" disabled>Enter the Hub</button>
   <button id="cancelbtn">Cancel</button>
@@ -381,6 +386,8 @@ if (!profile || !profile.name || !(profile.hero >= 1 && profile.hero <= 70)) pro
 if (profile && profile.code !== true && nameBlocked(profile.name)) profile = null;
 if (profile && typeof profile.chips !== "number") profile.chips = 1000;
 let pickedHero = profile ? profile.hero : 0;
+let pickedGender = profile && profile.gender === "f" ? "f" : "m"; /* the \u2642/\u2640 split bar above the grid: "m" is today's behaviour exactly; "f" swaps the grid to the female stickers (same hero numbers, same names) and the Hub wears the female sprite */
+if (pickedGender === "f" && (pickedHero === 38 || pickedHero === 40)) pickedHero = 0; /* female 38/40 were removed by the owner (FEMALE_MISSING below) \u2014 a saved female pick of either clears here, and Enter waits for a fresh tap */
 /* ============ audio ============ */
 let AC = null, muted = profile ? !!profile.muted : false, musicOn = false;
 function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } if (AC && AC.state === "suspended") AC.resume(); return AC; }
@@ -536,21 +543,32 @@ const gate = $("gate"), grid = $("grid"), nameIn = $("namein"), enterBtn = $("en
       cancelBtn = $("cancelbtn"), loadLine = $("loadline"), statusEl = $("status"),
       onlineEl = $("online"), promptBtn = $("prompt"), chatIn = $("chatin");
 let heroImgs = {}, loadedCount = 0;
-function makeHeroCell(n, nm) {
+let heroImgsF = {}, femaleLoadedCount = 0; /* the female sticker cache and its OWN load counter \u2014 the male HERO_TOTAL gate below is untouched */
+const FEMALE_MISSING = { 38: 1, 40: 1 }; /* owner removal (2026-10-30): female 038 and 040 do not exist \u2014 the female grid has 68 cells and the numbers NEVER shift (female N is always male hero N's counterpart) */
+const FEMALE_TOTAL = 68;
+function heroUrl(n, g) { return g === "f" ? "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffemale-" + String(n).padStart(3, "0") + ".webp?alt=media" : "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media"; }
+function heroImgFor(n, g) { return g === "f" ? heroImgsF[n] : heroImgs[n]; }
+function makeHeroCell(n, nm, g) {
+  g = g === "f" ? "f" : "m"; /* the special cells (71/73) never pass a gender \u2014 they are always the male stickers, in both modes */
   const cell = document.createElement("div");
   cell.className = "cell" + (n === pickedHero ? " sel" : "");
   cell.dataset.hero = n;
   const img = document.createElement("img");
   img.alt = nm;
-  img.onload = () => { heroImgs[n] = img; heroLoaded(); };
-  img.onerror = () => { heroLoaded(); };
-  img.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
+  img.onload = () => { if (g === "f") { heroImgsF[n] = img; heroLoadedF(); } else { heroImgs[n] = img; heroLoaded(); } };
+  img.onerror = () => { if (g === "f") heroLoadedF(); else heroLoaded(); };
+  img.src = heroUrl(n, g);
   const lab = document.createElement("div"); lab.className = "nm"; lab.textContent = n + " · " + nm;
   cell.appendChild(img); cell.appendChild(lab);
   cell.onclick = () => { pickedHero = n; document.querySelectorAll(".cell").forEach(c => c.classList.remove("sel")); cell.classList.add("sel"); sfxClick(); checkEnter(); };
   return cell;
 }
-HERO_NAMES.forEach((nm, i) => { grid.appendChild(makeHeroCell(i + 1, nm)); });
+function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift). The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
+  grid.innerHTML = "";
+  HERO_NAMES.forEach((nm, i) => { const n = i + 1; if (pickedGender === "f" && FEMALE_MISSING[n]) return; grid.appendChild(makeHeroCell(n, nm, pickedGender)); });
+  ownerCells = []; kingCell = null;
+  syncOwnerCell();
+}
 /* the special heroes exist as picker cells ONLY for their own accounts, always FIRST in the grid, and each player still taps his own himself: hero 71 for the owner account, hero 73 (the king) for OnlineMoney's account — the two are never offered to the same sign-in */
 let ownerCells = [], kingCell = null;
 function syncOwnerCell() {
@@ -561,8 +579,14 @@ function syncOwnerCell() {
   syncHeroSel();
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
+buildGrid();
 const HERO_TOTAL = 73;
-function heroLoaded() { loadedCount++; loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL; checkEnter(); }
+function heroLoaded() { loadedCount++; syncLoadLine(); checkEnter(); }
+function heroLoadedF() { femaleLoadedCount++; syncLoadLine(); checkEnter(); }
+function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 73 (70 grid + the 3 special preloads) in male mode, the 68 female cells in female mode */
+  if (pickedGender === "f") loadLine.textContent = femaleLoadedCount >= FEMALE_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + femaleLoadedCount + "/" + FEMALE_TOTAL;
+  else loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL;
+}
 [71, 72, 73].forEach(n => {
   const im = new Image();
   im.onload = () => { heroImgs[n] = im; heroLoaded(); };
@@ -570,8 +594,19 @@ function heroLoaded() { loadedCount++; loadLine.textContent = loadedCount >= HER
   im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
 });
 if (profile) nameIn.value = profile.name;
-function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && !isOwnerAcct() && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = heroAllowed(pickedHero); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL; enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
+function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && !isOwnerAcct() && nameBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = heroAllowed(pickedHero) && !(pickedGender === "f" && FEMALE_MISSING[pickedHero]); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL && (pickedGender !== "f" || femaleLoadedCount >= FEMALE_TOTAL); enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
+function syncGenBar() { $("gensegm").classList.toggle("sel", pickedGender !== "f"); $("gensegf").classList.toggle("sel", pickedGender === "f"); }
+function setGender(g) { /* flipping the split bar: the pick survives the flip (female N is male hero N's counterpart) EXCEPT the two removed numbers \u2014 a pick of 38/40 clears in female mode and Enter waits for a fresh tap, exactly like having no pick */
+  g = g === "f" ? "f" : "m";
+  if (g === "f" && FEMALE_MISSING[pickedHero]) pickedHero = 0;
+  if (pickedGender === g) { syncGenBar(); syncHeroSel(); checkEnter(); return; }
+  pickedGender = g;
+  syncGenBar(); buildGrid(); syncHeroSel(); syncLoadLine(); checkEnter();
+}
+$("gensegm").onclick = () => { setGender("m"); sfxClick(); };
+$("gensegf").onclick = () => { setGender("f"); sfxClick(); };
+syncGenBar();
 $("mutebtn").textContent = muted ? "🔇" : "🔊";
 $("mutebtn").onclick = () => {
   muted = !muted; $("mutebtn").textContent = muted ? "🔇" : "🔊";
@@ -608,8 +643,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat); if (v.scene !== p.scene) p.snap = true; p.tx = v.x; p.ty = v.y; Object.assign(p, { name: v.name, hero: v.hero, g: v.g === "f" ? "f" : "m", scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: v.g === "f" ? "f" : "m", scene: v.scene, x: v.x, y: v.y, tx: v.x, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + onlineRoster().length + " online"; if (typeof renderOnlineList === "function") renderOnlineList();
@@ -624,7 +659,7 @@ function publish(force) {
   if (!force && now - lastPub < 180 && key === lastPubKey) return;
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
-  const rec = { name: me.name, hero: me.hero, scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  const rec = { name: me.name, hero: me.hero, g: me.g === "f" ? "f" : "m", scene: me.scene, x: Math.round(me.x), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   myRef.set(rec).catch(() => {});
 }
@@ -654,13 +689,23 @@ document.addEventListener("touchend", e => { const nw = Date.now(); const dtap =
 document.addEventListener("dblclick", e => e.preventDefault(), { passive: false });
 /* self-healing hero images: if a peer's sticker has not loaded yet, load it now */
 const heroLoading = {};
-function ensureHero(n) {
+const heroLoadingF = {};
+function ensureHero(n, g) {
+  if (g === "f") { /* a peer's female sticker, loaded into the female cache (a missing g on an older page reads as male, so old and new pages interoperate) */
+    if (!n || heroImgsF[n] || heroLoadingF[n]) return;
+    heroLoadingF[n] = true;
+    const imF = new Image();
+    imF.onload = () => { heroImgsF[n] = imF; };
+    imF.onerror = () => { heroLoadingF[n] = false; };
+    imF.src = heroUrl(n, "f");
+    return;
+  }
   if (!n || heroImgs[n] || heroLoading[n]) return;
   heroLoading[n] = true;
   const im = new Image();
   im.onload = () => { heroImgs[n] = im; };
   im.onerror = () => { heroLoading[n] = false; };
-  im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
+  im.src = heroUrl(n, "m");
 }
 /* ============ theatre (shared channel, synced for everyone) ============ */
 let theatreState = null, dlCatalog = [];
@@ -984,7 +1029,7 @@ if (db) db.ref("hub/club").on("value", s => { clubState = s.val(); syncJuke(); u
 /* ============ player / world ============ */
 const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south. PREVIEW (2026-10-30): the plaza grows RIGHT by 1140 for the Quantum Horse Track building east of the Sports Complex and the swimming pool east of the casino — again, nothing existing moved, the ground just extends east */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
-const me = { name: "", hero: 0, scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
+const me = { name: "", hero: 0, g: "m", scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
 let entered = false;
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
@@ -1316,6 +1361,7 @@ window.addEventListener("beforeunload", releaseTabLock);
 window.addEventListener("pagehide", e => { if (!e.persisted) releaseTabLock(); });
 function enterHub() {
   const raw = nameIn.value.trim(); if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return;
+  if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
   if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct())) return;
@@ -1326,12 +1372,12 @@ function enterHub() {
     startChips = profile.chips; lastDay = profile.day || todayStr;
     if (lastDay !== todayStr) { startChips += 100; lastDay = todayStr; }
   }
-  profile = { name: nm, hero: pickedHero, muted, code: false, chips: startChips, chipsTs: Date.now(), day: lastDay };
+  profile = { name: nm, hero: pickedHero, gender: pickedGender, muted, code: false, chips: startChips, chipsTs: Date.now(), day: lastDay };
   localStorage.setItem(LS_KEY, JSON.stringify(profile));
   acctSave(); drawChips();
   if (lockBeat) clearInterval(lockBeat);
   lockBeat = setInterval(() => { try { localStorage.setItem("qh-tab-lock", JSON.stringify({ id: tabId, ts: Date.now() })); } catch (e) {} }, 3000);
-  me.name = nm; me.hero = pickedHero;
+  me.name = nm; me.hero = pickedHero; me.g = pickedGender;
   entered = true;
   gate.style.display = "none";
   ac(); startMusic(); sfxChime();
@@ -1346,7 +1392,7 @@ function acctSave() {
   if (!acctUser || !db || !profile) return;
   if (!acctLoaded) return; /* not yet reconciled with the account — writing now could clobber it */
   profile.chipsTs = Date.now(); /* this device's balance is current as of this save (post-reconciliation), so stamp it */
-  try { db.ref("hub/users/" + acctUser.uid).update({ name: profile.name, hero: profile.hero, chips: typeof profile.chips === "number" ? profile.chips : 1000, chipsTs: profile.chipsTs, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {} /* update, not set: the session claim lives under the same record and must survive profile saves */
+  try { db.ref("hub/users/" + acctUser.uid).update({ name: profile.name, hero: profile.hero, gender: profile.gender === "f" ? "f" : "m", chips: typeof profile.chips === "number" ? profile.chips : 1000, chipsTs: profile.chipsTs, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {} /* update, not set: the session claim lives under the same record and must survive profile saves */
 }
 /* chips rule (Jonathan 2026-10-28, final form): the balance lives on the SERVER and nowhere else. At sign-in the server amount is the balance — a device's local copy NEVER raises it (logging in can never replenish). The amount only changes while playing (every change saves to the server the moment it happens), pullChips() re-reads the server amount when a game is about to be played, and watchChips() keeps the on-screen counter on the server amount live while signed in. The local figure is only ever used for a brand-new account that has no server balance yet. */
 function pickChips(lc, lt, sc, st) {
@@ -1590,9 +1636,9 @@ function initAuth() {
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO)) ? d.hero : 1, muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
-          nameIn.value = profile.name; pickedHero = profile.hero;
+          nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
           syncOwnerCell(); syncHeroSel();
           checkEnter(); drawChips();
           acctLoaded = true;
@@ -1610,7 +1656,7 @@ $("enterbtn-top").onclick = enterHub;
 $("changebtn").onclick = () => {
   if (!entered) return;
   gate.style.display = "flex"; cancelBtn.style.display = "block";
-  if (profile) { nameIn.value = profile.name; pickedHero = profile.hero; }
+  if (profile) { nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender); }
   syncOwnerCell(); syncHeroSel();
   checkEnter(); sfxClick();
 };
@@ -4361,9 +4407,9 @@ function drawChatBubble(cx, boxBottom, chat) {
   ctx.beginPath(); ctx.moveTo(cx - 7, by + bh); ctx.lineTo(cx + 7, by + bh); ctx.lineTo(cx, by + bh + 9); ctx.closePath(); ctx.fill();
   ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, cx, by + 26 + i * 26));
 }
-function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving) {
-  const img = heroImgs[hero];
-  if (!img) { ensureHero(hero);
+function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving, gender) {
+  const img = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
+  if (!img) { ensureHero(hero, gender);
     ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(wx, wy - 4, 27, 9, 0, 0, 7); ctx.fill();
     ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
     ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
@@ -5120,6 +5166,18 @@ function drawPhTable(tt, t) {
       for (let n = 1; n < 16; n++) { const bb = st.balls[n]; if (bb && !bb.on && phGroup(n) === myG) { phBallDraw({ x: sbx + PH_BR, y: sby, on: true }, n); sbx += PH_BR * 2 + 6; } }
       if (st.phase === "done" && st.winner === phSeatI && st.balls[8] && !st.balls[8].on) phBallDraw({ x: sbx + PH_BR, y: sby, on: true }, 8);
     }
+  }
+  /* the opponent's sunk balls (Jonathan 2026-10-30): the MIRROR of my rack \u2014 the other seat's pocketed balls racked above the table at the TOP RIGHT, anchored at the table's right end and stacking LEFTWARD (the first ball at the far right, each next one to its left). Same source of truth as mine (st.sets for the group, the balls the synced state marks down), same phBallDraw drawing, same ball-number order, the 8 last once the game is done and THEY took it, and it clears on the re-rack exactly like mine. In vs-PC mode the PC is the opponent: its group lives in st.sets even though it holds no seat record, so its balls rack top-right the same way. For a spectator at this table BOTH seats show \u2014 seat 0 on the left in the same spot as a seated player's own rack, seat 1 on the right \u2014 so the two views always agree */
+  if (st && (st.phase === "play" || st.phase === "done") && st.balls && st.sets) {
+    const phRackRow = (seat, fromRight) => {
+      const g = st.sets[seat]; if (!g) return;
+      let sx = fromRight ? T.x + T.w - 2 : T.x + 2;
+      const step = fromRight ? -(PH_BR * 2 + 6) : PH_BR * 2 + 6, off = fromRight ? -PH_BR : PH_BR;
+      for (let n = 1; n < 16; n++) { const bb = st.balls[n]; if (bb && !bb.on && phGroup(n) === g) { phBallDraw({ x: sx + off, y: T.y - 52, on: true }, n); sx += step; } }
+      if (st.phase === "done" && st.winner === seat && st.balls[8] && !st.balls[8].on) phBallDraw({ x: sx + off, y: T.y - 52, on: true }, 8);
+    };
+    if (phSeatT === tt && phSeatI >= 0) phRackRow(1 - phSeatI, true); /* seated: only the opponent's rack is new \u2014 mine is the round-7 block above, untouched */
+    else { phRackRow(0, false); phRackRow(1, true); } /* spectator: both seats, in the seated view's own two spots */
   }
   /* my aim: the cue line to first contact, the ghost circle there, and the cue stick pulled back behind the cue ball */
   if (tt === phSeatT && phCanShoot() && view && view[0] && view[0].on) {
@@ -6865,10 +6923,10 @@ function frame(now) {
     }
     const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999); /* Q-Bot's bubble ages from when this screen received his answer (his timestamps come from the server's clock), so it lasts the same 5s as a player's own bubble */
     if (me.scene === "gym") { const ci2 = courtAt(a.x, a.y); if (ci2) { const sd = a.x < ci2.r.x + ci2.r.w / 2 ? "A" : "B"; ctx.beginPath(); ctx.ellipse(a.x, a.y + 26, 30, 10, 0, 0, 7); ctx.strokeStyle = sd === "A" ? "rgba(56,225,255,0.9)" : "rgba(255,93,143,0.9)"; ctx.lineWidth = 3.5; ctx.stroke(); } }
-    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving);
+    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g);
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now)); /* a DJ standing behind the booth: repaint the counter over their lower body so their head pokes up behind it. Actors are y-sorted, so anyone in FRONT of the booth has a larger y and is drawn after this — they paint over the booth as normal. Applies to my sprite and to remote players alike (a.x/a.y are the smoothed positions everyone sees) */
     const aSub = me.scene === "plaza" ? poolSubmersion(a.x, a.y) : null;
-    if (aSub && heroImgs[a.hero]) { /* wading (PREVIEW): the sprite's lower half wears the water — a translucent band over exactly the submerged half (poolSubmersion), with the bright waterline ring sitting on the band's own top edge, the halfway cut. A sprite short of the edge thresholds paints nothing (Jonathan 2026-10-30) */
+    if (aSub && heroImgFor(a.hero, a.g)) { /* wading (PREVIEW): the sprite's lower half wears the water — a translucent band over exactly the submerged half (poolSubmersion), with the bright waterline ring sitting on the band's own top edge, the halfway cut. A sprite short of the edge thresholds paints nothing (Jonathan 2026-10-30) */
       ctx.fillStyle = "rgba(35,105,175,0.45)"; ctx.fillRect(a.x - 29, aSub.top, 58, aSub.h);
       ctx.strokeStyle = "rgba(195,242,255,0.55)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(a.x, aSub.top, 29, 7.5, 0, 0, 7); ctx.stroke(); /* the surface line rings the sprite on its waterline */
     }
