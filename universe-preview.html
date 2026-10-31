@@ -1854,8 +1854,8 @@ const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
   if ((e.key === "t" || e.key === "T") && entered && isOwnerAcct()) { toggleMech(); return; } /* the owner's transform key on PC (Jonathan 2026-10-31) */
-  if ((e.key === "q" || e.key === "Q" || e.key === "j" || e.key === "J") && boxingBout) { boxPunch("L"); return; } /* boxing on PC: Q or J = left punch, E or K = right punch (Jonathan 2026-10-31) */
-  if ((e.key === "e" || e.key === "E" || e.key === "k" || e.key === "K") && boxingBout) { boxPunch("R"); return; }
+  if ((e.key === "q" || e.key === "Q" || e.key === "j" || e.key === "J") && boxingBout) { keys.add(e.key.toLowerCase()); boxPunch("L"); return; } /* boxing on PC: Q or J = left punch, E or K = right punch (Jonathan 2026-10-31). The key ALSO joins the held set: the frame loop polls it, so a punch held down while moving (even diagonally) still swings — a lone tap could be eaten by the bell-settle moment or crowded out by the movement keys */
+  if ((e.key === "e" || e.key === "E" || e.key === "k" || e.key === "K") && boxingBout) { keys.add(e.key.toLowerCase()); boxPunch("R"); return; }
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
@@ -8733,7 +8733,7 @@ function frame(now) {
   if (mySeatPos) { if (vx > 0.2) me.flip = true; else if (vx < -0.2) me.flip = false; vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; } /* seated: left/right input flips the sprite's facing without moving (his ask 2026-10-28) */
   me.moving = mySeatPos ? false : m > 0.12;
   if (myCar >= 0) { vx = 0; vy = 0; me.moving = false; } /* driving: stepSpeedway owns my position (the car) — the walk block must not move me */
-  const sprinting = me.moving && (runBtnHeld || keys.has(" "));
+  const sprinting = me.moving && !boxingBout && (runBtnHeld || keys.has(" ")); /* no sprinting during MY boxing bout (Jonathan 2026-10-31): on a phone the RUN button is replaced by the punch buttons, and on PC the space bar now does the same — nothing */
   me.run = sprinting;
   const wading = me.scene === "plaza" && inPoolWater(me.x, me.y); /* in the pool (PREVIEW): no dust here, splashes instead, and the water drags at your pace */
   if (sprinting) sprintPhase += dt * 4.8;
@@ -8789,6 +8789,7 @@ function frame(now) {
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
+  if (boxingBout && boxSeat >= 0) { if (keys.has("q") || keys.has("j")) boxPunch("L"); else if (keys.has("e") || keys.has("k")) boxPunch("R"); } /* punching while moving (Jonathan 2026-10-31): a HELD punch key swings every frame the game looks — boxPunch itself keeps the bell-settle and one-swing-a-beat rules — so moving in any direction never eats a punch */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
     const os = boxState.seats && boxState.seats[1 - boxSeat];
     let ox = null;
