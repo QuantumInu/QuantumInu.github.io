@@ -1250,18 +1250,20 @@ const JUKE = { x: VIPROOM.w - 190, y: VIPROOM.h - 244, w: 104, h: 148 }; /* the 
    lounge's south-east edge — slightly smaller (0.66) and dimmed, with the
    club's own live people in it — so the eye reads the VIP as higher.
    VIPBELOW maps club-world points into lounge-world points:
-   (ox + s*x, oy + s*y). The layer's top edge — the club's own top
-   border — sits right at the lounge's bottom wall (oy = 1100,
-   Jonathan 2026-10-31: the view below shows the room from its top
-   border down); only the part past the lounge's right wall (x 1500)
-   or bottom wall (y 1100) ever shows — the rest is covered by the
-   lounge itself, which paints right after (see frame's dispatch).
+   (ox + s*x, oy + s*y). The layer's top-left corner tucks UNDER the
+   lounge's floor at (1200, 680); only the part past the lounge's right
+   wall (x 1500) or bottom wall (y 1100) ever shows — the rest is covered
+   by the lounge itself, which paints right after (see frame's dispatch).
+   A second placement (VIPBELOW_B) paints the same room again in the
+   band below the lounge's bottom wall, its top border at that wall —
+   the bottom view shows the room from its top border down.
    vipBelowXf is the one-frame handoff to drawClub: paintClubBelow sets it
    while the layer borrows the club's own draw path, and drawClub adds the
    layer transform on top of the camera transform when it is set. It is
    null everywhere else, so the club scene itself renders exactly as
    before. Display only — nothing here is walkable, clickable or synced. */
-const VIPBELOW = { ox: 1200, oy: 1100, s: 0.66 }; /* oy = the lounge's own bottom wall (Jonathan 2026-10-31): the club's TOP BORDER sits right at the lounge's bottom edge, so the view below shows the room from its top border down. ox and the 0.66 scale are exactly where they were */
+const VIPBELOW = { ox: 1200, oy: 680, s: 0.66 };
+const VIPBELOW_B = { ox: 1200, oy: 1100, s: 0.66 }; /* the bottom band's placement (Jonathan 2026-10-31): the SAME room painted a second time below the lounge's bottom wall (oy = the lounge's own height), so the bottom view shows the club from its TOP BORDER down. VIPBELOW itself is exactly where it always was — nothing moved. */
 let vipBelowXf = null;
 /* ============ Quantum HQ (portal room) ============ */
 const HQROOM = { w: 2880, h: 2150 };
@@ -6009,39 +6011,55 @@ function paintClubBelow(t, dt) {
      presence records, smoothed with frame()'s own lerp and drawn with frame()'s own drawPlayer, at their
      real club spots mapped through the layer — they move down there exactly as they move. The door guard
      comes along: he is part of the room down there. Nobody in the lounge is ever in this list — the filter
-     is scene "club" only. The whole layer is clipped to the overflow (layer footprint minus the lounge's
-     own rect), so its raster cost stays bounded to the strip that can actually show, and a translucent
-     shade plus the lounge's cast shadow over the seam sell the drop. Pure scenery: no hit tests read it,
-     no presence is written, and the club scene itself never runs this code. */
+     is scene "club" only. A translucent shade plus the lounge's cast shadow over the seams sell the drop.
+     Pure scenery: no hit tests read it, no presence is written, and the club scene itself never runs
+     this code.
+     TWO placements of the one room (Jonathan 2026-10-31): the main layer keeps its exact original spot
+     (VIPBELOW, oy 680 — the club layered down and to the right, seen beside the lounge's east wall), and
+     a second pass paints the room again in the band BELOW the lounge's bottom wall with the club's own
+     TOP BORDER right at that wall (VIPBELOW_B) — so the bottom view shows the room from its top border
+     down instead of a slice from partway down. The bottom pass paints after the main one, so where the
+     two overlap below the wall, the bottom view wins. */
   const L = VIPBELOW, fx = L.ox, fy = L.oy, fw = CLUBROOM.w * L.s, fh = CLUBROOM.h * L.s;
+  function paintLayer(Lp, clipRects) {
+    ctx.save();
+    ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+    ctx.beginPath();
+    for (const r of clipRects) ctx.rect(r[0], r[1], r[2], r[3]);
+    ctx.clip("evenodd");
+    ctx.save();
+    vipBelowXf = Lp;
+    try { drawClub(t); } finally { vipBelowXf = null; }
+    const actors = [];
+    for (const p of peers.values()) {
+      if (p.scene !== "club") continue;
+      if (p.snap) { p.x = p.tx; p.y = p.ty; p.snap = false; }
+      p.x += (p.tx - p.x) * Math.min(1, dt * 9); p.y += (p.ty - p.y) * Math.min(1, dt * 9);
+      actors.push(p);
+    }
+    actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the same synthetic guard frame() composes into the club's actor pass — same post, same bubble */
+    actors.sort((a, b) => a.y - b.y);
+    ctx.translate(Lp.ox, Lp.oy); ctx.scale(Lp.s, Lp.s);
+    for (const a of actors) {
+      const moving = Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7;
+      let phase = a.bob * 7;
+      if (a.run && moving) { a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr; }
+      const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999);
+      drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, false, t, moving);
+      if (a.x > DJBOOTH.x - 16 && a.x < DJBOOTH.x + DJBOOTH.w + 16 && a.y >= DJBOOTH.y - 6 && a.y <= DJBOOTH.y + 26) drawDJBooth(decorT(t)); /* atDJBooth's own geometry, without its scene test (me.scene is "vip" here): the counter repaints over a DJ standing behind it, exactly as frame() does in the club */
+      if (speakingNow.has(a.id) || a.mic) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
+    }
+    ctx.restore();
+    /* one floor down: the whole layer sits in shade */
+    ctx.fillStyle = "rgba(5,2,14,0.30)"; ctx.fillRect(Lp.ox, Lp.oy, CLUBROOM.w * Lp.s, CLUBROOM.h * Lp.s);
+    ctx.restore();
+  }
+  paintLayer(L, [[fx, fy, fw, fh], [0, 0, VIPROOM.w, VIPROOM.h]]); /* the main layer: its footprint minus the lounge's own rect */
+  paintLayer(VIPBELOW_B, [[fx, VIPROOM.h, fw, fh]]); /* the bottom band: the room again, from its top border down */
+  /* the lounge's own shadow falls across the seams */
   ctx.save();
   ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.rect(0, 0, VIPROOM.w, VIPROOM.h); ctx.clip("evenodd");
-  ctx.save();
-  vipBelowXf = L;
-  try { drawClub(t); } finally { vipBelowXf = null; }
-  const actors = [];
-  for (const p of peers.values()) {
-    if (p.scene !== "club") continue;
-    if (p.snap) { p.x = p.tx; p.y = p.ty; p.snap = false; }
-    p.x += (p.tx - p.x) * Math.min(1, dt * 9); p.y += (p.ty - p.y) * Math.min(1, dt * 9);
-    actors.push(p);
-  }
-  actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the same synthetic guard frame() composes into the club's actor pass — same post, same bubble */
-  actors.sort((a, b) => a.y - b.y);
-  ctx.translate(fx, fy); ctx.scale(L.s, L.s);
-  for (const a of actors) {
-    const moving = Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7;
-    let phase = a.bob * 7;
-    if (a.run && moving) { a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr; }
-    const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999);
-    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, false, t, moving);
-    if (a.x > DJBOOTH.x - 16 && a.x < DJBOOTH.x + DJBOOTH.w + 16 && a.y >= DJBOOTH.y - 6 && a.y <= DJBOOTH.y + 26) drawDJBooth(decorT(t)); /* atDJBooth's own geometry, without its scene test (me.scene is "vip" here): the counter repaints over a DJ standing behind it, exactly as frame() does in the club */
-    if (speakingNow.has(a.id) || a.mic) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
-  }
-  ctx.restore();
-  /* one floor down: the whole layer sits in shade, and the lounge's own shadow falls across its top seam */
-  ctx.fillStyle = "rgba(5,2,14,0.30)"; ctx.fillRect(fx, fy, fw, fh);
+  ctx.beginPath(); ctx.rect(fx, fy, fw, fh * 2); ctx.rect(0, 0, VIPROOM.w, VIPROOM.h); ctx.clip("evenodd");
   const shS = ctx.createLinearGradient(0, VIPROOM.h, 0, VIPROOM.h + 48);
   shS.addColorStop(0, "rgba(0,0,0,0.55)"); shS.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = shS; ctx.fillRect(fx, VIPROOM.h, VIPROOM.w - fx + 48, 48);
