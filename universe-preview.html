@@ -1915,6 +1915,10 @@ function joyMove(e) {
 let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0;
 cv.addEventListener("pointerdown", e => {
   if (!entered) return;
+  if (boxingBout && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { /* desktop mouse punches (Jonathan 2026-10-31): left button = left punch, right button = right punch. A mouse click can never be crowded out by held movement keys the way a third key on the keyboard can — punching while moving diagonally always works this way */
+    if (e.button === 0) { boxPunch("L"); return; }
+    if (e.button === 2) { boxPunch("R"); return; }
+  }
   if ((me.scene === "casino" || me.scene === "track" || me.scene === "poolhall" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "chess" || me.scene === "boxing") && uiZones.length) { /* the horse table's buttons live in the same uiZones the casino tables use — and so do the pool hall's and the VIP lounge slots' */
     const r0 = cv.getBoundingClientRect();
     const wx = (e.clientX - r0.left) / SCALE + camX, wy = (e.clientY - r0.top) / SCALE + camY;
@@ -1943,6 +1947,7 @@ cv.addEventListener("pointerdown", e => {
     if (Math.hypot(px - bs.x, py - bs.y) < 110 && atDJBooth(me.x, me.y)) openJuke(); /* tapping the booth works too, but only for the DJ standing behind it — mirrors the jukebox tap above */
   }
 });
+cv.addEventListener("contextmenu", e => { if (boxingBout) e.preventDefault(); }); /* no right-click menu mid-bout: the right button is a punch there */
 cv.addEventListener("pointermove", e => {
   if (phAim && e.pointerId === phAim.id) { phAimMove(e); return; }
   if (e.pointerId !== holdId) return;
@@ -6446,7 +6451,8 @@ function chessHostTick() {
    damage; first to 0 health loses. No bets — the arena is for pride.
    Both fighters staying seated after a bout starts the rematch. */
 let boxState = null, boxSeat = -1, boxLeft = -1, boxHooked = false, boxPrevPhase = "";
-let boxLastPunchAt = 0, myPunchAt = 0, myPunchSide = "";
+let boxLastPunchAtL = 0, boxLastPunchAtR = 0, myPunchAtL = 0, myPunchAtR = 0; /* PER-ARM punch clocks (Jonathan 2026-10-31): each glove has its own cooldown and its own throw time — one arm never waits for the other to settle */
+const boxGloveStamp = {}; let boxGloveRecTs = 0; /* the other fighter's gloves, per arm: seat+side -> the server ts of that arm's latest punch record */
 let boxNote = "", boxNoteAt = 0;
 function noteBox(txt) { boxNote = txt; boxNoteAt = performance.now(); }
 function boxingListen() {
@@ -6573,9 +6579,9 @@ function boxSeatBeat() {
 function boxPunch(side) {
   if (!boxingBout || !boxState || boxState.phase !== "fight") return;
   const now = Date.now();
-  if (now - boxLastPunchAt < 380) return; /* a real swing takes a beat */
+  if (now - (side === "L" ? boxLastPunchAtL : boxLastPunchAtR) < 380) return; /* a real swing takes a beat — that arm's beat; the other arm is always free */
   if (srvNow() < (boxState.fightTs || 0) + 1200) return; /* gloves up until the bell settles */
-  boxLastPunchAt = now; myPunchAt = performance.now(); myPunchSide = side;
+  if (side === "L") { boxLastPunchAtL = now; myPunchAtL = performance.now(); } else { boxLastPunchAtR = now; myPunchAtR = performance.now(); }
   const st = boxState, opp = 1 - boxSeat, os = st.seats && st.seats[opp];
   let hit = false, dmg = 0;
   if (os && os.pid) {
@@ -7147,15 +7153,15 @@ function drawBoxingFx(t) {
       ctx.fillText("stay in your seats for the rematch", 1800, 920);
     }
     /* the gloves: two big gloves on every fighter, stacked one over the other on the side they face — the top glove throws the left punch, the lower one the right. Each fighter wears THEIR END's colour (red end red, blue end blue) and there is NO white cuff bar anywhere on them (Jonathan 2026-10-31). A fresh punch record lunges its glove: reach 34 (was 26), out on a snap curve (170ms, holds near full reach then whips back) with a touch of recoil past rest (130ms) */
-    const drawGloves = (fx, fy, flip, punchSide, punchAge, seat) => {
+    const drawGloves = (fx, fy, flip, ageL, ageR, seat) => {
       const sideSign = flip ? 1 : -1;
       const glove = (dy, isTop) => {
         let lx = fx + sideSign * 40, ly = fy - 58 + dy;
-        const mine = (punchSide === (isTop ? "L" : "R"));
-        if (mine && punchAge < 300) {
+        const age = isTop ? ageL : ageR; /* THIS glove's own throw age (Jonathan 2026-10-31): the top glove throws the left punch, the lower one the right, each on its own clock */
+        if (age < 300) {
           let k;
-          if (punchAge < 170) k = Math.pow(1 - punchAge / 170, 0.55); /* snap: holds near the peak, then whips back */
-          else k = -0.14 * Math.sin((punchAge - 170) / 130 * Math.PI); /* recoil: a few px past rest on the way home */
+          if (age < 170) k = Math.pow(1 - age / 170, 0.55); /* snap: holds near the peak, then whips back */
+          else k = -0.14 * Math.sin((age - 170) / 130 * Math.PI); /* recoil: a few px past rest on the way home */
           lx += sideSign * 34 * k;
         }
         ctx.fillStyle = seat === 1 ? "#2a4fd4" : "#d42a2a"; /* the blue end wears blue, the red end red (Jonathan 2026-10-31) */
@@ -7165,6 +7171,7 @@ function drawBoxingFx(t) {
       glove(0, true); glove(40, false);
     };
     const punchAge = st.punch ? (srvNow() - (st.punch.ts || 0)) : 1e9;
+    if (st.punch && st.punch.ts && st.punch.ts !== boxGloveRecTs) { boxGloveRecTs = st.punch.ts; boxGloveStamp[st.punch.by + st.punch.side] = st.punch.ts; } /* a punch record stamps ONLY the arm that threw (Jonathan 2026-10-31), so on every screen each glove animates on its own clock */
     /* positions first, facing second (Jonathan 2026-10-31): a fighter's gloves and punches point at the OPPONENT's current position — never a fixed corner facing, never their own travel direction. Before this, the flip came from each fighter's presence/movement facing (and a per-seat default when unseen), so a fighter who ran left punched left even with the opponent on their right, and crossing past each other left both fighters punching at empty canvas. Both positions are resolved first, then each facing is chosen against the other's spot, so a cross flips both fighters on the very next frame */
     const boxPos = [null, null];
     for (let i = 0; i < 2; i++) {
@@ -7186,9 +7193,12 @@ function drawBoxingFx(t) {
         fx += (punchAge % 26 < 13) ? jk : -jk;
         fy += (punchAge % 34 < 17) ? jk * 0.6 : -jk * 0.6;
       }
-      const side = (st.punch && st.punch.by === i) ? st.punch.side : (sd.pid === myId ? myPunchSide : "");
-      const age = (st.punch && st.punch.by === i) ? punchAge : (sd.pid === myId ? performance.now() - myPunchAt : 1e9);
-      drawGloves(fx, fy, flip, side, age, i);
+      let ageL = 1e9, ageR = 1e9;
+      const gL = boxGloveStamp[i + "L"], gR = boxGloveStamp[i + "R"];
+      if (gL) ageL = srvNow() - gL;
+      if (gR) ageR = srvNow() - gR;
+      if (sd.pid === myId) { const np = performance.now(); ageL = Math.min(ageL, np - myPunchAtL); ageR = Math.min(ageR, np - myPunchAtR); } /* my own glove answers to my local throw first, and to my punch record when it echoes back — whichever is fresher */
+      drawGloves(fx, fy, flip, ageL, ageR, i);
       if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 260) { /* the impact star on the fighter just hit: lands at 62px with a scale-pop, settles to 46px (was a flat 34px for 220ms) */
         const pop = 46 + 16 * Math.max(0, 1 - punchAge / 150);
         ctx.font = Math.round(pop) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥", fx + (flip ? -40 : 40), fy - 70);
