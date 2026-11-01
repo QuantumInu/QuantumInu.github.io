@@ -287,6 +287,8 @@ const OWNER_HEROES = [71]; /* hero 71 is Jonathan's alone, under his sign-in onl
 const KING_HERO = 73, KING_EMAIL = "brandogaleno@icloud.com"; /* the crowned king (hero 73, mirrored + sized to the set 2026-10-28) belongs to OnlineMoney — ONLY his account ever sees it in the picker or wears it (Jonathan's correction 2026-10-28: it was wrongly wired to the owner account first) */
 const OWNER_EMAIL = "jrod11991@icloud.com";
 const MECH_HERO = 74; /* the DreadMech (Jonathan 2026-10-31): the owner account's transform form — his own uploaded art at hub-heroes/hero-074.webp; never a picker cell, never saved to a profile; only the T transform ever wears it */
+const KING_MECH_HERO = 75; /* the Cosmic King Mech (Jonathan 2026-10-31): OnlineMoney's transform form — the blue-and-gold king mech art at hub-heroes/hero-075.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his King QI avatar (hero 73) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the only differences are the gate, the art, and the smoke: his burst is RED, the owner's stays cyan */
+function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the two mechs identically */
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
 function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
@@ -669,7 +671,7 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (v.hero === MECH_HERO || p.hero === MECH_HERO) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene); sfxSwap(); } /* the owner's transform just flipped on my screen: cyan smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
       else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
@@ -687,7 +689,7 @@ function publish(force) {
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
-  const rec = { name: me.name, hero: mechForm ? MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   myRef.set(rec).catch(() => {});
 }
@@ -1073,6 +1075,7 @@ const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
 const me = { name: "", hero: 0, g: "m", scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
 let entered = false;
 let mechForm = false, mechCdUntil = 0; /* the owner's mech transform (Jonathan 2026-10-31): session-only — a fresh page load starts as the dog; 3 second cooldown between flips */
+let kingMechForm = false; /* OnlineMoney's king mech transform: the same session-only shape, hanging off his King QI avatar; it shares the 3s cooldown clock above — only one account is ever signed in on a client, so the two forms never contend for it */
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
 const CLUB = { x: 140, y: 1180, w: 420, h: 300 };
@@ -1128,7 +1131,7 @@ const BOXROOM = { w: 2700, h: 1800 };
 const BOXHALL = { x1: 900, top: BOXROOM.h / 2 - 140, bot: BOXROOM.h / 2 + 140 }; /* the entry hallway, the theatre's shape */
 const BOXRING = { x: 1420, y: 520, w: 760, h: 760 }; /* the ring, centred in the arena (arena floor runs x 900..2700, centre 1800,900) */
 const BOXSEATS = [{ x: BOXRING.x - 92, y: 900 }, { x: BOXRING.x + BOXRING.w + 92, y: 900 }]; /* sit at the LEFT end or the RIGHT end of the ring */
-const BOXJUKE = { x: 6, y: 612, w: 104, h: 148 }; /* the boom box (Jonathan 2026-10-31, moved at his word the same night: "against the left wall and bottom edge aligning with the top of the hallway" — it first stood on the open floor west of the ring): its LEFT edge (6) sits flush on the inner face of the room's west border band (the green border stroke spans 0..6), and its BOTTOM edge (612 + 148 = 760) lies exactly on BOXHALL.top (BOXROOM.h / 2 − 140 = 760), so the box rests on the hallway's top edge line at the wall, above the hallway's west end — clear below of the exit door drawing (which starts at y 808) and of the spawn (120, 900), and reached from the hallway itself: nearBoxJuke measures to the prop's bottom centre and the closest a player can stand is the hallway just under that edge. The VIP jukebox's own footprint (104x148). Walk-over scenery like the plaza fountains, NOT an obstacle: the arena's obstacle list is the ring alone, and interaction is by proximity (nearBoxJuke), so standing on it costs nothing — making it solid like the VIP jukebox is a one-line change here if ever wanted (add BOXJUKE to the boxing line of obstacles) */
+const BOXJUKE = { x: 900, y: 612, w: 104, h: 148 }; /* the boom box (Jonathan 2026-10-31). Placement history: first the open floor west of the ring, then the west wall — a misread — and finally HERE at his corrected word the same night: same height as the wall spot, but moved right to where the hallway ends. Its LEFT edge (900) sits exactly at BOXHALL.x1, against the end of the hallway's top wall, so the box stands just inside the room where the hallway opens up; its BOTTOM edge (612 + 148 = 760) still lies exactly on BOXHALL.top (BOXROOM.h / 2 − 140 = 760). The walkway stays clear (players walk east out of the hallway at y 760..1040, below the box's bottom line), the ring apron (x 1374+) and the top bleachers (y 56..236) are well clear, and its "BOOM BOX" caption now paints on the arena floor under it. Reached from the hallway mouth: nearBoxJuke measures to the prop's bottom centre (952, 760). The VIP jukebox's own footprint (104x148). Walk-over scenery like the plaza fountains, NOT an obstacle: the arena's obstacle list is the ring alone, and interaction is by proximity (nearBoxJuke), so standing on it costs nothing — making it solid like the VIP jukebox is a one-line change here if ever wanted (add BOXJUKE to the boxing line of obstacles) */
 function nearBoxJuke() { return me.scene === "boxing" && Math.hypot(me.x - (BOXJUKE.x + BOXJUKE.w / 2), me.y - (BOXJUKE.y + BOXJUKE.h)) < 150; } /* nearJuke's own proximity test (to the prop's bottom centre), moved rooms with the prop */
 const BOXBLEACH = [{ x: 1000, y: 56, w: 1600, h: 180 }, { x: 2476, y: 320, w: 168, h: 1160 }, { x: 1000, y: BOXROOM.h - 236, w: 1600, h: 180 }]; /* 3 rows of bleachers: top, right, bottom */
 const BOXDOOR_Y = 1200; /* the gym's centre path (y 1100..1300) meets its right wall here */
@@ -1144,7 +1147,7 @@ const POOLW = { x: 3306, y: 1126, w: 828, h: 308 }; /* the water itself, inset b
 /* the waterfall boulders and the rock archway that first stood here were removed at Jonathan's word (2026-10-30) — the pool is open water with its deck now, no rockwork, nothing solid in or around it */
 function inPoolWater(x, y) { return x > POOLW.x && x < POOLW.x + POOLW.w && y > POOLW.y && y < POOLW.y + POOLW.h; } /* standing IN the water (feet inside the water rect): drives the half-submerged render, the splashes and the wading pace */
 function poolSubmersion(x, y, hero) { /* the waterline (PREVIEW round 3 — the pre-round-2 read, restored at Jonathan's word): when the band shows, the water cuts the sprite exactly in HALF — the band is always the sprite's lower half. Round 2's true-overlap band is gone: pinned to the water's top edge it tinted the whole sprite the deeper you waded, and read as completely underwater. What round 3 sets is WHEN the band appears, by the edge the sprite overlaps the water from: from the TOP or BOTTOM edge, only once HALF the sprite is inside the water; from the LEFT or RIGHT edge, only once the sprite is FULLY inside. Splashes and the wading pace still key off the feet (inPoolWater), untouched. Returns { top, h } in world space, or null while dry. ROUND 4 added one exception, the bottom edge only: feet past the water's bottom edge force the band off at once (see the off switch at the return). */
-  const hw = hero === MECH_HERO ? 100 : 29, sh = hero === MECH_HERO ? 216 : 96; /* the sprite's own span, form-aware (Jonathan 2026-10-31): the span, the halfway threshold and the band all scale with the wearer. The mech's water band spans its FULL body width (half-width 100 of the 216-wide sprite) — the first pass scaled the dog's body column by 2.25 (half-width 65) and he called it out from his phone: the ring and the band under it still read as a tiny circle and a narrow cylinder under the wide mech. For the dog this is exactly the old span (29 half-width, 96 tall, anchored at the feet) */
+  const hw = isMechHero(hero) ? 100 : 29, sh = isMechHero(hero) ? 216 : 96; /* the sprite's own span, form-aware (Jonathan 2026-10-31): the span, the halfway threshold and the band all scale with the wearer. The mech's water band spans its FULL body width (half-width 100 of the 216-wide sprite) — the first pass scaled the dog's body column by 2.25 (half-width 65) and he called it out from his phone: the ring and the band under it still read as a tiny circle and a narrow cylinder under the wide mech. For the dog this is exactly the old span (29 half-width, 96 tall, anchored at the feet) */
   const sx0 = x - hw, sx1 = x + hw, sy0 = y - sh, sy1 = y;
   const oy = Math.min(sy1, POOLW.y + POOLW.h) - Math.max(sy0, POOLW.y); /* how much of the sprite stands inside the water, measured vertically */
   if (oy <= 0) return null; /* no overlap at all — up on the deck, dry */
@@ -1895,7 +1898,7 @@ window.addEventListener("resize", resize); resize();
 const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
-  if ((e.key === "t" || e.key === "T") && entered && isOwnerAcct()) { toggleMech(); return; } /* the owner's transform key on PC (Jonathan 2026-10-31) */
+  if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — and OnlineMoney's king mech under his King QI avatar; toggleMech routes by account */
   /* boxing on PC: NO keyboard punches (Jonathan 2026-10-31, final word) — the mouse is the ONLY way to punch on desktop: Left Mouse = left punch, Right Mouse = right punch (the canvas pointerdown below). Q/E/J/K do nothing in a bout. Phones keep their L / R punch buttons */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
@@ -1912,11 +1915,24 @@ let runBtnHeld = false, runId = null;
 runEl.addEventListener("pointerdown", e => { e.preventDefault(); runId = e.pointerId; runBtnHeld = true; runEl.classList.add("on"); try { runEl.setPointerCapture(runId); } catch (err) {} });
 function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = false; runEl.classList.remove("on"); } }
 runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
-/* ---- the owner's mech transform (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; it exists ONLY on the owner account's phone, from the moment he is in ---- */
+/* ---- the mech transforms (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; on a phone it exists ONLY for the two transform accounts, from the moment they are in — the owner (DreadMech), and OnlineMoney while his King QI avatar is selected (king mech) ---- */
 const tEl = $("tbtn");
-function syncTBtn() { const show = entered && isOwnerAcct() && !boxingBout && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function syncTBtn() { const show = entered && (isOwnerAcct() || (isKingAcct() && me.hero === KING_HERO)) && !boxingBout && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function toggleKingMech() { /* OnlineMoney's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — except the burst is RED and the form is the king mech. It hangs off his King QI avatar: any other hero selected and T does nothing */
+  if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the owner */
+  if (me.hero !== KING_HERO) return;
+  const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
+  mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
+  kingMechForm = !kingMechForm;
+  spawnSmoke(me.x, me.y, me.scene, true); /* RED smoke — his colour */
+  sfxSwap();
+  publish(true);
+  syncTBtn();
+}
 function toggleMech() {
-  if (!entered || !isOwnerAcct()) return;
+  if (!entered) return;
+  if (isKingAcct()) { toggleKingMech(); return; } /* OnlineMoney's T drives his king mech, never the owner's */
+  if (!isOwnerAcct()) return;
   if (boxingBout) return; /* no transforming mid-bout (Jonathan 2026-10-31): entering the arena untransforms you and the T button is gone until the bout ends */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
   mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
@@ -3175,14 +3191,14 @@ let fxParts = [], fxTexts = [], fxFlashBJ = 0, fxFlashRR = 0, fxLastT = 0;
 let casinoFxSince = 0; /* set by toCasino: table results older than this never celebrate */
 let fxPrevScene = null; /* frame()'s scene-change detector for clearRoomFx */
 function clearRoomFx() { fxParts = []; fxTexts = []; fxFlashBJ = 0; fxFlashRR = 0; swLineFx = []; swPuffs = []; swLapPulse = [-1e9, -1e9, -1e9, -1e9]; }
-let bjFxDone = 0, rrFxDone = 0, lastBjCards = -1, slotFxTs = {}, lastTickSpin = 0, lastBallPocket = -1;
+let bjFxDone = 0, rrFxDone = 0, lastBjCards = -1, slotFxTs = {}, slotFxBaseAt = 0, lastTickSpin = 0, lastBallPocket = -1; /* slotFxBaseAt: the last moment this client (re)arrived at the casino slots — entering the room or the tab waking up. Spin records at or before it are baselined (marked seen, never animated), so coming back never replays the wins that landed while you were away (Jonathan 2026-10-31) */
 function fxBurst(x, y, big, sc) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, grey: false, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: sc || me.scene }); } }
 function fxPuff(x, y, sc) { for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, sp = 24 + Math.random() * 70; fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 26, life: 0, max: 0.7 + Math.random() * 0.4, coin: false, grey: true, r: 6 + Math.random() * 7, rot: 0, sc: sc || me.scene }); } }
 function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc: sc || me.scene }); }
 /* ---- general fx: the same coin bursts and floating texts, but painted by frame()'s actor pass in EVERY scene (Jonathan 2026-10-30: the send-tokens receive animation only showed in the casino, because the room pool above is drawn solely by the casino/gym/track scene draws). Entries carry their origin scene and paint only while the player is still in it — the room pool's leak lock — and casino win fx keep using the room pool exactly as before; this list is for effects that belong to the PLAYER, not the room. ---- */
 let genParts = [], genTexts = [];
 let smokeParts = []; /* cyan transform smoke (Jonathan 2026-10-31): world-space puffs with a scene tag, painted by drawGenFx with the other player fx */
-function spawnSmoke(x, y, sc) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0 }); } }
+function spawnSmoke(x, y, sc, red) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: !!red }); } } /* the burst is cyan by default (the owner's DreadMech); red=true paints OnlineMoney's king mech burst red — same count, size, timing and motion either way (Jonathan 2026-10-31) */
 function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
 function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
 /* ============ seat bet displays, painted OVER the sprites (Jonathan 2026-10-31) ============
@@ -3263,7 +3279,7 @@ function drawGenFx(dt) {
   smokeParts.forEach(p => {
     if (p.sc !== me.scene) return;
     const a = Math.max(0, 1 - p.life / p.max) * 0.5;
-    ctx.fillStyle = p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")";
+    ctx.fillStyle = p.red ? (p.lite ? "rgba(255,206,188," + a + ")" : "rgba(255,56,56," + a + ")") : (p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")"); /* red smoke for OnlineMoney's king mech flips, cyan for the owner's — the two palettes mirror each other (a pale lite tone over a saturated base) */
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
   });
 }
@@ -3298,9 +3314,17 @@ function slotFxCheck() {
   Object.keys(slotState || {}).forEach(k => {
     const s = slotState[k]; if (!s || !s.ts) return;
     if (slotFxTs[k] === s.ts) return; slotFxTs[k] = s.ts;
+    if (s.ts <= slotFxBaseAt || document.hidden) return; /* the backlog gate (Jonathan 2026-10-31): a record from before my last return (entry / tab wake) is marked seen above but NEVER animates, and nothing is marked for animation while the tab is hidden either — hidden wins used to fire their bursts into the shared fx pool where they sat un-aged (the render loop is paused) and all went off at once on return. Spins that land while you are present and looking fall through to the original check below and animate exactly as before */
     if (s.amt > 0 && Date.now() - s.ts < 5000 && s.ts >= casinoFxSince && me.scene === "casino") { const m = slotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 1000, "casino"); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt, "#ffd76a", "casino"); } }
   });
 }
+function slotFxOnReturn() { /* the slots backlog fix, return half (Jonathan 2026-10-31): the tab/window coming back stamps both slot rooms' baselines at this moment and marks every currently-loaded spin record seen, so the machines simply show their current state — nothing you missed replays. Registered for visibility and focus returns; the room entries stamp their own baseline in toCasino/toHighRollers. Slots ONLY: no other game's fx bookkeeping is touched */
+  const n = Date.now(); slotFxBaseAt = n; hrSlotFxBaseAt = n;
+  Object.keys(slotState || {}).forEach(k => { const s = slotState[k]; if (s && s.ts) slotFxTs[k] = s.ts; });
+  Object.keys(hrSlotState || {}).forEach(k => { const s = hrSlotState[k]; if (s && s.ts) hrSlotFxTs[k] = s.ts; });
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) slotFxOnReturn(); });
+window.addEventListener("focus", slotFxOnReturn);
 function drawTableFx(t, sc) {
   const dt = Math.min(0.05, fxLastT ? (t - fxLastT) / 1000 : 0.016); fxLastT = t;
   if (sc === "casino" && fxFlashBJ > 0) { ctx.strokeStyle = "rgba(255,215,106," + (fxFlashBJ * 0.85).toFixed(3) + ")"; ctx.lineWidth = 8; rr(BJT.x - 8, BJT.y - 8, BJT.w + 16, BJT.h + 16, 18); ctx.stroke(); fxFlashBJ = Math.max(0, fxFlashBJ - dt * 1.3); }
@@ -4771,10 +4795,10 @@ function hrAnswer(correct) {
   else { sfxBad(); me.x = Math.max(me.x - 90, 56); publish(true); /* turned away: a step back west, out of the doorway */ }
 }
 function tryHRDoor() { openHRQuiz(); }
-function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = BACT.y + BACT.h / 2; sfxChime(); publish(true); hrListen(); pullChips(); } /* arrivals land in front of the exit door, on the baccarat centre line where the door now sits */
-function toCasinoFromHR() { stopAllTones(); hrStandUpAll(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w - 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
+function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = BACT.y + BACT.h / 2; sfxChime(); publish(true); hrSlotFxBaseAt = Date.now(); hrListen(); pullChips(); } /* arrivals land in front of the exit door, on the baccarat centre line where the door now sits. Entry also stamps the club slots' backlog baseline: the machines show their current state, wins that landed before you walked in never animate */
+function toCasinoFromHR() { stopAllTones(); hrStandUpAll(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w - 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); slotFxBaseAt = Date.now(); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toChess() { stopAllTones(); me.scene = "chess"; voiceReset(); me.x = CHESSROOM.w - 150; me.y = CHESSROOM.h / 2; sfxChime(); publish(true); chessListen(); pullChips(); }
-function toCasinoFromChess() { stopAllTones(); chessStandUp(); me.scene = "casino"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
+function toCasinoFromChess() { stopAllTones(); chessStandUp(); me.scene = "casino"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); slotFxBaseAt = Date.now(); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toBoxing() { stopAllTones(); me.scene = "boxing"; voiceReset(); me.x = 120; me.y = BOXROOM.h / 2; sfxChime(); publish(true); boxingListen(); pullChips(); }
 function toGymFromBoxing() { stopAllTones(); boxingStandUp(); me.scene = "gym"; voiceReset(); me.x = GYMROOM.w - 150; me.y = BOXDOOR_Y; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toVip() { stopAllTones(); me.scene = "vip"; voiceReset(); me.x = VIPROOM.w - 150; me.y = VIPDOOR.y; sfxChime(); publish(true); syncJuke(); }
@@ -4783,7 +4807,7 @@ function toTrack() { stopAllTones(); me.scene = "track"; voiceReset(); me.x = TR
 function toPlazaFromTrack() { stopAllTones(); hrStandUp(); me.scene = "plaza"; voiceReset(); me.x = 3770; me.y = HR_B.y + HR_B.h + 60; sfxChime(); publish(true); }
 function toPoolHall() { stopAllTones(); me.scene = "poolhall"; voiceReset(); me.x = PHROOM.w - 150; me.y = PHEXIT.y; sfxChime(); publish(true); phListen(); phFxSince = Date.now(); pullChips(); } /* in through the Arcade's left-wall door, landing just inside the hall by its own right-wall exit door, clear of the tables — door answers door, the arcade↔theatre pattern */
 function toArcadeFromPoolHall() { stopAllTones(); phStandUp(); me.scene = "arcade"; voiceReset(); me.x = 170; me.y = PHDOOR_A.y; sfxChime(); publish(true); } /* back into the Arcade, just inside its left-wall Pool Hall door */
-function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
+function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w / 2; me.y = CASINOROOM.h - 150; sfxChime(); publish(true); slotFxBaseAt = Date.now(); casinoFxSince = Date.now(); casinoListen(); pullChips(); } /* slotFxBaseAt rides along with casinoFxSince at every casino entry: the slots baseline for the backlog fix */
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toPlazaFromGym() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
@@ -4854,7 +4878,8 @@ function drawChatBubble(cx, boxBottom, chat) {
 }
 function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving, gender) {
   if (isMe && mechForm) hero = MECH_HERO; /* my own screen draws me from me.hero, not from my presence record — the transform has to land here too, or I would stay a dog on my own screen while the room sees the mech */
-  if (hero === MECH_HERO) gender = "m"; /* the mech lives on the male track whatever the wearer's picker gender */
+  if (isMe && kingMechForm) hero = KING_MECH_HERO; /* the same landing for OnlineMoney's king mech on his own screen */
+  if (isMechHero(hero)) gender = "m"; /* the mechs live on the male track whatever the wearer's picker gender */
   const img = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
   if (!img) { ensureHero(hero, gender);
     ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(wx, wy - 4, 27, 9, 0, 0, 7); ctx.fill();
@@ -4862,9 +4887,9 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
     ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
     ctx.strokeText(name, wx, wy - 104); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, wy - 104);
     ctx.restore(); return; }
-  const bobAmp = hero === MECH_HERO ? 20 : 11; /* the mech's walking/running bop is stronger than the dog's so its steps read at its size (Jonathan 2026-10-31) — set at 26 first, then he asked for it reduced a tad but still noticeable: 20 for both walk and run (the same bounce serves both; running just cycles it faster) */
+  const bobAmp = isMechHero(hero) ? 20 : 11; /* the mech's walking/running bop is stronger than the dog's so its steps read at its size (Jonathan 2026-10-31) — set at 26 first, then he asked for it reduced a tad but still noticeable: 20 for both walk and run (the same bounce serves both; running just cycles it faster) */
   const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * bobAmp : Math.sin(t / 620 + phase) * 1.4;
-  const H = hero === MECH_HERO ? 216 : 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8); /* the mech stands 2.25x as tall as the dog (Jonathan 2026-10-31: built at 3x, corrected to 2x, then settled at 2.25x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
+  const H = isMechHero(hero) ? 216 : 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8); /* both mechs stand 216 (2.25x) — OnlineMoney's king mech is the DreadMech's exact size at the owner's corrected word (2026-10-31: "sorry 2.25") */ /* the mech stands 2.25x as tall as the dog (Jonathan 2026-10-31: built at 3x, corrected to 2x, then settled at 2.25x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
   ctx.save(); ctx.translate(wx, wy - H / 2 + bob);
@@ -5850,7 +5875,7 @@ let boxingBout = null; /* {seat} while MY bout is live: it frees the ring obstac
    shared results through settleOnce. The only stakes here are HR_BETS. */
 let bacState = null, craState = null, bacSeat = -1, craSeat = -1, bacLeft = -1, craLeft = -1, hrcHooked = false;
 let bacAmt = 5000, craAmt = 5000;
-let hrSlotState = {}, hrSlotSeats = {}, hrSlotSeat = -1, hrSlotLeft = -1, hrSlotAnim = {}, hrSlotBet = 100, hrSlotFxTs = {}; /* the High Rollers machines' own shared state (hub/tables/hrslots + hub/tables/hrslotseats) and my seat at one of them — the casino slot pattern carried over whole, under the club's own names */
+let hrSlotState = {}, hrSlotSeats = {}, hrSlotSeat = -1, hrSlotLeft = -1, hrSlotAnim = {}, hrSlotBet = 100, hrSlotFxTs = {}, hrSlotFxBaseAt = 0; /* the High Rollers machines' own shared state (hub/tables/hrslots + hub/tables/hrslotseats) and my seat at one of them — the casino slot pattern carried over whole, under the club's own names. hrSlotFxBaseAt is the club's slots backlog baseline (the casino's slotFxBaseAt, mirrored): records at or before the last entry/return stamp are marked seen, never animated */
 let hrcNote = "", hrcNoteAt = 0;
 function noteHRC(txt) { hrcNote = txt; hrcNoteAt = performance.now(); }
 function hrListen() {
@@ -6078,6 +6103,7 @@ function hrSlotFxCheck() {
   Object.keys(hrSlotState || {}).forEach(k => {
     const s = hrSlotState[k]; if (!s || !s.ts) return;
     if (hrSlotFxTs[k] === s.ts) return; hrSlotFxTs[k] = s.ts;
+    if (s.ts <= hrSlotFxBaseAt || document.hidden) return; /* the casino's backlog gate, mirrored: pre-return records baseline silently, hidden-tab wins never queue a burst */
     if (s.amt > 0 && Date.now() - s.ts < 5000 && me.scene === "highrollers") { const m = hrSlotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 100000, "highrollers"); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt.toLocaleString("en-US"), "#ffd76a", "highrollers"); } }
   });
 }
@@ -6742,6 +6768,7 @@ function boxPhaseWatch() {
   if (ph === "fight" && boxSeat >= 0 && boxMyRec()) {
     /* stepping into the ring: the mech stays at the door (Jonathan 2026-10-31) */
     if (mechForm) { mechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); }
+    if (kingMechForm) { kingMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, true); sfxSwap(); } /* the king mech stays at the door too — OnlineMoney steps into the ring as King QI, trailing RED smoke */
     boxingBout = { seat: boxSeat };
     tblUpd("box/seats/" + boxSeat, { rdy: false });
     mySeatPos = null; /* off the chair, into the ring */
@@ -9108,7 +9135,7 @@ function frame(now) {
   if (sprinting && !wading && now - dustAt > 65) {
     dustAt = now;
     dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 14, y: me.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 });
-    if (mechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction) */
+    if (mechForm || kingMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's running dust mirrors it (regular dust, not red — red is only his transform burst) */
   }
   if (wading && me.moving && now - splashAt > 130) { /* a step in the water throws droplets and a ring, walking or running */
     splashAt = now;
@@ -9298,7 +9325,7 @@ function frame(now) {
     const aWading = me.scene === "plaza" && inPoolWater(a.x, a.y); /* a peer in the pool splashes and never kicks dust (PREVIEW) */
     if (!isMe && a.run && moving) {
       a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr;
-      if (!aWading && now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); if (a.hero === MECH_HERO) { for (let i = 0; i < 2; i++) dust.push({ x: a.x + (Math.random() - 0.5) * 20, y: a.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } } /* the room sees the mech's extra regular running smoke too (Jonathan 2026-10-31) */
+      if (!aWading && now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); if (isMechHero(a.hero)) { for (let i = 0; i < 2; i++) dust.push({ x: a.x + (Math.random() - 0.5) * 20, y: a.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } } /* the room sees the mech's extra regular running smoke too (Jonathan 2026-10-31) — the king mech's included */
     }
     if (!isMe && aWading && moving && now - (a.splashAt || 0) > 130) { /* a wading peer's steps splash on my screen too */
       a.splashAt = now;
