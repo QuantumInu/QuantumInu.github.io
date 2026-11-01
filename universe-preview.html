@@ -526,7 +526,7 @@ function startMusic() {
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
   let tick = 0;
   setInterval(() => {
-    if (muted || audioHeld || !entered || ((me.scene === "club" || me.scene === "vip") && clubSongActive())) return; /* the VIP lounge runs on the club's jukebox, not the room theme */
+    if (muted || audioHeld || !entered || ((me.scene === "club" || me.scene === "vip") && clubSongActive()) || (me.scene === "highrollers" && hrcSongActive())) return; /* the VIP lounge runs on the club's jukebox, not the room theme — and the High Rollers room runs on its own service-counter song when one is picked, not the casino jazz */
     const sc = me.scene;
     if (sc === "arcade" || sc === "poolhall") { arcadeAmb(); tick++; return; } /* the Pool Hall plays the Arcade's music (PREVIEW round 2) — the two rooms are one space now, doors, floor, border and tunes alike */
     if (sc === "theatre") {
@@ -995,34 +995,40 @@ function jukeApplyVol() {
 }
 let clubState = null;
 function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
+let hrcState = null, jukeTarget = "club"; /* the High Rollers room's OWN song (Jonathan 2026-10-31), kept with the room's table records at hub/tables/hrcmusic — the database rules name hub's children and a brand-new hub/hrc would be refused, while hub/tables is writable by design. jukeTarget says which room the open picker is working for: "club" (the club + VIP, as always) or "hrc" (opened from the service counter) */
+function hrcSongActive() { return !!(hrcState && hrcState.idx >= 0 && SONGS[hrcState.idx]); }
 const vipArt = {}; /* the VIP lounge TV's cover cache (PREVIEW round 7): one Image per song slug, loaded lazily the first time that song is on — the covers live beside the mp3s the jukebox itself plays (assets/music/<slug>.jpg, the site music section's own cover files) */
 function vipArtImg(slug) { let im = vipArt[slug]; if (!im) { im = new Image(); im.src = "assets/music/" + slug + ".jpg"; vipArt[slug] = im; } return im; }
 function syncJuke() {
-  if (!clubSongActive()) { if (!jukeAudio.paused) jukeAudio.pause(); return; }
-  const key = clubState.idx + "@" + clubState.ts;
+  const st = me.scene === "highrollers" ? hrcState : clubState; /* each room family hears its OWN picked song: club + VIP share hub/club, the High Rollers room has hub/tables/hrcmusic */
+  if (!(st && st.idx >= 0 && SONGS[st.idx])) { if (!jukeAudio.paused) jukeAudio.pause(); return; }
+  const key = st.idx + "@" + st.ts;
   if (jukeAudio.dataset.k !== key) {
     jukeAudio.dataset.k = key;
-    jukeAudio.src = "assets/music/" + SONGS[clubState.idx][0] + ".mp3";
+    jukeAudio.src = "assets/music/" + SONGS[st.idx][0] + ".mp3";
     jukeApplyVol();
     jukeAudio.onloadedmetadata = () => {
-      const pos = (Date.now() - (clubState.ts || Date.now())) / 1000;
+      const pos = (Date.now() - (st.ts || Date.now())) / 1000;
       if (pos > 0.5 && pos < jukeAudio.duration - 1) { try { jukeAudio.currentTime = pos; } catch (e) {} }
-      if (me.scene === "club" || me.scene === "vip") { jukeWireGain(); jukeAudio.play().catch(() => {}); } /* the VIP lounge hears the club's song too — same shared state (hub/club), same sync point */
+      if (me.scene === "club" || me.scene === "vip" || me.scene === "highrollers") { jukeWireGain(); jukeAudio.play().catch(() => {}); } /* the VIP lounge hears the club's song too — same shared state (hub/club), same sync point; the High Rollers room hears its own the same way */
     };
-  } else if ((me.scene === "club" || me.scene === "vip") && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
+  } else if ((me.scene === "club" || me.scene === "vip" || me.scene === "highrollers") && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
 }
 function pickSong(i) {
   if (!db) return;
   sfxChime();
-  db.ref("hub/club").set({ idx: i, title: i >= 0 ? SONGS[i][1] : "", by: me.name || "", ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+  const rec = { idx: i, title: i >= 0 ? SONGS[i][1] : "", by: me.name || "", ts: firebase.database.ServerValue.TIMESTAMP };
+  if (jukeTarget === "hrc") db.ref("hub/tables/hrcmusic").set(rec).catch(() => {}); /* the service counter's pick is the High Rollers room's alone */
+  else db.ref("hub/club").set(rec).catch(() => {});
 }
 function fmtDur(s) { return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
 function updateJukePanel() {
   const now = $("jukenow"); if (!now) return;
-  if (clubSongActive()) now.textContent = "▶ Now playing: " + SONGS[clubState.idx][1] + (clubState.by ? " — picked by " + clubState.by : "");
-  else now.textContent = "Nothing playing — pick a song for the whole club!";
+  const jst = jukeTarget === "hrc" ? hrcState : clubState, jact = !!(jst && jst.idx >= 0 && SONGS[jst.idx]); /* the panel speaks for the room it was opened for */
+  if (jact) now.textContent = "▶ Now playing: " + SONGS[jst.idx][1] + (jst.by ? " — picked by " + jst.by : "");
+  else now.textContent = jukeTarget === "hrc" ? "Nothing playing — pick a song for the High Rollers Club!" : "Nothing playing — pick a song for the whole club!";
   fitJukeNow();
-  document.querySelectorAll(".jukesong").forEach((b, i) => b.classList.toggle("playing", clubSongActive() && clubState.idx === i));
+  document.querySelectorAll(".jukesong").forEach((b, i) => b.classList.toggle("playing", jact && jst.idx === i));
 }
 function fitJukeNow() {
   const now = $("jukenow"); if (!now || !now.clientWidth) return;
@@ -1041,11 +1047,12 @@ function fitJukeNow() {
     list.appendChild(b);
   });
 })();
-function openJuke() { $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); }
+function openJuke() { if (me.scene !== "highrollers") jukeTarget = "club"; $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); } /* every existing way in (the VIP jukebox, the club DJ booth) works for the club as always; only the service counter's prompt sets the target to "hrc" first, and only while standing in that room */
 function closeJuke() { $("jukebox").style.display = "none"; sfxClick(); }
 $("jukeclose").onclick = closeJuke;
 $("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
 if (db) db.ref("hub/club").on("value", s => { clubState = s.val(); syncJuke(); updateJukePanel(); });
+if (db) db.ref("hub/tables/hrcmusic").on("value", s => { hrcState = s.val(); syncJuke(); updateJukePanel(); });
 /* ============ player / world ============ */
 const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south. PREVIEW (2026-10-30): the plaza grows RIGHT by 1140 for the Quantum Horse Track building east of the Sports Complex and the swimming pool east of the casino — again, nothing existing moved, the ground just extends east */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
@@ -1080,6 +1087,13 @@ const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 80, w: 124, h: 44 }
 const CASINODOORS_Y = CASINOROOM.h - 344; /* 1856: both casino side doors, and the High Rollers exit, share this height */
 const HRROOM = { w: 3200, h: 2200 }; /* the High Rollers Club: the casino's own size, carpet and border */
 const HRBAR_L = { x: 56, y: 100, w: 560, h: 60 }, HRBAR_R = { x: HRROOM.w - 616, y: 100, w: 560, h: 60 };
+function hrBarRects() { /* the top bars CENTRED between the wall and the room sign (Jonathan 2026-10-31): the sign is measured as this device renders it, so each bar sits in the middle of its side's open span — wall to sign on the left, sign to wall on the right. One source for the drawing and the collision alike */
+  ctx.font = "800 58px 'Segoe UI',sans-serif";
+  const tw = ctx.measureText("👑 HIGH ROLLERS CLUB 👑").width, mid = HRROOM.w / 2;
+  return [{ x: Math.round((34 + (mid - tw / 2)) / 2 - HRBAR_L.w / 2), y: HRBAR_L.y, w: HRBAR_L.w, h: HRBAR_L.h },
+          { x: Math.round(((mid + tw / 2) + (HRROOM.w - 34)) / 2 - HRBAR_R.w / 2), y: HRBAR_R.y, w: HRBAR_R.w, h: HRBAR_R.h }];
+}
+const HRCTR = { x: 3040, y: 980, w: 60, h: 430 }; /* the service counter (Jonathan 2026-10-31): a VERTICAL counter against the right wall, spanning the tables' own band (980..1410) — the strip between its right edge (3100) and the wall is just wide enough to stand in, and that strip is the only place the room's music can be worked from (atHRCounter). Fully solid, and it never paints over a player: no cutting off of the sprite */
 const HRDIV_T = { x: 120, y: 872, w: HRROOM.w - 240, h: 26 }, HRDIV_B = { x: 120, y: 1692, w: HRROOM.w - 240, h: 26 }; /* the two long dividers between the booths and the tables — SOLID (Jonathan 2026-10-31): you cannot walk over them, you go around their ends */ /* the club's two bar counters (BAR_L/BAR_R: 560x60 at a 56px inset from the top corners) carried into the High Rollers room (Jonathan 2026-10-31), casino-themed and solid exactly like theirs — placed clear of the settled booth rows: the top booth benches start at y 274, the bars and their stool rows end at y ~211 */
 const BACT = { x: 430, y: 980, w: 900, h: 430 }; /* baccarat felt — blackjack's rect, dark red */
 const CRAT = { x: 1870, y: 980, w: 900, h: 430 }; /* craps felt — roulette's rect, dark red */
@@ -1367,7 +1381,7 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, ...SLOTM]; /* the LOUNGE block left this list with the lounge's removal (Jonathan 2026-10-31) */
-  if (me.scene === "highrollers") return [BACT, CRAT, HRBAR_L, HRBAR_R, HRDIV_T, HRDIV_B]; /* the booths are walk-over (Jonathan 2026-10-31) — the felts, the two bar counters and the two dividers are solid; the dividers you go around, not over */
+  if (me.scene === "highrollers") return [BACT, CRAT, ...hrBarRects(), HRDIV_T, HRDIV_B, HRCTR]; /* the booths are walk-over (Jonathan 2026-10-31) — the felts, the two bar counters, the two dividers and the service counter are solid; the dividers and the counter you go around, not over */
   if (me.scene === "chess") return [...CHBOARDS];
   if (me.scene === "boxing") return boxingBout ? [] : [BOXRING]; /* the bleachers are walk-over scenery (Jonathan 2026-10-31) — only the ring is solid, and only until YOUR bout starts (pass D) */
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
@@ -4696,7 +4710,8 @@ function checkPortal(P, go) {
 function toHQ() { stopAllTones(); portalArmed = false; me.scene = "hq"; voiceReset(); me.x = HQPORTAL.x; me.y = HQPORTAL.y - 130; sfxChime(); publish(true); startHqVideos(); }
 function toPlazaFromHQ() { stopAllTones(); portalArmed = false; me.scene = "plaza"; voiceReset(); me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "vip" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; } /* the jukebox stands in the VIP lounge now (PREVIEW round 3) — the proximity test moved rooms with it, nothing else about it changed */
-function atDJBooth(x, y) { return me.scene === "club" && x > DJBOOTH.x - 16 && x < DJBOOTH.x + DJBOOTH.w + 16 && y >= DJBOOTH.y - 6 && y <= DJBOOTH.y + 26; } /* standing in the DJ strip directly behind the booth counter: feet between the counter's top edge and the furthest point its solid front (DJFRONT) lets anyone reach from behind. One test for both jobs — frame() repaints the booth over a player standing here (their head pokes up behind the counter), and the local player standing here gets the song-picker prompt. Reachable only by walking around either end of the booth: the counter itself blocks through-passage both ways */
+function atDJBooth(x, y) { return me.scene === "club" && x > DJBOOTH.x - 16 && x < DJBOOTH.x + DJBOOTH.w + 16 && y >= DJBOOTH.y - 6 && y <= DJBOOTH.y + 26; }
+function atHRCounter(x, y) { return me.scene === "highrollers" && x > HRCTR.x + HRCTR.w - 6 && y >= HRCTR.y - 6 && y <= HRCTR.y + HRCTR.h + 6; } /* standing in the strip BEHIND the service counter — between the counter and the right wall, the RIGHT SIDE only (Jonathan 2026-10-31): the front of the counter, the tables side, never offers the music. The strip is entered by walking around the counter's top or bottom end along the wall */ /* standing in the DJ strip directly behind the booth counter: feet between the counter's top edge and the furthest point its solid front (DJFRONT) lets anyone reach from behind. One test for both jobs — frame() repaints the booth over a player standing here (their head pokes up behind the counter), and the local player standing here gets the song-picker prompt. Reachable only by walking around either end of the booth: the counter itself blocks through-passage both ways */
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
   if (me.scene !== "arcade") return null;
@@ -6682,14 +6697,15 @@ function drawHighRollers(t) {
   for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3 + t / 2600); ctx.beginPath(); ctx.ellipse(0, 0, 62, 22, 0, 0, 7); ctx.stroke(); ctx.restore(); }
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
   ctx.restore();
-  /* bar counters in the top corners (Jonathan 2026-10-31): Club Quantum's bars, measurement for measurement — the 560x60 counter at the same 56px corner inset, the bottle shelf above it (560x46 at y 42, sixteen bottles), the stool row below (r17 every 62px) — re-skinned in the CASINO's materials: burgundy counter body, gold top edge and gold stool trim where the club wears pink neon and cyan, dark casino-red shelf and stools. Solid like the club's (see obstacles) */
-  for (const bx of [HRBAR_L.x, HRBAR_R.x]) {
+  /* bar counters in the top corners (Jonathan 2026-10-31): Club Quantum's bars, measurement for measurement — the 560x60 counter, CENTRED on its side between the wall and the room sign (hrBarRects — his word the same evening), the bottle shelf above it (560x46 at y 42, sixteen bottles), the stool row below (r17 every 62px) — re-skinned in the CASINO's materials: burgundy counter body, gold top edge and gold stool trim where the club wears pink neon and cyan, dark casino-red shelf and stools. Solid like the club's (see obstacles) */
+  const hrbars = hrBarRects(); /* centred between the wall and the sign, drawn and collided from the same rects */
+  for (const bx of [hrbars[0].x, hrbars[1].x]) {
     ctx.fillStyle = "#2a0a18"; ctx.fillRect(bx, 42, 560, 46);
     const bottleCols = ["#ffd76a", "#ff8fa8", "#7dffb0", "#ffe9a8", "#d4a017"];
     for (let i = 0; i < 16; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(bx + 14 + i * 34, 54 - (i % 3) * 4, 9, 26 + (i % 3) * 4); }
     ctx.globalAlpha = 1;
   }
-  for (const bar of [HRBAR_L, HRBAR_R]) {
+  for (const bar of hrbars) {
     ctx.fillStyle = "#40081b"; rr(bar.x, bar.y, bar.w, bar.h, 10); ctx.fill();
     ctx.fillStyle = "#ffd76a"; ctx.fillRect(bar.x, bar.y, bar.w, 6);
     ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2; rr(bar.x, bar.y, bar.w, bar.h, 10); ctx.stroke();
@@ -6699,6 +6715,21 @@ function drawHighRollers(t) {
       ctx.fillStyle = "rgba(255,215,106,0.8)"; ctx.fillRect(sx - 2, bar.y + bar.h + 12, 4, 8);
     }
   }
+  /* the service counter (Jonathan 2026-10-31): the room's third bar, turned VERTICAL and set against the right wall across the tables' band — the bars' own build rotated: burgundy body, the gold edge down its FRONT (the room side), the bottle shelf down its wall side with the same bottles in a column, the same stools down its front every 62px, and a music note at its centre for the job it does. Drawn here with the room's furniture, before the players, and never repainted over anyone afterwards — no cutting off of the sprite */
+  ctx.fillStyle = "#40081b"; rr(HRCTR.x, HRCTR.y, HRCTR.w, HRCTR.h, 10); ctx.fill();
+  ctx.fillStyle = "#2a0a18"; ctx.fillRect(HRCTR.x + HRCTR.w - 16, HRCTR.y + 8, 12, HRCTR.h - 16);
+  { const bottleCols = ["#ffd76a", "#ff8fa8", "#7dffb0", "#ffe9a8", "#d4a017"];
+    for (let i = 0; i < 12; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(HRCTR.x + HRCTR.w - 13, HRCTR.y + 20 + i * 34, 9, 24 + (i % 3) * 3); }
+    ctx.globalAlpha = 1; }
+  ctx.fillStyle = "#ffd76a"; ctx.fillRect(HRCTR.x, HRCTR.y, 6, HRCTR.h);
+  ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2; rr(HRCTR.x, HRCTR.y, HRCTR.w, HRCTR.h, 10); ctx.stroke();
+  for (let sy = HRCTR.y + 40; sy < HRCTR.y + HRCTR.h - 16; sy += 62) {
+    ctx.fillStyle = "#5b1030"; ctx.beginPath(); ctx.arc(HRCTR.x - 34, sy, 17, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(HRCTR.x - 34, sy, 17, 0, 7); ctx.stroke();
+    ctx.fillStyle = "rgba(255,215,106,0.8)"; ctx.fillRect(HRCTR.x - 20, sy - 2, 8, 4);
+  }
+  ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
+  ctx.fillText("🎵", HRCTR.x + 22, HRCTR.y + HRCTR.h / 2 + 11);
   drawBooths(360, false); /* the top rows of private booths — two deep, raised a touch (Jonathan 2026-10-31: the top row is gone, the rest shifted up) */
   drawBooths(600, false);
   /* the long divider between the booths and the tables */
@@ -7069,7 +7100,7 @@ function drawBoxing(t) {
   ctx.fillStyle = "#17336e"; ctx.fillRect(0, BOXHALL.top, BOXHALL.x1, BOXHALL.bot - BOXHALL.top);
   ctx.save(); ctx.beginPath(); ctx.rect(0, BOXHALL.top, BOXHALL.x1, BOXHALL.bot - BOXHALL.top); ctx.clip();
   for (let gx = 60; gx < BOXHALL.x1; gx += 120) for (let gy = 60; gy < BOXROOM.h; gy += 120) {
-    ctx.fillStyle = "rgba(255,255,255,0.14)"; /* the hallway's diamonds are ALL WHITE (Jonathan 2026-10-31) — no black diamonds here; the arena floor keeps its alternating pattern */
+    ctx.fillStyle = "rgba(140,180,255,0.05)"; /* the hallway's diamonds are ALL the arena floor's own FADED WHITE (Jonathan 2026-10-31) — the main floor's light-diamond colour and strength exactly, never brighter; no black diamonds here, the arena floor keeps its alternating pattern */
     ctx.beginPath(); ctx.moveTo(gx, gy - 26); ctx.lineTo(gx + 26, gy); ctx.lineTo(gx, gy + 26); ctx.lineTo(gx - 26, gy); ctx.closePath(); ctx.fill();
   }
   ctx.restore();
@@ -7165,7 +7196,7 @@ function drawBoxingFx(t) {
       ctx.fillText("🥊 GET READY…", 1800, 880);
     }
     if (st.phase === "done") {
-      ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+      ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; /* the winner text is BLACK (Jonathan 2026-10-31) — it sits on the ring's white floor like the health numbers and the punch hint */
       const wnm = st.winner >= 0 && st.seats && st.seats[st.winner] ? st.seats[st.winner].name : null;
       ctx.fillText(wnm ? "🏆 " + wnm + " WINS!" : "🤝 DOUBLE KO — A DRAW!", 1800, 880);
       ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.85)";
@@ -8934,7 +8965,7 @@ function frame(now) {
   if (me.scene !== "gym") pauseLgVideos();
   if (me.scene !== "speedway") pauseSwVideos();
   else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
-  if (me.scene === "club" || me.scene === "vip") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause(); /* the VIP lounge is part of the club for music: the same synced song plays in both rooms */
+  if (me.scene === "club" || me.scene === "vip" || me.scene === "highrollers") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause(); /* the VIP lounge is part of the club for music: the same synced song plays in both rooms — and the High Rollers room plays its OWN picked song the same way */
   ctx.restore();
   if (me.scene !== drawnScene) { drawnScene = me.scene; for (const p of peers.values()) if (p.scene === me.scene) p.snap = true; }
   const actors = [];
@@ -9002,6 +9033,7 @@ function frame(now) {
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
   else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
+  else if (atHRCounter(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Service Counter — Pick a Song"; promptAction = () => { jukeTarget = "hrc"; openJuke(); }; } /* the service counter (Jonathan 2026-10-31): the song picker, worked ONLY from the strip behind the counter on the room's right side — the prompt exists only while standing in that strip, and the pick is the High Rollers room's own song (hub/tables/hrcmusic), never the club's */
   else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
   else if (me.scene === "chess" && chSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = chessStandUp; }
   else if (me.scene === "boxing" && boxSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = boxingBout ? "🏳️ Give up" : "🚪 Stand up"; promptAction = boxingStandUp; }
