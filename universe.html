@@ -1116,7 +1116,7 @@ function hrBarRects() { /* the top bars CENTRED between the wall and the room si
   return [{ x: Math.round((34 + (mid - tw / 2)) / 2 - HRBAR_L.w / 2), y: HRBAR_L.y, w: HRBAR_L.w, h: HRBAR_L.h },
           { x: Math.round(((mid + tw / 2) + (HRROOM.w - 34)) / 2 - HRBAR_R.w / 2), y: HRBAR_R.y, w: HRBAR_R.w, h: HRBAR_R.h }];
 }
-const HRCTR = { x: 3040, y: 1080, w: 60, h: 430 }; /* the service counter (Jonathan 2026-10-31): a VERTICAL counter against the right wall, CENTRED BETWEEN THE TWO DIVIDERS (his word from his phone screenshot — the band between them centres at y 1295, so the counter spans 1080..1510; its horizontal spot was already perfect) — the strip between its right edge (3100) and the wall is just wide enough to stand in, and that strip is the only place the room's music can be worked from (atHRCounter). Fully solid, and it never paints over a player: no cutting off of the sprite */
+const HRCTR = { x: 3040, y: 1380, w: 60, h: 430 }; /* the service counter (Jonathan 2026-10-31): a VERTICAL counter against the right wall — it stood centred between the two dividers (spanning 1080..1510) until Jonathan 2026-11-01 centred it on the DOOR/ATOM LINE instead: moved DOWN so its centre (1380 + 215 = 1595) sits on HRDOOR_Y, the medallion's own line, spanning 1380..1810; its horizontal spot was already perfect — the strip between its right edge (3100) and the wall is just wide enough to stand in, and that strip is the only place the room's music can be worked from (atHRCounter). Fully solid, and it never paints over a player: no cutting off of the sprite. The drawing, the solid (obstacles) and atHRCounter all read this one rect, so the desk you see is the desk that blocks */
 const HRDIV_T = { x: 120, y: 872, w: HRROOM.w - 240, h: 26 }, HRDIV_B = { x: 120, y: 2492, w: HRROOM.w - 240, h: 26 }; /* HRDIV_B moved DOWN 800 with the room's growth (1692 -> 2492, Jonathan 2026-11-01): it still stands the same 132 below the lowest chairs — now the new row's chairs at y 2360 — with the booths below it. HRDIV_T cannot move: the current tables begin 82 below it */ /* the two long dividers between the booths and the tables — SOLID (Jonathan 2026-10-31): you cannot walk over them, you go around their ends */ /* the club's two bar counters (BAR_L/BAR_R: 560x60 at a 56px inset from the top corners) carried into the High Rollers room (Jonathan 2026-10-31), casino-themed and solid exactly like theirs — placed clear of the settled booth rows: the top booth benches start at y 274, the bars and their stool rows end at y ~211 */
 const BACT = { x: 430, y: 980, w: 900, h: 430 }; /* baccarat felt — blackjack's rect, dark red */
 const CRAT = { x: 1870, y: 980, w: 900, h: 430 }; /* craps felt — roulette's rect, dark red */
@@ -3241,7 +3241,18 @@ function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: 
    right after drawGenFx. Text, fonts and colours are exactly the ones the scene passes used;
    only the anchor and the layer changed. Displays that were already visible where they were
    (the blackjack/horse-track felt spots, the pool-hall stake pills, the chess bet chip below
-   its sprite, every READY stamp that sat clear) were left exactly where they are. */
+   its sprite, every READY stamp that sat clear) were left exactly where they are.
+   BELOW THE SPRITE (Jonathan 2026-11-01, later that night — "show the bets under the sprites
+   not above... and also the READY text, etc. same interface just below the sprite", in all
+   games): the pieces this pass hung ABOVE the head now hang BELOW the feet — same texts,
+   fonts, colours and stack, mirrored. Boxing's bet line takes the exact mirror (+30: the 30
+   its baseline sat above the head top), and the chess top seat's result takes its exact
+   mirror (+28). Two seats cannot take the exact mirror: every casino/HRC chair carries its
+   balance pill at +40..+70, exactly where the mirror would land roulette's chip and the HRC
+   result — so the HRC result takes the casino result's own below-the-pill slot (+96), and
+   roulette's chip+pick hang under its READY/result line (pick +124, chip +152, their old
+   order kept: pick nearer, chip farther). Roulette's READY and result already lived below
+   the sprite at +96 and do not move. */
 function drawSeatBetOverlay() {
   ctx.textAlign = "center";
   if (me.scene === "boxing") {
@@ -3250,7 +3261,7 @@ function drawSeatBetOverlay() {
       const sd = st.seats[i];
       if (!sd || !sd.pid || Date.now() - (sd.ts || 0) >= 25000 || !sd.bet) return;
       ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-      ctx.fillText("bet " + (sd.bet || 0).toLocaleString("en-US"), sp.x, sp.y - 126); /* above the head (top at -96) AND above the name plate drawPlayer rides at -104: this line's ink ends 8px clear of the plate's */
+      ctx.fillText("bet " + (sd.bet || 0).toLocaleString("en-US"), sp.x, sp.y + 30); /* below the feet (Jonathan 2026-11-01): the exact mirror of its old above-the-head slot — its baseline sat 30 above the head top (-96), so it sits 30 below the feet; the fighter's READY stamp at +84 in the ring pass stays clear under it */
     });
   } else if (me.scene === "casino") {
     const st = rrState; if (!st || !st.seats) return;
@@ -3258,9 +3269,9 @@ function drawSeatBetOverlay() {
       const s = st.seats[i];
       if (!s || Date.now() - (s.ts || 0) > 25000) return;
       if (s.bet) {
-        drawChip(sp.x, sp.y - 158, s.bet);
+        drawChip(sp.x, sp.y + 152, s.bet);
         ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center";
-        ctx.fillText(s.betType ? s.betType.toUpperCase() : "", sp.x, sp.y - 124); /* chip + pick above the head, the pick's ink ending 10px clear of the name plate's */
+        ctx.fillText(s.betType ? s.betType.toUpperCase() : "", sp.x, sp.y + 124); /* chip + pick BELOW the sprite (Jonathan 2026-11-01): the exact mirror of the old above-the-head stack would land the chip on the seat's balance pill (+40..+70), so the stack hangs under the READY/result line (+96) instead — pick nearer (+124), chip farther (+152), their old order kept */
         if (s.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 96); } /* below the chair's balance pill (+40..+70), the boxing READY's own below-the-seat arrangement */
       }
       if (st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 96); } /* the result takes the same below-the-pill slot in the done phase — the two never share a phase */
@@ -3272,7 +3283,7 @@ function drawSeatBetOverlay() {
         const sd = st.seats[i];
         if (!sd || Date.now() - (sd.ts || 0) > 25000 || !st.results[i]) return;
         ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
-        ctx.fillText(st.results[i].res, sp.x, sp.y - 118); /* above the head and the name plate, a single line with clear felt below it */
+        ctx.fillText(st.results[i].res, sp.x, sp.y + 96); /* below the sprite (Jonathan 2026-11-01): the exact mirror of its old above-the-head slot would land on the seat's balance pill (+40..+70), so it takes the casino result's own below-the-pill slot (+96) */
       });
     });
   } else if (me.scene === "chess") {
@@ -3282,7 +3293,7 @@ function drawSeatBetOverlay() {
       const sp = CHSEATS[ti][0], sd = st.seats[0];
       if (!sd || !sd.pid || Date.now() - (sd.ts || 0) >= 25000) continue;
       ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[0].amt ? "#7dffb0" : "#ffb3b3";
-      ctx.fillText(st.results[0].res, sp.x, sp.y - 124); /* the TOP seat's result, above its sprite's head — the bottom seat's never hid and still paints in the board pass at +118 */
+      ctx.fillText(st.results[0].res, sp.x, sp.y + 28); /* the TOP seat's result, BELOW its sprite (Jonathan 2026-11-01): the exact mirror of its old above-the-head slot — the baseline sat 28 above the head top (-96), so it sits 28 below the feet; the bottom seat's never hid and still paints in the board pass at +118 */
     }
   }
 }
@@ -5347,9 +5358,11 @@ function drawSeatsRow(list, st, game) {
   });
 }
 function drawChip(x, y, amt) {
-  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(x, y, 17, 0, 7); ctx.fill();
+  ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  const r = Math.max(17, Math.ceil(ctx.measureText(String(amt)).width / 2) + 6); /* the circle is always WIDE ENOUGH for its amount (Jonathan 2026-11-01): sized from the measured text — 6px of air on each side of the ink — with the old r17 kept as the floor, so a small bet keeps its sensible size while the big stakes grow the circle to fit (the top HR stake, 1000000000, is ~92px of ink at this font and used to spill far out of the 34px circle) */
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
   ctx.strokeStyle = "#fff2c4"; ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.fillStyle = "#241a08"; ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = "#241a08";
   ctx.fillText(String(amt), x, y + 5.5);
 }
 function drawBJTable(t) {
@@ -7408,7 +7421,7 @@ function hrcSeatBets(list, st, game) {
       ctx.fillText(sd.betType ? sd.betType.toUpperCase().replace("DONTPASS", "DON'T PASS") : "", ax, ay + 38);
       if (sd.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", ax, ay - 32); }
     }
-    /* the result line is NOT painted here: at the seat (sp.y - 48) it sat inside the seated sprite and was painted over by it — drawSeatBetOverlay draws it above the head (Jonathan 2026-10-31). The bet chip/pick/READY above stay on the felt, the blackjack spots' own arrangement */
+    /* the result line is NOT painted here: at the seat (sp.y - 48) it sat inside the seated sprite and was painted over by it — drawSeatBetOverlay draws it at the seat, below the sprite (Jonathan 2026-11-01; above the head in the 2026-10-31 pass). The bet chip/pick/READY above stay on the felt, the blackjack spots' own arrangement */
   });
 }
 function hrcTableHead(T, game, status) {
@@ -7818,7 +7831,7 @@ function drawChessBoard(ti) {
       ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
       ctx.fillText(sd.name || "", sp.x, sp.y - 44);
       if (sd.bet) { drawChip(sp.x, sp.y + 52, sd.bet); if (sd.rdy && st.phase === "bet") { ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 92); } }
-      if (i === 1 && st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 118); } /* the TOP seat's result used to sit at sp.y - 70, inside its sprite and painted over — drawSeatBetOverlay draws it above that sprite's head (Jonathan 2026-10-31); the bottom seat's line at +118 was always clear below its sprite and stays */
+      if (i === 1 && st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 118); } /* the TOP seat's result used to sit at sp.y - 70, inside its sprite and painted over — drawSeatBetOverlay draws it below that sprite's feet (Jonathan 2026-11-01; above its head in the 2026-10-31 pass); the bottom seat's line at +118 was always clear below its sprite and stays */
     }
     else if (st && st.mode === "pc" && st.phase !== "bet") { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfd4e2"; ctx.fillText("🤖 PC", sp.x, sp.y - 44); }
   });
@@ -7960,7 +7973,7 @@ function drawBoxingFx(t) {
     ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", sp.x, sp.y + 7);
     ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
     ctx.fillText(i === 0 ? "RED corner" : "BLUE corner", sp.x, sp.y + 58);
-    if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); /* the bet itself is NOT painted here: this pass runs before the fighters' sprites, so at sp.y - 68 it sat inside the sprite and was painted over — drawSeatBetOverlay (after the actor pass) draws it above the head instead (Jonathan 2026-10-31) */ if (sd.rdy) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#39d353"; ctx.fillText("READY ✓", sp.x, sp.y + 84); } }
+    if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); /* the bet itself is NOT painted here: this pass runs before the fighters' sprites, so at sp.y - 68 it sat inside the sprite and was painted over — drawSeatBetOverlay (after the actor pass) draws it below the feet instead (Jonathan 2026-11-01; above the head in the 2026-10-31 pass) */ if (sd.rdy) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#39d353"; ctx.fillText("READY ✓", sp.x, sp.y + 84); } }
   });
   if (st && (st.phase === "fight" || st.phase === "done")) {
     /* health bars INSIDE the ring's top corners, on the white canvas: left seat left, right seat right (Jonathan 2026-10-31) */
