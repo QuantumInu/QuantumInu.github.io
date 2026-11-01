@@ -714,7 +714,6 @@ try {
 let lastPub = 0, lastPubKey = "";
 function publish(force) {
   if (!db || !entered) return;
-  noteRoomEntered(me.scene); /* publish always knows the room I'm standing in: entering a different room drops that room's divider into the session chat log */
   const now = performance.now();
   const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : ""].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000) return;
@@ -4749,9 +4748,12 @@ $("sendtokamt").addEventListener("keydown", e => { if (e.key === "Enter") { e.pr
    in (nothing from other rooms, nothing from before they came in), keeps
    running across room changes for the whole session, and is wiped on
    sign-out, so the next sign-in starts blank again. It is never read back
-   from the database and never persisted anywhere. Every room entry drops a
-   divider naming the room into the stream, and that room's chat lands under
-   its divider. Messages are still SAVED per room exactly as before —
+   from the database and never persisted anywhere. Dividers are driven by
+   chat activity only (Jonathan 2026-11-01, later that day): entering a
+   room adds nothing to the stream — a divider naming a room drops in only
+   when a message actually lands, ahead of that message, when its room
+   differs from the room of the previous logged message. Messages are
+   still SAVED per room exactly as before —
    saveChatMessage's write under hub/tables/chatlog/<scene>, keyed by sender
    session + chat id so every client writes the same message once — only the
    read/replay that used to reload stored history on login and room entry is
@@ -4759,21 +4761,20 @@ $("sendtokamt").addEventListener("keydown", e => { if (e.key === "Enter") { e.pr
    never saved publicly. */
 const sessionLogRows = []; /* the one stream, in arrival order: {divider:"Plaza"} room titles and {scene, name, text, ts, key} messages */
 const loggedChatKeys = new Set();
-let logDividerScene = ""; /* the room the stream's newest divider names — a fresh divider drops only when a different room is entered */
+let logLastMsgScene = ""; /* the room of the newest message actually in the stream ("" = none yet) — a divider drops ahead of a message only when its room differs from this */
 const SESSION_LOG_CAP = 300; /* the stream keeps the newest 300 rows (dividers + messages), so a long session can't grow the panel without bound */
 function chatRoomLog(scene) { return sessionLogRows.filter(r => !r.divider && r.scene === scene); } /* read-only view kept for the token-note checks: the messages this session's stream holds for one room */
 function resetSessionLog() {
   sessionLogRows.length = 0;
   loggedChatKeys.clear();
-  logDividerScene = "";
+  logLastMsgScene = "";
   if ($("chatlog") && $("chatlog").style.display === "flex") renderLog();
 }
 function trimSessionLog() {
   while (sessionLogRows.length > SESSION_LOG_CAP) { const old = sessionLogRows.shift(); if (old && old.key) loggedChatKeys.delete(old.key); }
 }
-function noteRoomEntered(scene) {
-  if (!ONLINE_ROOM_NAMES[scene] || scene === logDividerScene) return;
-  logDividerScene = scene;
+function ensureLogDivider(scene) {
+  if (!ONLINE_ROOM_NAMES[scene] || scene === logLastMsgScene) return; /* a divider only ever rides in ahead of a message — room entry alone never calls this */
   sessionLogRows.push({ divider: onlineRoomName(scene) });
   trimSessionLog();
   if ($("chatlog").style.display === "flex") renderLog();
@@ -4784,8 +4785,9 @@ function addChatLogMessage(scene, name, text, ts, key, local) {
   const k = key || (scene + ":" + ts + ":" + name + ":" + text);
   if (loggedChatKeys.has(k)) return;
   loggedChatKeys.add(k);
-  noteRoomEntered(scene); /* the room's divider always lands ahead of its first message in the stream */
+  ensureLogDivider(scene); /* chat activity drives dividers: this message gets a divider ahead of it only when the previous logged message was in a different room (Jonathan 2026-11-01) */
   sessionLogRows.push({ scene: scene, name: String(name || "?").slice(0, 24), text: String(text).slice(0, 300), ts: Number(ts) || 0, key: k });
+  logLastMsgScene = scene;
   trimSessionLog();
   if ($("chatlog").style.display === "flex") renderLog();
 }
