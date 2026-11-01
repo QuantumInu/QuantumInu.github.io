@@ -170,7 +170,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #storelist .jukesong:disabled{opacity:.45;cursor:default}
 #storelist .bggrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px} /* the Slot Backgrounds GRID (Jonathan 2026-11-01): four sample cells across, rows flowing down inside the same scrolling list */
 #storelist .bgcell{display:flex;flex-direction:column;padding:0;overflow:hidden;text-align:center}
-#storelist .bgcell .bgthumb{width:100%;aspect-ratio:7/11;background:#40081b center/cover no-repeat;flex:none} /* the cell's sample wears the cabinet's own tall 7:11 (210x330) shape; the default entry has no image, so its thumb is the plain burgundy swatch */
+#storelist .bgcell .bgthumb{width:100%;aspect-ratio:7/11;background:linear-gradient(135deg,#2e0410 0%,#5e1228 38%,#40081b 58%,#27030b 100%) center/cover no-repeat;flex:none} /* the cell's sample wears the cabinet's own tall 7:11 (210x330) shape; the default entry has no image, so its thumb is the burgundy swatch — velvet-shaded since 2026-11-01 to match the default cabinet's new finish; a priced entry's own art is set inline as backgroundImage and covers this */
 #storelist .bgcell .bgname{font-size:12px;font-weight:700;line-height:1.25;padding:5px 3px 1px}
 #storelist .bgcell .bgstate{font-size:10.5px;color:#9fd8ea;line-height:1.3;padding:0 3px 6px}
 #storelist .bgcell.sel{border:3px solid #ffd76a;box-shadow:0 0 12px rgba(255,215,106,.55);background:rgba(255,215,106,.10)} /* the SELECTED background (Jonathan 2026-11-01): a thick YELLOW border in the machines' own #ffd76a, standing clear of the plain cells' 1px outline — the .sel class follows mySlotBg in storeBgCell, so the border moves to whichever background is on the machines */
@@ -5608,11 +5608,27 @@ function drawRouletteTable(t) {
   /* seat bets + results are NOT painted here any more (Jonathan 2026-10-31): the old anchors put seats 0-3's displays on the felt at RRT.h - 118 — over the wheel and the GREEN board button — and seat 4 (the LAST chair) at the table's left edge (RRT.x + 88), stranded on top of seat 0's chair. drawSeatBetOverlay paints the whole display at each seat, over the sprites, in frame()'s post-actor pass */
   drawSeatsRow(RRSEATS, st, "rr");
 }
+function drawSlotCabinetBase(mch) { /* the casino cabinets' EMERALD FELT (Jonathan 2026-11-01): a rich emerald-green cloth body, drawn inside the cabinet's rounded outline — a deep green gradient base (lighter where the room light pools toward the top, darker at the foot), a fine seeded speckle for the nap of the felt, and one soft sheen across the upper face. The speckle is SEEDED from the machine's own position, so the nap is identical on every frame and never crawls or flickers. Base material only: everything the face draws afterwards (screen, reels, text, buttons) is unchanged */
+  ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip();
+  const fg = ctx.createLinearGradient(mch.x, mch.y, mch.x, mch.y + mch.h);
+  fg.addColorStop(0, "#0d5c40"); fg.addColorStop(0.45, "#084a33"); fg.addColorStop(1, "#052e20");
+  ctx.fillStyle = fg; ctx.fillRect(mch.x, mch.y, mch.w, mch.h);
+  let s = ((mch.x * 7919) ^ (mch.y * 104729) ^ 0x9e3779b9) >>> 0;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (let v = 0; v < 220; v++) { /* the nap: tiny light and dark flecks scattered over the cloth */
+    ctx.fillStyle = rnd() > 0.5 ? "rgba(255,255,240,0.05)" : "rgba(0,0,0,0.06)";
+    ctx.fillRect(mch.x + rnd() * mch.w, mch.y + rnd() * mch.h, 1.4, 1.4);
+  }
+  const sheen = ctx.createRadialGradient(mch.x + mch.w * 0.5, mch.y + mch.h * 0.22, 8, mch.x + mch.w * 0.5, mch.y + mch.h * 0.22, mch.w * 0.95);
+  sheen.addColorStop(0, "rgba(190,255,220,0.08)"); sheen.addColorStop(1, "rgba(190,255,220,0)");
+  ctx.fillStyle = sheen; ctx.fillRect(mch.x, mch.y, mch.w, mch.h);
+  ctx.restore();
+}
 function drawSlots(t) {
   const near = nearSlot();
   drawSeatsRow(SLOTSEATS, { seats: slotSeatView() }, "slot"); /* the seat row is in draw order; slotSeatView maps each chair to its machine-id seat record */
   SLOTM.forEach((mch, i) => {
-    ctx.fillStyle = "#2a1150"; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.fill();
+    drawSlotCabinetBase(mch); /* EMERALD FELT cabinet base (Jonathan 2026-11-01), replacing the old flat blue #2a1150 — material only: the gold outline, screen, reels and face furniture drawn after this are untouched */
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke();
     ctx.fillStyle = "#0a0616"; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.fill();
     ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
@@ -5627,11 +5643,11 @@ function drawSlots(t) {
     const seatedHere = mySeat && mySeat.game === "slot" && mySeat.idx === i;
     const spinnerSeated = !!(st && slotSeats && slotSeats[mch.id] && slotSeats[mch.id].pid === st.pid);
     const lastTxt = a && a.paid && seatedHere ? (a.pay ? "🎉 +" + a.pay : "no luck") : (st && st.amt && spinnerSeated ? "+" + st.amt + (st.name ? " · " + String(st.name).slice(0, 12) : "") : "SLOTS"); /* the win amount and the spinner's name show only while the spinner is still seated there — the last spin's symbols may stay on the reels, the credit line may not (his rule 2026-10-28) */
-    ctx.fillText(lastTxt, mch.x + mch.w / 2, mch.y + 140);
+    ctx.fillText(lastTxt, mch.x + mch.w / 2, mch.y + 149); /* the SLOTS line moved DOWN 9 by position alone (Jonathan 2026-11-01): the club machines' face treatment applied to the normal casino machines too — font stays 16px, baseline 140 -> 149, the same drop the High Roller's Club face got */
     ctx.fillStyle = "#eaf6ff";
     if (mySeat && mySeat.game === "slot" && mySeat.idx === i) {
       [1, 5, 10, 20, 50, 100].forEach((amt, k) => {
-        drawBtn(mch.x + 13 + (k % 3) * 64, mch.y + 156 + Math.floor(k / 3) * 46, 56, 38, String(amt), () => { slotBet = amt; }, { fs: 17, sel: slotBet === amt });
+        drawBtn(mch.x + 16 + (k % 3) * 62, mch.y + 162 + Math.floor(k / 3) * 46, 54, 38, String(amt), () => { slotBet = amt; }, { fs: 17, sel: slotBet === amt }); /* the bet grid (Jonathan 2026-11-01), matching the club face: shifted down 6 with the face block, and the buttons shrunk 56 -> 54 so the grid's outer span is x+16..x+194 — exactly the casino SPIN button's own span below (x+16, w-32), which does not move. Label size unchanged (fs 17); the last row's bottom lands at y+246, a clear 6px above SPIN's top at y+252 */
       });
       drawBtn(mch.x + 16, mch.y + 252, mch.w - 32, 56, spinning ? "···" : "🎰 SPIN " + slotBet, spinning ? null : () => spinMachine(i), { fs: 24, fill: "#8a6a1f", dim: !!spinning });
     } else {
@@ -6422,6 +6438,7 @@ let autoTier = 0; /* my owned auto-spin tier (0 = none), loaded from the account
 let mySlotBg = "default"; /* my selected cabinet background id, loaded from the account doc at sign-in */
 let mySlotBgsOwned = []; /* the priced background ids I own, loaded from the account doc at sign-in */
 let storeView = "main"; /* which store page is showing: "main", "auto" or "bgs" */
+let storePending = null; /* a buy paused on its CONFIRMATION step (Jonathan 2026-11-01): {kind:"bg",id} or {kind:"auto",n}. buySlotBg/buyAutoTier only set this and re-render — the render names the item and the exact charge (the real price, or FREE for the owner) — and only confirmStoreBuy runs the purchase itself; cancelStoreBuy drops the pending buy with nothing changed. storeView is never touched while a buy is pending, so cancelling lands back on the exact view the buyer was on */
 let hrAutoOn = false, hrAutoLast = 0; /* the AUTO toggle and its clock — session-only, like the mech forms */
 const slotBgImgs = {}; /* the lazy image cache for priced backgrounds, keyed by entry id */
 function slotBgEntry(id) { for (const e of SLOT_BGS) if (e.id === id) return e; return null; }
@@ -6429,6 +6446,7 @@ function slotBgOwned(e) { return !!e && (e.price <= 0 || mySlotBgsOwned.indexOf(
 function slotBgImg(e) { if (!e || !e.img) return null; let im = slotBgImgs[e.id]; if (!im) { im = new Image(); im.src = e.img; slotBgImgs[e.id] = im; } else if (im.complete && im.naturalWidth === 0 && !im._bgRetried) { im._bgRetried = 1; im.src = e.img + (e.img.indexOf("?") >= 0 ? "&" : "?") + "retry=1"; } return im; } /* a cached image that finished loading BROKEN (complete, no pixels — e.g. picked while the page's host was still catching up) gets exactly one retry with a fresh URL; without it that background would sit on the burgundy fallback for the whole session and never paint at all */
 function acctStoreSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ autoTier: autoTier, slotBg: mySlotBg, slotBgs: mySlotBgsOwned, ts: Date.now() }); } catch (e) {} } /* update, not set — acctSave's own rule: the session claim and the chips fields under this record are not this function's to rewrite */
 function loadStoreFromAccount(d) { /* sign-in (and sign-out, with null): the store's slice of the account doc lands in the session vars, in the same shape as the other account fields */
+  storePending = null; /* a half-confirmed buy never survives an account change */
   autoTier = d && typeof d.autoTier === "number" ? Math.max(0, Math.min(AUTO_TIERS.length, Math.floor(d.autoTier))) : 0;
   mySlotBgsOwned = d && Array.isArray(d.slotBgs) ? d.slotBgs.filter(x => typeof x === "string") : [];
   const want = d && typeof d.slotBg === "string" ? slotBgEntry(d.slotBg) : null;
@@ -6436,6 +6454,11 @@ function loadStoreFromAccount(d) { /* sign-in (and sign-out, with null): the sto
   if (autoTier < 1) hrAutoOn = false;
 }
 function storeMsg(t) { const m = $("storemsg"); if (m) m.textContent = t || ""; }
+function storePendingInfo() { /* what the confirmation step names for the pending buy: the item's label and its real price — renderStore derives the charge shown from this (FREE for the owner). A pending buy whose item no longer resolves reads as no pending buy at all */
+  if (!storePending) return null;
+  if (storePending.kind === "bg") { const e = slotBgEntry(storePending.id); return e ? { label: "🎨 " + e.name, price: e.price } : null; }
+  const t = AUTO_TIERS[storePending.n - 1]; return t ? { label: "🤖 Tier " + storePending.n + " — auto-spin every " + t.label, price: t.price } : null;
+}
 function storeRow(label, sub, fn, disabled) { const b = document.createElement("button"); b.className = "jukesong"; b.innerHTML = label + (sub ? " <small>" + sub + "</small>" : ""); if (disabled) b.disabled = true; else if (fn) b.onclick = fn; return b; } /* the jukebox's own row shape: a full-width button with a quieter sub-line */
 function storeBgCell(e) { /* one cell of the backgrounds GRID (Jonathan 2026-11-01: "show a sample of the backgrounds on a grid" instead of a list): the entry's own art as a thumbnail at the cabinets' tall 7:11, its name and state under it. A tap is exactly the old list row's tap — buy an unowned one (buySlotBg: balance check, addChips deduction), use an owned one (selectSlotBg), and the one currently on the machines is marked and not tappable, just as its row was disabled. The default entry has no image, so its thumb stays the plain burgundy swatch */
   const b = document.createElement("button"); b.className = "jukesong bgcell";
@@ -6453,6 +6476,15 @@ function renderStore() {
   list.innerHTML = "";
   const bal = $("storebal"); if (bal) bal.textContent = acctUser ? ("🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 0).toLocaleString("en-US")) : "🔒 Looking is free — buying takes an account";
   const title = $("storetitle");
+  const pend = storePendingInfo();
+  if (pend) { /* the CONFIRMATION step (Jonathan 2026-11-01): rendered in the panel's own rows, inside the panel — it names the item and the charge THAT buyer will actually pay (the real price, or FREE for the owner, whose buys never move chips). Nothing is recorded or deducted until Buy is tapped; Cancel just drops the pending buy and this same render, with storeView untouched, puts the buyer back on the view they were on */
+    if (title) title.textContent = "🛍️ Confirm Purchase";
+    const charge = isOwnerAcct() ? "FREE — your account is never charged" : "🪙 " + pend.price.toLocaleString("en-US");
+    list.appendChild(storeRow(pend.label, charge, null, true));
+    list.appendChild(storeRow("✅ Buy", charge, () => confirmStoreBuy()));
+    list.appendChild(storeRow("✕ Cancel", "nothing is bought", () => cancelStoreBuy()));
+    return;
+  }
   if (storeView === "auto") {
     if (title) title.textContent = "🤖 Auto Buy — Auto-Spin Ladder";
     AUTO_TIERS.forEach((t, k) => {
@@ -6472,38 +6504,78 @@ function renderStore() {
     if (title) title.textContent = "🛍️ High Roller's Store";
     list.appendChild(storeRow("🎨 Slot Backgrounds", "the club machines' backdrop", () => { storeView = "bgs"; storeMsg(""); renderStore(); sfxClick(); }));
     list.appendChild(storeRow("🤖 Auto Buy", autoTier > 0 ? "tier " + autoTier + " owned — AUTO spins every " + AUTO_TIERS[autoTier - 1].label : "auto-spin for the club slots", () => { storeView = "auto"; storeMsg(""); renderStore(); sfxClick(); }));
+    if (isOwnerAcct()) list.appendChild(storeRow("Reset", "owner test mode — wipe everything bought here", () => resetStore())); /* the owner's third button (Jonathan 2026-11-01), below the two doors and rendered ONLY for his account — the same isOwnerAcct() gate as everything else of his on this page. Every other account's menu stays exactly the two doors above */
   }
 }
-function openStore() { closeChatLog(); storeView = "main"; storeMsg(""); renderStore(); $("store").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from the desk-side prompt and stays until it is closed */
+function openStore() { closeChatLog(); storeView = "main"; storePending = null; storeMsg(""); renderStore(); $("store").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from the desk-side prompt and stays until it is closed */
 function closeStore() { $("store").style.display = "none"; sfxClick(); }
-function buyAutoTier(n) {
+function buyAutoTier(n) { /* a tap on a tier row no longer buys outright (Jonathan 2026-11-01): it raises the confirmation step, and doBuyAutoTier below is the only path that completes the purchase */
   if (!acctUser) { storeMsg("🔒 Buying takes an account — guests can look."); return; }
   if (n !== autoTier + 1) return; /* the ladder is bought strictly in order — a later tier never skips the ones before it */
   const t = AUTO_TIERS[n - 1]; if (!t) return;
-  pullChips(); /* about to spend: the balance goes on the server amount first, the same rule as sitting down to play */
-  if (!profile || (profile.chips || 0) < t.price) { storeMsg("Not enough chips — Tier " + n + " costs 🪙 " + t.price.toLocaleString("en-US") + "."); sfxBad(); return; }
-  addChips(-t.price); /* a purchase only ever lowers the balance, through the one chips path there is */
+  storePending = { kind: "auto", n: n }; storeMsg(""); renderStore(); sfxClick();
+}
+function doBuyAutoTier(n) { /* the tier purchase itself — runs ONLY from the confirmation step (confirmStoreBuy) */
+  if (!acctUser || n !== autoTier + 1) return;
+  const t = AUTO_TIERS[n - 1]; if (!t) return;
+  if (!isOwnerAcct()) { /* OWNER TEST MODE (Jonathan 2026-11-01): his account buys free — the whole spend is skipped, no balance check and no addChips, so his balance is never touched; the buy is recorded by the same lines below, exactly like a paid one. Everyone else pays exactly as before */
+    pullChips(); /* about to spend: the balance goes on the server amount first, the same rule as sitting down to play */
+    if (!profile || (profile.chips || 0) < t.price) { storeMsg("Not enough chips — Tier " + n + " costs 🪙 " + t.price.toLocaleString("en-US") + "."); sfxBad(); return; }
+    addChips(-t.price); /* a purchase only ever lowers the balance, through the one chips path there is */
+  }
   autoTier = n; acctStoreSave();
   storeMsg("✅ Tier " + n + " bought — the AUTO button is on your club machines, spinning every " + t.label + ".");
-  sfxChime(); renderStore();
+  sfxChime();
 }
-function buySlotBg(id) {
+function buySlotBg(id) { /* a tap on an unowned background cell likewise only raises the confirmation step now — doBuySlotBg is the purchase */
   const e = slotBgEntry(id); if (!e || slotBgOwned(e)) return;
   if (!acctUser) { storeMsg("🔒 Buying takes an account — guests can look."); return; }
-  pullChips();
-  if (!profile || (profile.chips || 0) < e.price) { storeMsg("Not enough chips — " + e.name + " costs 🪙 " + e.price.toLocaleString("en-US") + "."); sfxBad(); return; }
-  addChips(-e.price);
+  storePending = { kind: "bg", id: id }; storeMsg(""); renderStore(); sfxClick();
+}
+function doBuySlotBg(id) { /* the background purchase itself — runs ONLY from the confirmation step (confirmStoreBuy) */
+  const e = slotBgEntry(id); if (!e || slotBgOwned(e)) return;
+  if (!acctUser) return;
+  if (!isOwnerAcct()) { /* owner test mode, the same skip as doBuyAutoTier: free for his account — no balance check, no deduction — and recorded identically below */
+    pullChips();
+    if (!profile || (profile.chips || 0) < e.price) { storeMsg("Not enough chips — " + e.name + " costs 🪙 " + e.price.toLocaleString("en-US") + "."); sfxBad(); return; }
+    addChips(-e.price);
+  }
   mySlotBgsOwned.push(e.id); mySlotBg = e.id; acctStoreSave(); /* a bought background goes straight onto the machines, like a bought tier arms AUTO */
   storeMsg("✅ " + e.name + " bought and on your machines.");
-  sfxChime(); renderStore();
+  sfxChime();
+}
+function confirmStoreBuy() { /* the confirmation step's Buy: the pending buy is spent first, then its purchase runs and the store re-renders on the view the buyer never left */
+  const p = storePending; if (!p) return;
+  storePending = null;
+  if (p.kind === "bg") doBuySlotBg(p.id); else doBuyAutoTier(p.n);
+  renderStore();
+}
+function cancelStoreBuy() { /* the confirmation step's Cancel: the pending buy is dropped — no record, no deduction, no state change — and the re-render returns to the view the buyer was on */
+  if (!storePending) return;
+  storePending = null; storeMsg(""); renderStore(); sfxClick();
+}
+function resetStore() { /* the owner's store Reset (Jonathan 2026-11-01): back to the fresh, nothing-bought state so he can test-buy everything again. ONLY the store slice of his account doc moves — slotBgs emptied, slotBg back to the default, autoTier back to 0 — written through the same acctStoreSave every buy uses; his chips, hero, name and every other field are never touched. A running auto-spin stops with the tier (hrAutoOn off, and hrAutoTick also refuses at tier 0). The isOwnerAcct() gate is re-checked here, not just where the button renders, so no other account can reach this by any path */
+  if (!isOwnerAcct()) return;
+  storePending = null;
+  mySlotBgsOwned = []; mySlotBg = "default"; autoTier = 0; hrAutoOn = false;
+  acctStoreSave();
+  storeView = "main"; storeMsg("✅ Store reset — nothing bought."); sfxClick(); renderStore();
 }
 function selectSlotBg(id) { const e = slotBgEntry(id); if (!e || !slotBgOwned(e)) return; mySlotBg = id; acctStoreSave(); storeMsg("✅ " + e.name + " is on your machines."); sfxClick(); renderStore(); }
 function atHRStoreDesk(x, y) { return me.scene === "highrollers" && x < HRCTR.x - 4 && x > HRCTR.x - 170 && y >= HRCTR.y - 6 && y <= HRCTR.y + HRCTR.h + 6; } /* standing on the LEFT side of the service desk — the room side, facing the desk (Jonathan 2026-11-01): the store's spot, the mirror image of atHRCounter's behind-the-desk strip on the right. The 170 reach keeps it a stance at the desk, not half the room */
-/* the cabinet backdrop: the player's selected background paints the club machines' faces. The default entry carries no image, so it lands on the flat burgundy fill the machines have always had — selecting Default changes nothing anyone can see. FIT RULE (Jonathan 2026-11-01): the art is drawn STRETCHED to the cabinet's exact rectangle — the drawImage destination IS the face rect (mch.x, mch.y, mch.w, mch.h), so it fills edge to edge, no gaps, no letterbox, no crop; the samples are already the cabinets' 210x330 shape, so the stretch is true. The rounded clip is the cabinet's own outline (the yellow border strokes the same rr right after), never a smaller window. This function is the ONE paint path: drawHRSlots calls it for every club machine, and the seated machine's face — reels, bet grid, SPIN — is drawn on that same cabinet in that same pass; there is no separate panel rendering to fit */
+/* the cabinet backdrop: the player's selected background paints the club machines' faces. The default entry carries no image, so it lands on the burgundy velvet painted below — the default cabinet's own finish. FIT RULE (Jonathan 2026-11-01): the art is drawn STRETCHED to the cabinet's exact rectangle — the drawImage destination IS the face rect (mch.x, mch.y, mch.w, mch.h), so it fills edge to edge, no gaps, no letterbox, no crop; the samples are already the cabinets' 210x330 shape, so the stretch is true. The rounded clip is the cabinet's own outline (the yellow border strokes the same rr right after), never a smaller window. This function is the ONE paint path: drawHRSlots calls it for every club machine, and the seated machine's face — reels, bet grid, SPIN — is drawn on that same cabinet in that same pass; there is no separate panel rendering to fit */
 function hrSlotCabinetBase(mch) {
   const e = slotBgEntry(mySlotBg), img = e ? slotBgImg(e) : null;
   if (img && img.complete && img.naturalWidth > 0) { ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip(); ctx.drawImage(img, mch.x, mch.y, mch.w, mch.h); ctx.restore(); return; } /* stretch-fit: destination width/height are the cabinet's own, so the image is scaled to the face exactly */
-  ctx.fillStyle = "#40081b"; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.fill(); /* BURGUNDY body — the room's own burgundy, the same #40081b as its carpet and bar counters (the casino's cabinets are #2a1150 blue) */
+  /* BURGUNDY VELVET (Jonathan 2026-11-01): the default cabinet is no longer the flat red blank — a deep burgundy body (the room's own #40081b family, the same burgundy as its carpet and bar counters) with a soft VELVET SHEEN: a diagonal light fall across the face and a gentle glow pooled upper-centre, the edges and foot falling darker the way velvet takes light. Only the default's finish changed — a picked background still paints over it by the path above, exactly as before */
+  ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip();
+  const vg = ctx.createLinearGradient(mch.x, mch.y, mch.x + mch.w, mch.y + mch.h);
+  vg.addColorStop(0, "#2e0410"); vg.addColorStop(0.38, "#5e1228"); vg.addColorStop(0.58, "#40081b"); vg.addColorStop(1, "#27030b");
+  ctx.fillStyle = vg; ctx.fillRect(mch.x, mch.y, mch.w, mch.h);
+  const vs = ctx.createRadialGradient(mch.x + mch.w * 0.5, mch.y + mch.h * 0.30, 10, mch.x + mch.w * 0.5, mch.y + mch.h * 0.30, mch.w * 0.95);
+  vs.addColorStop(0, "rgba(255,140,165,0.10)"); vs.addColorStop(1, "rgba(255,140,165,0)");
+  ctx.fillStyle = vs; ctx.fillRect(mch.x, mch.y, mch.w, mch.h);
+  ctx.restore();
 }
 /* AUTO (Jonathan 2026-11-01): the ladder's reward. While ON and seated at a club machine, the tick fires hrSpinMachine itself at the owned tier's interval with the bet currently selected — no second engine: same bag, same pays, same claims rail. It turns itself off when the seat goes (hrSlotStand clears it too), the room changes, the seat record is lost, or the next bet cannot be covered */
 function hrAutoToggle() { if (autoTier < 1 || hrSlotSeat < 0) return; hrAutoOn = !hrAutoOn; if (hrAutoOn) hrAutoLast = performance.now() - AUTO_TIERS[autoTier - 1].ms; sfxClick(); }
