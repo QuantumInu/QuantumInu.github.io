@@ -475,6 +475,7 @@ const sfxTick = () => tone(1250, 900, 0.03, "square", 0.014);
 /* boxing punches (Jonathan 2026-10-31): a LANDED punch is a deep thump + body smack — a square body (110->38Hz), a sub sine under it (64->30Hz) and a short lowpassed noise smack; a MISS is a light bandpass-noise whoosh (1600->500Hz) with a faint sine sweep under it */
 const sfxPunchHit = () => { tone(110, 38, 0.16, "square", 0.26, 0); tone(64, 30, 0.20, "sine", 0.30, 0); noiseBurst(0.07, "lowpass", 900, 300, 0.20, 0); };
 const sfxPunchMiss = () => { noiseBurst(0.09, "bandpass", 1600, 500, 0.055, 0); tone(640, 260, 0.06, "sine", 0.035, 0); };
+const sfxGotHit = () => { tone(320, 170, 0.07, "triangle", 0.16, 0); noiseBurst(0.04, "bandpass", 1300, 700, 0.09, 0); }; /* GETTING hit (Jonathan 2026-11-01): a lighter thock than the puncher's THUD — shorter (0.07s vs 0.16/0.20s), higher (a 320->170Hz triangle vs the 110Hz square / 64Hz sub) and softer (0.16/0.09 vs 0.26/0.30/0.20), with a small bandpass noise tick instead of the lowpassed smack. Played ONLY on the victim's screen, off the punch record's arrival in drawBoxingFx — never by the puncher, never for a miss */
 const sfxCard = () => tone(280 + Math.random() * 120, 170, 0.05, "triangle", 0.028);
 /* slow swelling pad chord — detuned triangle pairs through long fades, for a cinematic-strings feel */
 function padChord(freqs, dur, vol) {
@@ -2073,9 +2074,11 @@ function joyMove(e) {
 let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0;
 cv.addEventListener("pointerdown", e => {
   if (!entered) return;
-  if (boxingBout && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { /* desktop mouse punches (Jonathan 2026-10-31): left button = left punch, right button = right punch. A mouse click can never be crowded out by held movement keys the way a third key on the keyboard can — punching while moving diagonally always works this way */
-    if (e.button === 0) { boxPunch("L"); return; }
-    if (e.button === 2) { boxPunch("R"); return; }
+  if (boxingBout && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { /* desktop mouse punches (Jonathan 2026-10-31): left button = left punch, right button = right punch. A mouse click can never be crowded out by held movement keys the way a third key on the keyboard can — punching while moving diagonally always works this way. BOTH BUTTONS AT ONCE = BOTH PUNCHES (Jonathan 2026-11-01): the branch reads the e.buttons bitmask (1 = left down, 2 = right down), not the single e.button, so a simultaneous press — or a second press while the first button is still held — throws every arm whose button is down. boxPunch's own per-arm cooldown swallows the repeat call for an arm already flying; no extra lock lives here */
+    const punchL = !!(e.buttons & 1), punchR = !!(e.buttons & 2);
+    if (punchL) boxPunch("L");
+    if (punchR) boxPunch("R");
+    if (punchL || punchR) return;
   }
   if ((me.scene === "casino" || me.scene === "track" || me.scene === "poolhall" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "chess" || me.scene === "boxing") && uiZones.length) { /* the horse table's buttons live in the same uiZones the casino tables use — and so do the pool hall's and the VIP lounge slots' */
     const r0 = cv.getBoundingClientRect();
@@ -2111,6 +2114,7 @@ cv.addEventListener("pointerdown", e => {
   }
 });
 cv.addEventListener("contextmenu", e => { if (boxingBout) e.preventDefault(); }); /* no right-click menu mid-bout: the right button is a punch there */
+document.addEventListener("contextmenu", e => e.preventDefault()); /* NO RIGHT-CLICK MENU ANYWHERE (Jonathan 2026-11-01): the browser menu never pops over the game — canvas, buttons, panels, inputs, everywhere. The right-button punch rides pointerdown (button 2), which fires before contextmenu ever would, so blocking the menu leaves every punch exactly as it was */
 cv.addEventListener("pointermove", e => {
   if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceMove(e); return; }
   if (phAim && e.pointerId === phAim.id) { phAimMove(e); return; }
@@ -8437,6 +8441,7 @@ function drawBoxingFx(t) {
         boxGloveRecTs[arm] = pr.ts;
         boxPunchFxTs[arm] = (pr.by === boxSeat || seenNowFx - pr.ts <= 60) ? pr.ts : seenNowFx; /* the first-sight rule, per arm: mine or fresh keeps its true ts, a stale remote record starts its effects at first sight */
         boxGloveStamp[pr.by + arm] = boxPunchFxTs[arm]; /* a punch record stamps ONLY the arm that threw, so on every screen each glove animates on its own clock */
+        if (pr.hit && boxSeat >= 0 && pr.by === 1 - boxSeat) sfxGotHit(); /* a punch that LANDED ON ME sounds here, once per record, on the victim's screen only (Jonathan 2026-11-01): this arrival path is the sole trigger — in a vs-CPU bout the CPU's record returns to the host/victim's screen by this same path, so both modes are covered and it can never double (boxCpuFrame deliberately plays nothing). My own punches (by === boxSeat) already sounded the THUD in boxPunch; spectators hold no seat (boxSeat < 0); a miss carries hit 0 and stays silent */
       }
     }
     const hitAgeVs = seat => { /* the freshest LANDED punch against a fighter, across BOTH of the opponent's arms — each arm keeps its own fx age, so the shake and star run off whichever hit is newest and one arm's swing never erases the other's hit */
@@ -10037,6 +10042,7 @@ function frame(now) {
   if (mySeatPos) { if (vx > 0.2) me.flip = true; else if (vx < -0.2) me.flip = false; vx = 0; vy = 0; me.x = mySeatPos.x; me.y = mySeatPos.y; } /* seated: left/right input flips the sprite's facing without moving (his ask 2026-10-28) */
   me.moving = mySeatPos ? false : m > 0.12;
   if (myCar >= 0) { vx = 0; vy = 0; me.moving = false; } /* driving: stepSpeedway owns my position (the car) — the walk block must not move me */
+  if (boxingBout && boxState && boxState.phase === "fight" && srvNow() < (boxState.fightTs || 0) + 1200) { vx = 0; vy = 0; me.moving = false; } /* GET READY freeze (Jonathan 2026-11-01): while the bell's window runs — the draw's own test, phase "fight" and srvNow() < fightTs + 1200 — a seated fighter's input is simply discarded at this same application point: no teleport, no position rewrite, they stay on the corner spot the bout placed them on, and the frame the window ends movement is exactly as normal. Punches and the CPU already wait out this window; walking the room outside a bout (boxingBout null) never reaches this line's condition */
   const sprinting = me.moving && !boxingBout && (runBtnHeld || keys.has(" ")); /* no sprinting during MY boxing bout (Jonathan 2026-10-31): on a phone the RUN button is replaced by the punch buttons, and on PC the space bar now does the same — nothing */
   me.run = sprinting;
   const wading = me.scene === "plaza" && inPoolWater(me.x, me.y); /* in the pool (PREVIEW): no dust here, splashes instead, and the water drags at your pace */
