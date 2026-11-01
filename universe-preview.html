@@ -290,13 +290,16 @@ const MECH_HERO = 74; /* the DreadMech (Jonathan 2026-10-31): the owner account'
 const KING_MECH_HERO = 75; /* the Cosmic King Mech (Jonathan 2026-10-31): OnlineMoney's transform form — the blue-and-gold king mech art at hub-heroes/hero-075.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his King QI avatar (hero 73) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the only differences are the gate, the art, and the smoke: his burst is RED, the owner's stays cyan */
 const TONIC_HERO = 76, TONIC_UID = "Oc3C9sU3pUcOeMWtrXad0C6P78o2"; /* 7daytonic's own hero (Jonathan 2026-10-31): the starry Shiba with the spiderweb beanie — his uploaded art at hub-heroes/hero-076.webp; offered as a picker cell ONLY under his sign-in, exactly like 71/73. His gate keys on the account UID, not an email: the signed-in account object carries its own uid (the send-tokens presence and the hub/users records already key on it), and no email for his account is on file */
 const TONIC_MECH_HERO = 77; /* 7daytonic's Galaxy Mech (Jonathan 2026-10-31): his transform form — the galaxy mech art at hub-heroes/hero-077.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his own hero (76) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate, the art, and the smoke: his burst is a NORMAL BLUE (the owner's stays cyan, OnlineMoney's stays red) */
-function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
+const KEN_HERO = 78, KEN_UID = "tfKWAog69aNCnsh4BOPICKAXMN32"; /* Dj Ken's own hero (Jonathan 2026-11-01): the cosmic tuxedo shiba — his uploaded art at hub-heroes/hero-078.webp; offered as a picker cell ONLY under his sign-in, exactly like 71/73/76. His gate keys on the account UID, not an email, exactly like 7daytonic's (his uid was read off his live presence) */
+const KEN_MECH_HERO = 79; /* Dj Ken's Gentleman Mech (Jonathan 2026-11-01): his transform form — the blue-and-gold mech art at hub-heroes/hero-079.webp, the tuxedo shiba himself piloting it; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his own hero (78) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate, the art, and the smoke: his burst is GOLD (the owner's stays cyan, OnlineMoney's red, 7daytonic's a normal blue) */
+function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO || h === KEN_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
 function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
 function isKingAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === KING_EMAIL); }
-function isTonicAcct() { return !!(acctUser && acctUser.uid === TONIC_UID); } /* 7daytonic's gate: his account's uid, read off the signed-in account object the same way the email gates read its email */
-function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); return n >= 1 && n <= 70; }
+function isTonicAcct() { return !!(acctUser && acctUser.uid === TONIC_UID); }
+function isKenAcct() { return !!(acctUser && acctUser.uid === KEN_UID); } /* Dj Ken's gate: his account's uid, the same shape as 7daytonic's */ /* 7daytonic's gate: his account's uid, read off the signed-in account object the same way the email gates read its email */
+function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); if (n === KEN_HERO) return isKenAcct(); return n >= 1 && n <= 70; }
 const NPC_PID = "qbot-npc"; /* Q-Bot: server-driven NPC wandering the plaza roundabout; renders from presence like any player, but is never a voice peer and does not count as a person online */
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
@@ -596,11 +599,11 @@ function makeHeroCell(n, nm, g) {
 function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift). The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
   grid.innerHTML = "";
   HERO_NAMES.forEach((nm, i) => { const n = i + 1; if (pickedGender === "f" && FEMALE_MISSING[n]) return; grid.appendChild(makeHeroCell(n, nm, pickedGender)); });
-  ownerCells = []; kingCell = null; tonicCell = null;
+  ownerCells = []; kingCell = null; tonicCell = null; kenCell = null;
   syncOwnerCell();
 }
 /* the special heroes exist as picker cells ONLY for their own accounts, always FIRST in the grid, and each player still taps his own himself: hero 71 for the owner account, hero 73 (the king) for OnlineMoney's account — the two are never offered to the same sign-in */
-let ownerCells = [], kingCell = null, tonicCell = null;
+let ownerCells = [], kingCell = null, tonicCell = null, kenCell = null;
 function syncOwnerCell() {
   if (isOwnerAcct() && !ownerCells.length) { const c71 = makeHeroCell(OWNER_HERO, "Owner QI"); grid.insertBefore(c71, grid.firstChild); ownerCells = [c71]; }
   else if (!isOwnerAcct() && ownerCells.length) { ownerCells.forEach(c => c.remove()); ownerCells = []; if (pickedHero === OWNER_HERO) pickedHero = 0; }
@@ -608,18 +611,20 @@ function syncOwnerCell() {
   else if (!isKingAcct() && kingCell) { kingCell.remove(); kingCell = null; if (pickedHero === KING_HERO) pickedHero = 0; }
   if (isTonicAcct() && !tonicCell) { tonicCell = makeHeroCell(TONIC_HERO, "7daytonic"); grid.insertBefore(tonicCell, grid.firstChild); }
   else if (!isTonicAcct() && tonicCell) { tonicCell.remove(); tonicCell = null; if (pickedHero === TONIC_HERO) pickedHero = 0; }
+  if (isKenAcct() && !kenCell) { kenCell = makeHeroCell(KEN_HERO, "Dj Ken"); grid.insertBefore(kenCell, grid.firstChild); }
+  else if (!isKenAcct() && kenCell) { kenCell.remove(); kenCell = null; if (pickedHero === KEN_HERO) pickedHero = 0; }
   syncHeroSel();
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
 buildGrid();
-const HERO_TOTAL = 74;
+const HERO_TOTAL = 75;
 function heroLoaded() { loadedCount++; syncLoadLine(); checkEnter(); }
 function heroLoadedF() { femaleLoadedCount++; syncLoadLine(); checkEnter(); }
-function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 74 (70 grid + the 4 special preloads) in male mode, the 68 female cells in female mode */
+function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 75 (70 grid + the 5 special preloads) in male mode, the 68 female cells in female mode */
   if (pickedGender === "f") loadLine.textContent = femaleLoadedCount >= FEMALE_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + femaleLoadedCount + "/" + FEMALE_TOTAL;
   else loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL;
 }
-[71, 72, 73, 76].forEach(n => {
+[71, 72, 73, 76, 78].forEach(n => {
   const im = new Image();
   im.onload = () => { heroImgs[n] = im; heroLoaded(); };
   im.onerror = () => { heroLoaded(); };
@@ -676,7 +681,7 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
       else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
@@ -694,7 +699,7 @@ function publish(force) {
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
-  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77, and Dj Ken's gentleman mech as 79 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   myRef.set(rec).catch(() => {});
 }
@@ -1082,6 +1087,7 @@ let entered = false;
 let mechForm = false, mechCdUntil = 0; /* the owner's mech transform (Jonathan 2026-10-31): session-only — a fresh page load starts as the dog; 3 second cooldown between flips */
 let kingMechForm = false; /* OnlineMoney's king mech transform: the same session-only shape, hanging off his King QI avatar; it shares the 3s cooldown clock above — only one account is ever signed in on a client, so the two forms never contend for it */
 let tonicMechForm = false; /* 7daytonic's galaxy mech transform: the same session-only shape again, hanging off his own hero (76); it shares the same 3s cooldown clock for the same reason */
+let kenMechForm = false; /* Dj Ken's gentleman mech transform: the same session-only shape again, hanging off his own hero (78); it shares the same 3s cooldown clock for the same reason */
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
 const CLUB = { x: 140, y: 1180, w: 420, h: 300 };
@@ -1529,7 +1535,7 @@ function enterHub() {
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
-  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct())) return;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct())) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ You're already signed in in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr;
@@ -1818,7 +1824,7 @@ function initAuth() {
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
           syncOwnerCell(); syncHeroSel();
@@ -1913,7 +1919,7 @@ window.addEventListener("resize", resize); resize();
 const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
-  if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct() || isTonicAcct())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero; toggleMech routes by account */
+  if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct() || isTonicAcct() || isKenAcct())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero, and Dj Ken's gentleman mech under his; toggleMech routes by account */
   /* boxing on PC: NO keyboard punches (Jonathan 2026-10-31, final word) — the mouse is the ONLY way to punch on desktop: Left Mouse = left punch, Right Mouse = right punch (the canvas pointerdown below). Q/E/J/K do nothing in a bout. Phones keep their L / R punch buttons */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
@@ -1932,7 +1938,7 @@ function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = fal
 runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
 /* ---- the mech transforms (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; on a phone it exists ONLY for the transform accounts, from the moment they are in — the owner (DreadMech), OnlineMoney while his King QI avatar is selected (king mech), and 7daytonic while his own hero is selected (galaxy mech) ---- */
 const tEl = $("tbtn");
-function syncTBtn() { const show = entered && (isOwnerAcct() || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO)) && !boxingBout && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function syncTBtn() { const show = entered && (isOwnerAcct() || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO) || (isKenAcct() && me.hero === KEN_HERO)) && !boxingBout && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
 function toggleKingMech() { /* OnlineMoney's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — except the burst is RED and the form is the king mech. It hangs off his King QI avatar: any other hero selected and T does nothing */
   if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the owner */
   if (me.hero !== KING_HERO) return;
@@ -1955,10 +1961,22 @@ function toggleTonicMech() { /* 7daytonic's swap (Jonathan 2026-10-31): the Drea
   publish(true);
   syncTBtn();
 }
+function toggleKenMech() { /* Dj Ken's swap (Jonathan 2026-11-01): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — with a GOLD burst and the gentleman mech form. It hangs off his own hero (78): any other hero selected and T does nothing */
+  if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the others */
+  if (me.hero !== KEN_HERO) return;
+  const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
+  mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
+  kenMechForm = !kenMechForm;
+  spawnSmoke(me.x, me.y, me.scene, "gold"); /* GOLD smoke — his colour */
+  sfxSwap();
+  publish(true);
+  syncTBtn();
+}
 function toggleMech() {
   if (!entered) return;
   if (isKingAcct()) { toggleKingMech(); return; } /* OnlineMoney's T drives his king mech, never the owner's */
   if (isTonicAcct()) { toggleTonicMech(); return; } /* 7daytonic's T drives his galaxy mech, never the others' */
+  if (isKenAcct()) { toggleKenMech(); return; } /* Dj Ken's T drives his gentleman mech, never the others' */
   if (!isOwnerAcct()) return;
   if (boxingBout) return; /* no transforming mid-bout (Jonathan 2026-10-31): entering the arena untransforms you and the T button is gone until the bout ends */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
@@ -3227,7 +3245,7 @@ function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc
 /* ---- general fx: the same coin bursts and floating texts, but painted by frame()'s actor pass in EVERY scene (Jonathan 2026-10-30: the send-tokens receive animation only showed in the casino, because the room pool above is drawn solely by the casino/gym/track scene draws). Entries carry their origin scene and paint only while the player is still in it — the room pool's leak lock — and casino win fx keep using the room pool exactly as before; this list is for effects that belong to the PLAYER, not the room. ---- */
 let genParts = [], genTexts = [];
 let smokeParts = []; /* cyan transform smoke (Jonathan 2026-10-31): world-space puffs with a scene tag, painted by drawGenFx with the other player fx */
-function spawnSmoke(x, y, sc, col) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: col === true || col === "red", blue: col === "blue" }); } } /* the burst is cyan by default (the owner's DreadMech); col=true paints OnlineMoney's king mech burst red, col="blue" paints 7daytonic's galaxy mech burst a normal blue — same count, size, timing and motion either way (Jonathan 2026-10-31) */
+function spawnSmoke(x, y, sc, col) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: col === true || col === "red", blue: col === "blue", gold: col === "gold" }); } } /* the burst is cyan by default (the owner's DreadMech); col=true paints OnlineMoney's king mech burst red, col="blue" paints 7daytonic's galaxy mech burst a normal blue, col="gold" paints Dj Ken's gentleman mech burst gold — same count, size, timing and motion either way (Jonathan 2026-10-31) */
 function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
 function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
 /* ============ seat bet displays, painted OVER the sprites (Jonathan 2026-10-31) ============
@@ -3241,18 +3259,7 @@ function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: 
    right after drawGenFx. Text, fonts and colours are exactly the ones the scene passes used;
    only the anchor and the layer changed. Displays that were already visible where they were
    (the blackjack/horse-track felt spots, the pool-hall stake pills, the chess bet chip below
-   its sprite, every READY stamp that sat clear) were left exactly where they are.
-   BELOW THE SPRITE (Jonathan 2026-11-01, later that night — "show the bets under the sprites
-   not above... and also the READY text, etc. same interface just below the sprite", in all
-   games): the pieces this pass hung ABOVE the head now hang BELOW the feet — same texts,
-   fonts, colours and stack, mirrored. Boxing's bet line takes the exact mirror (+30: the 30
-   its baseline sat above the head top), and the chess top seat's result takes its exact
-   mirror (+28). Two seats cannot take the exact mirror: every casino/HRC chair carries its
-   balance pill at +40..+70, exactly where the mirror would land roulette's chip and the HRC
-   result — so the HRC result takes the casino result's own below-the-pill slot (+96), and
-   roulette's chip+pick hang under its READY/result line (pick +124, chip +152, their old
-   order kept: pick nearer, chip farther). Roulette's READY and result already lived below
-   the sprite at +96 and do not move. */
+   its sprite, every READY stamp that sat clear) were left exactly where they are. */
 function drawSeatBetOverlay() {
   ctx.textAlign = "center";
   if (me.scene === "boxing") {
@@ -3261,7 +3268,7 @@ function drawSeatBetOverlay() {
       const sd = st.seats[i];
       if (!sd || !sd.pid || Date.now() - (sd.ts || 0) >= 25000 || !sd.bet) return;
       ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-      ctx.fillText("bet " + (sd.bet || 0).toLocaleString("en-US"), sp.x, sp.y + 30); /* below the feet (Jonathan 2026-11-01): the exact mirror of its old above-the-head slot — its baseline sat 30 above the head top (-96), so it sits 30 below the feet; the fighter's READY stamp at +84 in the ring pass stays clear under it */
+      ctx.fillText("bet " + (sd.bet || 0).toLocaleString("en-US"), sp.x, sp.y - 126); /* above the head (top at -96) AND above the name plate drawPlayer rides at -104: this line's ink ends 8px clear of the plate's */
     });
   } else if (me.scene === "casino") {
     const st = rrState; if (!st || !st.seats) return;
@@ -3269,9 +3276,9 @@ function drawSeatBetOverlay() {
       const s = st.seats[i];
       if (!s || Date.now() - (s.ts || 0) > 25000) return;
       if (s.bet) {
-        drawChip(sp.x, sp.y + 152, s.bet);
+        drawChip(sp.x, sp.y - 158, s.bet);
         ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center";
-        ctx.fillText(s.betType ? s.betType.toUpperCase() : "", sp.x, sp.y + 124); /* chip + pick BELOW the sprite (Jonathan 2026-11-01): the exact mirror of the old above-the-head stack would land the chip on the seat's balance pill (+40..+70), so the stack hangs under the READY/result line (+96) instead — pick nearer (+124), chip farther (+152), their old order kept */
+        ctx.fillText(s.betType ? s.betType.toUpperCase() : "", sp.x, sp.y - 124); /* chip + pick above the head, the pick's ink ending 10px clear of the name plate's */
         if (s.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 96); } /* below the chair's balance pill (+40..+70), the boxing READY's own below-the-seat arrangement */
       }
       if (st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 96); } /* the result takes the same below-the-pill slot in the done phase — the two never share a phase */
@@ -3283,7 +3290,7 @@ function drawSeatBetOverlay() {
         const sd = st.seats[i];
         if (!sd || Date.now() - (sd.ts || 0) > 25000 || !st.results[i]) return;
         ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
-        ctx.fillText(st.results[i].res, sp.x, sp.y + 96); /* below the sprite (Jonathan 2026-11-01): the exact mirror of its old above-the-head slot would land on the seat's balance pill (+40..+70), so it takes the casino result's own below-the-pill slot (+96) */
+        ctx.fillText(st.results[i].res, sp.x, sp.y - 118); /* above the head and the name plate, a single line with clear felt below it */
       });
     });
   } else if (me.scene === "chess") {
@@ -3293,7 +3300,7 @@ function drawSeatBetOverlay() {
       const sp = CHSEATS[ti][0], sd = st.seats[0];
       if (!sd || !sd.pid || Date.now() - (sd.ts || 0) >= 25000) continue;
       ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[0].amt ? "#7dffb0" : "#ffb3b3";
-      ctx.fillText(st.results[0].res, sp.x, sp.y + 28); /* the TOP seat's result, BELOW its sprite (Jonathan 2026-11-01): the exact mirror of its old above-the-head slot — the baseline sat 28 above the head top (-96), so it sits 28 below the feet; the bottom seat's never hid and still paints in the board pass at +118 */
+      ctx.fillText(st.results[0].res, sp.x, sp.y - 124); /* the TOP seat's result, above its sprite's head — the bottom seat's never hid and still paints in the board pass at +118 */
     }
   }
 }
@@ -3319,7 +3326,7 @@ function drawGenFx(dt) {
   smokeParts.forEach(p => {
     if (p.sc !== me.scene) return;
     const a = Math.max(0, 1 - p.life / p.max) * 0.5;
-    ctx.fillStyle = p.blue ? (p.lite ? "rgba(188,206,255," + a + ")" : "rgba(56,110,255," + a + ")") : p.red ? (p.lite ? "rgba(255,206,188," + a + ")" : "rgba(255,56,56," + a + ")") : (p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")"); /* red smoke for OnlineMoney's king mech flips, a normal blue for 7daytonic's galaxy mech flips, cyan for the owner's — the three palettes mirror each other (a pale lite tone over a saturated base) */
+    ctx.fillStyle = p.gold ? (p.lite ? "rgba(255,236,190," + a + ")" : "rgba(255,190,40," + a + ")") : p.blue ? (p.lite ? "rgba(188,206,255," + a + ")" : "rgba(56,110,255," + a + ")") : p.red ? (p.lite ? "rgba(255,206,188," + a + ")" : "rgba(255,56,56," + a + ")") : (p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")"); /* gold smoke for Dj Ken's gentleman mech flips, red smoke for OnlineMoney's king mech flips, a normal blue for 7daytonic's galaxy mech flips, cyan for the owner's — the four palettes mirror each other (a pale lite tone over a saturated base) */
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
   });
 }
@@ -5023,6 +5030,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   if (isMe && mechForm) hero = MECH_HERO; /* my own screen draws me from me.hero, not from my presence record — the transform has to land here too, or I would stay a dog on my own screen while the room sees the mech */
   if (isMe && kingMechForm) hero = KING_MECH_HERO; /* the same landing for OnlineMoney's king mech on his own screen */
   if (isMe && tonicMechForm) hero = TONIC_MECH_HERO; /* the same landing for 7daytonic's galaxy mech on his own screen */
+  if (isMe && kenMechForm) hero = KEN_MECH_HERO; /* the same landing for Dj Ken's gentleman mech on his own screen */
   if (isMechHero(hero)) gender = "m"; /* the mechs live on the male track whatever the wearer's picker gender */
   const img = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
   if (!img) { ensureHero(hero, gender);
@@ -5357,13 +5365,22 @@ function drawSeatsRow(list, st, game) {
     }
   });
 }
+function shortAmt(amt) { /* the bet circle speaks SHORT money (Jonathan 2026-11-01): no long zero strings — 1000 "1k", 5000 "5k", 10000 "10k", 50000 "50k", 100000 "100k", 500000 "500k", 1000000 "1M", 5000000 "5M", 50000000 "50M", 500000000 "500M", 1000000000 "1B"; under 1000 stays plain, and a non-ladder amount gets at most one decimal (1500 "1.5k", 2500000 "2.5M") */
+  const dec = v => String(Math.round(v * 10) / 10);
+  const a = Math.abs(amt);
+  if (a >= 1e9) return dec(amt / 1e9) + "B";
+  if (a >= 1e6) return dec(amt / 1e6) + "M";
+  if (a >= 1e3) return dec(amt / 1e3) + "k";
+  return String(amt);
+}
 function drawChip(x, y, amt) {
   ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-  const r = Math.max(17, Math.ceil(ctx.measureText(String(amt)).width / 2) + 6); /* the circle is always WIDE ENOUGH for its amount (Jonathan 2026-11-01): sized from the measured text — 6px of air on each side of the ink — with the old r17 kept as the floor, so a small bet keeps its sensible size while the big stakes grow the circle to fit (the top HR stake, 1000000000, is ~92px of ink at this font and used to spill far out of the 34px circle) */
+  const label = shortAmt(amt);
+  const r = Math.max(17, Math.ceil(ctx.measureText(label).width / 2) + 6); /* the badge stays a true CIRCLE (Jonathan 2026-11-01): the SHORT label is measured and the radius keeps 6px of air on each side of the ink, with the old r17 as the floor — short money keeps even the top 1B stake at the floor instead of spilling out of a 34px circle the way the full "1000000000" string did */
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
   ctx.strokeStyle = "#fff2c4"; ctx.lineWidth = 2.5; ctx.stroke();
   ctx.fillStyle = "#241a08";
-  ctx.fillText(String(amt), x, y + 5.5);
+  ctx.fillText(label, x, y + 5.5);
 }
 function drawBJTable(t) {
   feltBase(BJT, "🃏 BLACKJACK");
@@ -7113,6 +7130,7 @@ function boxPhaseWatch() {
     if (mechForm) { mechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); }
     if (kingMechForm) { kingMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, true); sfxSwap(); } /* the king mech stays at the door too — OnlineMoney steps into the ring as King QI, trailing RED smoke */
     if (tonicMechForm) { tonicMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "blue"); sfxSwap(); } /* the galaxy mech stays at the door too — 7daytonic steps into the ring as his hero, trailing BLUE smoke */
+    if (kenMechForm) { kenMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "gold"); sfxSwap(); } /* the gentleman mech stays at the door too — Dj Ken steps into the ring as his hero, trailing GOLD smoke */
     boxingBout = { seat: boxSeat };
     tblUpd("box/seats/" + boxSeat, { rdy: false });
     mySeatPos = null; /* off the chair, into the ring */
@@ -7421,7 +7439,7 @@ function hrcSeatBets(list, st, game) {
       ctx.fillText(sd.betType ? sd.betType.toUpperCase().replace("DONTPASS", "DON'T PASS") : "", ax, ay + 38);
       if (sd.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", ax, ay - 32); }
     }
-    /* the result line is NOT painted here: at the seat (sp.y - 48) it sat inside the seated sprite and was painted over by it — drawSeatBetOverlay draws it at the seat, below the sprite (Jonathan 2026-11-01; above the head in the 2026-10-31 pass). The bet chip/pick/READY above stay on the felt, the blackjack spots' own arrangement */
+    /* the result line is NOT painted here: at the seat (sp.y - 48) it sat inside the seated sprite and was painted over by it — drawSeatBetOverlay draws it above the head (Jonathan 2026-10-31). The bet chip/pick/READY above stay on the felt, the blackjack spots' own arrangement */
   });
 }
 function hrcTableHead(T, game, status) {
@@ -7831,7 +7849,7 @@ function drawChessBoard(ti) {
       ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
       ctx.fillText(sd.name || "", sp.x, sp.y - 44);
       if (sd.bet) { drawChip(sp.x, sp.y + 52, sd.bet); if (sd.rdy && st.phase === "bet") { ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 92); } }
-      if (i === 1 && st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 118); } /* the TOP seat's result used to sit at sp.y - 70, inside its sprite and painted over — drawSeatBetOverlay draws it below that sprite's feet (Jonathan 2026-11-01; above its head in the 2026-10-31 pass); the bottom seat's line at +118 was always clear below its sprite and stays */
+      if (i === 1 && st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 118); } /* the TOP seat's result used to sit at sp.y - 70, inside its sprite and painted over — drawSeatBetOverlay draws it above that sprite's head (Jonathan 2026-10-31); the bottom seat's line at +118 was always clear below its sprite and stays */
     }
     else if (st && st.mode === "pc" && st.phase !== "bet") { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfd4e2"; ctx.fillText("🤖 PC", sp.x, sp.y - 44); }
   });
@@ -7973,7 +7991,7 @@ function drawBoxingFx(t) {
     ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", sp.x, sp.y + 7);
     ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
     ctx.fillText(i === 0 ? "RED corner" : "BLUE corner", sp.x, sp.y + 58);
-    if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); /* the bet itself is NOT painted here: this pass runs before the fighters' sprites, so at sp.y - 68 it sat inside the sprite and was painted over — drawSeatBetOverlay (after the actor pass) draws it below the feet instead (Jonathan 2026-11-01; above the head in the 2026-10-31 pass) */ if (sd.rdy) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#39d353"; ctx.fillText("READY ✓", sp.x, sp.y + 84); } }
+    if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); /* the bet itself is NOT painted here: this pass runs before the fighters' sprites, so at sp.y - 68 it sat inside the sprite and was painted over — drawSeatBetOverlay (after the actor pass) draws it above the head instead (Jonathan 2026-10-31) */ if (sd.rdy) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#39d353"; ctx.fillText("READY ✓", sp.x, sp.y + 84); } }
   });
   if (st && (st.phase === "fight" || st.phase === "done")) {
     /* health bars INSIDE the ring's top corners, on the white canvas: left seat left, right seat right (Jonathan 2026-10-31) */
@@ -9618,7 +9636,7 @@ function frame(now) {
   if (sprinting && !wading && now - dustAt > 65) {
     dustAt = now;
     dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 14, y: me.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 });
-    if (mechForm || kingMechForm || tonicMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's and the galaxy mech's running dust mirror it (regular dust — red is only the king mech's transform burst) */
+    if (mechForm || kingMechForm || tonicMechForm || kenMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's and the galaxy mech's running dust mirror it (regular dust — red is only the king mech's transform burst) */
   }
   if (wading && me.moving && now - splashAt > 130) { /* a step in the water throws droplets and a ring, walking or running */
     splashAt = now;
