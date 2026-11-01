@@ -6035,7 +6035,7 @@ function drawPhTable(tt, t) {
   }
 }
 function drawPhPanel(t) {
-  /* the strip along the hall's south wall: the welcome line when I'm not seated, and my table's status while a match runs. My BETTING controls are NOT here: they OVERLAY the table itself (PREVIEW round 4 — see drawPhTable) — so while I'm seated in the bet phase this strip stays out of the way entirely */
+  /* the strip along the hall's south wall: the welcome line, always — no turn/status data here during games (Jonathan 2026-11-01: "dont show turn data here during games keep it as is"). My BETTING controls are NOT here: they OVERLAY the table itself (PREVIEW round 4 — see drawPhTable) — so while I'm seated in the bet phase this strip stays out of the way entirely */
   const P = { x: PHROOM.w / 2 - 750, y: PHROOM.h - 254, w: 1500, h: 158 }; /* the panel follows the room: centred, riding 254px above the floor's bottom edge, exactly where it sat in the smaller hall */
   const st0 = phSeatT >= 0 ? phStates[phSeatT] : null;
   if (phSeatT >= 0 && myPhSeatRec() && st0 && st0.phase === "bet") return; /* seated and betting: the table's own overlay carries everything (PREVIEW round 4) */
@@ -6043,41 +6043,10 @@ function drawPhPanel(t) {
   ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 18); ctx.stroke();
   const cx = P.x + P.w / 2;
   ctx.textAlign = "center";
-  const st = phSeatT >= 0 ? phStates[phSeatT] : null, mine = myPhSeatRec();
-  if (phSeatT < 0 || !mine) {
-    ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("🎱 QUANTUM POOL HALL 🎱", cx, P.y + 62);
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-    ctx.fillText("Sit at a table to play — sink your set, then the 8. Winner takes the pot.", cx, P.y + 104);
-    return;
-  }
-  ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("🎱 TABLE " + (phSeatT + 1), P.x + 130, P.y + 44);
-  ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-  let status = "Setting up the table…";
-  if (st) {
-    const ss = st.seats || {}, nowS = Date.now();
-    const fr = [0, 1].filter(i => ss[i] && ss[i].pid && nowS - (ss[i].ts || 0) < 25000);
-    const opp = ss[1 - phSeatI];
-    if (st.phase === "bet") {
-      if (fr.length < 2) status = (mine.bet > 0) ? "🤖 Bet down — tap READY to play the PC (the house covers its side), or wait for an opponent" : "Bet & tap READY — play the PC solo, or wait for an opponent";
-      else if (!(mine.bet > 0)) status = "Pick your stake — both players stake the same amount";
-      else if (opp && (opp.bet || 0) > 0 && opp.bet !== mine.bet) status = "Stakes must match — the table plays for 🪙 " + Math.max(mine.bet || 0, opp.bet || 0).toLocaleString() + " each";
-      else { const rd = fr.filter(i => ss[i].rdy && ss[i].bet > 0); status = "Waiting for READY — " + rd.length + "/2 ready"; }
-    } else if (st.phase === "rps") {
-      status = st.mode === "pc" ? "✊✋✌️ Throw against the PC — winner takes the break!" : "✊✋✌️ Rock Paper Scissors at your table — winner takes the break!";
-    } else if (st.phase === "play") {
-      const mine8 = st.sets ? st.sets[phSeatI] : null;
-      status = st.turn === phSeatI ? ("⭐ YOUR SHOT ⭐" + (mine8 ? " — you are " + (mine8 === "solid" ? "SOLIDS" : "STRIPES") : "")) : ((st.mode === "pc" ? "🤖 PC" : (ss[st.turn] ? ss[st.turn].name : "Your opponent")) + " is shooting…" + (mine8 ? " — you are " + (mine8 === "solid" ? "SOLIDS" : "STRIPES") : ""));
-      if (st.rolling) status = "🎱 Balls rolling…";
-    } else if (st.phase === "done") status = st.results && st.results[phSeatI] ? st.results[phSeatI].res : "Match over";
-  }
-  ctx.fillText(status, cx, P.y + 44);
-  if (st && st.phase !== "bet" && st.sets && st.sets[phSeatI]) {
-    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "left";
-    ctx.fillText("You are " + (st.sets[phSeatI] === "solid" ? "🟡 SOLIDS" : "⚪ STRIPES"), P.x + 36, P.y + 86);
-    ctx.textAlign = "center";
-  }
+  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("🎱 QUANTUM POOL HALL 🎱", cx, P.y + 62);
+  ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+  ctx.fillText("Sit at a table to play — sink your set, then the 8. Winner takes the pot.", cx, P.y + 104);
 }
 function drawPoolHall(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
