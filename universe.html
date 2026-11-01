@@ -1112,7 +1112,7 @@ for (let i = 0; i < 11; i++) HRSLOTM.push({ id: "h" + i, x: 270 + i * 249, y: 35
 const HRSLOTSEATS = HRSLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 120 })); /* the casino's own seat placement: centred on the machine, 120 below its bottom edge */
 function hrSlotKey(i) { const m = HRSLOTM[i]; return m ? String(m.id) : String(i); }
 function hrSlotMachineByKey(k) { return HRSLOTM.find(m => String(m.id) === String(k)) || null; }
-const HR_BETS = [5000, 10000, 50000, 100000, 500000, 1000000]; /* the only amounts in the High Rollers Club (Jonathan 2026-10-31) */
+const HR_BETS = [5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000]; /* the only amounts in the High Rollers Club (Jonathan 2026-10-31; the ladder grew by 5M / 10M / 50M / 100M at his word the same night — 500k and 1M were already on it) */
 const CHESSROOM = { w: 2640, h: 2640 }; /* four 1200x1200 square sections + a 240-wide centre cross */
 const CHBOARDS = [{ x: 220, y: 220, w: 760, h: 760 }, { x: 1660, y: 220, w: 760, h: 760 }, { x: 220, y: 1660, w: 760, h: 760 }, { x: 1660, y: 1660, w: 760, h: 760 }]; /* TL chess, TR checkers, BL checkers, BR chess */
 const CHSEATS = CHBOARDS.map(b => [{ x: b.x + b.w / 2, y: b.y - 92 }, { x: b.x + b.w / 2, y: b.y + b.h + 92 }]); /* a chair at the TOP end and the BOTTOM end of every board */
@@ -6840,6 +6840,11 @@ function drawChairs(seats) {
 function drawHighRollers(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   casinoShell(HRROOM.w, HRROOM.h, "👑 HIGH ROLLERS CLUB 👑", "baccarat · craps — high stakes only: 5,000 and up");
+  /* now playing — the room's OWN song (hub/tables/hrcmusic, picked at the service counter), in the VIP LOUNGE's exact pattern (Jonathan 2026-10-31): the lounge draws "♪ title ♪" in 700 21px gold directly under its title, at the title's baseline + one line height (font x 1.2) + a small margin, and draws NOTHING when no song is on. Mirrored here: the shell's title is 58px at baseline 128, so the line height is ~70 and the song baseline lands at 128 + 70 + 6 = 204, centred on the title's own x (HRROOM.w / 2) — which puts it just under the shell's subtitle (baseline 172, ink ends ~177), clear of the top bars (they flank the sign, ending where it begins), the slot row (tops at y 356) and everything else in the room. The state is the room's own hrcState via hrcSongActive(), never the club's */
+  if (hrcSongActive()) {
+    ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("♪ " + SONGS[hrcState.idx][1] + " ♪", HRROOM.w / 2, 204);
+  }
   uiZones = [];
   /* the centre medallion (Jonathan 2026-10-31): the main casino's own circle, glow and all — the same gold glow behind it, the same two gold rings, and the same red-and-yellow atom inside, sitting on the floor in the gap between the two tables, CENTRED ON THE TABLES (his correction from his phone screenshot: the room's dead centre sat high against them — the medallion's centre is the tables' own centre line, BACT's mid-height). Floor scenery, walked over */
   const hmcX = HRROOM.w / 2, hmcY = BACT.y + BACT.h / 2;
@@ -6971,7 +6976,8 @@ function hrcTableHead(T, game, status) {
   }
   if (hrcIdx(game) >= 0) {
     const amt = game === "bac" ? bacAmt : craAmt;
-    HR_BETS.forEach((a, k) => drawBtn(T.x + 478 + k * 67, T.y + T.h - 74, 60, 22, a >= 1000 ? (a / 1000) + "k" : String(a), () => hrcSetAmt(game, a), { fs: 14, sel: amt === a, pad: 2 }));
+    /* the amounts in TWO rows (Jonathan 2026-10-31, the ladder's growth night): the original six keep the shipped row exactly (x 478 at a 67 step, y T.h-74, pad 2), the four new ones (5M..100M) sit in a second row under it at a 24 pitch, centred in the same 478..870 column (544 at a 67 step, four across), at pad 0 so its tap zone starts exactly where the first row's zone ends (380) — the zones touch, never overlap, roulette's own rule. The 24 pitch (not the casino's 26) is what this felt's band allows: above is the label (baseline T.h-79/-86, its descender ends ~T.h-75) and below is the tables' explanation line (baseline T.h-14, its ink tops out ~T.h-28), so the second row's bottom lands at T.h-28, exactly at that ink top — the same hair-thin clearance the shipped row keeps from the label above it. Labels: the shipped k-format is untouched for the original six (1000000 still reads "1000k"); the new millions use M-format ("5M".."100M") — the k-format would need "100000k", unreadable in a 60-wide button at fs 14 */
+    HR_BETS.forEach((a, k) => { const row2 = k >= 6; drawBtn(row2 ? T.x + 544 + (k - 6) * 67 : T.x + 478 + k * 67, T.y + T.h - (row2 ? 50 : 74), 60, 22, a >= 5000000 ? (a / 1000000) + "M" : a >= 1000 ? (a / 1000) + "k" : String(a), () => hrcSetAmt(game, a), { fs: 14, sel: amt === a, pad: row2 ? 0 : 2 }); });
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
     ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - (game === "bac" ? 79 : 86)); /* baccarat: centred in the slot between the TIE button's bottom edge (T.h-98) and the amount row's top edge (T.h-74) — Jonathan 2026-10-31 */
   }
