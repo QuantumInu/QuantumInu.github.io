@@ -3599,7 +3599,7 @@ function seatBeat() {
   if (mySeat.game === "slot") {
     const s = slotSeats && slotSeats[slotKey(mySeat.idx)];
     if (!s || s.pid !== myId) { mySeat = null; mySeatPos = null; return; }
-    tblUpd("slotseats/" + slotKey(mySeat.idx), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* the heartbeat carries my full identity, not just ts/chips: if a removal lands server-side just before this update, the update recreates a COMPLETE record that still names me — never a pid-less husk that renders occupied yet matches nobody (ghost-seat fix, 2026-10-30) */
+    tblUpd("slotseats/" + slotKey(mySeat.idx), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, skin: mySlotBg, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* the heartbeat carries my full identity, not just ts/chips: if a removal lands server-side just before this update, the update recreates a COMPLETE record that still names me — never a pid-less husk that renders occupied yet matches nobody (ghost-seat fix, 2026-10-30) */
     return;
   }
   const st = mySeat.game === "bj" ? bjState : rrState;
@@ -3663,7 +3663,7 @@ function sitAtSlot(i) {
   const s = slotSeats && slotSeats[slotKey(i)];
   if (s && s.pid === myId) { mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true); return; }
   if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteCasino("That machine is taken."); return; } /* only a pid-bearing fresh record is a player — a pid-less husk never blocks, and a record carrying MY pid was already re-seated by the branch above, so my own chair can never tell me it is taken (ghost-seat fix, 2026-10-30) */
-  tblSet("slotseats/" + slotKey(i), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+  tblSet("slotseats/" + slotKey(i), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, skin: mySlotBg, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* skin: my selected cabinet background rides the seat record (Jonathan 2026-11-01) — hub/tables carries no field lock (the locked record is presence, never touched here), so every client in the room reads the sitter's pick off this record and paints it on this machine (see seatSkinEntry); guests and unpicked accounts carry "default" */
   mySeat = { game: "slot", idx: i }; mySeatPos = SLOTSEATS[i]; seatOD("slot", i, true);
 }
 /* the seated camera frames the whole table / machine, not just the player */
@@ -5610,8 +5610,13 @@ function drawRouletteTable(t) {
   drawSeatsRow(RRSEATS, st, "rr");
 }
 const CASINO_FELT_BG = { id: "bg03", img: "slotbgs/bg-03.jpg?v=3" }; /* the main casino cabinets' PERMANENT Emerald Felt artwork (Jonathan 2026-11-01): the background that was taken OUT of the store options and made the casino's own built-in face — hard-wired here, never a picker, never an option, the same for every player. SLOT_BGS no longer lists bg03, so the store loader never loads it; the painter below loads it explicitly through the club's own loader (slotBgImg and its slotBgImgs cache, keyed "bg03"), broken-image retry and all */
-function drawSlotCabinetBase(mch) { /* the casino cabinets' EMERALD FELT (Jonathan 2026-11-01): the Emerald Felt ARTWORK (slotbgs/bg-03.jpg) painted over the cabinet's whole face, exactly the way hrSlotCabinetBase paints a club machine — clipped to the cabinet's own rounded outline, the drawImage destination = the face rect itself, stretched edge to edge. UNDER it, painted first every frame, sits the procedural emerald cloth: a deep green gradient base (lighter where the room light pools toward the top, darker at the foot), a fine seeded speckle for the nap of the felt, and one soft sheen across the upper face. That cloth is the underlay while the artwork is still loading and the fallback if it ever fails — a cabinet never renders blank. The speckle is SEEDED from the machine's own position, so the nap is identical on every frame and never crawls or flickers. Base material only: everything the face draws afterwards (screen, reels, text, buttons) is unchanged */
-  const feltImg = slotBgImg(CASINO_FELT_BG); /* kicks off (and caches) the artwork's load on the first cabinet painted; every later frame reuses the cache */
+function seatSkinEntry(rec, mineHere) { /* whose skin paints a slot cabinet (Jonathan 2026-11-01, both slot rooms): the SITTER's — never the viewer's own pick sprayed over every machine, never anybody's on a machine they are not sitting at. The sitter's client writes its selected background id onto its seat record (sit + heartbeat, both rooms; hub/tables seat records carry no field lock, so the id syncs to every client in the room — the field-locked record is presence, which this never touches), and every client resolves the id through here. A pid-bearing FRESH record (the house occupancy rule, 25s) is a sitter; my own seat answers with my own pick (mySlotBg) so my cabinet changes the moment I sit, before the record echoes back. "default", a missing pick and a retired/unknown id (bg01/bg03 are no longer in SLOT_BGS) all resolve to null, and null means the ROOM's default: the Emerald Felt in the casino, the Burgundy Velvet in the club — so in the casino a "default" pick never paints over the emerald, and standing up (the record goes null) returns the machine to its room default for everyone */
+  const id = mineHere ? mySlotBg : (rec && rec.pid && Date.now() - (rec.ts || 0) <= 25000 && typeof rec.skin === "string" ? rec.skin : null);
+  if (!id || id === "default") return null;
+  return slotBgEntry(id);
+}
+function drawSlotCabinetBase(mch, skinE) { /* the casino cabinets' EMERALD FELT (Jonathan 2026-11-01): the Emerald Felt ARTWORK (slotbgs/bg-03.jpg) painted over the cabinet's whole face, exactly the way hrSlotCabinetBase paints a club machine — clipped to the cabinet's own rounded outline, the drawImage destination = the face rect itself, stretched edge to edge. UNDER it, painted first every frame, sits the procedural emerald cloth: a deep green gradient base (lighter where the room light pools toward the top, darker at the foot), a fine seeded speckle for the nap of the felt, and one soft sheen across the upper face. That cloth is the underlay while the artwork is still loading and the fallback if it ever fails — a cabinet never renders blank. The speckle is SEEDED from the machine's own position, so the nap is identical on every frame and never crawls or flickers. Base material only: everything the face draws afterwards (screen, reels, text, buttons) is unchanged */
+  const feltImg = slotBgImg(skinE && skinE.img ? skinE : CASINO_FELT_BG); /* the artwork this cabinet wears this frame: the sitter's skin (seatSkinEntry) while the machine is sat at, the Emerald Felt otherwise — slotBgImg kicks off (and caches) its load on the first cabinet painted; every later frame reuses the cache */
   ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip();
   const fg = ctx.createLinearGradient(mch.x, mch.y, mch.x, mch.y + mch.h);
   fg.addColorStop(0, "#0d5c40"); fg.addColorStop(0.45, "#084a33"); fg.addColorStop(1, "#052e20");
@@ -5626,13 +5631,13 @@ function drawSlotCabinetBase(mch) { /* the casino cabinets' EMERALD FELT (Jonath
   sheen.addColorStop(0, "rgba(190,255,220,0.08)"); sheen.addColorStop(1, "rgba(190,255,220,0)");
   ctx.fillStyle = sheen; ctx.fillRect(mch.x, mch.y, mch.w, mch.h);
   ctx.restore();
-  if (feltImg && feltImg.complete && feltImg.naturalWidth > 0) { ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip(); ctx.drawImage(feltImg, mch.x, mch.y, mch.w, mch.h); ctx.restore(); } /* the Emerald Felt artwork over the underlay, the club's own fit rule: the drawImage destination IS the face rect, so it fills edge to edge inside the cabinet's rounded outline (the gold border strokes the same rr right after this, in drawSlots). Until the art loads — or if it ever fails — the procedural felt above is what shows */
+  if (feltImg && feltImg.complete && feltImg.naturalWidth > 0) { ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip(); ctx.drawImage(feltImg, mch.x, mch.y, mch.w, mch.h); ctx.restore(); } /* the cabinet's artwork over the underlay — the sitter's skin, or the Emerald Felt when no skin applies — the club's own fit rule: the drawImage destination IS the face rect, so it fills edge to edge inside the cabinet's rounded outline (the gold border strokes the same rr right after this, in drawSlots). Until the art loads — or if it ever fails — the procedural felt above is what shows */
 }
 function drawSlots(t) {
   const near = nearSlot();
   drawSeatsRow(SLOTSEATS, { seats: slotSeatView() }, "slot"); /* the seat row is in draw order; slotSeatView maps each chair to its machine-id seat record */
   SLOTM.forEach((mch, i) => {
-    drawSlotCabinetBase(mch); /* EMERALD FELT cabinet base (Jonathan 2026-11-01), replacing the old flat blue #2a1150 — material only: the gold outline, screen, reels and face furniture drawn after this are untouched */
+    drawSlotCabinetBase(mch, seatSkinEntry(slotSeats && slotSeats[mch.id], mySeat && mySeat.game === "slot" && mySeat.idx === i)); /* cabinet base (Jonathan 2026-11-01): the SITTER's skin while this machine is sat at, the EMERALD FELT otherwise — material only: the gold outline, screen, reels and face furniture drawn after this are untouched */
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke();
     ctx.fillStyle = "#0a0616"; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.fill();
     ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
@@ -6316,7 +6321,7 @@ function hrSitAtSlot(i) {
   const s = hrSlotSeats && hrSlotSeats[hrSlotKey(i)];
   if (s && s.pid === myId) { hrSlotSetSeat(i); seatOD("hrslot", i, true); return; }
   if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHRC("That machine is taken."); return; } /* only a pid-bearing fresh record is a player — a pid-less husk never blocks (the casino's ghost-seat rule) */
-  tblSet("hrslotseats/" + hrSlotKey(i), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+  tblSet("hrslotseats/" + hrSlotKey(i), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, skin: mySlotBg, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* skin rides the seat record, exactly as the casino slot seats' does (see seatSkinEntry) */
   hrSlotSetSeat(i); seatOD("hrslot", i, true);
 }
 function hrSlotStand() {
@@ -6337,7 +6342,7 @@ function hrSlotBeatOne() {
   }
   const s = hrSlotSeats && hrSlotSeats[hrSlotKey(hrSlotSeat)];
   if (!s || s.pid !== myId) { hrSlotSetSeat(-1); return; }
-  tblUpd("hrslotseats/" + hrSlotKey(hrSlotSeat), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* the heartbeat carries my full identity, exactly as the casino slot seats' does */
+  tblUpd("hrslotseats/" + hrSlotKey(hrSlotSeat), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, skin: mySlotBg, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* the heartbeat carries my full identity, exactly as the casino slot seats' does */
 }
 function hrSpinMachine(i) {
   const a = hrSlotAnim[i];
@@ -6566,9 +6571,9 @@ function resetStore() { /* the owner's store Reset (Jonathan 2026-11-01): back t
 }
 function selectSlotBg(id) { const e = slotBgEntry(id); if (!e || !slotBgOwned(e)) return; mySlotBg = id; acctStoreSave(); storeMsg("✅ " + e.name + " is on your machines."); sfxClick(); renderStore(); }
 function atHRStoreDesk(x, y) { return me.scene === "highrollers" && x < HRCTR.x - 4 && x > HRCTR.x - 170 && y >= HRCTR.y - 6 && y <= HRCTR.y + HRCTR.h + 6; } /* standing on the LEFT side of the service desk — the room side, facing the desk (Jonathan 2026-11-01): the store's spot, the mirror image of atHRCounter's behind-the-desk strip on the right. The 170 reach keeps it a stance at the desk, not half the room */
-/* the cabinet backdrop: the player's selected background paints the club machines' faces. The DEFAULT is the Burgundy Velvet artwork (Jonathan 2026-11-01: "burgundy velvet goes in the first slot... Default Burgundy is NOT the default anymore") — the default entry carries that picture and paints by the very same image path as a bought pick, and a selection id that is no longer in SLOT_BGS (the retired bg01/bg03 picks) resolves to the default entry right here, so those machines wear the Burgundy Velvet: for a bg01 pick that is the identical artwork, for a bg03 pick it is the default fallback. The velvet gradient painted below is only the fallback while a cabinet's art is still loading (or if it ever fails) — never a look of its own. FIT RULE (Jonathan 2026-11-01): the art is drawn STRETCHED to the cabinet's exact rectangle — the drawImage destination IS the face rect (mch.x, mch.y, mch.w, mch.h), so it fills edge to edge, no gaps, no letterbox, no crop; the samples are already the cabinets' 210x330 shape, so the stretch is true. The rounded clip is the cabinet's own outline (the yellow border strokes the same rr right after), never a smaller window. This function is the ONE paint path: drawHRSlots calls it for every club machine, and the seated machine's face — reels, bet grid, SPIN — is drawn on that same cabinet in that same pass; there is no separate panel rendering to fit */
-function hrSlotCabinetBase(mch) {
-  const e = slotBgEntry(mySlotBg) || slotBgEntry("default"), img = e ? slotBgImg(e) : null;
+/* the cabinet backdrop: the SITTER's selected background paints a club machine's face while they sit at it (Jonathan 2026-11-01) — seatSkinEntry resolves the pick off the machine's shared seat record, so every client in the room sees the same skin on the same machine, and my own seat answers with my own pick the moment I sit. An UNOCCUPIED machine wears the room default, and so does a sitter whose pick is "default" or no longer resolves. The DEFAULT is the Burgundy Velvet artwork (Jonathan 2026-11-01: "burgundy velvet goes in the first slot... Default Burgundy is NOT the default anymore") — the default entry carries that picture and paints by the very same image path as a bought pick, and a selection id that is no longer in SLOT_BGS (the retired bg01/bg03 picks) resolves to the default entry right here, so those machines wear the Burgundy Velvet: for a bg01 pick that is the identical artwork, for a bg03 pick it is the default fallback. The velvet gradient painted below is only the fallback while a cabinet's art is still loading (or if it ever fails) — never a look of its own. FIT RULE (Jonathan 2026-11-01): the art is drawn STRETCHED to the cabinet's exact rectangle — the drawImage destination IS the face rect (mch.x, mch.y, mch.w, mch.h), so it fills edge to edge, no gaps, no letterbox, no crop; the samples are already the cabinets' 210x330 shape, so the stretch is true. The rounded clip is the cabinet's own outline (the yellow border strokes the same rr right after), never a smaller window. This function is the ONE paint path: drawHRSlots calls it for every club machine, and the seated machine's face — reels, bet grid, SPIN — is drawn on that same cabinet in that same pass; there is no separate panel rendering to fit */
+function hrSlotCabinetBase(mch, skinE) {
+  const e = skinE || slotBgEntry("default"), img = e ? slotBgImg(e) : null;
   if (img && img.complete && img.naturalWidth > 0) { ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip(); ctx.drawImage(img, mch.x, mch.y, mch.w, mch.h); ctx.restore(); return; } /* stretch-fit: destination width/height are the cabinet's own, so the image is scaled to the face exactly */
   /* the LOADING FALLBACK under a cabinet's artwork: a burgundy velvet shading in the room's own family (the #40081b of its carpet and bar counters) with a soft sheen — a diagonal light fall across the face and a gentle glow pooled upper-centre, the edges and foot falling darker the way velvet takes light. It is what a machine wears only for the moments before its picture (the default's Burgundy Velvet, or a bought pick) has loaded, and if a picture ever fails outright; the artwork paints over it by the path above */
   ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip();
@@ -6620,7 +6625,7 @@ function drawHRSlots(t) {
   const near = nearHRSlot();
   hrSlotSeatsRow();
   HRSLOTM.forEach((mch, i) => {
-    hrSlotCabinetBase(mch); /* the cabinet's backdrop — the player's selected store background, or the Burgundy Velvet default (see hrSlotCabinetBase) */
+    hrSlotCabinetBase(mch, seatSkinEntry(hrSlotSeats && hrSlotSeats[mch.id], hrSlotSeat === i)); /* the cabinet's backdrop — the sitter's selected store background while the machine is sat at, or the Burgundy Velvet default (see hrSlotCabinetBase) */
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke(); /* the yellow border, kept exactly */
     ctx.fillStyle = "#0a0616"; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.fill();
     ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
