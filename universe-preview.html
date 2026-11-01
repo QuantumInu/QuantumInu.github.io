@@ -1215,6 +1215,19 @@ function poolSubmersion(x, y, hero) { /* the waterline (PREVIEW round 3 — the 
 }
 const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
 const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
+/* ============ Quantum Bowling (PREVIEW, Jonathan 2026-11-01) ============
+   A fifth plaza building, directly BELOW the Quantum Pool and CENTRED on it:
+   the same width as the pool deck (920 — x 3260..4180, the deck's own edges),
+   its north face fronting the plaza's existing full-width purple walkway
+   (y 1480..1640, centreline 1560), which runs in the gap between the deck's
+   bottom (1480) and the building's top — so the path, the door (on the north
+   face, at the building's centre x 3720, the pool's own centre line) and the
+   building all line up on the one axis. PURPLE, with its own roof (a row of
+   bowling pins along the top edge and a giant bowling ball on the marquee —
+   no other building's roof). Solid like the other buildings, door excepted.
+   Inside: scene "bowling" (see BOWLROOM below). */
+const BOWL_B = { x: 3260, y: 1640, w: 920, h: 340 };
+const BOWLDOOR = { x: 3675, y: 1640, w: 90, h: 40 }; /* on the NORTH face, centred on x 3720 — drawn at the facade's top edge, opening onto the purple path */
 /* ============ Quantum Horse Track (PREVIEW, Jonathan 2026-10-30) ============
    A third race building east of the Sports Complex, on the plaza's new eastern
    ground (WORLD grew right to hold it). Mirrors the gym's footprint and door
@@ -1268,6 +1281,23 @@ function hrRingPos(d, R) { /* a point d units along the oval from the start line
    each a shared record at hub/tables/ph1..ph4 on the casino tables' pattern.
    Scene id "poolhall". */
 const PHROOM = { w: 3200, h: 1800 };
+/* ============ Quantum Bowling room (PREVIEW, Jonathan 2026-11-01) ============
+   Scene id "bowling". A 2560x2000 hall holding FOUR lanes side by side,
+   running VERTICALLY — pins at the NORTH (top) end, players at the SOUTH
+   (bottom) end. Every measurement hangs off the room's centre line (1280):
+   the lane centres sit at 830 / 1130 / 1430 / 1730 (±150, ±450), so the four
+   lanes, their screens and their chair rows are evenly spaced, perfectly
+   aligned and symmetric about the middle of the room. Each lane is a shared
+   record at hub/tables/bowl1..bowl4 on the Pool Hall's pattern (see the
+   bowling engine below). */
+const BOWLROOM = { w: 2560, h: 2000 };
+const BOWLCX = t => BOWLROOM.w / 2 + (t - 1.5) * 300; /* lane centre lines: 830, 1130, 1430, 1730 */
+const BOWLLANES = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 101, y: 330, w: 202, h: 1240 })); /* the lane field including both gutters — solid in its room, like the pool tables */
+const BOWLSEATS = [0, 1, 2, 3].map(t => [-126, -42, 42, 126].map(dx => ({ x: BOWLCX(t) + dx, y: 1740 }))); /* four chairs per lane at its south end, evenly spaced on the lane's own centre line */
+const BOWLSCREENS = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 130, y: 132, w: 260, h: 176 })); /* the scoring screen hung over each lane's pins end */
+const BOWLEXIT = { x: BOWLROOM.w / 2 - 62, y: BOWLROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — the gym's GEXIT shape */
+const BOWL_FOUL_Y = 1470; /* the ball leaves from here, at the lane's south end */
+function bowlPinPos(cx, i) { let r = 0, j = i; while (j > r) { j -= r + 1; r++; } return { x: cx + (j - r / 2) * 56, y: 512 - r * 52 }; } /* pin i of the rack: head pin (0) nearest the player at y 512, rows running north — 1-2-3-4 */
 const PHEXIT = { y: PHROOM.h / 2, half: 92 }; /* CASINO EXPANSION preview (Jonathan 2026-10-31): the hall's Arcade door moved to the CENTRE of its right edge (PHROOM.h / 2 = 900), answering the Arcade door's new middle-of-the-left-edge spot */ /* the exit door, in the hall's RIGHT WALL (PREVIEW round 3): the theatre doorway's twin, gold ARCADE sign and all. Its centre stands exactly as far above this room's bottom border (344px) as the Arcade's Pool Hall door (PHDOOR_A) stands above the Arcade's — door answers door, at the same height off the floor */
 const PHT = [{ x: 370, y: 170 }, { x: 2050, y: 170 }, { x: 370, y: 1030 }, { x: 2050, y: 1030 }].map(r => ({ x: r.x, y: r.y, w: 780, h: 420 })); /* the four tables in a 2x2 grid, spread wide (900px of air between the columns, 440 between the rows) — round 3 shifted both columns 200px right with the room's widening, so only the chair-to-wall gaps grew — solid in their room, like the casino tables */
 const PHRAIL = 44; /* the rail's width: the play field sits this far inside each table rect */
@@ -1457,12 +1487,13 @@ const STAGE_WALLS = [
 const booths = [];
 [520, 800, 1080].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); });
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B]; /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
+  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B]; /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its north-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
+  if (me.scene === "bowling") return [...BOWLLANES]; /* the four lanes are solid in their room, exactly as the pool tables are in theirs */
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
   if (me.scene === "hq") return [...HQSCREENS];
@@ -1483,6 +1514,7 @@ function collide(nx, ny) {
     if (nx > GYMDOOR.x - 6 && nx < GYMDOOR.x + GYMDOOR.w + 6 && ny > GYM_B.y + GYM_B.h - 14 && ny < GYM_B.y + GYM_B.h + 46) return { x: nx, y: ny, gymdoor: true };
     if (nx > SPDDOOR.x - 6 && nx < SPDDOOR.x + SPDDOOR.w + 6 && ny > SPD_B.y + SPD_B.h - 14 && ny < SPD_B.y + SPD_B.h + 46) return { x: nx, y: ny, spddoor: true };
     if (nx > HRDOOR.x - 6 && nx < HRDOOR.x + HRDOOR.w + 6 && ny > HR_B.y + HR_B.h - 14 && ny < HR_B.y + HR_B.h + 46) return { x: nx, y: ny, hrdoor: true };
+    if (nx > BOWLDOOR.x - 6 && nx < BOWLDOOR.x + BOWLDOOR.w + 6 && ny > BOWL_B.y - 46 && ny < BOWL_B.y + 14) return { x: nx, y: ny, bowldoor: true }; /* Quantum Bowling's door is on its NORTH face: the gym door's check flipped — it fires as the walker comes SOUTH off the purple path into the doorway */
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
@@ -1502,6 +1534,9 @@ function collide(nx, ny) {
   } else if (me.scene === "poolhall") {
     if (nx > PHROOM.w - 66 && Math.abs(ny - PHEXIT.y) < PHEXIT.half) return { x: nx, y: ny, phexit: true }; /* the exit door in the right wall (PREVIEW round 3) — the theatre door's check, mirrored off PHDOOR_A's */
     nx = Math.max(56, Math.min(PHROOM.w - 56, nx)); ny = Math.max(70, Math.min(PHROOM.h - 46, ny));
+  } else if (me.scene === "bowling") {
+    if (nx > BOWLEXIT.x - 4 && nx < BOWLEXIT.x + BOWLEXIT.w + 4 && ny > BOWLROOM.h - 76) return { x: nx, y: ny, bowlexit: true }; /* the exit plate at the south wall — the gym exit's check, word for word */
+    nx = Math.max(56, Math.min(BOWLROOM.w - 56, nx)); ny = Math.max(70, Math.min(BOWLROOM.h - 46, ny));
   } else if (me.scene === "hq") {
     nx = Math.max(56, Math.min(HQROOM.w - 56, nx)); ny = Math.max(70, Math.min(HQROOM.h - 46, ny));
   } else if (me.scene === "casino") {
@@ -2082,13 +2117,14 @@ cv.addEventListener("pointerdown", e => {
     if (punchR) boxPunch("R");
     if (punchL || punchR) return;
   }
-  if ((me.scene === "casino" || me.scene === "track" || me.scene === "poolhall" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "chess" || me.scene === "boxing") && uiZones.length) { /* the horse table's buttons live in the same uiZones the casino tables use — and so do the pool hall's and the VIP lounge slots' */
+  if ((me.scene === "casino" || me.scene === "track" || me.scene === "poolhall" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "chess" || me.scene === "boxing" || me.scene === "bowling") && uiZones.length) { /* the horse table's buttons live in the same uiZones the casino tables use — and so do the pool hall's and the VIP lounge slots' */
     const r0 = cv.getBoundingClientRect();
     const wx = (e.clientX - r0.left) / SCALE + camX, wy = (e.clientY - r0.top) / SCALE + camY;
     for (const z of uiZones) { if (wx >= z.x && wx <= z.x + z.w && wy >= z.y && wy <= z.y + z.h) { z.fn(); sfxClick(); return; } }
   }
   if (me.scene === "poolhall" && phPlaceBegin(e)) return; /* ball in hand: a press on my pool table starts the PLACEMENT drag instead of a walk or an aim (only while the table record names me as the placer — phPlaceBegin decides) */
   if (me.scene === "poolhall" && phAimBegin(e)) return; /* a press on my pool table starts the aim drag instead of a walk (only on my turn, balls at rest — phAimBegin decides) */
+  if (me.scene === "bowling" && bowlAimBegin(e)) return; /* a press on my bowling lane starts the throw drag instead of a walk (only on my turn, no ball rolling — bowlAimBegin decides) */
   holdId = e.pointerId;
   const sx = me.x, sy = me.y, r = cv.getBoundingClientRect();
   const px = (e.clientX - r.left), py = (e.clientY - r.top);
@@ -2121,12 +2157,13 @@ cv.addEventListener("pointermove", e => {
   if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; /* moves carry the buttons bitmask too — the mask stays true while a held button travels, and a press the press-event missed still lands here */
   if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceMove(e); return; }
   if (phAim && e.pointerId === phAim.id) { phAimMove(e); return; }
+  if (bowlAim && e.pointerId === bowlAim.id) { bowlAimMove(e); return; }
   if (e.pointerId !== holdId) return;
   const r = cv.getBoundingClientRect();
   holdPX = e.clientX - r.left; holdPY = e.clientY - r.top;
 });
-cv.addEventListener("pointerup", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; /* a release clears its own bit in e.buttons — the mask follows it down */ if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceDrag = null; phPlaceConfirm(); } if (phAim && e.pointerId === phAim.id) phAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; }); /* letting go of a placement drag CONFIRMS the spot (the release is the confirm, the pull-back aim's own gesture shape) */
-cv.addEventListener("pointercancel", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; if (phPlaceDrag && e.pointerId === phPlaceDrag.id) phPlaceDrag = null; if (phAim && e.pointerId === phAim.id) phAim = null; holdId = null; holdVec = { x: 0, y: 0 }; }); /* a cancelled placement drag confirms nothing — the ghost stays unplaced and the turn still waits on a real release */
+cv.addEventListener("pointerup", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; /* a release clears its own bit in e.buttons — the mask follows it down */ if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceDrag = null; phPlaceConfirm(); } if (phAim && e.pointerId === phAim.id) phAimRelease(); if (bowlAim && e.pointerId === bowlAim.id) bowlAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; }); /* letting go of a placement drag CONFIRMS the spot (the release is the confirm, the pull-back aim's own gesture shape) — and letting go of a bowling drag THROWS the ball, the same gesture */
+cv.addEventListener("pointercancel", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; if (phPlaceDrag && e.pointerId === phPlaceDrag.id) phPlaceDrag = null; if (phAim && e.pointerId === phAim.id) phAim = null; if (bowlAim && e.pointerId === bowlAim.id) bowlAim = null; holdId = null; holdVec = { x: 0, y: 0 }; }); /* a cancelled placement drag confirms nothing — the ghost stays unplaced and the turn still waits on a real release */
 window.addEventListener("pointerup", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; }); /* a release OUTSIDE the canvas still lands here, so no button bit can stick down in the mask and haunt the next bout */
 /* ============ voice chat (tap to talk) — LiveKit (Jonathan 2026-10-31) ============
    Voice rides LiveKit Cloud now, not player-to-player connections: everyone
@@ -3553,7 +3590,7 @@ function writeClaims(seats, results, keyOf, label) {
    A player who DID tap READY is untouched by all of this: the round they
    agreed to settles exactly as before, win or lose. */
 let refundODArmed = {}; /* "game/idx" -> the claim key this connection currently has armed */
-function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : game === "hrr" ? hrrState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : chStates[CHTABLES.indexOf(game)]; }
+function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : game === "hrr" ? hrrState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : game.indexOf("bowl") === 0 ? bowlStates[Number(game.slice(4)) - 1] : chStates[CHTABLES.indexOf(game)]; }
 function rfKeyFor(game, st, i) {
   if (game === "bj") return "bj" + ((st && st.handId) || 0) + "-" + i + "rf";
   if (game === "hbj") return "hbj" + ((st && st.handId) || 0) + "-" + i + "rf"; /* the club blackjack's own key family — never the casino's "bj" */
@@ -3561,6 +3598,7 @@ function rfKeyFor(game, st, i) {
   if (game === "rr") return "roulette" + ((st && st.spinId) || 0) + "-" + i + "rf";
   if (game === "hr") return "hr" + ((st && st.raceId) || 0) + "-" + i + "rf";
   if (game.indexOf("ph") === 0) return game + "m" + ((st && st.matchId) || 0) + "-" + i + "rf";
+  if (game.indexOf("bowl") === 0) return game + "m" + ((st && st.matchId) || 0) + "-" + i + "rf"; /* the bowling lanes carry matchId too — the pool hall's key family, under their own game names */
   return game + ((st && st.roundId) || 0) + "-" + i + "rf"; /* bac, cra, box and the chess boards (chs1/chk1/chk2/chs2) all carry roundId */
 }
 function armRefundOD(game, idx, amt) {
@@ -4613,7 +4651,7 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 /* ============ online list ============ */
 /* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot is excluded (Jonathan: "Exclude the bots") — neither of his presence records (plaza or Watchtower HQ) is listed or counted, so the roster and the Online button count people only and always agree. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
 const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "vip", "hq", "casino", "gym", "speedway", "track"];
-const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena" };
+const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena", bowling: "Quantum Bowling" };
 let onlineSig = "";
 function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
@@ -5032,6 +5070,8 @@ function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = 
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toPlazaFromGym() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
+function toBowling() { stopAllTones(); me.scene = "bowling"; voiceReset(); me.x = BOWLROOM.w / 2; me.y = BOWLROOM.h - 170; sfxChime(); publish(true); bowlListen(); pullChips(); } /* in through the north-face door, landing inside by the exit plate at the south wall, clear of every lane and chair — the horse track's landing pattern */
+function toPlazaFromBowling() { stopAllTones(); bowlStandUp(); me.scene = "plaza"; voiceReset(); me.x = 3720; me.y = BOWL_B.y - 60; sfxChime(); publish(true); } /* back out onto the purple path in front of the door, on the building's centre line (3720) — 14px clear of the door trigger's north edge, the gym landing's own clearance, so the doorway never swallows you straight back in */
 function toSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "speedway"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); speedwayListen(); startSwVideos(); }
 function toPlazaFromSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "plaza"; voiceReset(); me.x = 570; me.y = SPD_B.y + SPD_B.h + 60; sfxChime(); publish(true); pauseSwVideos(); swPuffs = []; }
 let portalArmed = true;
@@ -5185,6 +5225,74 @@ function drawCasinoBuilding(t) {
 }
 
 /* ============ inside the casino ============ */
+/* a single bowling pin, drawn standing on (x, y) — the Quantum Bowling roof's own motif */
+function bowlPinGlyph(x, y, s, tilt) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(tilt); ctx.scale(s, s);
+  ctx.beginPath();
+  ctx.moveTo(0, -32);
+  ctx.bezierCurveTo(7, -32, 8, -24, 6, -16); ctx.bezierCurveTo(4, -8, 9, -2, 9, 8);
+  ctx.bezierCurveTo(9, 16, 6, 22, 0, 22); ctx.bezierCurveTo(-6, 22, -9, 16, -9, 8);
+  ctx.bezierCurveTo(-9, -2, -4, -8, -6, -16); ctx.bezierCurveTo(-8, -24, -7, -32, 0, -32);
+  ctx.closePath();
+  ctx.fillStyle = "#f4f6ff"; ctx.fill();
+  ctx.strokeStyle = "rgba(120,40,160,0.55)"; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = "#e23744"; ctx.fillRect(-6.4, -14, 12.8, 3.4); ctx.fillRect(-6.7, -9, 13.4, 3.4); /* the red neck stripes */
+  ctx.restore();
+}
+function drawBowlingBuilding(t) {
+  const b = BOWL_B, cx = b.x + b.w / 2;
+  /* wide PURPLE facade */
+  const fg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+  fg.addColorStop(0, "#2a1052"); fg.addColorStop(1, "#170a30");
+  ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(168,85,247,0.6)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  /* the UNIQUE ROOF: a row of five bowling pins standing along the top edge, over a purple roof band with chasing bulbs — no other building on the plaza wears pins */
+  ctx.fillStyle = "#3b1470"; rr(b.x - 18, b.y - 6, b.w + 36, 46, 10); ctx.fill();
+  ctx.strokeStyle = "#c084fc"; ctx.lineWidth = 2.5; rr(b.x - 18, b.y - 6, b.w + 36, 46, 10); ctx.stroke();
+  for (let i = 0, bx = b.x + 30; bx <= b.x + b.w - 20; bx += 44, i++) {
+    ctx.fillStyle = ((i + Math.floor(t / 420)) % 2) ? "#c084fc" : "#6d28d9";
+    ctx.beginPath(); ctx.arc(bx, b.y + 32, 5, 0, 7); ctx.fill();
+  }
+  [-300, -150, 0, 150, 300].forEach((dx, i) => bowlPinGlyph(cx + dx, b.y + 8, 1.05, [-0.06, 0.05, 0, -0.05, 0.06][i]));
+  /* marquee, with a giant bowling ball straddling its top edge */
+  ctx.fillStyle = "#120826"; rr(b.x + 110, b.y + 92, b.w - 220, 92, 12); ctx.fill();
+  ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 3; rr(b.x + 110, b.y + 92, b.w - 220, 92, 12); ctx.stroke();
+  for (let i = 0; i < 16; i++) {
+    ctx.fillStyle = (Math.floor(t / 420) + i) % 2 ? "#c084fc" : "#ffd76a";
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 100, 4.5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + 134 + i * ((b.w - 268) / 15), b.y + 176, 4.5, 0, 7); ctx.fill();
+  }
+  ctx.save();
+  const bg2 = ctx.createRadialGradient(cx - 12, b.y + 78, 4, cx, b.y + 92, 40);
+  bg2.addColorStop(0, "#4c2a85"); bg2.addColorStop(1, "#150a2a");
+  ctx.fillStyle = bg2; ctx.beginPath(); ctx.arc(cx, b.y + 92, 38, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#c084fc"; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = "#0a0518";
+  ctx.beginPath(); ctx.arc(cx - 8, b.y + 82, 5.5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 7, b.y + 79, 5.5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 1, b.y + 94, 5.5, 0, 7); ctx.fill(); /* the three finger holes */
+  ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.arc(cx - 15, b.y + 74, 4, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.font = "800 37px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#c084fc" : "#e9d5ff";
+  ctx.fillText("🎳 QUANTUM BOWLING", cx, b.y + 162);
+  /* tall windows with a purple glow (the Sports Complex's window row, in the alley's colour) */
+  const winX = [0.10, 0.26].map(fx => b.x + b.w * fx).concat([0.26, 0.10].map(fx => b.x + b.w - b.w * fx - 92));
+  ctx.fillStyle = "rgba(168,85,247,0.20)";
+  for (const wx of winX) { rr(wx, b.y + 216, 92, 88, 8); ctx.fill(); }
+  ctx.strokeStyle = "rgba(168,85,247,0.4)"; ctx.lineWidth = 1.5;
+  for (const wx of winX) { rr(wx, b.y + 216, 92, 88, 8); ctx.stroke(); }
+  /* the door, on the NORTH face at the building's centre: purple light spilling out onto the path, the door plate at the facade's top edge, ENTER written on the path where the walker stands (the gym door's arrangement, flipped to the north face) */
+  const ddy = BOWL_B.y;
+  const ddg = ctx.createLinearGradient(0, ddy - 64, 0, ddy);
+  ddg.addColorStop(0, "rgba(168,85,247,0)"); ddg.addColorStop(1, "rgba(168,85,247,0.5)");
+  ctx.fillStyle = ddg; ctx.fillRect(BOWLDOOR.x - 8, ddy - 64, BOWLDOOR.w + 16, 64);
+  ctx.fillStyle = "#0a1428"; rr(BOWLDOOR.x, ddy, BOWLDOOR.w, 40, 6); ctx.fill();
+  ctx.strokeStyle = "#c084fc"; ctx.lineWidth = 2.5; rr(BOWLDOOR.x, ddy, BOWLDOOR.w, 40, 6); ctx.stroke();
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#e9d5ff"; ctx.textAlign = "center";
+  ctx.fillText("▼ ENTER ▼", BOWLDOOR.x + BOWLDOOR.w / 2, ddy - 52);
+}
+
 function drawSportsBuilding(t) {
   const b = GYM_B, cx = b.x + b.w / 2;
   /* wide green facade */
@@ -6105,6 +6213,519 @@ function drawPoolHall(t) {
   ctx.restore();
 }
 
+/* ============ Quantum Bowling: the lanes (PREVIEW, Jonathan 2026-11-01) ============
+   The Pool Hall's pattern, carried to a bowling alley: four lanes, each a
+   shared record at hub/tables/bowl1..bowl4, FOUR chairs per lane, bets on the
+   casino ladder (CH_BETS) charged the moment they are placed, and a READY
+   gate — a game starts when at least two seated players hold the SAME bet and
+   have tapped READY (any other staked chair that is not part of the start is
+   refunded through the rf claims rail, the pool hall's sleeper rule). The
+   lowest fresh seat's client hosts. Standard 10-frame scoring; in each frame
+   every player bowls their balls in seat order. The THROWING player's own
+   client simulates the ball and pins and writes the result (the house's
+   per-game pattern — no server referee). The winner takes the pot through
+   the claims rail exactly once; a tie for first returns the tied players'
+   bets (the boxing draw). Standing before the start refunds in full;
+   leaving mid-game forfeits — the game plays on, the leaver's unbowled
+   frames scoring 0. At the end everyone stays seated for a rematch: bets
+   reset to 0 and READY clears, like every other room. */
+let bowlStates = [null, null, null, null], bowlSeatT = -1, bowlSeatI = -1, bowlSeatPos = null, bowlLeft = null, bowlHooked = false;
+let bowlSim = null, bowlAim = null;
+let bowlNote = "", bowlNoteAt = 0;
+function noteBowl(txt) { bowlNote = txt; bowlNoteAt = performance.now(); }
+function bowlKey(t) { return "bowl" + (t + 1); }
+function bowlSeatRec(t, i) { const st = bowlStates[t]; return st && st.seats ? st.seats[i] : null; }
+function myBowlSeatRec() { return bowlSeatT >= 0 ? bowlSeatRec(bowlSeatT, bowlSeatI) : null; }
+function bowlFresh(s) { return !!(s && s.pid && Date.now() - (s.ts || 0) < 25000); } /* a chair is occupied only by a pid-bearing fresh record (the casino rule) */
+function sfxBowlRoll() { noiseBurst(0.35, "lowpass", 300, 120, 0.10); }
+function sfxBowlPins(n) { noiseBurst(0.16, "bandpass", 1800, 700, Math.min(0.3, 0.12 + n * 0.03)); tone(220, 90, 0.1, "triangle", 0.10); }
+/* ---- standard 10-frame scoring, off one player's flat rolls list (a missing roll scores 0 — a forfeited frame) ---- */
+function bowlScorecard(rolls) {
+  const R = i => (rolls && typeof rolls[i] === "number") ? rolls[i] : 0;
+  const cum = []; let total = 0, ri = 0;
+  for (let f = 0; f < 10; f++) {
+    if (f < 9) {
+      if (R(ri) === 10) { total += 10 + R(ri + 1) + R(ri + 2); ri += 1; }
+      else if (R(ri) + R(ri + 1) === 10) { total += 10 + R(ri + 2); ri += 2; }
+      else { total += R(ri) + R(ri + 1); ri += 2; }
+    } else { total += R(ri) + R(ri + 1) + R(ri + 2); }
+    cum.push(total);
+  }
+  return { cum, total };
+}
+function bowlFrameBalls(rolls, frame) { /* one frame's rolls for one player (frames before the 10th consume 1 roll on a strike, 2 otherwise) */
+  let ri = 0; const R = i => (rolls && typeof rolls[i] === "number") ? rolls[i] : 0;
+  for (let f = 1; f < frame; f++) ri += R(ri) === 10 ? 1 : 2;
+  return (rolls || []).slice(ri, ri + (frame < 10 ? 2 : 3));
+}
+function bowlFramesComplete(rolls) { /* how many frames have all their balls bowled (a frame's SCORE can still be waiting on bonus balls) */
+  if (!rolls) return 0; let ri = 0;
+  for (let f = 0; f < 9; f++) { if (rolls.length <= ri) return f; if (rolls[ri] === 10) ri += 1; else { if (rolls.length <= ri + 1) return f; ri += 2; } }
+  return rolls.length > ri ? 10 : 9;
+}
+function bowlFrameMarks(rolls, frame) { /* the screen's bowling notation for one frame: X, 7/, 9–, – */
+  const fb = bowlFrameBalls(rolls, frame), one = v => v === 10 ? "X" : v === 0 ? "–" : String(v);
+  if (!fb.length) return "·";
+  if (frame < 10) {
+    if (fb[0] === 10) return "X";
+    return one(fb[0]) + (fb.length > 1 ? (fb[0] + fb[1] === 10 ? "/" : one(fb[1])) : "·");
+  }
+  return fb.map(one).join("");
+}
+/* ---- turn flow: whose ball, which frame, fresh rack or standing pins ---- */
+function bowlAfterFrame(st) { const players = st.players || [], i = players.indexOf(st.turnSeat); if (i >= 0 && i < players.length - 1) return { frame: st.frame, turnSeat: players[i + 1], over: false }; return { frame: st.frame + 1, turnSeat: players[0], over: st.frame >= 10 }; }
+function bowlAdvance(st, pinsStanding) { /* the state after the ball just added to rolls[turnSeat]: frames 1-9 end on a strike or a second ball; the 10th runs to three balls on a strike or spare, the rack resetting whenever it is cleared */
+  const frame = st.frame, ball = st.ball || 0, fb = bowlFrameBalls((st.rolls && st.rolls[st.turnSeat]) || [], frame);
+  if (frame < 10) {
+    if (ball === 0 && fb[0] !== 10) return { frame, turnSeat: st.turnSeat, ball: 1, rack: null, over: false };
+    const nx = bowlAfterFrame(st); return { frame: nx.frame, turnSeat: nx.turnSeat, ball: 0, rack: "fresh", over: nx.over };
+  }
+  if (ball === 0) return { frame, turnSeat: st.turnSeat, ball: 1, rack: fb[0] === 10 ? "fresh" : null, over: false };
+  if (ball === 1 && (fb[0] === 10 || fb[0] + fb[1] === 10)) return { frame, turnSeat: st.turnSeat, ball: 2, rack: pinsStanding <= 0 ? "fresh" : null, over: false };
+  const nx = bowlAfterFrame(st); return { frame: nx.frame, turnSeat: nx.turnSeat, ball: 0, rack: "fresh", over: nx.over };
+}
+function bowlListen() {
+  if (!db || bowlHooked) return; bowlHooked = true;
+  for (let t = 0; t < 4; t++) { const tt = t; db.ref("hub/tables/" + bowlKey(tt)).on("value", sn => { bowlStates[tt] = sn.val(); bowlFxCheck(tt); bowlSettle(tt); }); }
+  setInterval(() => { if (entered && me.scene === "bowling" && db) for (let t = 0; t < 4; t++) bowlHostTick(t); }, 900);
+  setInterval(bowlSeatBeat, 4000);
+}
+function bowlSettle(t) {
+  const st = bowlStates[t];
+  if (st && st.phase !== "bet" && bowlSeatT === t) cancelRefundOD(bowlKey(t), bowlSeatI); /* the game has started: committed */
+  if (st && st.phase === "done" && bowlSeatT === t && st.results && st.results[bowlSeatI]) settleOnce(bowlKey(t) + "m" + st.matchId + "-" + bowlSeatI, st.results[bowlSeatI].amt || 0);
+}
+const bowlFxDone = [0, 0, 0, 0];
+function bowlFxCheck(t) { /* a decided game bursts coins at the winner's chair, puffs at a loser's, on every screen in the room (the pool hall's treatment) */
+  const st = bowlStates[t]; if (!st || st.phase !== "done" || !st.doneTs || st.doneTs === bowlFxDone[t]) return;
+  bowlFxDone[t] = st.doneTs;
+  if (Date.now() - st.doneTs >= 5000 || me.scene !== "bowling") return;
+  Object.keys(st.results || {}).forEach(k => {
+    const i = Number(k), r = st.results[k], seat = st.seats && st.seats[k]; if (!r || !seat) return;
+    const bet = seat.bet || 0, amt = r.amt || 0, mine = seat.pid === myId, sp = BOWLSEATS[t][i]; if (!sp) return;
+    const x = sp.x, y = sp.y - 12;
+    if (bet > 0 && amt > bet) { fxBurst(x, y, amt >= bet * 10 || amt >= 100000, "bowling"); fxText(x, y - 24, "+🪙 " + amt.toLocaleString("en-US"), "#ffd76a", "bowling"); sfxWin(mine ? 1 : 0.45); }
+    else if (bet > 0 && amt === 0) { fxPuff(x, y, "bowling"); fxText(x, y - 18, "−" + bet.toLocaleString("en-US"), "rgba(205,210,225,0.95)", "bowling"); if (mine) sfxLose(); }
+    else if (bet > 0 && amt === bet && mine) sfxPush();
+  });
+}
+/* ---- chairs ---- */
+function bowlNearLane() { for (let t = 0; t < 4; t++) if (nearSeatOf(BOWLSEATS[t])) return t; return -1; }
+function bowlTrySit(t) {
+  const st = bowlStates[t];
+  for (let i = 0; i < 4; i++) { const s = st && st.seats ? st.seats[i] : null; if (!bowlFresh(s)) { bowlSitAt(t, i); return; } }
+  noteBowl("All four chairs at that lane are taken.");
+}
+function bowlSitAt(t, i) {
+  if (!acctUser) { noteBowl("🔒 Sitting down takes an account — guests can watch."); return; }
+  pullChips();
+  const st = bowlStates[t], ex = bowlSeatRec(t, i);
+  if (ex && ex.pid === myId) { bowlSeatT = t; bowlSeatI = i; bowlSeatPos = BOWLSEATS[t][i]; mySeatPos = bowlSeatPos; seatOD(bowlKey(t), i, true); return; }
+  if (bowlFresh(ex)) { noteBowl("That chair is taken."); bowlTrySit(t); return; }
+  bowlLeft = null;
+  if (ex && ex.bet > 0) writeClaim(claimUid(ex), rfKeyFor(bowlKey(t), st, i), ex.bet, "↩️ Bet returned"); /* a stale chair's stake goes back through the claims rail before the chair changes hands (the pool hall rule) */
+  bowlSeatT = t; bowlSeatI = i; bowlSeatPos = BOWLSEATS[t][i]; mySeatPos = bowlSeatPos;
+  tblSet(bowlKey(t) + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, chips: profile ? (profile.chips || 0) : 0 });
+  seatOD(bowlKey(t), i, true);
+  sfxClick();
+}
+function bowlStandUp() {
+  if (bowlSeatT < 0) return;
+  const t = bowlSeatT, i = bowlSeatI, st = bowlStates[t], rec = bowlSeatRec(t, i);
+  bowlLeft = { t, i }; /* marked first: the reload reclaim must not hand the chair straight back (the pool hall rule) */
+  bowlSettle(t); /* bank a decided game before anything else moves */
+  bowlSim = null; bowlAim = null;
+  bowlSeatT = -1; bowlSeatI = -1; bowlSeatPos = null; mySeatPos = null;
+  if (rec && rec.pid === myId) {
+    if (st && st.phase === "bet") { if (rec.bet > 0) { addChips(rec.bet); noteBowl("Bet refunded: 🪙 " + rec.bet.toLocaleString("en-US")); } }
+    else if (st && st.phase === "play") noteBowl("You forfeited this game — your remaining frames score 0.");
+    tblSet(bowlKey(t) + "/seats/" + i, null);
+  }
+  seatOD(bowlKey(t), i, false);
+}
+function bowlSeatBeat() {
+  if (!db || !entered || me.scene !== "bowling") return;
+  if (bowlSeatT < 0) { /* reload reclaim: adopt my own fresh seat record back — same lane, same chair, bet untouched (the pool hall rule, mirrored) */
+    if (bowlLeft) { const ls = bowlStates[bowlLeft.t] && bowlStates[bowlLeft.t].seats && bowlStates[bowlLeft.t].seats[bowlLeft.i]; if (!ls || ls.pid !== myId) bowlLeft = null; }
+    for (let t = 0; t < 4; t++) { const seats = (bowlStates[t] && bowlStates[t].seats) || {}; for (let i = 0; i < 4; i++) { const s = seats[i]; if (s && s.pid === myId && !(bowlLeft && bowlLeft.t === t && bowlLeft.i === i) && Date.now() - (s.ts || 0) <= 25000) { bowlSeatT = t; bowlSeatI = i; bowlSeatPos = BOWLSEATS[t][i]; mySeatPos = bowlSeatPos; seatOD(bowlKey(t), i, true); return; } } }
+    return;
+  }
+  const s = bowlStates[bowlSeatT] && bowlStates[bowlSeatT].seats && bowlStates[bowlSeatT].seats[bowlSeatI];
+  if (!s || s.pid !== myId) { bowlSeatT = -1; bowlSeatI = -1; bowlSeatPos = null; mySeatPos = null; return; }
+  tblUpd(bowlKey(bowlSeatT) + "/seats/" + bowlSeatI, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* full-identity heartbeat, exactly as the pool hall seats */
+}
+/* ---- betting: the casino ladder and the READY gate (the pool hall's own functions, carried over) ---- */
+function bowlBet(amt) {
+  const st = bowlSeatT >= 0 ? bowlStates[bowlSeatT] : null, mine = myBowlSeatRec();
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteBowl("🔒 Playing takes an account — guests can watch."); return; }
+  const prev = mine.bet || 0;
+  if (prev === amt) return;
+  if (!profile || (profile.chips || 0) + prev < amt) { noteBowl("Not enough chips for that bet."); return; }
+  if (prev) addChips(prev);
+  addChips(-amt);
+  if (!st.firstBetTs) tblUpd(bowlKey(bowlSeatT), { firstBetTs: Date.now() });
+  tblUpd(bowlKey(bowlSeatT) + "/seats/" + bowlSeatI, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
+  mine.bet = amt;
+  armRefundOD(bowlKey(bowlSeatT), bowlSeatI, amt);
+  sfxClick();
+}
+function bowlReady() {
+  const st = bowlSeatT >= 0 ? bowlStates[bowlSeatT] : null, mine = myBowlSeatRec();
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteBowl("🔒 Playing takes an account — guests can watch."); return; }
+  if (!(mine.bet > 0)) return;
+  const nr = !mine.rdy;
+  tblUpd(bowlKey(bowlSeatT) + "/seats/" + bowlSeatI, { rdy: nr, ts: Date.now() });
+  mine.rdy = nr;
+  sfxClick();
+}
+/* ---- the finish: totals off the rolls, the pot to the winner, claims written the same moment (the pool hall rule) ---- */
+function bowlFinishGame(t, st, forcedWinner) {
+  if (!st || st.phase !== "play") return;
+  const key = bowlKey(t), players = st.players || [], pot = st.pot || 0;
+  const totals = {}; players.forEach(i => { totals[i] = bowlScorecard((st.rolls && st.rolls[i]) || []).total; });
+  let winners;
+  if (forcedWinner >= 0 && players.indexOf(forcedWinner) >= 0) winners = [forcedWinner];
+  else { const best = Math.max.apply(null, players.map(i => totals[i])); winners = players.filter(i => totals[i] === best); }
+  const results = {};
+  players.forEach(i => { results[i] = { amt: 0 }; });
+  if (winners.length === 1) results[winners[0]] = { amt: pot };
+  else winners.forEach(i => { results[i] = { amt: (st.seats && st.seats[i] && st.seats[i].bet) || 0 }; }); /* a tie for first: the tied players' bets come back (the boxing draw) */
+  tblUpd(key, { phase: "done", results, totals, doneTs: Date.now(), rolling: false, shotBy: null, shotTs: null, live: null });
+  writeClaims(st.seats, results, i => key + "m" + st.matchId + "-" + i, "🎳 Bowling winnings");
+}
+/* ---- the host tick: node care, the start gate, forfeits, the rematch recycle ---- */
+function bowlHostTick(t) {
+  const key = bowlKey(t);
+  let st = bowlStates[t];
+  if (!db) return;
+  if (!st) { tblSet(key, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() }); return; }
+  if (["bet", "play", "done"].indexOf(st.phase) < 0) { tblSet(key, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() }); return; } /* a foreign-shaped node soft-locks the lane forever — any visitor resets it (the casino rule) */
+  tableIdleClear(key, st, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() });
+  st = bowlStates[t]; if (!st) return;
+  const seats = st.seats || {};
+  const freshIdx = [0, 1, 2, 3].filter(i => bowlFresh(seats[i]));
+  if (!freshIdx.length || seats[freshIdx[0]].pid !== myId) return; /* the lowest fresh seat's client hosts — everyone else's tick stops here */
+  if (st.phase === "bet") {
+    /* reap husk chairs (stale or pid-less) — a stake still riding on one goes back through the rf rail first (never-lose net) */
+    const upd = {}; let changed = false;
+    [0, 1, 2, 3].forEach(i => { const s = seats[i]; if (s && !bowlFresh(s)) { if (s.bet > 0 && s.pid) writeClaim(claimUid(s), rfKeyFor(key, st, i), s.bet, "↩️ Bet returned"); upd[i] = null; changed = true; } });
+    if (changed) tblUpd(key + "/seats", upd);
+    /* the start gate: at least two fresh seated players, MATCHED bets, all of them READY */
+    const ready = freshIdx.filter(i => (seats[i].bet || 0) > 0 && seats[i].rdy);
+    if (ready.length >= 2 && ready.every(i => seats[i].bet === seats[ready[0]].bet)) {
+      const betAmt = seats[ready[0]].bet, players = ready.slice().sort((a, b) => a - b);
+      freshIdx.forEach(i => { if (players.indexOf(i) < 0 && (seats[i].bet || 0) > 0) { writeClaim(claimUid(seats[i]), rfKeyFor(key, st, i), seats[i].bet, "↩️ Bet returned"); tblUpd(key + "/seats/" + i, { bet: 0, rdy: false }); } }); /* a staked chair that is not part of this game never consented to it — its bet comes back through the rail and its stake clears */
+      const rolls = {}; players.forEach(i => { rolls[i] = []; });
+      tblUpd(key, { phase: "play", players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
+    }
+    return;
+  }
+  if (st.phase === "play") {
+    const players = st.players || [];
+    const active = players.filter(i => bowlFresh(seats[i]));
+    if (active.length === 1) { bowlFinishGame(t, st, active[0]); return; } /* everyone else has left: the last player standing takes the pot (the pool hall forfeit rule) */
+    if (active.length > 1) {
+      if (st.rolling && st.shotTs && Date.now() - st.shotTs > 20000 && !bowlFresh(seats[st.shotBy])) { tblUpd(key, { rolling: false, shotBy: null, shotTs: null, live: null }); return; } /* the thrower vanished mid-roll: the ball never landed — clear the roll, the turn stands */
+      if (!st.rolling && active.indexOf(st.turnSeat) < 0) { /* the player to throw has left: their frame is skipped, scoring 0 for its balls */
+        const nx = bowlAfterFrame(st);
+        if (nx.over) bowlFinishGame(t, st, -1);
+        else tblUpd(key, { frame: nx.frame, turnSeat: nx.turnSeat, ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
+      }
+    }
+    return;
+  }
+  if (st.phase === "done" && st.doneTs && Date.now() - st.doneTs > 3500) { /* the rematch recycle: everyone stays seated, bets and READY clear (the pool hall's) */
+    const upd = {}; [0, 1, 2, 3].forEach(i => { if (seats[i]) upd[i] = Object.assign({}, seats[i], { bet: 0, rdy: false }); });
+    tblSet(key, { phase: "bet", seats: upd, matchId: newRoundId(), ts: Date.now() });
+  }
+}
+/* ---- the throw: the pool hall's pull-back, carried to a lane — drag back from the ball to set the line and the power, release to roll ---- */
+function bowlMyTurn() { const st = bowlSeatT >= 0 ? bowlStates[bowlSeatT] : null; return !!(st && st.phase === "play" && !st.rolling && !bowlSim && st.turnSeat === bowlSeatI && (st.players || []).indexOf(bowlSeatI) >= 0); }
+function bowlAimBegin(e) {
+  if (!bowlMyTurn()) return false;
+  const r = cv.getBoundingClientRect(), wx = (e.clientX - r.left) / SCALE + camX, wy = (e.clientY - r.top) / SCALE + camY;
+  const L = BOWLLANES[bowlSeatT];
+  if (wx < L.x - 90 || wx > L.x + L.w + 90 || wy < L.y - 90 || wy > L.y + L.h + 90) return false; /* the press must land on (or just around) my lane — the pool hall aim's own bound */
+  bowlAim = { id: e.pointerId, t: bowlSeatT, x: wx, y: wy };
+  return true;
+}
+function bowlAimMove(e) { if (!bowlAim || e.pointerId !== bowlAim.id) return; const r = cv.getBoundingClientRect(); bowlAim.x = (e.clientX - r.left) / SCALE + camX; bowlAim.y = (e.clientY - r.top) / SCALE + camY; }
+function bowlAimDirPow() { /* from the ball's spot at the foul line, the pool hall's pull-back maths word for word */
+  const bx = BOWLCX(bowlSeatT), by = BOWL_FOUL_Y;
+  let dx = bx - bowlAim.x, dy = by - bowlAim.y; const d = Math.hypot(dx, dy);
+  if (d < 1) return { dx: 0, dy: -1, pow: 0 };
+  dx /= d; dy /= d;
+  return { dx, dy, pow: Math.max(0, Math.min(1, (d - 30) / 300)) };
+}
+function bowlAimRelease() {
+  if (!bowlAim) return;
+  const a = bowlAimDirPow(); bowlAim = null;
+  if (!bowlMyTurn()) return;
+  if (a.pow <= 0.03 || a.dy > -0.2) return; /* a throw must actually travel up the lane */
+  bowlShoot(a);
+}
+function bowlShoot(a) {
+  const t = bowlSeatT, st = bowlStates[t], cx = BOWLCX(t);
+  const startX = cx + Math.max(-62, Math.min(62, a.dx * 90)); /* the pull's sideways lean sets the ball's line */
+  bowlSim = { t, x: startX, y: BOWL_FOUL_Y, vx: a.dx * 340, vy: -(640 + a.pow * 1020), rack: (st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]).slice(), lastPub: 0, gutter: false };
+  tblUpd(bowlKey(t), { rolling: true, shotBy: bowlSeatI, shotTs: Date.now(), live: { x: Math.round(startX * 10) / 10, y: BOWL_FOUL_Y, rack: bowlSim.rack } });
+  sfxBowlRoll();
+}
+function bowlKnockPins(sim, first) { /* the simple believable pin model: the struck pin falls, and every standing pin within a pin's reach of a falling one falls in a chain, likelier the faster the ball is travelling */
+  const cx = BOWLCX(sim.t), speedF = Math.max(0.45, Math.min(1, Math.abs(sim.vy) / 1100));
+  const seen = {}; seen[first] = true; const queue = [first]; let fell = 0;
+  while (queue.length) {
+    const i = queue.shift(); if (!sim.rack[i]) continue;
+    sim.rack[i] = 0; fell++;
+    const p = bowlPinPos(cx, i);
+    for (let j = 0; j < 10; j++) { if (!sim.rack[j] || seen[j]) continue; const q = bowlPinPos(cx, j); if (Math.hypot(p.x - q.x, p.y - q.y) <= 64 && Math.random() < 0.18 + 0.78 * speedF) { seen[j] = true; queue.push(j); } }
+  }
+  if (fell > 0) sfxBowlPins(fell);
+}
+function bowlFrameStep(dt) {
+  if (!bowlSim) return;
+  const sim = bowlSim, st = bowlStates[sim.t];
+  if (!st || st.phase !== "play" || st.turnSeat !== bowlSeatI) { bowlSim = null; return; } /* my turn ended another way (a host skip, a reset) — the local ball goes away */
+  const cx = BOWLCX(sim.t);
+  let rem = Math.min(dt, 0.05);
+  const sub = 1 / 240;
+  while (rem > 0) {
+    const h = Math.min(sub, rem); rem -= h;
+    sim.x += sim.vx * h; sim.y += sim.vy * h;
+    sim.vy *= (1 - 0.10 * h); sim.vx *= (1 - 0.35 * h); /* rolling resistance */
+    if (!sim.gutter && Math.abs(sim.x - cx) > 76 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true; /* past the lane's edge the ball drops into the gutter and runs straight to the pit, touching nothing */
+    if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 88; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
+    else if (sim.y < 580) {
+      for (let i = 0; i < 10; i++) {
+        if (!sim.rack[i]) continue;
+        const p = bowlPinPos(cx, i);
+        if (Math.hypot(sim.x - p.x, sim.y - p.y) < 28) { bowlKnockPins(sim, i); sim.vx += (p.x - sim.x) * 1.4; sim.vy *= 0.88; }
+      }
+    }
+    if (sim.y < 306 || Math.abs(sim.vy) < 30) { bowlFinishThrow(); return; }
+  }
+  const now = performance.now();
+  if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack } }); } /* followers watch the ball and the pins off the live snapshot, the pool hall's streaming pattern */
+}
+function bowlFinishThrow() {
+  const sim = bowlSim; bowlSim = null;
+  const t = sim.t, st = bowlStates[t];
+  if (!st || st.phase !== "play") return;
+  const standingBefore = (st.rack || []).reduce((a, b) => a + b, 0), standingAfter = sim.rack.reduce((a, b) => a + b, 0);
+  const knocked = Math.max(0, standingBefore - standingAfter);
+  const rolls = {}; Object.keys(st.rolls || {}).forEach(k => { rolls[k] = (st.rolls[k] || []).slice(); });
+  rolls[bowlSeatI] = (rolls[bowlSeatI] || []).concat([knocked]);
+  const adv = bowlAdvance(Object.assign({}, st, { rolls }), standingAfter);
+  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack };
+  tblUpd(bowlKey(t), upd);
+  if (adv.over) bowlFinishGame(t, Object.assign({}, st, upd), -1); /* the last ball of the game: the thrower writes the decision and the claims, the pool hall rule */
+}
+/* ---- drawing the alley ---- */
+function drawBowlBall(x, y) {
+  const bg = ctx.createRadialGradient(x - 5, y - 6, 2, x, y, 16);
+  bg.addColorStop(0, "#4c2a85"); bg.addColorStop(1, "#120826");
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(x, y, 15, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(192,132,252,0.7)"; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = "#0a0518";
+  ctx.beginPath(); ctx.arc(x - 3, y - 4, 2.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 4, y - 5, 2.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 1, y + 2, 2.6, 0, 7); ctx.fill();
+}
+function drawBowlPin(x, y, standing) {
+  if (standing) {
+    ctx.fillStyle = "#f4f6ff"; ctx.beginPath(); ctx.arc(x, y, 13, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(120,40,160,0.55)"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = "#e23744"; ctx.fillRect(x - 8, y - 6, 16, 3); ctx.fillRect(x - 8.5, y - 1, 17, 3); /* the red neck stripes */
+    ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.beginPath(); ctx.arc(x - 4, y - 5, 3, 0, 7); ctx.fill();
+  } else { /* a fallen pin lies tipped at the back of the deck, faint — pins that fall stay down for the frame's second ball */
+    ctx.save(); ctx.translate(x, y + 8); ctx.rotate(1.35); ctx.globalAlpha = 0.30;
+    ctx.fillStyle = "#c9cede"; rr(-5, -13, 10, 26, 5); ctx.fill();
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+}
+function drawBowlScreen(tt, st) {
+  const S = BOWLSCREENS[tt];
+  ctx.fillStyle = "rgba(6,8,20,0.95)"; rr(S.x, S.y, S.w, S.h, 14); ctx.fill();
+  ctx.strokeStyle = "rgba(168,85,247,0.75)"; ctx.lineWidth = 2.5; rr(S.x, S.y, S.w, S.h, 14); ctx.stroke();
+  ctx.textAlign = "left"; ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("LANE " + (tt + 1), S.x + 14, S.y + 29);
+  ctx.textAlign = "right"; ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7ee7ff";
+  const status = !st ? "OPEN" : st.phase === "bet" ? "PLACE BETS" : st.phase === "play" ? "FRAME " + (st.frame || 1) + " / 10" : "GAME OVER";
+  ctx.fillText(status, S.x + S.w - 14, S.y + 29);
+  ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 12, S.y + 40); ctx.lineTo(S.x + S.w - 12, S.y + 40); ctx.stroke();
+  const seats = (st && st.seats) || {};
+  const rows = !st ? [] : st.phase === "bet" ? [0, 1, 2, 3].filter(i => bowlFresh(seats[i])) : (st.players || []);
+  if (!rows.length) {
+    ctx.textAlign = "center"; ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(210,220,240,0.55)";
+    ctx.fillText("— open lane —", S.x + S.w / 2, S.y + 108);
+  }
+  rows.forEach((i, r) => {
+    const s = seats[i] || {}, y = S.y + 66 + r * 27, mine = s.pid === myId;
+    const gone = st && st.phase !== "bet" && !bowlFresh(s);
+    ctx.textAlign = "left"; ctx.font = "700 13px 'Segoe UI',sans-serif";
+    ctx.fillStyle = gone ? "rgba(160,165,180,0.6)" : (st && st.phase === "play" && st.turnSeat === i ? "#ffd76a" : "#eaf6ff");
+    let nm = String(s.name || "—"); if (nm.length > 10) nm = nm.slice(0, 10);
+    ctx.fillText((st && st.phase === "play" && st.turnSeat === i ? "▸ " : "") + nm, S.x + 10, y);
+    if (!st || st.phase === "bet") {
+      ctx.textAlign = "right"; ctx.font = "700 13px 'Segoe UI',sans-serif";
+      ctx.fillStyle = s.rdy ? "#7dffb0" : "#ffe9a8";
+      ctx.fillText(s.bet > 0 ? "🪙 " + Number(s.bet).toLocaleString("en-US") + (s.rdy ? " · READY ✓" : " · …") : "no bet", S.x + S.w - 12, y);
+    } else {
+      const rolls = (st.rolls && st.rolls[i]) || [], card = bowlScorecard(rolls), done = bowlFramesComplete(rolls);
+      for (let f = 0; f < 10; f++) {
+        const bx = S.x + 96 + f * 13;
+        ctx.fillStyle = "rgba(20,16,44,0.9)"; ctx.fillRect(bx, y - 12, 12, 16);
+        ctx.strokeStyle = st.frame === f + 1 && st.phase === "play" ? "rgba(56,225,255,0.8)" : "rgba(140,120,200,0.4)"; ctx.lineWidth = 1; ctx.strokeRect(bx, y - 12, 12, 16);
+        ctx.textAlign = "center"; ctx.font = "700 8.5px 'Segoe UI',sans-serif"; ctx.fillStyle = f < done ? "#eaf6ff" : "rgba(200,205,225,0.45)";
+        ctx.fillText(f < done ? bowlFrameMarks(rolls, f + 1) : "·", bx + 6, y);
+      }
+      ctx.textAlign = "right"; ctx.font = "800 14px 'Segoe UI',sans-serif"; ctx.fillStyle = mine ? "#ffd76a" : "#eaf6ff";
+      ctx.fillText(String(st.phase === "done" && st.totals && typeof st.totals[i] === "number" ? st.totals[i] : card.total), S.x + S.w - 10, y);
+    }
+  });
+  ctx.textAlign = "center"; ctx.font = "700 12.5px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.75)";
+  if (st && st.phase === "play") ctx.fillText("POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), S.x + S.w / 2, S.y + S.h - 12);
+  else if (st && st.phase === "done" && st.results) { const w = Object.keys(st.results).filter(k => st.results[k].amt > 0); ctx.fillText(w.length ? "🏆 " + w.map(k => (st.seats && st.seats[k] && st.seats[k].name) || "—").join(" · ") : "", S.x + S.w / 2, S.y + S.h - 12); }
+  else if (st && st.phase === "bet") ctx.fillText("matched bets · 2+ READY to start", S.x + S.w / 2, S.y + S.h - 12);
+}
+function drawBowlLane(tt, t) {
+  const st = bowlStates[tt], L = BOWLLANES[tt], cx = BOWLCX(tt);
+  drawBowlScreen(tt, st);
+  /* the pin deck, the lane boards and the gutters */
+  ctx.fillStyle = "#1c0f38"; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(168,85,247,0.4)"; ctx.lineWidth = 2; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.stroke();
+  ctx.fillStyle = "#2a1052"; ctx.fillRect(L.x, L.y, L.w, L.h); /* the gutters */
+  const wg = ctx.createLinearGradient(0, L.y, 0, L.y + L.h);
+  wg.addColorStop(0, "#7a4d24"); wg.addColorStop(1, "#5b3a1a");
+  ctx.fillStyle = wg; ctx.fillRect(cx - 75, L.y, 150, L.h); /* the boards */
+  ctx.strokeStyle = "rgba(0,0,0,0.20)"; ctx.lineWidth = 1;
+  for (let bx = cx - 60; bx < cx + 75; bx += 15) { ctx.beginPath(); ctx.moveTo(bx, L.y); ctx.lineTo(bx, L.y + L.h); ctx.stroke(); }
+  ctx.fillStyle = "rgba(255,240,210,0.5)"; /* the lane arrows, pointing at the pins */
+  [-48, -24, 0, 24, 48].forEach(dx => { const ay = 1130 + Math.abs(dx) * 1.6; ctx.beginPath(); ctx.moveTo(cx + dx, ay - 16); ctx.lineTo(cx + dx + 6, ay + 8); ctx.lineTo(cx + dx - 6, ay + 8); ctx.closePath(); ctx.fill(); });
+  ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx - 75, BOWL_FOUL_Y + 30); ctx.lineTo(cx + 75, BOWL_FOUL_Y + 30); ctx.stroke(); /* the foul line */
+  /* pins: the live snapshot while a ball is rolling on someone else's screen, my own simulation on mine, the record's rack at rest */
+  let rack;
+  if (bowlSim && bowlSim.t === tt) rack = bowlSim.rack;
+  else if (st && st.rolling && st.live && st.live.rack) rack = st.live.rack;
+  else if (st && st.phase !== "bet" && st.rack) rack = st.rack;
+  else rack = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+  for (let i = 9; i >= 0; i--) { const p = bowlPinPos(cx, i); drawBowlPin(p.x, p.y, !!rack[i]); }
+  /* the ball: my simulation, a follower's live snapshot, or resting at the foul line on the next throw */
+  if (bowlSim && bowlSim.t === tt) drawBowlBall(bowlSim.x, bowlSim.y);
+  else if (st && st.rolling && st.live) drawBowlBall(st.live.x, st.live.y);
+  else if (st && st.phase === "play") drawBowlBall(cx, BOWL_FOUL_Y);
+  /* my aim: the dashed line up the lane and the power meter by the ball (the pool hall's guide, carried over) */
+  if (bowlAim && bowlAim.t === tt && bowlMyTurn()) {
+    const a = bowlAimDirPow();
+    ctx.save(); ctx.setLineDash([8, 8]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx + Math.max(-62, Math.min(62, a.dx * 90)), BOWL_FOUL_Y); ctx.lineTo(cx + a.dx * 620, BOWL_FOUL_Y - 620 * Math.max(0.3, -a.dy)); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = "rgba(8,10,24,0.8)"; rr(cx - 42, BOWL_FOUL_Y + 26, 84, 12, 6); ctx.fill();
+    ctx.fillStyle = a.pow > 0.75 ? "#ff5d5d" : a.pow > 0.4 ? "#ffd76a" : "#7dffb0"; rr(cx - 40, BOWL_FOUL_Y + 28, 80 * a.pow, 8, 4); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("🎳 your throw — pull back to aim, release to roll", cx, BOWL_FOUL_Y + 66);
+  } else if (bowlMyTurn() && bowlSeatT === tt) {
+    ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("🎳 your throw — pull back on the lane to aim, release to roll", cx, BOWL_FOUL_Y + 66);
+  }
+  /* the chairs, the pool hall's own chair drawing at this lane's south end */
+  BOWLSEATS[tt].forEach((s, i) => {
+    const occ = bowlFresh(st && st.seats ? st.seats[i] : null);
+    if (!occ && bowlSeatT < 0 && me.scene === "bowling" && bowlNearLane() === tt) uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => bowlSitAt(tt, i) });
+    ctx.fillStyle = occ ? "#ffd76a" : "#2a1052";
+    ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = occ ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", s.x, s.y + 7);
+    if (occ && st.seats[i].chips !== undefined) {
+      const txt = "🪙 " + Number(st.seats[i].chips || 0).toLocaleString("en-US");
+      ctx.font = "700 19px 'Segoe UI',sans-serif";
+      const w = ctx.measureText(txt).width + 22;
+      ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(s.x - w / 2, s.y + 40, w, 30, 15); ctx.fill();
+      ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(s.x - w / 2, s.y + 40, w, 30, 15); ctx.stroke();
+      ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, s.x, s.y + 62);
+    }
+  });
+}
+function drawBowlPanel(t) {
+  if (bowlSeatT < 0) return;
+  const st = bowlStates[bowlSeatT], mine = myBowlSeatRec();
+  if (!st || !mine) return;
+  const cx = BOWLCX(bowlSeatT), P = { x: cx - 280, y: 1790, w: 560, h: 156 };
+  ctx.fillStyle = "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16); ctx.fill();
+  ctx.strokeStyle = "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16); ctx.stroke();
+  ctx.textAlign = "center";
+  if (st.phase === "bet") {
+    ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("LANE " + (bowlSeatT + 1) + " — YOUR BET: " + (mine.bet > 0 ? "🪙 " + Number(mine.bet).toLocaleString("en-US") : "none yet"), cx, P.y + 30);
+    CH_BETS.forEach((amt, k) => {
+      const bx = P.x + 13 + (k % 6) * 90, by = P.y + 44 + Math.floor(k / 6) * 36, sel = mine.bet === amt;
+      ctx.fillStyle = sel ? "#ffd76a" : "rgba(42,16,82,0.95)"; rr(bx, by, 84, 30, 9); ctx.fill();
+      ctx.strokeStyle = sel ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 1.5; rr(bx, by, 84, 30, 9); ctx.stroke();
+      ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = sel ? "#241a08" : "#e9d5ff";
+      ctx.fillText(amt >= 1000 ? (amt / 1000) + "k" : String(amt), bx + 42, by + 20);
+      uiZones.push({ x: bx, y: by, w: 84, h: 30, fn: () => bowlBet(amt) });
+    });
+    const ry = P.y + 116;
+    ctx.fillStyle = mine.bet > 0 ? (mine.rdy ? "#1d5c33" : "#3b1470") : "rgba(40,40,55,0.9)"; rr(P.x + 13, ry, P.w - 26, 32, 9); ctx.fill();
+    ctx.strokeStyle = mine.rdy ? "#7dffb0" : "rgba(192,132,252,0.6)"; ctx.lineWidth = 1.5; rr(P.x + 13, ry, P.w - 26, 32, 9); ctx.stroke();
+    ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = mine.bet > 0 ? "#eaf6ff" : "rgba(220,220,230,0.5)";
+    ctx.fillText(mine.bet > 0 ? (mine.rdy ? "✓ READY — tap to unready" : "✔ READY — start when 2+ match bets and ready up") : "place a bet first", cx, ry + 21);
+    uiZones.push({ x: P.x + 13, y: ry, w: P.w - 26, h: 32, fn: () => bowlReady() });
+  } else if (st.phase === "play") {
+    const card = bowlScorecard((st.rolls && st.rolls[bowlSeatI]) || []);
+    const turnSeat = st.seats && st.seats[st.turnSeat];
+    ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("FRAME " + (st.frame || 1) + " / 10 · POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), cx, P.y + 34);
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+    ctx.fillText(st.turnSeat === bowlSeatI ? "🎳 YOUR THROW — pull back on the lane, release to roll" : "🎳 " + ((turnSeat && turnSeat.name) || "…") + " to throw", cx, P.y + 72);
+    ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
+    ctx.fillText("Your score so far: " + card.total, cx, P.y + 106);
+  } else if (st.phase === "done") {
+    const myRes = st.results && st.results[bowlSeatI];
+    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("🎳 GAME OVER 🎳", cx, P.y + 40);
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+    ctx.fillText(myRes ? (myRes.amt > (mine.bet || 0) ? "You won 🪙 " + Number(myRes.amt).toLocaleString("en-US") + "!" : myRes.amt > 0 ? "A tie — your bet came back." : "Your final score: " + ((st.totals && st.totals[bowlSeatI]) || 0)) : "Final scores are on the lane screens.", cx, P.y + 78);
+    ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
+    ctx.fillText("Bets reset — stake again for a rematch.", cx, P.y + 112);
+  }
+}
+function drawBowling(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  /* floor and border: the Pool Hall's arcade floor in the alley's own colours — near-black violet, a purple grid, the purple-and-cyan double border */
+  ctx.fillStyle = "#0d0618"; ctx.fillRect(0, 0, BOWLROOM.w, BOWLROOM.h);
+  ctx.strokeStyle = "rgba(168,85,247,0.13)"; ctx.lineWidth = 2;
+  for (let gx = 0; gx <= BOWLROOM.w; gx += 84) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, BOWLROOM.h); ctx.stroke(); }
+  for (let gy = 0; gy <= BOWLROOM.h; gy += 84) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(BOWLROOM.w, gy); ctx.stroke(); }
+  ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, BOWLROOM.w - 8, BOWLROOM.h - 8);
+  ctx.strokeStyle = "rgba(56,225,255,0.22)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, BOWLROOM.w - 36, BOWLROOM.h - 36);
+  ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.save(); ctx.shadowColor = "rgba(168,85,247,0.85)"; ctx.shadowBlur = 16;
+  ctx.fillStyle = "#e9d5ff"; ctx.fillText("🎳 QUANTUM BOWLING 🎳", BOWLROOM.w / 2, 74); ctx.restore();
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.8)";
+  ctx.fillText("Sit at a lane — match the bet, tap READY. Ten frames, winner takes the pot.", BOWLROOM.w / 2, 106);
+  uiZones = [];
+  for (let tt = 0; tt < 4; tt++) drawBowlLane(tt, t);
+  drawBowlPanel(t);
+  drawTableFx(t, "bowling");
+  /* the note line, the pool hall note's twin */
+  if (bowlNote && performance.now() - bowlNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(bowlNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(bowlNote, me.x, me.y - 135);
+  }
+  /* the exit: the Arcade-style door at the south wall — a dark gap in the border and the gold floor plate reading PLAZA, drawn last so no panel ever covers it */
+  ctx.fillStyle = "#050914"; ctx.fillRect(BOWLEXIT.x - 6, BOWLROOM.h - 12, BOWLEXIT.w + 12, 12);
+  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
+  ctx.fillStyle = "#150b31"; rr(BOWLEXIT.x, BOWLEXIT.y, BOWLEXIT.w, BOWLEXIT.h, 11); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(BOWLEXIT.x, BOWLEXIT.y, BOWLEXIT.w, BOWLEXIT.h, 11); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("← PLAZA", BOWLEXIT.x + BOWLEXIT.w / 2, BOWLEXIT.y + 29);
+  ctx.restore();
+}
 /* ============ CASINO EXPANSION rooms (PREVIEW) ============ */
 let boxingBout = null; /* {seat} while MY bout is live: it frees the ring obstacle, clamps me inside the ropes, swaps RUN for the L/R punch buttons and locks the mech transform */
 /* ============ High Rollers Club tables: baccarat + craps (CASINO EXPANSION preview) ============
@@ -9006,7 +9627,8 @@ function drawPlaza(t) {
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
    [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [110, 800, 1.0], /* the tree that stood at (3100, 800) on the east walkway below the Horse Track was removed at Jonathan's word (2026-10-30) — the lamps line that path now */
    [150, 2050, 0.95], [3050, 2050, 1.0],
-   [500, 2380, 1.0], [1050, 2440, 0.9], [2150, 2420, 1.05], [2750, 2360, 0.95], [250, 2300, 0.9], [2950, 2310, 1.0], [1600, 2470, 0.85] /* the new southern ground from the 2026-10-29 plaza growth */
+   [500, 2380, 1.0], [1050, 2440, 0.9], [2150, 2420, 1.05], [2750, 2360, 0.95], [250, 2300, 0.9], [2950, 2310, 1.0], [1600, 2470, 0.85], /* the new southern ground from the 2026-10-29 plaza growth */
+   [3400, 2130, 1.0], [4040, 2130, 1.0] /* the two trees flanking Quantum Bowling (PREVIEW, Jonathan 2026-11-01): south of the building, symmetric about its own centre line (3720 ± 320), clear of the purple path, the pool and the building itself — appended, so every existing tree keeps its index and phase */
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
   function silhouette(b) {
@@ -9021,7 +9643,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawBowlingBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -10105,6 +10727,8 @@ function frame(now) {
     if (res.casinoexit) toPlazaFromCasino();
     if (res.gymdoor) toGym();
     if (res.gymexit) toPlazaFromGym();
+    if (res.bowldoor) toBowling();
+    if (res.bowlexit) toPlazaFromBowling();
     if (res.spddoor) toSpeedway();
     if (res.swexit) toPlazaFromSpeedway();
     if (res.clubexit) toPlazaFromClub();
@@ -10121,6 +10745,7 @@ function frame(now) {
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
+  if (me.scene === "bowling") bowlFrameStep(dt); /* the thrower's ball-and-pins physics runs here, on the thrower's client only (bowlFrameStep itself refuses everywhere else) */
   if (me.scene === "boxing") boxCpuFrame(dt); /* the CPU fighter's simulation runs here — on the HOST's screen only (boxCpuFrame itself refuses everywhere else): it moves, faces and punches the CPU, and publishes its body to the record for the room */
   boxMousePunchDriver(); /* the instant-glove driver runs every frame alongside the CPU sim — it self-gates to an active fight on a non-coarse pointer, so outside a desktop bout it costs nothing */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
@@ -10217,10 +10842,19 @@ function frame(now) {
     if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
     if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
   }
+  if (me.scene === "bowling" && bowlSeatT >= 0) {
+    /* seated at a lane the camera frames my whole lane — screen, pins, lane and chairs (the pool hall's seated framing, stretched to a lane's length) */
+    const cx = BOWLCX(bowlSeatT), f = { x: cx - 330, y: 96, w: 660, h: 1750 };
+    SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
+    camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
+    camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
+    if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+    if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
+  }
   if (fxPrevScene !== null && me.scene !== fxPrevScene) clearRoomFx(); /* a room change wipes every pending room effect — nothing earned in one room replays in the next */
   fxPrevScene = me.scene;
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else if (me.scene === "highrollers") drawHighRollers(now); else if (me.scene === "chess") drawChess(now); else if (me.scene === "boxing") drawBoxing(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else if (me.scene === "highrollers") drawHighRollers(now); else if (me.scene === "chess") drawChess(now); else if (me.scene === "boxing") drawBoxing(now); else if (me.scene === "bowling") drawBowling(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
@@ -10320,6 +10954,8 @@ function frame(now) {
   else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
   else if (me.scene === "poolhall" && phSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = phStandUp; }
   else if (me.scene === "poolhall" && phNearTable() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Pool Table"; promptAction = () => phTrySit(phNearTable()); }
+  else if (me.scene === "bowling" && bowlSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = bowlStandUp; }
+  else if (me.scene === "bowling" && bowlNearLane() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at a Bowling Lane"; promptAction = () => bowlTrySit(bowlNearLane()); }
   else if (me.scene === "chess" && chSeatT < 0 && chessNearBoard()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Board"; promptAction = chessTrySit; }
   else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrcNear("bac")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Baccarat"; promptAction = () => hrcTrySit("bac"); }
   else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrcNear("cra")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Craps"; promptAction = () => hrcTrySit("cra"); }
