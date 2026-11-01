@@ -292,14 +292,16 @@ const TONIC_HERO = 76, TONIC_UID = "Oc3C9sU3pUcOeMWtrXad0C6P78o2"; /* 7daytonic'
 const TONIC_MECH_HERO = 77; /* 7daytonic's Galaxy Mech (Jonathan 2026-10-31): his transform form — the galaxy mech art at hub-heroes/hero-077.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his own hero (76) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate, the art, and the smoke: his burst is a NORMAL BLUE (the owner's stays cyan, OnlineMoney's stays red) */
 const KEN_HERO = 78, KEN_UID = "tfKWAog69aNCnsh4BOPICKAXMN32"; /* Dj Ken's own hero (Jonathan 2026-11-01): the cosmic tuxedo shiba — his uploaded art at hub-heroes/hero-078.webp; offered as a picker cell ONLY under his sign-in, exactly like 71/73/76. His gate keys on the account UID, not an email, exactly like 7daytonic's (his uid was read off his live presence) */
 const KEN_MECH_HERO = 79; /* Dj Ken's Gentleman Mech (Jonathan 2026-11-01): his transform form — the blue-and-gold mech art at hub-heroes/hero-079.webp, the tuxedo shiba himself piloting it; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his own hero (78) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate, the art, and the smoke: his burst is GOLD (the owner's stays cyan, OnlineMoney's red, 7daytonic's a normal blue) */
-function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO || h === KEN_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
+const ROBO_HERO = 80; /* the owner's robo-dog (Jonathan 2026-11-01): the black-and-red robot dog with the gold star — his uploaded art at hub-heroes/hero-080.webp; offered as a picker cell ONLY under the owner sign-in (the same account gate as Owner QI), sitting IMMEDIATELY AFTER hero 71 in his picker — his second special pick */
+const ROBO_MECH_HERO = 81; /* the owner's dome mech (Jonathan 2026-11-01): his second transform form — the big red-and-black mech art at hub-heroes/hero-081.webp, the robo-dog himself piloting it inside the glass dome; never a picker cell, never saved to a profile; only his T transform wears it, and only while his robo-dog (80) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate (the owner account AND hero 80), the art, and the smoke: this pair's burst is RED (the DreadMech's stays cyan, OnlineMoney's red, 7daytonic's a normal blue, Dj Ken's gold) */
+function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO || h === KEN_MECH_HERO || h === ROBO_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
 function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
 function isKingAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === KING_EMAIL); }
 function isTonicAcct() { return !!(acctUser && acctUser.uid === TONIC_UID); }
 function isKenAcct() { return !!(acctUser && acctUser.uid === KEN_UID); } /* Dj Ken's gate: his account's uid, the same shape as 7daytonic's */ /* 7daytonic's gate: his account's uid, read off the signed-in account object the same way the email gates read its email */
-function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); if (n === KEN_HERO) return isKenAcct(); return n >= 1 && n <= 70; }
+function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === ROBO_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); if (n === KEN_HERO) return isKenAcct(); return n >= 1 && n <= 70; }
 const NPC_PID = "qbot-npc"; /* Q-Bot: server-driven NPC wandering the plaza roundabout; renders from presence like any player, but is never a voice peer and does not count as a person online */
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
@@ -600,14 +602,16 @@ function makeHeroCell(n, nm, g) {
 function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift). The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
   grid.innerHTML = "";
   HERO_NAMES.forEach((nm, i) => { const n = i + 1; if (pickedGender === "f" && FEMALE_MISSING[n]) return; grid.appendChild(makeHeroCell(n, nm, pickedGender)); });
-  ownerCells = []; kingCell = null; tonicCell = null; kenCell = null;
+  ownerCells = []; kingCell = null; tonicCell = null; kenCell = null; roboCell = null;
   syncOwnerCell();
 }
 /* the special heroes exist as picker cells ONLY for their own accounts, always FIRST in the grid, and each player still taps his own himself: hero 71 for the owner account, hero 73 (the king) for OnlineMoney's account — the two are never offered to the same sign-in */
-let ownerCells = [], kingCell = null, tonicCell = null, kenCell = null;
+let ownerCells = [], kingCell = null, tonicCell = null, kenCell = null, roboCell = null;
 function syncOwnerCell() {
   if (isOwnerAcct() && !ownerCells.length) { const c71 = makeHeroCell(OWNER_HERO, "Owner QI"); grid.insertBefore(c71, grid.firstChild); ownerCells = [c71]; }
   else if (!isOwnerAcct() && ownerCells.length) { ownerCells.forEach(c => c.remove()); ownerCells = []; if (pickedHero === OWNER_HERO) pickedHero = 0; }
+  if (isOwnerAcct() && !roboCell) { roboCell = makeHeroCell(ROBO_HERO, "Robo Dog"); grid.insertBefore(roboCell, ownerCells.length ? ownerCells[0].nextSibling : grid.firstChild); } /* the robo-dog sits IMMEDIATELY AFTER Owner QI in the owner's picker (Jonathan 2026-11-01: his second special pick) — the cell is anchored to the owner cell itself, so the order can never drift */
+  else if (!isOwnerAcct() && roboCell) { roboCell.remove(); roboCell = null; if (pickedHero === ROBO_HERO) pickedHero = 0; }
   if (isKingAcct() && !kingCell) { kingCell = makeHeroCell(KING_HERO, "King QI"); grid.insertBefore(kingCell, grid.firstChild); }
   else if (!isKingAcct() && kingCell) { kingCell.remove(); kingCell = null; if (pickedHero === KING_HERO) pickedHero = 0; }
   if (isTonicAcct() && !tonicCell) { tonicCell = makeHeroCell(TONIC_HERO, "7daytonic"); grid.insertBefore(tonicCell, grid.firstChild); }
@@ -618,14 +622,14 @@ function syncOwnerCell() {
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
 buildGrid();
-const HERO_TOTAL = 75;
+const HERO_TOTAL = 76;
 function heroLoaded() { loadedCount++; syncLoadLine(); checkEnter(); }
 function heroLoadedF() { femaleLoadedCount++; syncLoadLine(); checkEnter(); }
-function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 75 (70 grid + the 5 special preloads) in male mode, the 68 female cells in female mode */
+function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 76 (70 grid + the 6 special preloads) in male mode, the 68 female cells in female mode */
   if (pickedGender === "f") loadLine.textContent = femaleLoadedCount >= FEMALE_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + femaleLoadedCount + "/" + FEMALE_TOTAL;
   else loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL;
 }
-[71, 72, 73, 76, 78].forEach(n => {
+[71, 72, 73, 76, 78, 80].forEach(n => {
   const im = new Image();
   im.onload = () => { heroImgs[n] = im; heroLoaded(); };
   im.onerror = () => { heroLoaded(); };
@@ -682,7 +686,7 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : (v.hero === ROBO_MECH_HERO || p.hero === ROBO_MECH_HERO) ? "red" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech, GOLD when it involves Dj Ken's gentleman mech, RED again when it involves the owner's dome mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
       else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
@@ -700,7 +704,7 @@ function publish(force) {
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
-  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77, and Dj Ken's gentleman mech as 79 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77, and Dj Ken's gentleman mech as 79, and the owner's dome mech as 81 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   myRef.set(rec).catch(() => {});
 }
@@ -1096,6 +1100,7 @@ let mechForm = false, mechCdUntil = 0; /* the owner's mech transform (Jonathan 2
 let kingMechForm = false; /* OnlineMoney's king mech transform: the same session-only shape, hanging off his King QI avatar; it shares the 3s cooldown clock above — only one account is ever signed in on a client, so the two forms never contend for it */
 let tonicMechForm = false; /* 7daytonic's galaxy mech transform: the same session-only shape again, hanging off his own hero (76); it shares the same 3s cooldown clock for the same reason */
 let kenMechForm = false; /* Dj Ken's gentleman mech transform: the same session-only shape again, hanging off his own hero (78); it shares the same 3s cooldown clock for the same reason */
+let roboMechForm = false; /* the owner's dome mech transform: the same session-only shape again, hanging off his robo-dog (80) on his own account; it shares the same 3s cooldown clock for the same reason */
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
 const CLUB = { x: 140, y: 1180, w: 420, h: 300 };
@@ -1543,7 +1548,7 @@ function enterHub() {
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
-  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct())) return;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct())) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ You're already signed in in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr;
@@ -1832,7 +1837,7 @@ function initAuth() {
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === ROBO_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
           syncOwnerCell(); syncHeroSel();
@@ -1980,11 +1985,23 @@ function toggleKenMech() { /* Dj Ken's swap (Jonathan 2026-11-01): the DreadMech
   publish(true);
   syncTBtn();
 }
+function toggleRoboMech() { /* the owner's robo-dog swap (Jonathan 2026-11-01): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — with a RED burst and the dome mech form. It hangs off his robo-dog (80) on his own account (the same gate as Owner QI): any other hero selected and his T drives the DreadMech instead, exactly as before */
+  if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the others */
+  if (me.hero !== ROBO_HERO) return;
+  const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
+  mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
+  roboMechForm = !roboMechForm;
+  spawnSmoke(me.x, me.y, me.scene, "red"); /* RED smoke — this pair's colour */
+  sfxSwap();
+  publish(true);
+  syncTBtn();
+}
 function toggleMech() {
   if (!entered) return;
   if (isKingAcct()) { toggleKingMech(); return; } /* OnlineMoney's T drives his king mech, never the owner's */
   if (isTonicAcct()) { toggleTonicMech(); return; } /* 7daytonic's T drives his galaxy mech, never the others' */
   if (isKenAcct()) { toggleKenMech(); return; } /* Dj Ken's T drives his gentleman mech, never the others' */
+  if (isOwnerAcct() && me.hero === ROBO_HERO) { toggleRoboMech(); return; } /* the owner's T while his robo-dog (80) is selected drives the dome mech — with any other hero selected his T drives the DreadMech below, exactly as before */
   if (!isOwnerAcct()) return;
   if (boxingBout) return; /* no transforming mid-bout (Jonathan 2026-10-31): entering the arena untransforms you and the T button is gone until the bout ends */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
@@ -3253,7 +3270,7 @@ function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc
 /* ---- general fx: the same coin bursts and floating texts, but painted by frame()'s actor pass in EVERY scene (Jonathan 2026-10-30: the send-tokens receive animation only showed in the casino, because the room pool above is drawn solely by the casino/gym/track scene draws). Entries carry their origin scene and paint only while the player is still in it — the room pool's leak lock — and casino win fx keep using the room pool exactly as before; this list is for effects that belong to the PLAYER, not the room. ---- */
 let genParts = [], genTexts = [];
 let smokeParts = []; /* cyan transform smoke (Jonathan 2026-10-31): world-space puffs with a scene tag, painted by drawGenFx with the other player fx */
-function spawnSmoke(x, y, sc, col) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: col === true || col === "red", blue: col === "blue", gold: col === "gold" }); } } /* the burst is cyan by default (the owner's DreadMech); col=true paints OnlineMoney's king mech burst red, col="blue" paints 7daytonic's galaxy mech burst a normal blue, col="gold" paints Dj Ken's gentleman mech burst gold — same count, size, timing and motion either way (Jonathan 2026-10-31) */
+function spawnSmoke(x, y, sc, col) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: col === true || col === "red", blue: col === "blue", gold: col === "gold" }); } } /* the burst is cyan by default (the owner's DreadMech); col=true paints OnlineMoney's king mech burst red, col="blue" paints 7daytonic's galaxy mech burst a normal blue, col="gold" paints Dj Ken's gentleman mech burst gold, col="red" paints the owner's dome mech burst red — same count, size, timing and motion either way (Jonathan 2026-10-31) */
 function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
 function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
 /* ============ seat bet displays, painted OVER the sprites (Jonathan 2026-10-31) ============
@@ -5039,6 +5056,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   if (isMe && kingMechForm) hero = KING_MECH_HERO; /* the same landing for OnlineMoney's king mech on his own screen */
   if (isMe && tonicMechForm) hero = TONIC_MECH_HERO; /* the same landing for 7daytonic's galaxy mech on his own screen */
   if (isMe && kenMechForm) hero = KEN_MECH_HERO; /* the same landing for Dj Ken's gentleman mech on his own screen */
+  if (isMe && roboMechForm) hero = ROBO_MECH_HERO; /* the same landing for the owner's dome mech on his own screen */
   if (isMechHero(hero)) gender = "m"; /* the mechs live on the male track whatever the wearer's picker gender */
   const img = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
   if (!img) { ensureHero(hero, gender);
@@ -7139,6 +7157,7 @@ function boxPhaseWatch() {
     if (kingMechForm) { kingMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, true); sfxSwap(); } /* the king mech stays at the door too — OnlineMoney steps into the ring as King QI, trailing RED smoke */
     if (tonicMechForm) { tonicMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "blue"); sfxSwap(); } /* the galaxy mech stays at the door too — 7daytonic steps into the ring as his hero, trailing BLUE smoke */
     if (kenMechForm) { kenMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "gold"); sfxSwap(); } /* the gentleman mech stays at the door too — Dj Ken steps into the ring as his hero, trailing GOLD smoke */
+    if (roboMechForm) { roboMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "red"); sfxSwap(); } /* the dome mech stays at the door too — the owner steps into the ring as his robo-dog, trailing RED smoke */
     boxingBout = { seat: boxSeat };
     tblUpd("box/seats/" + boxSeat, { rdy: false });
     mySeatPos = null; /* off the chair, into the ring */
@@ -9644,7 +9663,7 @@ function frame(now) {
   if (sprinting && !wading && now - dustAt > 65) {
     dustAt = now;
     dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 14, y: me.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 });
-    if (mechForm || kingMechForm || tonicMechForm || kenMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's and the galaxy mech's running dust mirror it (regular dust — red is only the king mech's transform burst) */
+    if (mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's and the galaxy mech's running dust mirror it (regular dust — red is only the king mech's transform burst) */
   }
   if (wading && me.moving && now - splashAt > 130) { /* a step in the water throws droplets and a ring, walking or running */
     splashAt = now;
