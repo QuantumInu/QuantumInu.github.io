@@ -132,7 +132,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .gfxseg:first-child{border-left:none}
 .gfxseg.sel{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800}
 #cancelbtn{margin:-8px 0 26px;background:none;border:1px solid rgba(255,255,255,.3);color:#cfeaff;border-radius:999px;padding:9px 24px;font-size:14px;cursor:pointer;display:none}
-@media (max-width:520px){#topbar{gap:4px;padding:0 5px;overflow:hidden}#topbar .back{font-size:11px}#topbar h1{font-size:11.5px}#status{display:none}.chip{padding:3px 6px;font-size:10.5px}#prompt{font-size:12.5px;padding:8px 14px;white-space:nowrap}}
+@media (max-width:520px){#topbar{gap:3px;padding:0 5px;overflow:hidden}#topbar .back{font-size:11px;flex:none}#topbar h1{font-size:10.5px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}#status{display:none}.chip{padding:3px 5px;font-size:10.5px}#online,#chipspill,#mutebtn,#changebtn{flex:none}#prompt{font-size:12.5px;padding:8px 14px;white-space:nowrap}#topbar.bal1 h1{font-size:10.5px}#topbar.bal1 h1 .u{display:none}#topbar.bal1 .chip{font-size:10px}#topbar.bal2 h1{font-size:10px}#topbar.bal2 h1 .u{display:none}#topbar.bal2 .back{font-size:10px}#topbar.bal2 .chip{font-size:9.5px;padding:2px 5px}#topbar.bal3{gap:2px;padding:0 4px}#topbar.bal3 h1 .q,#topbar.bal3 h1 .u{display:none}#topbar.bal3 .back{font-size:9.5px}#topbar.bal3 .chip{font-size:9px;padding:2px 4px}}
 #jukebox{position:absolute;inset:52px 0 0 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #jukepanel{background:var(--panel);border:2px solid rgba(255,93,143,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,93,143,.35)}
 #jukepanel h2{margin:0 0 2px;font-size:21px;color:#ff8fb5;text-align:center}
@@ -166,7 +166,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 <body>
 <div id="topbar">
   <a class="back" href="index.html">← Site</a>
-  <h1>⚛️ <span class="q">Quantum</span> Universe</h1>
+  <h1>⚛️ <span class="q">Quantum</span> <span class="u">Universe</span></h1>
   <span id="status">● Connecting…</span>
   <div id="spacer"></div>
   <button type="button" class="chip" id="online" aria-expanded="false" aria-controls="onlinelist">👥 1 online</button>
@@ -1112,7 +1112,7 @@ for (let i = 0; i < 11; i++) HRSLOTM.push({ id: "h" + i, x: 270 + i * 249, y: 35
 const HRSLOTSEATS = HRSLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 120 })); /* the casino's own seat placement: centred on the machine, 120 below its bottom edge */
 function hrSlotKey(i) { const m = HRSLOTM[i]; return m ? String(m.id) : String(i); }
 function hrSlotMachineByKey(k) { return HRSLOTM.find(m => String(m.id) === String(k)) || null; }
-const HR_BETS = [5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000]; /* the only amounts in the High Rollers Club (Jonathan 2026-10-31; the ladder grew by 5M / 10M / 50M / 100M at his word the same night — 500k and 1M were already on it) */
+const HR_BETS = [5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000, 500000000, 1000000000]; /* the only amounts in the High Rollers Club (Jonathan 2026-10-31; the ladder grew by 5M / 10M / 50M / 100M at his word the same night — 500k and 1M were already on it — and by 500M / 1B later that night, filling the second row out to six) */
 const CHESSROOM = { w: 2640, h: 2640 }; /* four 1200x1200 square sections + a 240-wide centre cross */
 const CHBOARDS = [{ x: 220, y: 220, w: 760, h: 760 }, { x: 1660, y: 220, w: 760, h: 760 }, { x: 220, y: 1660, w: 760, h: 760 }, { x: 1660, y: 1660, w: 760, h: 760 }]; /* TL chess, TR checkers, BL checkers, BR chess */
 const CHSEATS = CHBOARDS.map(b => [{ x: b.x + b.w / 2, y: b.y - 92 }, { x: b.x + b.w / 2, y: b.y + b.h + 92 }]); /* a chair at the TOP end and the BOTTOM end of every board */
@@ -1523,7 +1523,8 @@ function enterHub() {
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
-function drawChips() { const el = $("chipspill"); if (!el) return; el.style.display = acctUser ? "" : "none"; el.textContent = "🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); }
+/* the topbar shrink tiers (Jonathan 2026-10-31): on phones the header must never overflow — as the balance text grows, drawChips stamps bal1/bal2/bal3 on #topbar and the mobile CSS shrinks the title and pills to fit (the chips amount itself is never truncated). Desktop has no tier rules, so it is untouched. */
+function drawChips() { const el = $("chipspill"); if (!el) return; el.style.display = acctUser ? "" : "none"; const s = (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); el.textContent = "🪙 " + s; const tb = $("topbar"); if (tb) { const L = s.length; tb.classList.toggle("bal1", L >= 9 && L <= 13); tb.classList.toggle("bal2", L >= 14 && L <= 16); tb.classList.toggle("bal3", L >= 17); } }
 function acctMsg(t) { const m = $("acctmsg"); if (m) m.textContent = t || ""; }
 function acctSave() {
   if (!acctUser || !db || !profile) return;
@@ -1594,9 +1595,13 @@ function watchTransfers() {
       const before = profile.chips || 0;
       settleOnce(key.slice(2), amt);
       if ((profile.chips || 0) > before) {
-        sfxCoin();
-        genBurst(me.x, me.y - 46, true);
-        genText(me.x, me.y - 104, "+🪙 " + amt.toLocaleString(), "#ffd76a");
+        const ck = key.slice(2);
+        const slotsClaim = ck.indexOf("slots") === 0 || ck.indexOf("hrslots") === 0; /* slots wins celebrate ON THE MACHINE (the fxBurst/fxText at the machine top when the spin record lands) — the coin burst on the player belongs to gifts, not to a spin collecting its own claim (Jonathan 2026-10-31: "just dont show the extra coin animation on the chair. leave it on the slots"). The claim itself is untouched: written at the roll, collected and credited exactly as before */
+        if (!slotsClaim) {
+          sfxCoin();
+          genBurst(me.x, me.y - 46, true);
+          genText(me.x, me.y - 104, "+🪙 " + amt.toLocaleString(), "#ffd76a");
+        }
         if (Date.now() - (Number(note.ts) || 0) > 15000) logChat("🏆 " + String(note.from || "Game win"), "+" + amt.toLocaleString() + " was held for you — collected now");
       }
       return;
@@ -6976,8 +6981,8 @@ function hrcTableHead(T, game, status) {
   }
   if (hrcIdx(game) >= 0) {
     const amt = game === "bac" ? bacAmt : craAmt;
-    /* the amounts in TWO rows (Jonathan 2026-10-31, the ladder's growth night): the original six keep the shipped row exactly (x 478 at a 67 step, y T.h-74, pad 2), the four new ones (5M..100M) sit in a second row under it at a 24 pitch, centred in the same 478..870 column (544 at a 67 step, four across), at pad 0 so its tap zone starts exactly where the first row's zone ends (380) — the zones touch, never overlap, roulette's own rule. The 24 pitch (not the casino's 26) is what this felt's band allows: above is the label (baseline T.h-79/-86, its descender ends ~T.h-75) and below is the tables' explanation line (baseline T.h-14, its ink tops out ~T.h-28), so the second row's bottom lands at T.h-28, exactly at that ink top — the same hair-thin clearance the shipped row keeps from the label above it. Labels: the shipped k-format is untouched for the original six (1000000 still reads "1000k"); the new millions use M-format ("5M".."100M") — the k-format would need "100000k", unreadable in a 60-wide button at fs 14 */
-    HR_BETS.forEach((a, k) => { const row2 = k >= 6; drawBtn(row2 ? T.x + 544 + (k - 6) * 67 : T.x + 478 + k * 67, T.y + T.h - (row2 ? 50 : 74), 60, 22, a >= 5000000 ? (a / 1000000) + "M" : a >= 1000 ? (a / 1000) + "k" : String(a), () => hrcSetAmt(game, a), { fs: 14, sel: amt === a, pad: row2 ? 0 : 2 }); });
+    /* the amounts in TWO rows of SIX (Jonathan 2026-10-31, the ladder's growth night): both rows share one geometry — x 478 at a 67 step, 60x22 buttons — row 1 at y T.h-74 with pad 2, row 2 (5M..1B) directly under it at y T.h-50 (a 24 pitch) at pad 0 so its tap zone starts exactly where the first row's zone ends — the zones touch, never overlap, roulette's own rule. The 24 pitch (not the casino's 26) is what this felt's band allows: above is the label (baseline T.h-79/-86, its descender ends ~T.h-75) and below is the tables' explanation line (baseline T.h-14, its ink tops out ~T.h-28), so the second row's bottom lands at T.h-28, exactly at that ink top — the same hair-thin clearance the shipped row keeps from the label above it. Labels: k-format for the thousands ("5k".."500k"), M-format for the millions ("1M".."500M"; 1000000 read "1000k" until the 500M/1B growth, when it became "1M"), B-format for 1000000000 ("1B") — the k-format would need "100000k", unreadable in a 60-wide button at fs 14 */
+    HR_BETS.forEach((a, k) => { const row2 = k >= 6; drawBtn(T.x + 478 + (row2 ? k - 6 : k) * 67, T.y + T.h - (row2 ? 50 : 74), 60, 22, a >= 1000000000 ? (a / 1000000000) + "B" : a >= 1000000 ? (a / 1000000) + "M" : a >= 1000 ? (a / 1000) + "k" : String(a), () => hrcSetAmt(game, a), { fs: 14, sel: amt === a, pad: row2 ? 0 : 2 }); });
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
     ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - (game === "bac" ? 79 : 86)); /* baccarat: centred in the slot between the TIE button's bottom edge (T.h-98) and the amount row's top edge (T.h-74) — Jonathan 2026-10-31 */
   }
