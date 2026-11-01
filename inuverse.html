@@ -7403,14 +7403,14 @@ function chessHostTick() {
    Both fighters staying seated after a bout starts the rematch. */
 let boxState = null, boxSeat = -1, boxLeft = -1, boxHooked = false, boxPrevPhase = "";
 let boxLastPunchAtL = 0, boxLastPunchAtR = 0, myPunchAtL = 0, myPunchAtR = 0; /* PER-ARM punch clocks (Jonathan 2026-10-31): each glove has its own cooldown and its own throw time — one arm never waits for the other to settle */
-const boxGloveStamp = {}; let boxGloveRecTs = 0; /* the other fighter's gloves, per arm: seat+side -> the server ts of that arm's latest punch record */
-let boxPunchFxTs = 0; /* the instant the LATEST punch record's effects run from on THIS screen: the record's own ts when it is mine or arrives fresh, its first-sight instant when a remote record lands stale (the invisible-opponent-punch fix in drawBoxingFx) */
+const boxGloveStamp = {}; const boxGloveRecTs = { L: 0, R: 0 }; /* the other fighter's gloves, per arm: seat+side -> that arm's latest punch stamp. Punch records are PER-ARM (punchL / punchR on the box table, Jonathan 2026-11-01), so each arm's last-seen record ts is tracked apart — one arm's record can never clobber the other's glove, shake or star */
+const boxPunchFxTs = { L: 0, R: 0 }; /* per arm, the instant that arm's latest punch record's effects run from on THIS screen: the record's own ts when it is mine or arrives fresh, its first-sight instant when a remote record lands stale (the invisible-opponent-punch fix in drawBoxingFx) */
 let boxNote = "", boxNoteAt = 0;
 function noteBox(txt) { boxNote = txt; boxNoteAt = performance.now(); }
 /* ---- vs the CPU (Jonathan 2026-11-01): alone in your corner with a bet down and READY, the empty corner is filled by the CPU — the dread dog (DreadMark18's own fighter look) tinted to the CPU corner's colour: pick BLUE and you fight the RED dread, pick RED and you fight the BLUE dread. The chess/pool model exactly: the record carries mode "pc" and pot = twice the stake, the CPU's seat stays EMPTY in the record, and the seated player's own client hosts the bout — it moves the CPU, throws its punches on the same per-arm 380ms cooldowns, and publishes the CPU's body at hub/tables/box/cpu so every screen in the room draws the same fighter (a synthetic actor in frame's pass, the door guards' way — no presence record, never a person online). A win pays the pot through the claims rail like any bout; a loss just loses the stake, charged at bet time as always ---- */
 const BOXCPU_HERO = 71; /* the dread sprite: hero 71's art (Owner QI, the cosmic dog) — the CPU wears DreadMark18's dog, tinted to its corner */
 const BOXCPU_NAME = "DREAD";
-let boxCpuSim = null; /* the CPU fighter as simulated on the HOST's screen: {seat, round, x, y, flip, lastL, lastR, nextAt, pubAt, pubX, pubY, pubFlip} — lastL/lastR are its per-arm punch clocks */
+let boxCpuSim = null; /* the CPU fighter as simulated on the HOST's screen: {seat, round, x, y, flip, lastL, lastR, nextAt, combo, pubAt, pubX, pubY, pubFlip} — lastL/lastR are its per-arm punch clocks, combo is the arm queued to follow up an opener mid-flight (null = no combination running) */
 let boxCpuVis = { x: 0, y: 900, flip: true, snap: true, round: "" }; /* a SPECTATOR's eased view of the CPU's body, eased toward the record's cpu node in frame's actor pass — the peers' own easing */
 const boxCpuTintCache = {}; /* hero+colour -> the corner-tinted copy of the dread sprite, built once per colour */
 function boxCpuSeatOf(st) { return st && st.mode === "pc" && st.cpu && typeof st.cpu.seat === "number" ? st.cpu.seat : -1; }
@@ -7578,7 +7578,7 @@ function boxPunch(side) {
     for (const p of peers.values()) if (p.id === os.pid && p.scene === "boxing") { ox = p.x; oy = p.y; }
     if (ox !== null && Math.hypot(me.x - ox, me.y - oy) < 150) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
   }
-  tblUpd("box", { punch: { by: boxSeat, side, ts: srvNow(), hit: hit ? 1 : 0 } });
+  if (side === "L") tblUpd("box", { punchL: { by: boxSeat, ts: srvNow(), hit: hit ? 1 : 0 } }); else tblUpd("box", { punchR: { by: boxSeat, ts: srvNow(), hit: hit ? 1 : 0 } }); /* PER-ARM punch records (Jonathan 2026-11-01): each glove writes its OWN node, so a punch thrown while the other hand is still out never overwrites it — the first punch's glove, shake and star play out in full on every screen */
   if (hit) {
     const cur = (st.hp && st.hp[opp]) || 0;
     tblSet("box/hp/" + opp, Math.max(0, cur - dmg));
@@ -7593,29 +7593,29 @@ function boxHostTick() {
   const seats = st.seats || {}, now = Date.now();
   const fresh = [0, 1].filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
   if (!fresh.length) { /* nobody at the ring: any leftover bout clears (the tables' last-seat rule) */
-    if (st.phase !== "sit" || st.hp) tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1, pot: null, mode: null, cpu: null });
+    if (st.phase !== "sit" || st.hp) tblUpd("box", { phase: "sit", hp: null, punchL: null, punchR: null, winner: -1, pot: null, mode: null, cpu: null });
     return;
   }
   if (!(seats[fresh[0]] && seats[fresh[0]].pid === myId)) return; /* the lowest fresh seat hosts */
   if (st.phase === "sit" && fresh.length === 2) {
     const s0 = seats[0], s1 = seats[1];
-    if (s0.rdy && s1.rdy && (s0.bet || 0) > 0 && (s0.bet || 0) === (s1.bet || 0)) tblUpd("box", { phase: "fight", mode: null, cpu: null, hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, pot: (s0.bet || 0) + (s1.bet || 0), roundId: newRoundId() }); /* both READY with MATCHED BETS — the bell (a bet is required to fight, Jonathan 2026-10-31: "dont allow that unless they bet"). The pot is written down NOW, at the bell (claims fix): settle never recomputes it from seats a leaver may already have deleted */
+    if (s0.rdy && s1.rdy && (s0.bet || 0) > 0 && (s0.bet || 0) === (s1.bet || 0)) tblUpd("box", { phase: "fight", mode: null, cpu: null, hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punchL: null, punchR: null, winner: -1, pot: (s0.bet || 0) + (s1.bet || 0), roundId: newRoundId() }); /* both READY with MATCHED BETS — the bell (a bet is required to fight, Jonathan 2026-10-31: "dont allow that unless they bet"). The pot is written down NOW, at the bell (claims fix): settle never recomputes it from seats a leaver may already have deleted */
   } else if (st.phase === "sit" && fresh.length === 1) {
     const s0 = seats[fresh[0]];
     if (s0.rdy && (s0.bet || 0) > 0) {
       /* vs the CPU (Jonathan 2026-11-01): alone in my corner with a bet down and READY, the bout starts against the CPU — the chess/pool model. The CPU's seat stays EMPTY in the record; mode "pc" marks the bout, pot carries twice my stake (the house covers its side), and the CPU's body starts on its corner's ring spot in the cpu node, which my client then drives (boxCpuFrame). My corner decides the dread's colour: BLUE seat (1) fights the RED dread (seat 0), RED seat (0) fights the BLUE dread (seat 1) */
       const cpuSeat = 1 - fresh[0], os = seats[cpuSeat];
       if (os && (os.bet || 0) > 0) { writeClaim(claimUid(os), rfKeyFor("box", st, cpuSeat), os.bet, "↩️ Bet returned"); tblUpd("box/seats/" + cpuSeat, { bet: 0, rdy: false }); } /* a sleeper's stake in the CPU's corner was never in this pot (never-lose net): hand it back through the rf claim and clear the seat's bet at the same moment the CPU bout starts, so no settle or recycle can zero it */
-      tblUpd("box", { phase: "fight", mode: "pc", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, pot: (s0.bet || 0) * 2, roundId: newRoundId(), cpu: { seat: cpuSeat, x: cpuSeat === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cpuSeat === 0 } });
+      tblUpd("box", { phase: "fight", mode: "pc", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punchL: null, punchR: null, winner: -1, pot: (s0.bet || 0) * 2, roundId: newRoundId(), cpu: { seat: cpuSeat, x: cpuSeat === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cpuSeat === 0 } });
     }
   } else if (st.phase === "fight" && fresh.length === 1 && st.mode !== "pc") { /* a vs-CPU bout's lone fresh seat is the design, not a walkout — it ends by the health bars or the give-up, never by this branch */
     tblUpd("box", { phase: "done", winner: fresh[0], doneTs: now }); /* your opponent is gone — the bout is yours */
     writeClaim(claimUid(seats[fresh[0]]), "box" + (st.roundId || 0) + "-" + fresh[0], boxPotOf(st), "🏆 Boxing win"); /* held for the fighter who stayed (claims fix) */
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 4500) {
-    tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1, pot: null, mode: null, cpu: null }); /* back to betting: fresh stakes and READY for the rematch */
+    tblUpd("box", { phase: "sit", hp: null, punchL: null, punchR: null, winner: -1, pot: null, mode: null, cpu: null }); /* back to betting: fresh stakes and READY for the rematch */
   }
 }
-/* ---- the CPU fighter's simulation (Jonathan 2026-11-01): runs ONLY on the seated player's screen (they host the bout, the chess/pool way) — every other client just draws the body from the record. Same gloves, same ring, same numbers as a human fighter: 6-10 damage inside the same 150 reach, health from the shared hp node, and each arm on its own cooldown (the human 380ms at launch; 250ms at Jonathan's harder-CPU tuning, 2026-11-01; 160ms since he asked for faster punches later the same day). The fairness is in the DECISIONS: a reaction beat between swings (620-1100ms at launch; 380-700ms at the harder tuning; 240-440ms since the faster-punches step), a pace a touch under a walker's 305, no swings wasted on air from out of reach, and a small weave instead of a beeline — a beatable opponent, not a statue and not a wall ---- */
+/* ---- the CPU fighter's simulation (Jonathan 2026-11-01): runs ONLY on the seated player's screen (they host the bout, the chess/pool way) — every other client just draws the body from the record. Same gloves, same ring, same numbers as a human fighter: 6-10 damage inside the same 150 reach, health from the shared hp node, and each arm on its own cooldown (the human 380ms at launch; 250ms at Jonathan's harder-CPU tuning, 2026-11-01; 160ms since he asked for faster punches later the same day). The fairness is in the DECISIONS: a reaction beat between swings (620-1100ms at launch; 380-700ms at the harder tuning; 240-440ms since the faster-punches step), a pace a touch under a walker's 305, no swings wasted on air from out of reach, and a small weave instead of a beeline — a beatable opponent, not a statue and not a wall. Since the per-arm punch records (Jonathan 2026-11-01) its swings come in COMBINATIONS: the beat starts one, the other glove follows ~170ms later while the first is still out, then the beat runs again before the next combination ---- */
 function boxCpuFrame(dt) {
   const st = boxState;
   if (!st || st.mode !== "pc" || boxSeat < 0 || !boxMyRec()) { if (boxCpuSim && (!st || st.mode !== "pc")) boxCpuSim = null; return; }
@@ -7623,7 +7623,7 @@ function boxCpuFrame(dt) {
   if (cs < 0 || cs === boxSeat) return;
   if (st.phase !== "fight") return;
   if (!boxCpuSim || boxCpuSim.seat !== cs || boxCpuSim.round !== (st.roundId || "")) {
-    boxCpuSim = { seat: cs, round: st.roundId || "", x: cs === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cs === 0, lastL: 0, lastR: 0, nextAt: 0, pubAt: 0, pubX: -1, pubY: -1, pubFlip: null };
+    boxCpuSim = { seat: cs, round: st.roundId || "", x: cs === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cs === 0, lastL: 0, lastR: 0, nextAt: 0, combo: null, pubAt: 0, pubX: -1, pubY: -1, pubFlip: null };
   }
   const S = boxCpuSim, now = Date.now();
   S.flip = me.x >= S.x; /* a fighter's body faces the opponent — the CPU turns to whoever it is fighting, like everyone else in the ring */
@@ -7644,16 +7644,25 @@ function boxCpuFrame(dt) {
   if (srvNow() < (st.fightTs || 0) + 1200) return; /* gloves up until the bell settles — the CPU honours the same grace */
   if (!S.nextAt) { S.nextAt = now + 500 + Math.random() * 500; return; }
   if (now < S.nextAt) return;
-  const arms = [];
-  if (now - S.lastL >= 160) arms.push("L"); /* each glove on its own 160ms clock — faster than the human 380ms since Jonathan's harder-CPU tuning (250ms, 2026-11-01; stepped to 160ms at his word later the same day), and under the beat's 240ms floor so the beat is never capped by it */
-  if (now - S.lastR >= 160) arms.push("R");
-  if (!arms.length) { S.nextAt = now + 60; return; }
-  if (dist > 150) { S.nextAt = now + 220; return; } /* out of reach it holds its swing — it does not punch air */
-  const side = arms[Math.floor(Math.random() * arms.length)];
+  if (dist > 150) { S.combo = null; S.nextAt = now + 220; return; } /* out of reach it holds its swing — it does not punch air, and a half-thrown combination dies with the range */
+  /* the combination (Jonathan 2026-11-01): a combination OPENS on the reaction beat with either rested arm; the OTHER arm is then queued and follows after a ~170ms combo gap, while the opener's glove (a ~300ms throw) is still out — the two hands overlap like a human's now that each arm writes its own punch record. The beat still governs how often a NEW combination starts, so the overall rate stays the faster tuning's, just thrown in pairs */
+  let side;
+  if (S.combo) { /* the follow-up: only the queued arm, and only once that arm has rested its own 160ms */
+    if (now - (S.combo === "L" ? S.lastL : S.lastR) < 160) { S.nextAt = now + 40; return; }
+    side = S.combo; S.combo = null;
+    S.nextAt = now + 240 + Math.random() * 200; /* the combination is spent — the next one waits for the beat (240-440ms, as the opener always did) */
+  } else {
+    const arms = [];
+    if (now - S.lastL >= 160) arms.push("L"); /* each glove on its own 160ms clock — faster than the human 380ms since Jonathan's harder-CPU tuning (250ms, 2026-11-01; stepped to 160ms at his word later the same day), and under the beat's 240ms floor so the beat is never capped by it */
+    if (now - S.lastR >= 160) arms.push("R");
+    if (!arms.length) { S.nextAt = now + 60; return; }
+    side = arms[Math.floor(Math.random() * arms.length)];
+    S.combo = side === "L" ? "R" : "L"; /* the other hand is queued behind this one */
+    S.nextAt = now + 170; /* the combo gap: the follow-up comes ~170ms after the opener — well inside the opener's ~300ms throw, so both gloves are out together */
+  }
   if (side === "L") S.lastL = now; else S.lastR = now;
-  S.nextAt = now + 240 + Math.random() * 200; /* the reaction beat between decisions — 240-440ms since Jonathan's faster-CPU tuning (2026-11-01), was 380-700ms, before that 620-1100ms */
   const dmg = 6 + Math.floor(Math.random() * 5);
-  tblUpd("box", { punch: { by: cs, side, ts: srvNow(), hit: 1 } });
+  if (side === "L") tblUpd("box", { punchL: { by: cs, ts: srvNow(), hit: 1 } }); else tblUpd("box", { punchR: { by: cs, ts: srvNow(), hit: 1 } }); /* per-arm record — the follow-up never overwrites the opener's glove, shake or star */
   const cur = (st.hp && st.hp[boxSeat]) || 0;
   tblSet("box/hp/" + boxSeat, Math.max(0, cur - dmg)); /* the same hp write a human punch lands with (boxPunch) */
 }
@@ -8452,13 +8461,23 @@ function drawBoxingFx(t) {
       glove(0, true); glove(40, false);
     };
     /* a punch record's effects on THIS screen (Jonathan 2026-10-31 — why the red corner's hands were invisible): the glove throw lives ~300ms from the punch's server timestamp (170 out, 130 settle), but the record usually takes longer than that to reach the other screens, so dating the animation from the throw made every REMOTE punch arrive already finished — its glove drawn back at rest, the shake and impact star spent too. The puncher's own screen runs the same throw off the local myPunchAt clock, so a fighter always saw his OWN corner's hands and never the other corner's. The fix: a record first seen here already older than a beat (60ms) starts its effects at first sight — every screen plays the full throw, a fraction of a second late. My OWN records keep their true ts: my glove is already mid-throw on the local clock and the returning echo must agree with it, never restart it */
-    if (st.punch && st.punch.ts && st.punch.ts !== boxGloveRecTs) {
-      boxGloveRecTs = st.punch.ts;
-      const seenNow = srvNow();
-      boxPunchFxTs = (st.punch.by === boxSeat || seenNow - st.punch.ts <= 60) ? st.punch.ts : seenNow;
-      boxGloveStamp[st.punch.by + st.punch.side] = boxPunchFxTs; /* a punch record stamps ONLY the arm that threw (Jonathan 2026-10-31), so on every screen each glove animates on its own clock */
+    const seenNowFx = srvNow();
+    for (const arm of ["L", "R"]) { /* EACH arm's record is tracked on its own (Jonathan 2026-11-01): the old single punch record meant a second punch thrown ~100ms later overwrote the first in the table, cutting its glove, shake and star off on every other screen — with punchL / punchR apart, both throws play out in full, overlapped */
+      const pr = arm === "L" ? st.punchL : st.punchR;
+      if (pr && pr.ts && pr.ts !== boxGloveRecTs[arm]) {
+        boxGloveRecTs[arm] = pr.ts;
+        boxPunchFxTs[arm] = (pr.by === boxSeat || seenNowFx - pr.ts <= 60) ? pr.ts : seenNowFx; /* the first-sight rule, per arm: mine or fresh keeps its true ts, a stale remote record starts its effects at first sight */
+        boxGloveStamp[pr.by + arm] = boxPunchFxTs[arm]; /* a punch record stamps ONLY the arm that threw, so on every screen each glove animates on its own clock */
+      }
     }
-    const punchAge = st.punch ? (srvNow() - boxPunchFxTs) : 1e9;
+    const hitAgeVs = seat => { /* the freshest LANDED punch against a fighter, across BOTH of the opponent's arms — each arm keeps its own fx age, so the shake and star run off whichever hit is newest and one arm's swing never erases the other's hit */
+      let best = 1e9;
+      for (const arm of ["L", "R"]) {
+        const pr = arm === "L" ? st.punchL : st.punchR;
+        if (pr && pr.by === 1 - seat && pr.hit) best = Math.min(best, srvNow() - boxPunchFxTs[arm]);
+      }
+      return best;
+    };
     /* positions first, facing second (Jonathan 2026-10-31): a fighter's gloves and punches point at the OPPONENT's current position — never a fixed corner facing, never their own travel direction. Before this, the flip came from each fighter's presence/movement facing (and a per-seat default when unseen), so a fighter who ran left punched left even with the opponent on their right, and crossing past each other left both fighters punching at empty canvas. Both positions are resolved first, then each facing is chosen against the other's spot, so a cross flips both fighters on the very next frame */
     const boxPos = [null, null];
     const cpuSeatFx = boxCpuSeatOf(st), cpuPosFx = cpuSeatFx >= 0 ? boxCpuVisPos() : null; /* the CPU's body for the glove pass: the host's simulation, or the eased record view — the same spot the actor pass draws its sprite */
@@ -8478,10 +8497,11 @@ function drawBoxingFx(t) {
       let fx = boxPos[i].x, fy = boxPos[i].y;
       const oppPos = boxPos[1 - i];
       const flip = oppPos ? oppPos.x >= fx : i === 0; /* face the opponent: gloves stack and punches lunge right when they stand at or right of me, left when they have crossed past */
-      if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 130) { /* a landed punch rattles the fighter it hit: a few px of shake, decaying over ~130ms — the fighter only, never the camera (Jonathan 2026-10-31) */
-        const jk = (1 - punchAge / 130) * 5;
-        fx += (punchAge % 26 < 13) ? jk : -jk;
-        fy += (punchAge % 34 < 17) ? jk * 0.6 : -jk * 0.6;
+      const myHitAge = hitAgeVs(i); /* the freshest punch that landed on THIS fighter, from either of the opponent's arms */
+      if (myHitAge < 130) { /* a landed punch rattles the fighter it hit: a few px of shake, decaying over ~130ms — the fighter only, never the camera (Jonathan 2026-10-31) */
+        const jk = (1 - myHitAge / 130) * 5;
+        fx += (myHitAge % 26 < 13) ? jk : -jk;
+        fy += (myHitAge % 34 < 17) ? jk * 0.6 : -jk * 0.6;
       }
       let ageL = 1e9, ageR = 1e9;
       const gL = boxGloveStamp[i + "L"], gR = boxGloveStamp[i + "R"];
@@ -8489,8 +8509,8 @@ function drawBoxingFx(t) {
       if (gR) ageR = srvNow() - gR;
       if (!isCpuFx && sd.pid === myId) { const np = performance.now(); ageL = Math.min(ageL, np - myPunchAtL); ageR = Math.min(ageR, np - myPunchAtR); } /* my own glove answers to my local throw first, and to my punch record when it echoes back — whichever is fresher */
       drawGloves(fx, fy, flip, ageL, ageR, i);
-      if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 260) { /* the impact star on the fighter just hit: lands at 62px with a scale-pop, settles to 46px (was a flat 34px for 220ms) */
-        const pop = 46 + 16 * Math.max(0, 1 - punchAge / 150);
+      if (myHitAge < 260) { /* the impact star on the fighter just hit: lands at 62px with a scale-pop, settles to 46px (was a flat 34px for 220ms) — driven by the freshest hit, so a follow-up hit pops a fresh star instead of the first hit's star being cut off */
+        const pop = 46 + 16 * Math.max(0, 1 - myHitAge / 150);
         ctx.font = Math.round(pop) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥", fx + (flip ? -40 : 40), fy - 70);
       }
     }
