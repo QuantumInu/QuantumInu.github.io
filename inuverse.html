@@ -7454,6 +7454,7 @@ function boxPhaseWatch() {
     noteBox("🥊 FIGHT!");
   }
   if ((ph === "done" || ph === "sit") && was === "fight") {
+    boxNote = ""; /* the bout is over: the FIGHT bubble dies with it instead of outliving the match on its 4.2s timer (Jonathan 2026-11-01) */
     /* the money settles as the bout closes: the pot (both stakes) to the winner, a draw hands each stake back */
     if (boxSeat >= 0 && boxMyRec() && st.seats) {
       const pot = boxPotOf(st); /* the bell-time snapshot, never a live-seat recompute (claims fix) */
@@ -7707,7 +7708,7 @@ function drawHRCounterOverClerk(a) { /* the service counter's front over the cle
   ctx.fillStyle = "#40081b"; rr(HRCTR.x, HRCTR.y, HRCTR.w, HRCTR.h, 10); ctx.fill();
   ctx.fillStyle = "#2a0a18"; ctx.fillRect(HRCTR.x + HRCTR.w - 16, HRCTR.y + 8, 12, HRCTR.h - 16);
   { const bottleCols = ["#ffd76a", "#ff8fa8", "#7dffb0", "#ffe9a8", "#d4a017"];
-    for (let i = 0; i < 12; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(HRCTR.x + HRCTR.w - 13, HRCTR.y + 20 + i * 34, 9, 24 + (i % 3) * 3); }
+    for (let i = 0; i < 12; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(HRCTR.x + HRCTR.w - 13, HRCTR.y + 20 + i * 34, 9, 24); }
     ctx.globalAlpha = 1; } /* the bottle column, redrawn with the rest of the front in the room draw's own order (Jonathan 2026-11-01): this repaint originally skipped it, so the body colour and the dark shelf painted over whichever segments crossed the clerk's band and never gave their colour back — the segment in front of Q-Bot read dark/empty while the segments above and below it stayed lit */
   ctx.fillStyle = "#ffd76a"; ctx.fillRect(HRCTR.x, HRCTR.y, 6, HRCTR.h);
   ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2; rr(HRCTR.x, HRCTR.y, HRCTR.w, HRCTR.h, 10); ctx.stroke();
@@ -7757,7 +7758,7 @@ function drawHighRollers(t) {
   ctx.fillStyle = "#40081b"; rr(HRCTR.x, HRCTR.y, HRCTR.w, HRCTR.h, 10); ctx.fill();
   ctx.fillStyle = "#2a0a18"; ctx.fillRect(HRCTR.x + HRCTR.w - 16, HRCTR.y + 8, 12, HRCTR.h - 16);
   { const bottleCols = ["#ffd76a", "#ff8fa8", "#7dffb0", "#ffe9a8", "#d4a017"];
-    for (let i = 0; i < 12; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(HRCTR.x + HRCTR.w - 13, HRCTR.y + 20 + i * 34, 9, 24 + (i % 3) * 3); }
+    for (let i = 0; i < 12; i++) { ctx.fillStyle = bottleCols[i % 5]; ctx.globalAlpha = 0.75; ctx.fillRect(HRCTR.x + HRCTR.w - 13, HRCTR.y + 20 + i * 34, 9, 24); }
     ctx.globalAlpha = 1; }
   ctx.fillStyle = "#ffd76a"; ctx.fillRect(HRCTR.x, HRCTR.y, 6, HRCTR.h);
   ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2; rr(HRCTR.x, HRCTR.y, HRCTR.w, HRCTR.h, 10); ctx.stroke();
@@ -8419,7 +8420,7 @@ function drawBoxingFx(t) {
     bar(0, BOXRING.x + 14, 1); bar(1, BOXRING.x + BOXRING.w - 364, -1); /* the ring's own top corners: x 1434 and x 1816, y 534 */
     if (st.phase === "fight" && boxSeat >= 0 && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; ctx.fillText("Left Mouse and Right Mouse to punch", 1800, BOXRING.y + BOXRING.h - 54); } /* while fighting, the punch hint shows in the ring too — DESKTOP ONLY, never on phones (Jonathan 2026-10-31): the mouse is the only desktop punch */
     if (st.phase === "fight" && srvNow() < (st.fightTs || 0) + 1200) {
-      ctx.font = "800 54px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+      ctx.font = "800 54px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; /* GET READY is BLACK (Jonathan 2026-11-01) — same white-floor treatment as the winner text */
       ctx.fillText("🥊 GET READY…", 1800, 880);
     }
     if (st.phase === "done") {
