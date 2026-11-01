@@ -139,6 +139,10 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #jukepanel.casino{border-color:rgba(255,215,106,.75);box-shadow:0 0 34px rgba(255,215,106,.30)} /* the CASINO jukebox (Jonathan 2026-10-31): a gold outline, not neon */
 #jukepanel.casino h2{color:var(--gold)}
 #jukepanel.casino #jukestop{background:rgba(255,215,106,.14);border-color:rgba(255,215,106,.65);color:#ffe9a8} /* and its stop button is gold too */
+#jukepanel.boxing{border-color:rgba(96,170,255,.85);box-shadow:0 0 34px rgba(64,140,255,.35)} /* the BOXING ARENA jukebox (Jonathan 2026-10-31): an arena-blue outline */
+#jukepanel.boxing h2{color:#9fd0ff}
+#jukepanel.boxing #jukestop{background:rgba(46,110,220,.16);border-color:rgba(96,170,255,.65);color:#cfe6ff} /* and its buttons are blue too */
+#jukepanel.boxing .jukesong{border-color:rgba(96,170,255,.5);background:rgba(38,92,190,.13)}
 #jukenow{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px;white-space:nowrap}
 #jukelist{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px;overscroll-behavior:none}
 .jukesong{background:rgba(255,255,255,.05);border:1px solid rgba(56,225,255,.28);color:var(--ink);border-radius:12px;padding:9px 12px;font-size:14.5px;text-align:left;cursor:pointer;font-family:inherit}
@@ -530,7 +534,7 @@ function startMusic() {
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
   let tick = 0;
   setInterval(() => {
-    if (muted || audioHeld || !entered || ((me.scene === "club" || me.scene === "vip") && clubSongActive()) || (me.scene === "highrollers" && hrcSongActive())) return; /* the VIP lounge runs on the club's jukebox, not the room theme — and the High Rollers room runs on its own service-counter song when one is picked, not the casino jazz */
+    if (muted || audioHeld || !entered || ((me.scene === "club" || me.scene === "vip") && clubSongActive()) || (me.scene === "highrollers" && hrcSongActive()) || (me.scene === "boxing" && boxSongActive())) return; /* the VIP lounge runs on the club's jukebox, not the room theme — and the High Rollers room runs on its own service-counter song when one is picked, not the casino jazz; the Boxing Arena likewise runs on its boom box's song when one is picked, not the gym theme (the gym itself is untouched) */
     const sc = me.scene;
     if (sc === "arcade" || sc === "poolhall") { arcadeAmb(); tick++; return; } /* the Pool Hall plays the Arcade's music (PREVIEW round 2) — the two rooms are one space now, doors, floor, border and tunes alike */
     if (sc === "theatre") {
@@ -1001,10 +1005,12 @@ let clubState = null;
 function clubSongActive() { return !!(clubState && clubState.idx >= 0 && SONGS[clubState.idx]); }
 let hrcState = null, jukeTarget = "club"; /* the High Rollers room's OWN song (Jonathan 2026-10-31), kept with the room's table records at hub/tables/hrcmusic — the database rules name hub's children and a brand-new hub/hrc would be refused, while hub/tables is writable by design. jukeTarget says which room the open picker is working for: "club" (the club + VIP, as always) or "hrc" (opened from the service counter) */
 function hrcSongActive() { return !!(hrcState && hrcState.idx >= 0 && SONGS[hrcState.idx]); }
+let boxMusState = null; /* the Boxing Arena's OWN song (Jonathan 2026-10-31), from its boom box, kept at hub/tables/boxmusic — hrcmusic's exact shape and home: the rules write hub/tables wholesale, so the new child is admitted the same way (verified against rtdb-rules-merged.json); a brand-new top-level hub/boxmusic would be refused */
+function boxSongActive() { return !!(boxMusState && boxMusState.idx >= 0 && SONGS[boxMusState.idx]); }
 const vipArt = {}; /* the VIP lounge TV's cover cache (PREVIEW round 7): one Image per song slug, loaded lazily the first time that song is on — the covers live beside the mp3s the jukebox itself plays (assets/music/<slug>.jpg, the site music section's own cover files) */
 function vipArtImg(slug) { let im = vipArt[slug]; if (!im) { im = new Image(); im.src = "assets/music/" + slug + ".jpg"; vipArt[slug] = im; } return im; }
 function syncJuke() {
-  const st = me.scene === "highrollers" ? hrcState : clubState; /* each room family hears its OWN picked song: club + VIP share hub/club, the High Rollers room has hub/tables/hrcmusic */
+  const st = me.scene === "highrollers" ? hrcState : me.scene === "boxing" ? boxMusState : clubState; /* each room family hears its OWN picked song: club + VIP share hub/club, the High Rollers room has hub/tables/hrcmusic, the Boxing Arena has hub/tables/boxmusic */
   if (!(st && st.idx >= 0 && SONGS[st.idx])) { if (!jukeAudio.paused) jukeAudio.pause(); return; }
   const key = st.idx + "@" + st.ts;
   if (jukeAudio.dataset.k !== key) {
@@ -1014,25 +1020,26 @@ function syncJuke() {
     jukeAudio.onloadedmetadata = () => {
       const pos = (Date.now() - (st.ts || Date.now())) / 1000;
       if (pos > 0.5 && pos < jukeAudio.duration - 1) { try { jukeAudio.currentTime = pos; } catch (e) {} }
-      if (me.scene === "club" || me.scene === "vip" || me.scene === "highrollers") { jukeWireGain(); jukeAudio.play().catch(() => {}); } /* the VIP lounge hears the club's song too — same shared state (hub/club), same sync point; the High Rollers room hears its own the same way */
+      if (me.scene === "club" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "boxing") { jukeWireGain(); jukeAudio.play().catch(() => {}); } /* the VIP lounge hears the club's song too — same shared state (hub/club), same sync point; the High Rollers room and the Boxing Arena hear their own the same way */
     };
-  } else if ((me.scene === "club" || me.scene === "vip" || me.scene === "highrollers") && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
+  } else if ((me.scene === "club" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "boxing") && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
 }
 function pickSong(i) {
   if (!db) return;
   sfxChime();
   const rec = { idx: i, title: i >= 0 ? SONGS[i][1] : "", by: me.name || "", ts: firebase.database.ServerValue.TIMESTAMP };
   if (jukeTarget === "hrc") db.ref("hub/tables/hrcmusic").set(rec).catch(() => {}); /* the service counter's pick is the High Rollers room's alone */
+  else if (jukeTarget === "box") db.ref("hub/tables/boxmusic").set(rec).catch(() => {}); /* the boom box's pick is the Boxing Arena's alone */
   else db.ref("hub/club").set(rec).catch(() => {});
 }
 function fmtDur(s) { return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
 function updateJukePanel() {
   const now = $("jukenow"); if (!now) return;
-  const jp = $("jukepanel"); if (jp) jp.classList.toggle("casino", jukeTarget === "hrc"); /* opened from the service counter, the panel is the Casino Jukebox — gold, not neon (Jonathan 2026-10-31) */
-  const jt = $("juketitle"); if (jt) jt.textContent = jukeTarget === "hrc" ? "🎰 Casino Jukebox" : "🎵 Club Quantum Jukebox";
-  const jst = jukeTarget === "hrc" ? hrcState : clubState, jact = !!(jst && jst.idx >= 0 && SONGS[jst.idx]); /* the panel speaks for the room it was opened for */
+  const jp = $("jukepanel"); if (jp) { jp.classList.toggle("casino", jukeTarget === "hrc"); jp.classList.toggle("boxing", jukeTarget === "box"); } /* opened from the service counter, the panel is the Casino Jukebox — gold, not neon; opened from the arena's boom box it is the Boxing Arena Jukebox — arena blue (Jonathan 2026-10-31) */
+  const jt = $("juketitle"); if (jt) jt.textContent = jukeTarget === "hrc" ? "🎰 Casino Jukebox" : jukeTarget === "box" ? "Boxing Arena Jukebox" : "🎵 Club Quantum Jukebox";
+  const jst = jukeTarget === "hrc" ? hrcState : jukeTarget === "box" ? boxMusState : clubState, jact = !!(jst && jst.idx >= 0 && SONGS[jst.idx]); /* the panel speaks for the room it was opened for */
   if (jact) now.textContent = "▶ Now playing: " + SONGS[jst.idx][1] + (jst.by ? " — picked by " + jst.by : "");
-  else now.textContent = jukeTarget === "hrc" ? "Nothing playing — pick a song for the High Rollers Club!" : "Nothing playing — pick a song for the whole club!";
+  else now.textContent = jukeTarget === "hrc" ? "Nothing playing — pick a song for the High Rollers Club!" : jukeTarget === "box" ? "Nothing playing — pick a song for the Boxing Arena!" : "Nothing playing — pick a song for the whole club!";
   fitJukeNow();
   document.querySelectorAll(".jukesong").forEach((b, i) => b.classList.toggle("playing", jact && jst.idx === i));
 }
@@ -1053,12 +1060,13 @@ function fitJukeNow() {
     list.appendChild(b);
   });
 })();
-function openJuke() { if (me.scene !== "highrollers") jukeTarget = "club"; $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); } /* every existing way in (the VIP jukebox, the club DJ booth) works for the club as always; only the service counter's prompt sets the target to "hrc" first, and only while standing in that room */
+function openJuke() { if (me.scene !== "highrollers" && me.scene !== "boxing") jukeTarget = "club"; $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); } /* every existing way in (the VIP jukebox, the club DJ booth) works for the club as always; only the service counter's prompt sets the target to "hrc" first, and only while standing in that room */
 function closeJuke() { $("jukebox").style.display = "none"; sfxClick(); }
 $("jukeclose").onclick = closeJuke;
 $("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
 if (db) db.ref("hub/club").on("value", s => { clubState = s.val(); syncJuke(); updateJukePanel(); });
 if (db) db.ref("hub/tables/hrcmusic").on("value", s => { hrcState = s.val(); syncJuke(); updateJukePanel(); });
+if (db) db.ref("hub/tables/boxmusic").on("value", s => { boxMusState = s.val(); syncJuke(); updateJukePanel(); }); /* the Boxing Arena's boom-box song — hrcmusic's listener, mirrored */
 /* ============ player / world ============ */
 const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south. PREVIEW (2026-10-30): the plaza grows RIGHT by 1140 for the Quantum Horse Track building east of the Sports Complex and the swimming pool east of the casino — again, nothing existing moved, the ground just extends east */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
@@ -1120,6 +1128,8 @@ const BOXROOM = { w: 2700, h: 1800 };
 const BOXHALL = { x1: 900, top: BOXROOM.h / 2 - 140, bot: BOXROOM.h / 2 + 140 }; /* the entry hallway, the theatre's shape */
 const BOXRING = { x: 1420, y: 520, w: 760, h: 760 }; /* the ring, centred in the arena (arena floor runs x 900..2700, centre 1800,900) */
 const BOXSEATS = [{ x: BOXRING.x - 92, y: 900 }, { x: BOXRING.x + BOXRING.w + 92, y: 900 }]; /* sit at the LEFT end or the RIGHT end of the ring */
+const BOXJUKE = { x: 1130, y: 620, w: 104, h: 148 }; /* the boom box (Jonathan 2026-10-31, placed from his screenshot): on the open floor WEST of the ring, up from the RED corner seat's line and across from the ring's upper third — its right edge (1234) is 140px clear of the ring apron's left edge (1374), its left edge 230px east of the hallway mouth (the hallway floor ends at x 900), its top 384px clear of the top bleachers (bottom edge 236), its bottom (768) 132px above the RED seat's line (900). The VIP jukebox's own footprint (104x148). Walk-over scenery like the plaza fountains, NOT an obstacle: the arena's obstacle list is the ring alone, and interaction is by proximity (nearBoxJuke), so standing on it costs nothing — making it solid like the VIP jukebox is a one-line change here if ever wanted (add BOXJUKE to the boxing line of obstacles) */
+function nearBoxJuke() { return me.scene === "boxing" && Math.hypot(me.x - (BOXJUKE.x + BOXJUKE.w / 2), me.y - (BOXJUKE.y + BOXJUKE.h)) < 150; } /* nearJuke's own proximity test (to the prop's bottom centre), moved rooms with the prop */
 const BOXBLEACH = [{ x: 1000, y: 56, w: 1600, h: 180 }, { x: 2476, y: 320, w: 168, h: 1160 }, { x: 1000, y: BOXROOM.h - 236, w: 1600, h: 180 }]; /* 3 rows of bleachers: top, right, bottom */
 const BOXDOOR_Y = 1200; /* the gym's centre path (y 1100..1300) meets its right wall here */
 const SIL_R = { x: 2570, y: 1180, w: 560, h: 300 };
@@ -1976,6 +1986,10 @@ cv.addEventListener("pointerdown", e => {
   if (me.scene === "vip") {
     const bs = worldToScreen(DJBOOTH.x + DJBOOTH.w / 2, DJBOOTH.y + DJBOOTH.h / 2);
     if (Math.hypot(px - bs.x, py - bs.y) < 110 && atDJBooth(me.x, me.y)) openJuke(); /* tapping the booth works too, but only for the DJ standing behind it — mirrors the jukebox tap above */
+  }
+  if (me.scene === "boxing") {
+    const bs = worldToScreen(BOXJUKE.x + BOXJUKE.w / 2, BOXJUKE.y + BOXJUKE.h / 2);
+    if (Math.hypot(px - bs.x, py - bs.y) < 90 && nearBoxJuke()) { jukeTarget = "box"; openJuke(); } /* tapping the boom box works too, while standing by it — the VIP jukebox tap's own shape */
   }
 });
 cv.addEventListener("contextmenu", e => { if (boxingBout) e.preventDefault(); }); /* no right-click menu mid-bout: the right button is a punch there */
@@ -3171,6 +3185,62 @@ let smokeParts = []; /* cyan transform smoke (Jonathan 2026-10-31): world-space 
 function spawnSmoke(x, y, sc) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0 }); } }
 function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
 function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
+/* ============ seat bet displays, painted OVER the sprites (Jonathan 2026-10-31) ============
+   One family, one rule: a seated player's bet display belongs to their seat and must never
+   hide behind their sprite. The scene passes run BEFORE frame()'s actor pass, so anything
+   painted at a seat inside a scene draw is covered by the sprite standing there — that is
+   how the boxing bet (sp.y - 68), the chess top seat's result (sp.y - 70) and the HRC result
+   (sp.y - 48) all vanished, and roulette's display was not even at its seats (seats 0-3
+   anchored on the felt over the wheel/board, the LAST seat at the table's left edge on top
+   of seat 0's chair). This pass runs after the actors, inside the same camera transform,
+   right after drawGenFx. Text, fonts and colours are exactly the ones the scene passes used;
+   only the anchor and the layer changed. Displays that were already visible where they were
+   (the blackjack/horse-track felt spots, the pool-hall stake pills, the chess bet chip below
+   its sprite, every READY stamp that sat clear) were left exactly where they are. */
+function drawSeatBetOverlay() {
+  ctx.textAlign = "center";
+  if (me.scene === "boxing") {
+    const st = boxState; if (!st || !st.seats) return;
+    BOXSEATS.forEach((sp, i) => {
+      const sd = st.seats[i];
+      if (!sd || !sd.pid || Date.now() - (sd.ts || 0) >= 25000 || !sd.bet) return;
+      ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+      ctx.fillText("bet " + (sd.bet || 0).toLocaleString("en-US"), sp.x, sp.y - 126); /* above the head (top at -96) AND above the name plate drawPlayer rides at -104: this line's ink ends 8px clear of the plate's */
+    });
+  } else if (me.scene === "casino") {
+    const st = rrState; if (!st || !st.seats) return;
+    RRSEATS.forEach((sp, i) => {
+      const s = st.seats[i];
+      if (!s || Date.now() - (s.ts || 0) > 25000) return;
+      if (s.bet) {
+        drawChip(sp.x, sp.y - 158, s.bet);
+        ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center";
+        ctx.fillText(s.betType ? s.betType.toUpperCase() : "", sp.x, sp.y - 124); /* chip + pick above the head, the pick's ink ending 10px clear of the name plate's */
+        if (s.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 96); } /* below the chair's balance pill (+40..+70), the boxing READY's own below-the-seat arrangement */
+      }
+      if (st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 96); } /* the result takes the same below-the-pill slot in the done phase — the two never share a phase */
+    });
+  } else if (me.scene === "highrollers") {
+    [["bac", bacState, BACSEATS], ["cra", craState, CRASEATS]].forEach(([g, st, seats]) => {
+      if (!st || st.phase !== "done" || !st.results || !st.seats) return;
+      seats.forEach((sp, i) => {
+        const sd = st.seats[i];
+        if (!sd || Date.now() - (sd.ts || 0) > 25000 || !st.results[i]) return;
+        ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
+        ctx.fillText(st.results[i].res, sp.x, sp.y - 118); /* above the head and the name plate, a single line with clear felt below it */
+      });
+    });
+  } else if (me.scene === "chess") {
+    for (let ti = 0; ti < 4; ti++) {
+      const st = chStates[ti];
+      if (!st || st.phase !== "done" || !st.results || !st.results[0] || !st.seats) continue;
+      const sp = CHSEATS[ti][0], sd = st.seats[0];
+      if (!sd || !sd.pid || Date.now() - (sd.ts || 0) >= 25000) continue;
+      ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[0].amt ? "#7dffb0" : "#ffb3b3";
+      ctx.fillText(st.results[0].res, sp.x, sp.y - 124); /* the TOP seat's result, above its sprite's head — the bottom seat's never hid and still paints in the board pass at +118 */
+    }
+  }
+}
 function drawGenFx(dt) {
   genParts = genParts.filter(p => { p.life += dt; if (p.life >= p.max) return false; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 620 * dt; p.rot += dt * 6; return true; });
   genParts.forEach(p => {
@@ -5283,22 +5353,7 @@ function drawRouletteTable(t) {
     [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(RRT.x + 478 + (k % 6) * 67, RRT.y + RRT.h - 66 + Math.floor(k / 6) * 26, 60, 22, amt.toLocaleString("en-US"), () => rouletteSetAmt(amt), { fs: 15, sel: rouletteAmt === amt, pad: 2 }));
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)"; ctx.fillText("your bet amount — tap a number, then a bet", RRT.x + 674, RRT.y + RRT.h - 75); /* centered under the board: x = board center (478 + 392/2); baseline sits in the middle of the 332..364 gap between the green button and the amount row */
   }
-  /* seat bets + results */
-  RRSEATS.forEach((sp, i) => {
-    const s = st && st.seats && st.seats[i];
-    if (!s || Date.now() - (s.ts || 0) > 25000) return;
-    const ax = i < 4 ? sp.x : (i === 4 ? RRT.x + 88 : RRT.x + RRT.w - 88), ay = i < 4 ? RRT.y + RRT.h - 118 : sp.y;
-    if (s.bet) {
-      drawChip(ax, ay, s.bet);
-      ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
-      ctx.fillText(s.betType ? s.betType.toUpperCase() : "", ax, ay + 38);
-      if (s.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", ax, ay - 32); } /* other players' ready state, read off the same shared seat record */
-    }
-    if (st.phase === "done" && st.results && st.results[i]) {
-      ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
-      ctx.fillText(st.results[i].res, ax, ay + (s.bet ? 62 : 24));
-    }
-  });
+  /* seat bets + results are NOT painted here any more (Jonathan 2026-10-31): the old anchors put seats 0-3's displays on the felt at RRT.h - 118 — over the wheel and the GREEN board button — and seat 4 (the LAST chair) at the table's left edge (RRT.x + 88), stranded on top of seat 0's chair. drawSeatBetOverlay paints the whole display at each seat, over the sprites, in frame()'s post-actor pass */
   drawSeatsRow(RRSEATS, st, "rr");
 }
 function drawSlots(t) {
@@ -5829,14 +5884,39 @@ function hrcFxCheck(game) {
 }
 const chFxPrev = [null, null, null, null], chFxDoneT = [0, 0, 0, 0], chFxChk = [false, false, false, false];
 const chFxHl = [null, null, null, null];
+const chAnim = [null, null, null, null]; /* the move glide (Jonathan 2026-10-31): {glides:[{piece,from,to}], start, dur} per board — PURELY VISUAL and client-local, derived in chFxCheck from the same board-string diff that lights the last-move highlight. No state field is added or changed anywhere; a diff that does not read as a move just snaps (no anim) */
+/* read a board diff as the move(s) it was: squares that emptied (van) and squares that filled or changed hands (arr). A plain move and a capture pair exactly one arrival with the vanished square that held the same piece (a capture's taken piece sat ON the arrival square, so it never appears in van); castling pairs two (king + rook); a jump in checkers vanishes the jumped piece too, which simply never pairs. Promotion pairs by colour (pawn -> royal, man -> king) and the gliding piece is the one that left, so it crowns only on arrival */
+function chDeriveGlides(a, b) {
+  const van = [], arr = [];
+  for (let i = 0; i < 64; i++) {
+    if (a[i] !== ".." && b[i] === "..") van.push(i);
+    else if (b[i] !== ".." && a[i] !== b[i]) arr.push(i);
+  }
+  if (!arr.length || arr.length > 2 || van.length > 3) return [];
+  const used = new Set(), glides = [];
+  for (const sq of arr) {
+    const f = van.find(v => !used.has(v) && a[v] === b[sq]);
+    if (f !== undefined) { used.add(f); glides.push({ piece: a[f], from: f, to: sq }); }
+  }
+  if (glides.length === arr.length) return glides;
+  for (const sq of arr) {
+    if (glides.some(g => g.to === sq)) continue;
+    const f = van.find(v => !used.has(v) && a[v][0] === b[sq][0] && ((a[v][1] === "P" && "QRBN".indexOf(b[sq][1]) >= 0) || (a[v][1] === "M" && b[sq][1] === "K")));
+    if (f === undefined) return [];
+    used.add(f); glides.push({ piece: a[f], from: f, to: sq });
+  }
+  return glides.length === arr.length ? glides : [];
+}
 function chFxCheck(t) {
-  const st = chStates[t]; if (!st) { chFxPrev[t] = null; return; }
+  const st = chStates[t]; if (!st) { chFxPrev[t] = null; chAnim[t] = null; return; }
   const cur = st.board || null, prev = chFxPrev[t];
   if (prev && cur && prev !== cur && (st.phase === "play" || st.phase === "done")) {
     const a = chParse(prev), b = chParse(cur);
     let pc0 = 0, pc1 = 0; const changed = [];
     for (let i = 0; i < 64; i++) { if (a[i] !== "..") pc0++; if (b[i] !== "..") pc1++; if (a[i] !== b[i]) changed.push(i); }
     if (changed.length) chFxHl[t] = { sqs: changed, at: performance.now() };
+    const gl = chDeriveGlides(a, b);
+    chAnim[t] = gl.length ? { glides: gl, start: performance.now(), dur: 380 } : null; /* a new move replaces any glide still running (the board snaps to the newest truth mid-glide, never doubled); a diff that is not a move clears it */
     if (me.scene === "chess") {
       if (pc1 < pc0) { tone(170, 80, 0.09, "square", 0.20); noiseBurst(0.07, "lowpass", 420, 140, 0.18); }
       else tone(320, 170, 0.06, "triangle", 0.14);
@@ -6629,6 +6709,7 @@ function chessHostTick() {
 let boxState = null, boxSeat = -1, boxLeft = -1, boxHooked = false, boxPrevPhase = "";
 let boxLastPunchAtL = 0, boxLastPunchAtR = 0, myPunchAtL = 0, myPunchAtR = 0; /* PER-ARM punch clocks (Jonathan 2026-10-31): each glove has its own cooldown and its own throw time — one arm never waits for the other to settle */
 const boxGloveStamp = {}; let boxGloveRecTs = 0; /* the other fighter's gloves, per arm: seat+side -> the server ts of that arm's latest punch record */
+let boxPunchFxTs = 0; /* the instant the LATEST punch record's effects run from on THIS screen: the record's own ts when it is mine or arrives fresh, its first-sight instant when a remote record lands stale (the invisible-opponent-punch fix in drawBoxingFx) */
 let boxNote = "", boxNoteAt = 0;
 function noteBox(txt) { boxNote = txt; boxNoteAt = performance.now(); }
 function boxingListen() {
@@ -6965,10 +7046,7 @@ function hrcSeatBets(list, st, game) {
       ctx.fillText(sd.betType ? sd.betType.toUpperCase().replace("DONTPASS", "DON'T PASS") : "", ax, ay + 38);
       if (sd.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", ax, ay - 32); }
     }
-    if (st.phase === "done" && st.results && st.results[i]) {
-      ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.textAlign = "center";
-      ctx.fillText(st.results[i].res, sp.x, sp.y - 48);
-    }
+    /* the result line is NOT painted here: at the seat (sp.y - 48) it sat inside the seated sprite and was painted over by it — drawSeatBetOverlay draws it above the head (Jonathan 2026-10-31). The bet chip/pick/READY above stay on the felt, the blackjack spots' own arrangement */
   });
 }
 function hrcTableHead(T, game, status) {
@@ -7154,6 +7232,22 @@ function drawChessFx(t) {
     ctx.fillStyle = "#ffe9a8"; ctx.fillText(chNote, me.x, me.y - 133);
   }
 }
+/* one piece at one point — the board loop's own painter, factored out untouched so a gliding piece is drawn exactly as a resting one */
+function chDrawPieceAt(kind, p, cx, cy, sq) {
+  if (kind === "chess") {
+    ctx.font = Math.round(sq * 0.74) + "px sans-serif"; ctx.textAlign = "center";
+    ctx.lineWidth = 5; ctx.strokeStyle = p[0] === "w" ? "rgba(20,16,8,0.85)" : "rgba(246,242,232,0.9)";
+    ctx.strokeText(CH_GLYPHS[p[1]], cx, cy + sq * 0.27);
+    ctx.fillStyle = p[0] === "w" ? "#fff8ea" : "#181818";
+    ctx.fillText(CH_GLYPHS[p[1]], cx, cy + sq * 0.27);
+  } else {
+    const red = p[0] === "r";
+    ctx.fillStyle = red ? "#c62f3b" : "#1c1c22"; ctx.beginPath(); ctx.arc(cx, cy, sq * 0.36, 0, 7); ctx.fill();
+    ctx.strokeStyle = red ? "#ffb3b3" : "#cfd4e2"; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.beginPath(); ctx.arc(cx, cy, sq * 0.24, 0, 7); ctx.fill();
+    if (p[1] === "K") { ctx.font = Math.round(sq * 0.4) + "px sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center"; ctx.fillText("♛", cx, cy + sq * 0.15); }
+  }
+}
 function drawChessBoard(ti) {
   const b = CHBOARDS[ti], kind = CHKINDS[ti], st = chStates[ti], sq = b.w / 8;
   const boardStr = (st && st.board) || (kind === "chess" ? chInitChess() : chInitCheckers());
@@ -7166,23 +7260,23 @@ function drawChessBoard(ti) {
     if (age < 900) { ctx.fillStyle = "rgba(255,215,106," + (0.38 * (1 - age / 900)).toFixed(3) + ")"; for (const i of hl.sqs) { const r = Math.floor(i / 8), c = i % 8; ctx.fillRect(b.x + c * sq, b.y + r * sq, sq, sq); } }
     else chFxHl[ti] = null;
   }
-  /* pieces */
+  /* pieces — with the glide (Jonathan 2026-10-31): while a move animates, its destination square is skipped here and the piece is drawn travelling below, so it is never in two places at once. A captured piece needs no handling: the shared board is post-move, so it is already gone — it vanishes the moment the move lands and the taker glides in */
+  let anK = -1; const an = chAnim[ti];
+  if (an) {
+    const age = performance.now() - an.start;
+    if (age >= an.dur || !st || st.phase === "bet") chAnim[ti] = null; /* landed (or the game reset under it): the static loop owns the piece again */
+    else { const gp = age / an.dur; anK = gp * gp * (3 - 2 * gp); } /* smoothstep: soft out, soft in */
+  }
   for (let i = 0; i < 64; i++) {
     const p = a[i]; if (p === "..") continue;
+    if (anK >= 0 && an.glides.some(g => g.to === i)) continue; /* mid-glide — drawn in flight below */
     const r = Math.floor(i / 8), c = i % 8, cx = b.x + c * sq + sq / 2, cy = b.y + r * sq + sq / 2;
-    if (kind === "chess") {
-      ctx.font = Math.round(sq * 0.74) + "px sans-serif"; ctx.textAlign = "center";
-      ctx.lineWidth = 5; ctx.strokeStyle = p[0] === "w" ? "rgba(20,16,8,0.85)" : "rgba(246,242,232,0.9)";
-      ctx.strokeText(CH_GLYPHS[p[1]], cx, cy + sq * 0.27);
-      ctx.fillStyle = p[0] === "w" ? "#fff8ea" : "#181818";
-      ctx.fillText(CH_GLYPHS[p[1]], cx, cy + sq * 0.27);
-    } else {
-      const red = p[0] === "r";
-      ctx.fillStyle = red ? "#c62f3b" : "#1c1c22"; ctx.beginPath(); ctx.arc(cx, cy, sq * 0.36, 0, 7); ctx.fill();
-      ctx.strokeStyle = red ? "#ffb3b3" : "#cfd4e2"; ctx.lineWidth = 3; ctx.stroke();
-      ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.beginPath(); ctx.arc(cx, cy, sq * 0.24, 0, 7); ctx.fill();
-      if (p[1] === "K") { ctx.font = Math.round(sq * 0.4) + "px sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center"; ctx.fillText("♛", cx, cy + sq * 0.15); }
-    }
+    chDrawPieceAt(kind, p, cx, cy, sq);
+  }
+  if (anK >= 0) for (const g of an.glides) {
+    const fx = b.x + (g.from % 8) * sq + sq / 2, fy = b.y + Math.floor(g.from / 8) * sq + sq / 2;
+    const tx = b.x + (g.to % 8) * sq + sq / 2, ty = b.y + Math.floor(g.to / 8) * sq + sq / 2;
+    chDrawPieceAt(kind, g.piece, fx + (tx - fx) * anK, fy + (ty - fy) * anK, sq);
   }
   /* captured racks: the bottom seat's takes down the board's left side, the top seat's down its right — the pool sunk-ball racks, stood on end */
   const rack = (list, x, top) => {
@@ -7227,7 +7321,7 @@ function drawChessBoard(ti) {
       ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
       ctx.fillText(sd.name || "", sp.x, sp.y - 44);
       if (sd.bet) { drawChip(sp.x, sp.y + 52, sd.bet); if (sd.rdy && st.phase === "bet") { ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 92); } }
-      if (st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + (i === 0 ? -70 : 118)); }
+      if (i === 1 && st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 118); } /* the TOP seat's result used to sit at sp.y - 70, inside its sprite and painted over — drawSeatBetOverlay draws it above that sprite's head (Jonathan 2026-10-31); the bottom seat's line at +118 was always clear below its sprite and stays */
     }
     else if (st && st.mode === "pc" && st.phase !== "bet") { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfd4e2"; ctx.fillText("🤖 PC", sp.x, sp.y - 44); }
   });
@@ -7263,6 +7357,29 @@ function drawChessBoard(ti) {
     }
   }
 }
+function drawBoxJuke(t) {
+  const J = BOXJUKE, jx = J.x, jy = J.y;
+  if (Math.hypot(me.x - (jx + J.w / 2), me.y - (jy + J.h)) < 190) uiZones.push({ x: jx - 6, y: jy - 6, w: J.w + 12, h: J.h + 12, fn: () => { jukeTarget = "box"; openJuke(); } }); /* tapping the box itself works when I am near — the VIP jukebox's own tap, on the boxing seats' uiZone pattern */
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(jx + J.w / 2, jy + J.h - 4, J.w * 0.52, 9, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#17336e"; rr(jx, jy + 22, J.w, J.h - 22, 10); ctx.fill(); /* the body, in the room's own arena blue */
+  ctx.strokeStyle = "#2a4fd4"; ctx.lineWidth = 3; rr(jx, jy + 22, J.w, J.h - 22, 10); ctx.stroke(); /* the blue corner's brighter trim */
+  ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(jx + 14, jy + 24); ctx.lineTo(jx + 14, jy + 8); ctx.lineTo(jx + J.w - 14, jy + 8); ctx.lineTo(jx + J.w - 14, jy + 24); ctx.stroke(); /* the carry handle */
+  ctx.strokeStyle = "rgba(207,234,255,0.8)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(jx + J.w - 18, jy + 22); ctx.lineTo(jx + J.w + 12, jy - 22); ctx.stroke(); /* the antenna */
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(jx + J.w + 12, jy - 22, 3.5, 0, 7); ctx.fill();
+  ctx.fillStyle = "#0a1428"; rr(jx + 14, jy + 34, J.w - 28, 26, 6); ctx.fill(); /* the deck window */
+  ctx.strokeStyle = "rgba(56,225,255,0.6)"; ctx.lineWidth = 1.5; rr(jx + 14, jy + 34, J.w - 28, 26, 6); ctx.stroke();
+  ctx.font = "15px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#9fd0ff";
+  ctx.fillText(boxSongActive() ? (Math.floor(t / 500) % 2 ? "🎵" : "🎶") : "🎶", jx + J.w / 2, jy + 53); /* the window dances while the arena's song is on */
+  for (const sx of [jx + 28, jx + J.w - 28]) { /* the two speakers */
+    ctx.fillStyle = "#0d1e40"; ctx.beginPath(); ctx.arc(sx, jy + 92, 21, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = "#2a4fd4"; ctx.beginPath(); ctx.arc(sx, jy + 92, 12, 0, 7); ctx.fill();
+    ctx.fillStyle = "#9fd0ff"; ctx.beginPath(); ctx.arc(sx, jy + 92, 4.5, 0, 7); ctx.fill();
+  }
+  for (const sx of [jx + 28, jx + J.w - 28]) { ctx.fillStyle = "#0d1e40"; ctx.beginPath(); ctx.arc(sx, jy + 126, 8, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(56,225,255,0.7)"; ctx.lineWidth = 1.5; ctx.stroke(); } /* the tweeters */
+  ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.fillStyle = "#cfeaff";
+  ctx.fillText("BOOM BOX", jx + J.w / 2, jy + J.h + 18);
+}
 function drawBoxing(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   ctx.fillStyle = "#07040e"; ctx.fillRect(-900, -900, BOXROOM.w + 1800, BOXROOM.h + 1800);
@@ -7290,6 +7407,7 @@ function drawBoxing(t) {
   ctx.strokeStyle = "rgba(46,230,107,0.28)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, BOXROOM.w - 36, BOXROOM.h - 36);
   ctx.font = "800 58px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("🥊 BOXING ARENA 🥊", 1800, 330); /* below the top bleachers' rows, in the gap between them and the ring (Jonathan 2026-10-31) */
+  if (boxSongActive()) { ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("♪ " + SONGS[boxMusState.idx][1] + " ♪", 1800, 410); } /* the arena's OWN song under its title (Jonathan 2026-10-31) — the High Rollers now-playing line's exact pattern on the boom box's state; baseline 410 sits below the sit line (382) and clear of the ring apron (top edge 474) */
   /* bleachers: the horse track's own silver benches (drawSwBench — the bench the Track's banks are built from; Jonathan 2026-10-31: "the normal race bleachers"), banked inside the same BOXBLEACH rects and facing the ring. Pure scenery, walked over, exactly like the Track's */
   for (const B of BOXBLEACH) {
     if (B.w > B.h) {
@@ -7311,6 +7429,7 @@ function drawBoxing(t) {
   ctx.lineWidth = 7; ctx.strokeStyle = "#d42a2a"; rr(BOXRING.x - 46, BOXRING.y - 46, BOXRING.w + 92, BOXRING.h + 92, 10); ctx.stroke();
   ctx.lineWidth = 7; ctx.strokeStyle = "#2a4fd4"; rr(BOXRING.x - 24, BOXRING.y - 24, BOXRING.w + 48, BOXRING.h + 48, 8); ctx.stroke();
   drawChairs(BOXSEATS);
+  drawBoxJuke(t); /* the boom box, on the open floor west of the ring */
   /* exit at the hallway's west end (Jonathan 2026-10-31): the ARCADE doors' own look — dark gap in the end wall, gold wash, corner ticks, chevrons, and a gold sign plate on the hallway floor in front of it naming the room it leads back to; the plate's font shrinks per label so the text always fits inside it */
   ctx.fillStyle = "#050914"; ctx.fillRect(0, BOXROOM.h / 2 - 92, 12, 184);
   const xdg = ctx.createLinearGradient(0, 0, 90, 0); xdg.addColorStop(0, "rgba(255,215,106,0.4)"); xdg.addColorStop(1, "rgba(255,215,106,0)");
@@ -7344,7 +7463,7 @@ function drawBoxingFx(t) {
     ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", sp.x, sp.y + 7);
     ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
     ctx.fillText(i === 0 ? "RED corner" : "BLUE corner", sp.x, sp.y + 58);
-    if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); if (sd.bet) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("bet " + (sd.bet || 0).toLocaleString("en-US"), sp.x, sp.y - 68); } if (sd.rdy) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#39d353"; ctx.fillText("READY ✓", sp.x, sp.y + 84); } }
+    if (occ) { ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(sd.name || "", sp.x, sp.y - 44); /* the bet itself is NOT painted here: this pass runs before the fighters' sprites, so at sp.y - 68 it sat inside the sprite and was painted over — drawSeatBetOverlay (after the actor pass) draws it above the head instead (Jonathan 2026-10-31) */ if (sd.rdy) { ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#39d353"; ctx.fillText("READY ✓", sp.x, sp.y + 84); } }
   });
   if (st && (st.phase === "fight" || st.phase === "done")) {
     /* health bars INSIDE the ring's top corners, on the white canvas: left seat left, right seat right (Jonathan 2026-10-31) */
@@ -7390,8 +7509,14 @@ function drawBoxingFx(t) {
       };
       glove(0, true); glove(40, false);
     };
-    const punchAge = st.punch ? (srvNow() - (st.punch.ts || 0)) : 1e9;
-    if (st.punch && st.punch.ts && st.punch.ts !== boxGloveRecTs) { boxGloveRecTs = st.punch.ts; boxGloveStamp[st.punch.by + st.punch.side] = st.punch.ts; } /* a punch record stamps ONLY the arm that threw (Jonathan 2026-10-31), so on every screen each glove animates on its own clock */
+    /* a punch record's effects on THIS screen (Jonathan 2026-10-31 — why the red corner's hands were invisible): the glove throw lives ~300ms from the punch's server timestamp (170 out, 130 settle), but the record usually takes longer than that to reach the other screens, so dating the animation from the throw made every REMOTE punch arrive already finished — its glove drawn back at rest, the shake and impact star spent too. The puncher's own screen runs the same throw off the local myPunchAt clock, so a fighter always saw his OWN corner's hands and never the other corner's. The fix: a record first seen here already older than a beat (60ms) starts its effects at first sight — every screen plays the full throw, a fraction of a second late. My OWN records keep their true ts: my glove is already mid-throw on the local clock and the returning echo must agree with it, never restart it */
+    if (st.punch && st.punch.ts && st.punch.ts !== boxGloveRecTs) {
+      boxGloveRecTs = st.punch.ts;
+      const seenNow = srvNow();
+      boxPunchFxTs = (st.punch.by === boxSeat || seenNow - st.punch.ts <= 60) ? st.punch.ts : seenNow;
+      boxGloveStamp[st.punch.by + st.punch.side] = boxPunchFxTs; /* a punch record stamps ONLY the arm that threw (Jonathan 2026-10-31), so on every screen each glove animates on its own clock */
+    }
+    const punchAge = st.punch ? (srvNow() - boxPunchFxTs) : 1e9;
     /* positions first, facing second (Jonathan 2026-10-31): a fighter's gloves and punches point at the OPPONENT's current position — never a fixed corner facing, never their own travel direction. Before this, the flip came from each fighter's presence/movement facing (and a per-seat default when unseen), so a fighter who ran left punched left even with the opponent on their right, and crossing past each other left both fighters punching at empty canvas. Both positions are resolved first, then each facing is chosen against the other's spot, so a cross flips both fighters on the very next frame */
     const boxPos = [null, null];
     for (let i = 0; i < 2; i++) {
@@ -9135,7 +9260,7 @@ function frame(now) {
   if (me.scene !== "gym") pauseLgVideos();
   if (me.scene !== "speedway") pauseSwVideos();
   else for (let i = 0; i < 4; i++) { const v = hqVids[i]; if (hqCur[i] >= 0 && v.paused && !v.ended) v.play().catch(() => {}); }
-  if (me.scene === "club" || me.scene === "vip" || me.scene === "highrollers") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause(); /* the VIP lounge is part of the club for music: the same synced song plays in both rooms — and the High Rollers room plays its OWN picked song the same way */
+  if (me.scene === "club" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "boxing") syncJuke(); else if (!jukeAudio.paused) jukeAudio.pause(); /* the VIP lounge is part of the club for music: the same synced song plays in both rooms — and the High Rollers room plays its OWN picked song the same way */
   ctx.restore();
   if (me.scene !== drawnScene) { drawnScene = me.scene; for (const p of peers.values()) if (p.scene === me.scene) p.snap = true; }
   const actors = [];
@@ -9192,6 +9317,7 @@ function frame(now) {
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
   drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
+  drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
   ctx.restore();
   const cab = nearestCabinet();
   if (me.scene === "gym") { promptBtn.style.display = "none"; promptAction = null; }
@@ -9203,7 +9329,8 @@ function frame(now) {
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
   else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
-  else if (atHRCounter(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Service Counter — Pick a Song"; promptAction = () => { jukeTarget = "hrc"; openJuke(); }; } /* the service counter (Jonathan 2026-10-31): the song picker, worked ONLY from the strip behind the counter on the room's right side — the prompt exists only while standing in that strip, and the pick is the High Rollers room's own song (hub/tables/hrcmusic), never the club's */
+  else if (atHRCounter(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Service Counter — Pick a Song"; promptAction = () => { jukeTarget = "hrc"; openJuke(); }; }
+  else if (nearBoxJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Boom Box — Pick a Song"; promptAction = () => { jukeTarget = "box"; openJuke(); }; } /* the boom box (Jonathan 2026-10-31): the song picker, worked from beside the box in the Boxing Arena — the pick is the arena's own song (hub/tables/boxmusic), never the club's or the gym's theme */ /* the service counter (Jonathan 2026-10-31): the song picker, worked ONLY from the strip behind the counter on the room's right side — the prompt exists only while standing in that strip, and the pick is the High Rollers room's own song (hub/tables/hrcmusic), never the club's */
   else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0 || hrSlotSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
   else if (me.scene === "chess" && chSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = chessStandUp; }
   else if (me.scene === "boxing" && boxSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = boxingBout ? "🏳️ Give up" : "🚪 Stand up"; promptAction = boxingStandUp; }
