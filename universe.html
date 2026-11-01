@@ -3383,8 +3383,8 @@ function casinoListen() {
   setInterval(casinoHostTick, 900);
   setInterval(seatBeat, 4000);
 }
-function bjSettle() { const st = bjState; if (st && st.phase === "done" && mySeat && mySeat.game === "bj" && st.results && st.results[mySeat.idx]) settleOnce("bj" + st.handId + "-" + mySeat.idx, st.results[mySeat.idx].amt || 0); }
-function rouletteSettle() { const st = rrState; if (st && st.phase === "done" && mySeat && mySeat.game === "rr" && st.results && st.results[mySeat.idx]) settleOnce("roulette" + st.spinId + "-" + mySeat.idx, st.results[mySeat.idx].amt || 0); }
+function bjSettle() { const st = bjState; if (st && st.phase !== "bet" && mySeat && mySeat.game === "bj") cancelRefundOD("bj", mySeat.idx); /* the hand has started: my stake is committed, the disconnect-refund order stands down */ if (st && st.phase === "done" && mySeat && mySeat.game === "bj" && st.results && st.results[mySeat.idx]) settleOnce("bj" + st.handId + "-" + mySeat.idx, st.results[mySeat.idx].amt || 0); }
+function rouletteSettle() { const st = rrState; if (st && st.phase !== "bet" && mySeat && mySeat.game === "rr") cancelRefundOD("rr", mySeat.idx); /* the wheel is spinning: committed */ if (st && st.phase === "done" && mySeat && mySeat.game === "rr" && st.results && st.results[mySeat.idx]) settleOnce("roulette" + st.spinId + "-" + mySeat.idx, st.results[mySeat.idx].amt || 0); }
 function tblSet(p, v) { if (db) { if (v === null) db.ref("hub/tables/" + p).remove(); else db.ref("hub/tables/" + p).set(v); } }
 function tblUpd(p, v) { if (db) db.ref("hub/tables/" + p).update(v); }
 function saveChips() { if (profile) { profile.chipsTs = Date.now(); localStorage.setItem(LS_KEY, JSON.stringify(profile)); } acctSave(); drawChips(); }
@@ -3429,12 +3429,70 @@ function writeClaims(seats, results, keyOf, label) {
   if (!results) return;
   Object.keys(results).forEach(i => { const r = results[i]; if (r && r.amt > 0) writeClaim(claimUid(seats && seats[i]), keyOf(i), r.amt, label); });
 }
+/* ============ the never-lose-your-stake net (Jonathan 2026-10-31: "make sure people dont lose their funds if they stand up before hitting ready under any circumstances") ============
+   Every seated game charges the bet the moment it is placed, but a round can
+   only start when every FRESH seated player has tapped READY — so a player
+   who never readied has never consented to play, and their stake must come
+   back on EVERY exit path, not just the deliberate stand-up (which already
+   refunds in each game's stand function):
+   1. DISCONNECT / PAGE CLOSE in the bet phase: seatOD's standing order
+      removes the seat record when the connection drops — the stake record
+      died with it. Now every bet ALSO arms a second standing order on the
+      bettor's own connection: if the connection drops while the bet stands,
+      the server writes a refund claim note (the claims rail's own shape)
+      under the bettor's account, keyed "<the game's win-settle key>rf".
+      The note is create-only and collected through watchTransfers/
+      settleOnce, so the refund lands exactly once, whenever the player
+      next enters. Re-staking re-arms with the new total; standing up,
+      un-betting to zero, or the round starting (each game's settle watcher
+      sees the phase leave the betting phase) cancels the order.
+   2. ASLEEP-BUT-CONNECTED bettors: a backgrounded phone's seat heartbeat
+      stalls past the 25s freshness line while its connection lives, so no
+      disconnect order fires — yet the ready gate no longer counts the seat,
+      the round starts without it, and the old code SETTLED the sleeper as
+      if they had played (roulette/horses/baccarat/craps decide from
+      "everyone debited") or silently zeroed the stake at the recycle
+      (blackjack hands are dealt to fresh bettors only; pool/chess vs-PC
+      matches start on the other seat). Now: a decider whose seat record
+      shows they never tapped READY is refunded in full through the same
+      rf-keyed claim instead of being settled, and the recycle in
+      blackjack/pool/chess refunds any staked seat the match never
+      included (no result row) the same way.
+   3. TABLE WIPES AND CHAIR TAKEOVERS: tableIdleClear's backstop wipe and
+      the ghost-seat rule (a stale chair is claimable) both destroy seat
+      records — before either destroys a record carrying a bet, the bet is
+      handed back as an rf claim to the record's account.
+   A player who DID tap READY is untouched by all of this: the round they
+   agreed to settles exactly as before, win or lose. */
+let refundODArmed = {}; /* "game/idx" -> the claim key this connection currently has armed */
+function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : chStates[CHTABLES.indexOf(game)]; }
+function rfKeyFor(game, st, i) {
+  if (game === "bj") return "bj" + ((st && st.handId) || 0) + "-" + i + "rf";
+  if (game === "rr") return "roulette" + ((st && st.spinId) || 0) + "-" + i + "rf";
+  if (game === "hr") return "hr" + ((st && st.raceId) || 0) + "-" + i + "rf";
+  if (game.indexOf("ph") === 0) return game + "m" + ((st && st.matchId) || 0) + "-" + i + "rf";
+  return game + ((st && st.roundId) || 0) + "-" + i + "rf"; /* bac, cra, box and the chess boards (chs1/chk1/chk2/chs2) all carry roundId */
+}
+function armRefundOD(game, idx, amt) {
+  if (!db || !acctUser || idx === undefined || idx === null || idx < 0) return;
+  if (!(amt > 0)) { cancelRefundOD(game, idx); return; }
+  const key = rfKeyFor(game, rfStateFor(game), idx);
+  try { const p = db.ref("hub/transfers/" + acctUser.uid + "/c_" + key).onDisconnect().set({ amt: Math.floor(amt), from: "↩️ Bet returned", ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) { return; }
+  refundODArmed[game + "/" + idx] = key;
+}
+function cancelRefundOD(game, idx) {
+  const mapKey = game + "/" + idx, key = refundODArmed[mapKey];
+  if (!key) return;
+  delete refundODArmed[mapKey];
+  if (!db || !acctUser) return;
+  try { const p = db.ref("hub/transfers/" + acctUser.uid + "/c_" + key).onDisconnect().cancel(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+}
 /* seat release on disconnect (2026-10-28): while seated, Firebase holds a standing order to remove the seat record the moment this page's connection drops (reload, tab close, crash) — a chair can never stay stuck under a session that no longer exists. Standing up cancels the order. */
 function seatOD(game, idx, on) {
   if (!db) return;
   try {
     const ref = db.ref(game === "slot" ? "hub/tables/slotseats/" + slotKey(idx) : game === "hrslot" ? "hub/tables/hrslotseats/" + hrSlotKey(idx) : "hub/tables/" + game + "/seats/" + idx); /* slot idx is a draw index; the seat record lives under the machine's fixed id — the High Rollers machines ("hrslot") follow the same rule under their own seats node */
-    if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel();
+    if (on) ref.onDisconnect().remove(); else { ref.onDisconnect().cancel(); cancelRefundOD(game, idx); } /* standing frees the chair AND disarms the bet refund order — the stand functions have already handed a bet-phase stake back in person */
   } catch (e) {}
 }
 function reclaimSeat() {
@@ -3478,6 +3536,7 @@ function sitDown(game, idx) {
   const tryClaim = i => {
     const s = seats[i];
     if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) return false; /* only a pid-bearing fresh record is a player: a pid-less husk never blocks a claim (ghost-seat fix, 2026-10-30) */
+    if (s && s.bet > 0 && s.pid !== myId && st && st.phase === "bet") writeClaim(claimUid(s), rfKeyFor(game, st, i), s.bet, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first — the same key their disconnect order would use, so the two can never both pay */
     tblSet(game + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
     mySeat = { game, idx: i }; mySeatPos = poss[i]; seatOD(game, i, true); return true;
   };
@@ -3564,6 +3623,7 @@ function bjBet(amt) {
   if (!st.firstBetTs) tblUpd("bj", { firstBetTs: Date.now() });
   tblUpd("bj/seats/" + mySeat.idx, { bet: amt, ts: Date.now() }); sfxClick();
   mine.bet = amt; /* mirror my own write locally at once, exactly as rouletteBet does: a fast follow-up tap (READY right after the bet) must see this bet before the server echo lands, not the stale record */
+  armRefundOD("bj", mySeat.idx, amt); /* the stake is charged: arm its disconnect refund at the new total (never-lose net) */
 }
 /* the READY button (Jonathan 2026-10-30): the same check roulette got on 2026-10-29, because blackjack went too quick — a hand used to deal the moment any one seated player tapped START GAME. Tapping READY — lit only while the player holds a bet — flips the rdy flag on their own seat record, so every client sees the same ready state off the same record. Tapping again un-readies. The hand deals when every fresh seated player is ready (see bjHostTick); readiness without a bet is impossible — this toggle refuses to set it with nothing down, and the host gate counts rdy only alongside a real bet. The old START GAME path (bjStartGame writing startReq) is removed: the ready check is now the only way a hand starts. */
 function bjReady() {
@@ -3640,6 +3700,7 @@ function bjHostTick() {
       if (nt !== st.turn) tblUpd("bj", { turn: nt, turnTs: now });
     }
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
+    Object.keys(seats).forEach(i => { const s = seats[i]; if (s && s.bet > 0 && !(st.results && st.results[i]) && !(s.hand && s.hand.length)) writeClaim(claimUid(s), rfKeyFor("bj", st, i), s.bet, "↩️ Bet returned"); }); /* never dealt, never settled (never-lose net): a bettor whose heartbeat slept through the ready gate got no hand and no result — their stake is handed back through the rf claim BEFORE the recycle zeroes it. Dealt players all hold a result row, so a played hand is never refunded here */
     Object.keys(seats).forEach(i => tblUpd("bj/seats/" + i, { bet: 0, hand: [], stood: false, dbl: false, rdy: false })); /* every hand starts un-ready: nobody rides last hand's READY tap into the next deal (roulette's rule, mirrored) */
     tblUpd("bj", { phase: "bet", dealer: [], results: null, handId: newRoundId(), firstBetTs: 0, startReq: 0, msg: "" });
   }
@@ -3671,6 +3732,7 @@ function rouletteBet(type) {
   if (!amt) seatUpd.rdy = false; /* ready requires holding a bet (Jonathan 2026-10-29): unselecting every pick takes the player back off ready */
   tblUpd("rr/seats/" + mySeat.idx, seatUpd);
   const ms = st.seats && st.seats[mySeat.idx]; if (ms) { ms.bet = amt; ms.betType = next.join("+"); if (!amt) ms.rdy = false; } /* mirror my own write locally at once: a fast follow-up tap (READY right after a pick) must see this bet before the server echo lands, not the stale record */
+  armRefundOD("rr", mySeat.idx, amt); /* re-arm the disconnect refund at the new total — unselecting down to zero disarms it (nothing is staked) */
 }
 /* tapping an amount while picks are already down RE-STAKES them (Jonathan 2026-10-30, from his screenshot at the table: "changing the bet amount should recalculate the total bet above your character" / "even when you have red odd and green selected, it should let you change bet to change the total amount bet"): the total becomes picks x the newly tapped amount and the chips move by the difference — the same refund-then-charge rouletteBet runs when a pick is tapped, against the same availability (chips + the stake already down). An amount the player cannot cover is refused with the note and leaves the bet AND the amount selection untouched; ready survives a re-stake because the bet never reaches zero. With nothing down, or outside the bet phase, the tap only selects the amount, exactly as before. */
 function rouletteSetAmt(amt) {
@@ -3687,6 +3749,7 @@ function rouletteSetAmt(amt) {
       addChips(-total);
       tblUpd("rr/seats/" + mySeat.idx, { bet: total, ts: Date.now(), chips: profile ? profile.chips : 0 });
       const ms = st.seats && st.seats[mySeat.idx]; if (ms) ms.bet = total; /* mirror my own write locally at once, exactly as rouletteBet does */
+      armRefundOD("rr", mySeat.idx, total); /* the re-stake moves the disconnect refund to the new total too */
       sfxClick();
       return;
     }
@@ -3724,7 +3787,9 @@ function rouletteHostTick() {
     /* the bettor set is FROZEN here, at decision time, from everyone who was actually debited (claims fix): the fresh list above still runs the ready gate, but it no longer decides who gets a result — a bettor whose phone slept through the spin keeps their row AND gets a held claim under their account, so the win survives the reset below either way */
     const deciders = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].bet > 0);
     deciders.forEach(i => {
-      const s = seats[i]; let amt = 0;
+      const s = seats[i];
+      if (!s.rdy) { results[i] = { res: "↩️ Bet returned — you never hit READY", amt: 0 }; writeClaim(claimUid(s), rfKeyFor("rr", st, i), s.bet, "↩️ Bet returned"); return; } /* never readied, never settled (never-lose net): a bettor whose heartbeat slept through the gate is refunded whole through the rf claim, not spun for — only a tapped READY commits a stake */
+      let amt = 0;
       const parts = rrBetParts(s), per = parts.length ? (s.bet || 0) / parts.length : 0; /* each pick settles for its own stake: a lone pick settles for the whole bet, exactly as before */
       parts.forEach(tp => {
         if (tp === "green" && res === 0) amt += per * 36;
@@ -3761,7 +3826,7 @@ function tableIdleClear(game, st, resetVal) {
   if (!dirty) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
   if (!keys.length) { tblSet(game, resetVal); return; } /* every seat record is gone — the last player actually left (stand-up removes the record; a disconnect removes it too): the game ends and the table resets on the spot, any phase (his rule 2026-10-28) */
   if (!st.emptyTs) { tblUpd(game, { emptyTs: now }); return; }
-  if (now - st.emptyTs > 6000) tblSet(game, resetVal); /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears */
+  if (now - st.emptyTs > 6000) { Object.keys(seats).forEach(k => { const s = seats[k]; if (s && s.bet > 0) writeClaim(claimUid(s), rfKeyFor(game, st, k), s.bet, "↩️ Bet returned"); }); tblSet(game, resetVal); } /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears. The wipe destroys the seat records, so any stake still riding on one is handed back through the rf claim FIRST (never-lose net): a bettor whose phone merely slept wakes to a claim note, not a vanished bet */
 }
 /* ============ Quantum Horse Track: the betting table (PREVIEW, Jonathan 2026-10-30) ============
    The casino tables' pattern, carried to the gallery: a shared table record at
@@ -3786,7 +3851,7 @@ function trackListen() {
   setInterval(hrSeatBeat, 4000);
 }
 function myHrSeat() { return hrSeat >= 0 ? (hrState && hrState.seats && hrState.seats[hrSeat]) : null; }
-function hrSettle() { const st = hrState; if (st && st.phase === "done" && hrSeat >= 0 && st.results && st.results[hrSeat]) settleOnce("hr" + st.raceId + "-" + hrSeat, st.results[hrSeat].amt || 0); }
+function hrSettle() { const st = hrState; if (st && st.phase !== "bet" && hrSeat >= 0) cancelRefundOD("hr", hrSeat); /* the race is off: committed */ if (st && st.phase === "done" && hrSeat >= 0 && st.results && st.results[hrSeat]) settleOnce("hr" + st.raceId + "-" + hrSeat, st.results[hrSeat].amt || 0); }
 function hrFxCheck() {
   const st = hrState;
   if (!st || st.phase !== "done" || !st.doneTs || st.doneTs === hrFxDone) return;
@@ -3861,6 +3926,7 @@ function hrSitAt(i) {
   const s = hrState && hrState.seats && hrState.seats[i];
   if (s && s.pid === myId) { hrSeat = i; hrSeatPos = HRSEATS[i]; mySeatPos = hrSeatPos; seatOD("hr", i, true); return; }
   if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHr("That seat is taken."); return; } /* only a pid-bearing fresh record is a player — a pid-less husk never blocks (the casino rule) */
+  if (s && s.bet > 0 && s.pid !== myId && hrState && hrState.phase === "bet") writeClaim(claimUid(s), rfKeyFor("hr", hrState, i), s.bet, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
   tblSet("hr/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, pick: -1, chips: profile ? (profile.chips || 0) : 0 });
   hrSeat = i; hrSeatPos = HRSEATS[i]; mySeatPos = hrSeatPos; seatOD("hr", i, true);
 }
@@ -3911,6 +3977,7 @@ function hrBet(amt) {
   if (!st.firstBetTs) tblUpd("hr", { firstBetTs: Date.now() });
   tblUpd("hr/seats/" + hrSeat, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
   mine.bet = amt; /* mirror my own write locally at once, as the casino bets do */
+  armRefundOD("hr", hrSeat, amt); /* the stake is charged: arm its disconnect refund (never-lose net) */
   sfxClick();
 }
 function hrPick(h) {
@@ -3956,6 +4023,7 @@ function hrHostTick() {
     const deciders = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].bet > 0); /* FROZEN at decision time from everyone debited (claims fix): the fresh bettors list still gates the start, but a player who slept through the race itself is settled and held for, exactly like a watcher */
     deciders.forEach(i => {
       const s = seats[i];
+      if (!s.rdy) { results[i] = { res: "↩️ Bet returned — you never hit READY", amt: 0 }; writeClaim(claimUid(s), rfKeyFor("hr", st, i), s.bet, "↩️ Bet returned"); return; } /* never readied, never settled (never-lose net): a bettor who slept through the gate gets the stake back through the rf claim instead of a settled ticket */
       const amt = s.pick === st.winner ? (s.bet || 0) * 4 : 0; /* 3-to-1, the real-life way: the winner receives 4x the bet TOTAL — stake back plus 3x winnings */
       results[i] = { res: amt ? ("🎉 " + HR_HORSES[st.winner].name + " wins — WIN +" + (amt - (s.bet || 0)).toLocaleString("en-US")) : "no win", amt }; /* the headline says NET (claims fix): 4x back on a winning ticket is 3x profit */
       if (amt > 0) writeClaim(claimUid(s), "hr" + st.raceId + "-" + i, amt, "🏆 Horse Race win");
@@ -4008,7 +4076,7 @@ function phListen() {
   setInterval(phSeatBeat, 4000);
 }
 function myPhSeatRec() { return phSeatT >= 0 ? (phStates[phSeatT] && phStates[phSeatT].seats && phStates[phSeatT].seats[phSeatI]) : null; }
-function phSettle(t) { const st = phStates[t]; if (st && st.phase === "done" && phSeatT === t && phSeatI >= 0 && st.results && st.results[phSeatI]) settleOnce(phKey(t) + "m" + (st.matchId || 0) + "-" + phSeatI, st.results[phSeatI].amt || 0); }
+function phSettle(t) { const st = phStates[t]; if (st && st.phase !== "bet" && phSeatT === t && phSeatI >= 0) cancelRefundOD(phKey(t), phSeatI); /* the break is being thrown for: committed */ if (st && st.phase === "done" && phSeatT === t && phSeatI >= 0 && st.results && st.results[phSeatI]) settleOnce(phKey(t) + "m" + (st.matchId || 0) + "-" + phSeatI, st.results[phSeatI].amt || 0); }
 function phFxCheck(t) {
   const st = phStates[t];
   if (!st || st.phase !== "done" || !st.doneTs || st.doneTs === phFxDone[t]) return;
@@ -4038,6 +4106,7 @@ function phSitAt(t, i) {
   const s = phStates[t] && phStates[t].seats && phStates[t].seats[i];
   if (s && s.pid === myId) { phSeatT = t; phSeatI = i; phSeatPos = PHSEATS[t][i]; mySeatPos = phSeatPos; seatOD(phKey(t), i, true); return; }
   if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { notePh("That seat is taken."); return; } /* only a pid-bearing fresh record is a player — a pid-less husk never blocks (the casino rule) */
+  if (s && s.bet > 0 && s.pid !== myId && phStates[t] && phStates[t].phase === "bet") writeClaim(claimUid(s), rfKeyFor(phKey(t), phStates[t], i), s.bet, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
   tblSet(phKey(t) + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, chips: profile ? (profile.chips || 0) : 0 });
   phSeatT = t; phSeatI = i; phSeatPos = PHSEATS[t][i]; mySeatPos = phSeatPos; seatOD(phKey(t), i, true);
 }
@@ -4091,6 +4160,7 @@ function phBet(amt) {
   if (!st.firstBetTs) tblUpd(phKey(phSeatT), { firstBetTs: Date.now() });
   tblUpd(phKey(phSeatT) + "/seats/" + phSeatI, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
   mine.bet = amt; /* mirror my own write locally at once, as the casino bets do */
+  armRefundOD(phKey(phSeatT), phSeatI, amt); /* the stake is charged: arm its disconnect refund (never-lose net) */
   sfxClick();
 }
 /* the READY button (the casino check, mirrored): lit only while the seated player holds a bet; the match starts when BOTH seated players hold EQUAL stakes and are ready (see phHostTick). Tapping again un-readies. */
@@ -4385,10 +4455,14 @@ function phHostTick(t) {
         tblUpd(key, { phase: "rps", mode: null, matchId: newRoundId(), turn: fresh[0], pot: a.bet + b.bet, sets: null, balls: phRackBalls(t), rolling: false, results: null, firstBetTs: 0, msg: "", rps: null, rpsShow: null, rpsTs: now }); /* the pot is written down NOW — a leaver's seat record takes their stake out of the seats with it, and the pot must survive them */
     } else if (fresh.length === 1 && seats[fresh[0]].pid === myId) {
       const a = seats[fresh[0]];
-      if (a.bet > 0 && a.rdy) /* alone at the table, stake down and READY: the house covers the other side (PREVIEW round 2) — the PC match starts on this same rack, pot = twice the stake: win it and the player is paid 2x total, lose it and the stake stays with the house. The break is still thrown for (PREVIEW round 3): the PC throws back at random */
+      if (a.bet > 0 && a.rdy) { /* alone at the table, stake down and READY: the house covers the other side (PREVIEW round 2) — the PC match starts on this same rack, pot = twice the stake: win it and the player is paid 2x total, lose it and the stake stays with the house. The break is still thrown for (PREVIEW round 3): the PC throws back at random */
+        const os = seats[1 - fresh[0]];
+        if (os && os.bet > 0) { writeClaim(claimUid(os), rfKeyFor(key, st, 1 - fresh[0]), os.bet, "↩️ Bet returned"); tblUpd(key + "/seats/" + (1 - fresh[0]), { bet: 0, rdy: false }); } /* a sleeper's stake in the other chair was never in this pot (never-lose net): hand it back through the rf claim and clear the seat's bet at the same moment the vs-PC match starts, so no later recycle or result row can settle or zero it */
         tblUpd(key, { phase: "rps", mode: "pc", matchId: newRoundId(), turn: fresh[0], pot: a.bet * 2, sets: null, balls: phRackBalls(t), rolling: false, results: null, firstBetTs: 0, msg: "", rps: null, rpsShow: null, rpsTs: now });
+      }
     }
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 3500) {
+    if (st.mode === "pc") Object.keys(seats).forEach(i => { const s = seats[i]; if (s && s.bet > 0 && !(st.results && st.results[i])) writeClaim(claimUid(s), rfKeyFor(key, st, i), s.bet, "↩️ Bet returned"); }); /* never played, never settled (never-lose net): in a vs-PC match a second seat's stake was never in the pot — if its owner slept through the ready gate it is handed back through the rf claim BEFORE the recycle zeroes it. A two-player match (mode null) put both stakes in the pot and both seats hold result rows, so this branch never touches one */
     Object.keys(seats).forEach(i => tblUpd(key + "/seats/" + i, { bet: 0, rdy: false })); /* every match starts un-ready with nothing down (the casino recycle) */
     tblUpd(key, { phase: "bet", mode: null, results: null, balls: null, sets: null, rolling: false, winner: null, pot: null, msg: "", rps: null, rpsShow: null });
   }
@@ -5947,8 +6021,8 @@ function hrListen() {
   setInterval(hrcHostTick, 900);
   setInterval(hrcSeatBeat, 4000);
 }
-function bacSettle() { const st = bacState; if (st && st.phase === "done" && bacSeat >= 0 && st.results && st.results[bacSeat]) settleOnce("bac" + st.roundId + "-" + bacSeat, st.results[bacSeat].amt || 0); }
-function craSettle() { const st = craState; if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
+function bacSettle() { const st = bacState; if (st && st.phase !== "bet" && bacSeat >= 0) cancelRefundOD("bac", bacSeat); /* the cards are dealt: committed */ if (st && st.phase === "done" && bacSeat >= 0 && st.results && st.results[bacSeat]) settleOnce("bac" + st.roundId + "-" + bacSeat, st.results[bacSeat].amt || 0); }
+function craSettle() { const st = craState; if (st && st.phase !== "bet" && craSeat >= 0) cancelRefundOD("cra", craSeat); /* the dice are out: committed */ if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
 /* ---- sound & light for the High Rollers tables and the Chess Room (Jonathan 2026-10-31): the casino's treatment, carried over — a win bursts coins at the seat, a loss puffs grey, a push dings soft. Client-local only: nothing here writes a record. ---- */
 let bacFxDone = 0, craFxDone = 0, bacFxSnd = -1, craRattleEl = -1, craRattleKey = 0, craClackTs = 0;
 function hrcFxCheck(game) {
@@ -6048,6 +6122,7 @@ function hrcSitAt(game, i) {
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) { hrcSetSeat(game, i); seatOD(game, i, true); return; }
   if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHRC("That seat is taken."); return; }
+  if (s && s.bet > 0 && s.pid !== myId && st && st.phase === "bet") writeClaim(claimUid(s), rfKeyFor(game, st, i), s.bet, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
   tblSet(game + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
   hrcSetSeat(game, i); seatOD(game, i, true);
 }
@@ -6233,6 +6308,7 @@ function hrcBet(game, type) {
   addChips(-amt);
   tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, betType: type, ts: Date.now(), chips: profile ? profile.chips : 0 });
   mine.bet = amt; mine.betType = type;
+  armRefundOD(game, hrcIdx(game), amt); /* the stake is charged: arm its disconnect refund (never-lose net) */
   sfxClick();
 }
 function hrcSetAmt(game, amt) {
@@ -6244,6 +6320,7 @@ function hrcSetAmt(game, amt) {
     addChips(mine.bet); addChips(-amt);
     tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
     mine.bet = amt;
+    armRefundOD(game, hrcIdx(game), amt); /* the re-stake moves the disconnect refund to the new amount too */
   }
   sfxClick();
 }
@@ -6300,7 +6377,9 @@ function bacHostTick() {
     const results = {};
     const deciders = Object.keys(st.seats || {}).map(Number).filter(i => st.seats[i] && st.seats[i].bet > 0); /* FROZEN at decision time from everyone debited (claims fix): the fresh bettors list still gates the deal, but a bettor who slept through it is settled and held for all the same */
     deciders.forEach(i => {
-      const s = st.seats[i]; let amt = 0, res = "no win";
+      const s = st.seats[i];
+      if (!s.rdy) { results[i] = { res: "↩️ Bet returned — you never hit READY", amt: 0 }; writeClaim(claimUid(s), rfKeyFor("bac", st, i), s.bet, "↩️ Bet returned"); return; } /* never readied, never settled (never-lose net): a bettor who slept through the gate is refunded whole through the rf claim, not dealt in */
+      let amt = 0, res = "no win";
       if (st.winner === "tie") {
         if (s.betType === "tie") { amt = s.bet * 9; res = "🎉 TIE pays 8 to 1! +" + (amt - s.bet).toLocaleString("en-US"); }
         else { amt = s.bet; res = "Tie — your bet is returned"; }
@@ -6341,7 +6420,9 @@ function craHostTick() {
     const results = {};
     const deciders = Object.keys(st.seats || {}).map(Number).filter(i => st.seats[i] && st.seats[i].bet > 0); /* FROZEN at decision time from everyone debited (claims fix) */
     deciders.forEach(i => {
-      const s = st.seats[i]; let amt = 0, res = "no win";
+      const s = st.seats[i];
+      if (!s.rdy) { results[i] = { res: "↩️ Bet returned — you never hit READY", amt: 0 }; writeClaim(claimUid(s), rfKeyFor("cra", st, i), s.bet, "↩️ Bet returned"); return; } /* never readied, never settled (never-lose net): a bettor who slept through the gate is refunded whole through the rf claim, not rolled for */
+      let amt = 0, res = "no win";
       if (s.betType === "pass" && end === "pass") { amt = s.bet * 2; res = "🎉 PASS WINS! +" + (amt - s.bet).toLocaleString("en-US"); }
       else if (s.betType === "dontpass" && end === "dontpass") { amt = s.bet * 2; res = "🎉 DON'T PASS WINS! +" + (amt - s.bet).toLocaleString("en-US"); }
       else if (s.betType === "dontpass" && end === "pushdp") { amt = s.bet; res = "Bar 12 — your bet is returned"; }
@@ -6399,6 +6480,7 @@ function chessListen() {
 }
 function chSettle(t) {
   const st = chStates[t];
+  if (st && st.phase !== "bet" && chSeatT === t && chSeatI >= 0) cancelRefundOD(CHTABLES[t], chSeatI); /* the game is on: committed */
   if (st && st.phase === "done" && chSeatT === t && chSeatI >= 0 && st.results && st.results[chSeatI]) settleOnce(CHTABLES[t] + st.roundId + "-" + chSeatI, st.results[chSeatI].amt || 0);
 }
 function chWriteClaims(t, st, results) { writeClaims(st && st.seats, results, i => CHTABLES[t] + (st.roundId || 0) + "-" + i, CHKINDS[t] === "chess" ? "🏆 Chess win" : "🏆 Checkers win"); } /* a decided board is HELD for its winner at the same moment the results are written (claims fix) — in a vs-PC game the PC's seat has no record, so its rows simply write no claim */
@@ -6423,6 +6505,7 @@ function chessSitAt(t, i) {
   if (sd && sd.pid === myId) { chSeatT = t; chSeatI = i; mySeatPos = CHSEATS[t][i]; seatOD(CHTABLES[t], i, true); return; }
   if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) { noteChess("That seat is taken."); return; }
   if (st && st.mode === "pc" && st.phase !== "bet") { noteChess("That board's mid-game against the computer — have a watch."); return; } /* the empty seat at a running vs-PC board is the PC's (the pool hall's rule) */
+  if (sd && sd.bet > 0 && sd.pid !== myId && st && st.phase === "bet") writeClaim(claimUid(sd), rfKeyFor(CHTABLES[t], st, i), sd.bet, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
   tblSet(CHTABLES[t] + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, rdy: false, chips: profile ? (profile.chips || 0) : 0 });
   chSeatT = t; chSeatI = i; mySeatPos = CHSEATS[t][i]; seatOD(CHTABLES[t], i, true);
 }
@@ -6471,6 +6554,7 @@ function chessBet(amt) {
   addChips(-amt);
   tblUpd(CHTABLES[chSeatT] + "/seats/" + chSeatI, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
   mine.bet = amt;
+  armRefundOD(CHTABLES[chSeatT], chSeatI, amt); /* the stake is charged: arm its disconnect refund (never-lose net) */
   sfxClick();
 }
 function chessReady() {
@@ -6758,6 +6842,8 @@ function chessHostTick() {
         const s0 = seats[fresh[0]];
         if (s0.rdy && s0.bet > 0) {
           /* vs the computer (Jonathan 2026-10-31): alone at the board with a bet down and READY, the game starts against the PC — the pool hall's model. The PC's seat stays EMPTY in the record; mode "pc" marks the game and pot carries twice my stake. I host my own board, so my client also drives the PC side (chDoPcMove, below) */
+          const os = seats[1 - fresh[0]];
+          if (os && os.bet > 0) { writeClaim(claimUid(os), rfKeyFor(key, st, 1 - fresh[0]), os.bet, "↩️ Bet returned"); tblUpd(key + "/seats/" + (1 - fresh[0]), { bet: 0, rdy: false }); } /* a sleeper's stake in the other chair was never in this pot (never-lose net): hand it back through the rf claim and clear the seat's bet as the vs-PC game starts, so no result row or recycle can settle or zero it */
           const kind = CHKINDS[t];
           tblUpd(key, { phase: "play", mode: "pc", pot: s0.bet * 2, board: kind === "chess" ? chInitChess() : chInitCheckers(), turn: 1, capBy1: [], capBy0: [], castle: { wK: 1, wQ: 1, bK: 1, bQ: 1 }, chain: -1, check: 0, winner: -1, results: null, startTs: now });
         }
@@ -6769,6 +6855,7 @@ function chessHostTick() {
         writeClaim(claimUid(seats[w]), key + (st.roundId || 0) + "-" + w, pot, CHKINDS[t] === "chess" ? "🏆 Chess win" : "🏆 Checkers win"); /* held for the stayer (claims fix) */
       }
     } else if (st.phase === "done" && now - (st.doneTs || 0) > 4000) {
+      if (st.mode === "pc") Object.keys(seats).forEach(i => { const s = seats[i]; if (s && s.bet > 0 && !(st.results && st.results[i])) writeClaim(claimUid(s), rfKeyFor(key, st, i), s.bet, "↩️ Bet returned"); }); /* never played, never settled (never-lose net): a vs-PC game's second seat never had its stake in the pot — a sleeper's bet is handed back through the rf claim BEFORE the recycle zeroes it. Two-player games (mode null) settled both seats into result rows and are never refunded here */
       Object.keys(seats).forEach(i => tblUpd(key + "/seats/" + i, { bet: 0, rdy: false }));
       tblUpd(key, { phase: "bet", results: null, board: null, winner: -1, roundId: newRoundId(), mode: null, pot: null });
     }
@@ -6815,6 +6902,7 @@ function boxWriteClaims(st) {
 function boxPhaseWatch() {
   const st = boxState; if (!st) return;
   const ph = st.phase || "sit";
+  if (ph !== "sit" && boxSeat >= 0) cancelRefundOD("box", boxSeat); /* the bell has rung (or the bout is decided): my stake is committed, the disconnect-refund order stands down */
   /* the KO call runs on EVERY snapshot, ahead of the phase-change work below: health changes do not change the phase, so a call gated on phase changes would never land */
   if (ph === "fight" && st.hp && boxSeat >= 0 && boxMyRec()) {
     const mine = st.hp[boxSeat] || 0, theirs = st.hp[1 - boxSeat] || 0;
@@ -6868,6 +6956,7 @@ function boxingSitAt(i) {
   const st = boxState, sd = st && st.seats && st.seats[i];
   if (sd && sd.pid === myId) { boxSeat = i; mySeatPos = BOXSEATS[i]; seatOD("box", i, true); return; }
   if (sd && sd.pid && Date.now() - (sd.ts || 0) <= 25000) { noteBox("That end is taken."); return; }
+  if (sd && sd.bet > 0 && sd.pid !== myId && st && (st.phase || "sit") === "sit") writeClaim(claimUid(sd), rfKeyFor("box", st, i), sd.bet, "↩️ Bet returned"); /* taking over a stale end destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
   tblSet("box/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0, bet: 0, rdy: false });
   boxSeat = i; mySeatPos = BOXSEATS[i]; seatOD("box", i, true);
 }
@@ -6879,6 +6968,7 @@ function boxSetBet(amt) {
   if (amt > old && (profile ? (profile.chips || 0) : 0) < amt - old) { noteBox("Not enough chips for that bet."); return; }
   addChips(old - amt); /* refund-then-charge in one move, the tables' way */
   tblUpd("box/seats/" + boxSeat, { bet: amt, rdy: false }); /* changing your stake takes your READY back, like every other table */
+  armRefundOD("box", boxSeat, amt); /* arm the disconnect refund at the new stake — zero disarms it (nothing is staked) */
 }
 function boxReady() {
   if (boxSeat < 0) return;
