@@ -2072,8 +2072,10 @@ function joyMove(e) {
   joyVec = m > 8 ? { x: dx / max, y: dy / max } : { x: 0, y: 0 };
 }
 let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0;
+let boxMouseMask = 0, boxMouseWasL = false, boxMouseWasR = false; /* INSTANT GLOVES (Jonathan 2026-11-01): the mouse buttons' LIVE state (bit 1 = left, bit 2 = right), kept current by every pointer event that carries a buttons bitmask — NOT by press events alone, because some browsers/mice never deliver a usable second-press event while the first button is held, which left the second glove dead. boxMousePunchDriver (next to boxPunch) reads this mask every frame of a bout and edge-fires each arm the frame its bit lands; the Was latches hold the previous frame's bits, so holding a button can never auto-repeat a punch — the bit must be seen up again before that arm can fire again */
 cv.addEventListener("pointerdown", e => {
   if (!entered) return;
+  if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; /* keep the live mouse-button mask current for the instant-glove driver */
   if (boxingBout && !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) { /* desktop mouse punches (Jonathan 2026-10-31): left button = left punch, right button = right punch. A mouse click can never be crowded out by held movement keys the way a third key on the keyboard can — punching while moving diagonally always works this way. BOTH BUTTONS AT ONCE = BOTH PUNCHES (Jonathan 2026-11-01): the branch reads the e.buttons bitmask (1 = left down, 2 = right down), not the single e.button, so a simultaneous press — or a second press while the first button is still held — throws every arm whose button is down. boxPunch's own per-arm cooldown swallows the repeat call for an arm already flying; no extra lock lives here */
     const punchL = !!(e.buttons & 1), punchR = !!(e.buttons & 2);
     if (punchL) boxPunch("L");
@@ -2116,14 +2118,16 @@ cv.addEventListener("pointerdown", e => {
 cv.addEventListener("contextmenu", e => { if (boxingBout) e.preventDefault(); }); /* no right-click menu mid-bout: the right button is a punch there */
 document.addEventListener("contextmenu", e => e.preventDefault()); /* NO RIGHT-CLICK MENU ANYWHERE (Jonathan 2026-11-01): the browser menu never pops over the game — canvas, buttons, panels, inputs, everywhere. The right-button punch rides pointerdown (button 2), which fires before contextmenu ever would, so blocking the menu leaves every punch exactly as it was */
 cv.addEventListener("pointermove", e => {
+  if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; /* moves carry the buttons bitmask too — the mask stays true while a held button travels, and a press the press-event missed still lands here */
   if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceMove(e); return; }
   if (phAim && e.pointerId === phAim.id) { phAimMove(e); return; }
   if (e.pointerId !== holdId) return;
   const r = cv.getBoundingClientRect();
   holdPX = e.clientX - r.left; holdPY = e.clientY - r.top;
 });
-cv.addEventListener("pointerup", e => { if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceDrag = null; phPlaceConfirm(); } if (phAim && e.pointerId === phAim.id) phAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; }); /* letting go of a placement drag CONFIRMS the spot (the release is the confirm, the pull-back aim's own gesture shape) */
-cv.addEventListener("pointercancel", e => { if (phPlaceDrag && e.pointerId === phPlaceDrag.id) phPlaceDrag = null; if (phAim && e.pointerId === phAim.id) phAim = null; holdId = null; holdVec = { x: 0, y: 0 }; }); /* a cancelled placement drag confirms nothing — the ghost stays unplaced and the turn still waits on a real release */
+cv.addEventListener("pointerup", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; /* a release clears its own bit in e.buttons — the mask follows it down */ if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceDrag = null; phPlaceConfirm(); } if (phAim && e.pointerId === phAim.id) phAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; }); /* letting go of a placement drag CONFIRMS the spot (the release is the confirm, the pull-back aim's own gesture shape) */
+cv.addEventListener("pointercancel", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; if (phPlaceDrag && e.pointerId === phPlaceDrag.id) phPlaceDrag = null; if (phAim && e.pointerId === phAim.id) phAim = null; holdId = null; holdVec = { x: 0, y: 0 }; }); /* a cancelled placement drag confirms nothing — the ghost stays unplaced and the turn still waits on a real release */
+window.addEventListener("pointerup", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; }); /* a release OUTSIDE the canvas still lands here, so no button bit can stick down in the mask and haunt the next bout */
 /* ============ voice chat (tap to talk) — LiveKit (Jonathan 2026-10-31) ============
    Voice rides LiveKit Cloud now, not player-to-player connections: everyone
    in a scene joins that scene's LiveKit room ("hub-<scene>") and the server
@@ -6963,6 +6967,7 @@ function hrcFocusRect() {
 const CHTABLES = ["chs1", "chk1", "chk2", "chs2"];
 const CHKINDS = ["chess", "checkers", "checkers", "chess"];
 const CH_BETS = [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
+const BOX_BETS = [500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000]; /* boxing's OWN ladder (Jonathan 2026-11-01): the old first row (1-100) is gone — row 1 is the old second row (500-100k), row 2 runs 500k-100M. Split off CH_BETS so the chess room keeps its 1..100k untouched */
 let chStates = [null, null, null, null], chSeatT = -1, chSeatI = -1, chLeft = null, chHooked = false;
 let chAmt = 100, chSel = -1;
 let chNote = "", chNoteAt = 0;
@@ -7558,6 +7563,14 @@ function boxPunch(side) {
     sfxPunchHit(); /* the deep thump of a landed punch (was a lone 150->55 square blip) */
   } else sfxPunchMiss(); /* the whoosh of a swing that finds air (was a thin sine whiff) */
 }
+function boxMousePunchDriver() { /* INSTANT GLOVES (Jonathan 2026-11-01): "I should be able to use both gloves individually of another with the normal reset time they have. But activating should be instant." Activation must not depend on press events alone — some browsers/mice never deliver a usable second-press pointerdown while the first button is held, so the second glove never fired no matter what the press handler read. The tracked mask (boxMouseMask, fed by every pointer event) holds the buttons' true state; this driver runs every frame of a bout and edge-fires each arm the very frame its bit is seen DOWN after being UP — both gloves at once, either glove alone, each on its own latch, each still bound by boxPunch's own 380ms per-arm cooldown, the normal reset time, so neither arm ever waits on the other. Holding a button never auto-repeats: the latch only clears when the bit is seen up again. The pointerdown bitmask throws stay as well — boxPunch's cooldown makes a same-beat double call a no-op, never a double punch. During GET READY boxPunch's own bell gate swallows the call, exactly like a press */
+  if (!boxingBout || !boxState || boxState.phase !== "fight" || boxSeat < 0) { boxMouseWasL = false; boxMouseWasR = false; return; }
+  if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return; /* touch keeps its own punch buttons — untouched */
+  const lDown = !!(boxMouseMask & 1), rDown = !!(boxMouseMask & 2);
+  if (lDown && !boxMouseWasL) boxPunch("L");
+  if (rDown && !boxMouseWasR) boxPunch("R");
+  boxMouseWasL = lDown; boxMouseWasR = rDown;
+}
 function boxHostTick() {
   if (!entered || me.scene !== "boxing" || !db) return;
   const st = boxState;
@@ -7599,6 +7612,7 @@ function boxCpuFrame(dt) {
     boxCpuSim = { seat: cs, round: st.roundId || "", x: cs === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cs === 0, lastL: 0, lastR: 0, nextAt: 0, combo: null, pubAt: 0, pubX: -1, pubY: -1, pubFlip: null };
   }
   const S = boxCpuSim, now = Date.now();
+  if (srvNow() < (st.fightTs || 0) + 1200) return; /* GET READY (Jonathan 2026-11-01): until READY ends the CPU does not move AT ALL — no closing in, no weave, no body publish. This gate sits ABOVE the movement block on purpose: the grace check further down only ever held back the CPU's punches, so through the whole window the body kept walking at the player and publishing it. The human fighters are frozen in this same window by frame()'s input freeze — now neither side moves until the bell. The sim init above still runs, so the CPU stands on its corner spot from the first frame of the window, and the moment the window ends everything below behaves exactly as before */
   S.flip = me.x >= S.x; /* a fighter's body faces the opponent — the CPU turns to whoever it is fighting, like everyone else in the ring */
   const dist = Math.hypot(me.x - S.x, me.y - S.y);
   let mvx = 0, mvy = 0;
@@ -8507,7 +8521,7 @@ function drawBoxingFx(t) {
       ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#000000"; ctx.textAlign = "center";
       if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) ctx.fillText("Left Mouse and Right Mouse to punch", 1800, BOXRING.y + BOXRING.h - 54); /* the punch hint, one line above the your-bet line — DESKTOP ONLY, never on phones (Jonathan 2026-10-31) */
       ctx.fillText(myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") : "Your bet: none — place a bet to fight", 1800, BOXRING.y + BOXRING.h - 24); /* inside the ring along its bottom side, in black (Jonathan 2026-10-31) */
-      CH_BETS.forEach((amt, k) => drawBtn(1800 - 479 + (k % 6) * 162, BOXRING.y + BOXRING.h + 66 + Math.floor(k / 6) * 68, 148, 56, amt.toLocaleString("en-US"), () => boxSetBet(amt), { fs: 24, sel: myBet === amt })); /* bigger bet buttons (Jonathan 2026-10-31): 104x40 fs17 -> 148x56 fs24 */
+      BOX_BETS.forEach((amt, k) => drawBtn(1800 - 479 + (k % 6) * 162, BOXRING.y + BOXRING.h + 66 + Math.floor(k / 6) * 68, 148, 56, amt.toLocaleString("en-US"), () => boxSetBet(amt), { fs: 24, sel: myBet === amt })); /* bigger bet buttons (Jonathan 2026-10-31): 104x40 fs17 -> 148x56 fs24 */
       drawBtn(1800 - 90, BOXRING.y + BOXRING.h + 206, 180, 52, myRdy ? "✓ READY" : "READY", () => boxReady(), { fs: 22, sel: myRdy }); /* dropped 30px to stay clear of the enlarged bet rows */
     }
   }
@@ -10100,6 +10114,7 @@ function frame(now) {
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
   if (me.scene === "boxing") boxCpuFrame(dt); /* the CPU fighter's simulation runs here — on the HOST's screen only (boxCpuFrame itself refuses everywhere else): it moves, faces and punches the CPU, and publishes its body to the record for the room */
+  boxMousePunchDriver(); /* the instant-glove driver runs every frame alongside the CPU sim — it self-gates to an active fight on a non-coarse pointer, so outside a desktop bout it costs nothing */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
     const os = boxState.seats && boxState.seats[1 - boxSeat];
     let ox = null;
