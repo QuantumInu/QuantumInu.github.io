@@ -1108,7 +1108,7 @@ const CAEXIT = { x: CASINOROOM.w / 2 - 62, y: CASINOROOM.h - 80, w: 124, h: 44 }
    the LEFT wall. Plus a BOXING ARENA off the Sports Complex, through a
    door at the east end of the gym's centre path. */
 const CASINODOORS_Y = CASINOROOM.h - 344; /* 1856: both casino side doors, and the High Rollers exit, share this height */
-const HRROOM = { w: 3200, h: 2200 }; /* the High Rollers Club: the casino's own size, carpet and border */
+const HRROOM = { w: 3200, h: 3000 }; /* the High Rollers Club: the casino's own width, carpet and border — GREW DOWN 800 (2200 -> 3000, Jonathan 2026-11-01) to hold a second table row: the bottom divider and the private booths moved down with the growth, and a red blackjack (left) and roulette (right) now stand below the baccarat and craps tables */
 const HRBAR_L = { x: 56, y: 100, w: 560, h: 60 }, HRBAR_R = { x: HRROOM.w - 616, y: 100, w: 560, h: 60 };
 function hrBarRects() { /* the top bars CENTRED between the wall and the room sign (Jonathan 2026-10-31): the sign is measured as this device renders it, so each bar sits in the middle of its side's open span — wall to sign on the left, sign to wall on the right. One source for the drawing and the collision alike */
   ctx.font = "800 58px 'Segoe UI',sans-serif";
@@ -1117,11 +1117,16 @@ function hrBarRects() { /* the top bars CENTRED between the wall and the room si
           { x: Math.round(((mid + tw / 2) + (HRROOM.w - 34)) / 2 - HRBAR_R.w / 2), y: HRBAR_R.y, w: HRBAR_R.w, h: HRBAR_R.h }];
 }
 const HRCTR = { x: 3040, y: 1080, w: 60, h: 430 }; /* the service counter (Jonathan 2026-10-31): a VERTICAL counter against the right wall, CENTRED BETWEEN THE TWO DIVIDERS (his word from his phone screenshot — the band between them centres at y 1295, so the counter spans 1080..1510; its horizontal spot was already perfect) — the strip between its right edge (3100) and the wall is just wide enough to stand in, and that strip is the only place the room's music can be worked from (atHRCounter). Fully solid, and it never paints over a player: no cutting off of the sprite */
-const HRDIV_T = { x: 120, y: 872, w: HRROOM.w - 240, h: 26 }, HRDIV_B = { x: 120, y: 1692, w: HRROOM.w - 240, h: 26 }; /* the two long dividers between the booths and the tables — SOLID (Jonathan 2026-10-31): you cannot walk over them, you go around their ends */ /* the club's two bar counters (BAR_L/BAR_R: 560x60 at a 56px inset from the top corners) carried into the High Rollers room (Jonathan 2026-10-31), casino-themed and solid exactly like theirs — placed clear of the settled booth rows: the top booth benches start at y 274, the bars and their stool rows end at y ~211 */
+const HRDIV_T = { x: 120, y: 872, w: HRROOM.w - 240, h: 26 }, HRDIV_B = { x: 120, y: 2492, w: HRROOM.w - 240, h: 26 }; /* HRDIV_B moved DOWN 800 with the room's growth (1692 -> 2492, Jonathan 2026-11-01): it still stands the same 132 below the lowest chairs — now the new row's chairs at y 2360 — with the booths below it. HRDIV_T cannot move: the current tables begin 82 below it */ /* the two long dividers between the booths and the tables — SOLID (Jonathan 2026-10-31): you cannot walk over them, you go around their ends */ /* the club's two bar counters (BAR_L/BAR_R: 560x60 at a 56px inset from the top corners) carried into the High Rollers room (Jonathan 2026-10-31), casino-themed and solid exactly like theirs — placed clear of the settled booth rows: the top booth benches start at y 274, the bars and their stool rows end at y ~211 */
 const BACT = { x: 430, y: 980, w: 900, h: 430 }; /* baccarat felt — blackjack's rect, dark red */
 const CRAT = { x: 1870, y: 980, w: 900, h: 430 }; /* craps felt — roulette's rect, dark red */
 const BACSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BACT.x + 110 + i * 170, y: BACT.y + BACT.h + 150 }));
 const CRASEATS = [0, 1, 2, 3, 4].map(i => ({ x: CRAT.x + 110 + i * 170, y: CRAT.y + CRAT.h + 150 }));
+const HBJT = { x: 430, y: 1780, w: 900, h: 430 }; /* the club's BLACKJACK (Jonathan 2026-11-01): a second-row table under baccarat — blackjack's rect carried 800 down, wearing the club's dark red felt (drawHRFelt), staking HR_BETS, on its OWN record hub/tables/hbj so it runs beside the casino's blackjack and the club's other tables without ever touching them */
+const HRRT = { x: 1870, y: 1780, w: 900, h: 430 }; /* the club's ROULETTE (Jonathan 2026-11-01): under craps, roulette's rect carried 800 down, dark red, HR_BETS, its own record hub/tables/hrr */
+const HBJSEATS = [0, 1, 2, 3, 4].map(i => ({ x: HBJT.x + 110 + i * 170, y: HBJT.y + HBJT.h + 150 }));
+const HRRSEATS = [0, 1, 2, 3, 4].map(i => ({ x: HRRT.x + 110 + i * 170, y: HRRT.y + HRRT.h + 150 }));
+const HBJSPOTS = [0, 1, 2, 3, 4].map(i => ({ x: HBJT.x + 110 + i * 170, y: HBJT.y + HBJT.h - 128 })); /* blackjack's felt spots, carried to the club table */
 /* the High Rollers slot machines (Jonathan 2026-10-31): ONE row of ELEVEN where the two TOP booth rows stood — the booths are gone from the top of the room (the bottom rows stay). The casino's own machines in every way — same 210x330 cabinets, same yellow border, same seat-to-spin, same reels, bag and pays — carried into the club with exactly two changes: the blue body is BURGUNDY here, and the bets are the club's own ladder HR_SLOT_BETS, not the casino's small stakes. PLACEMENT arithmetic: the removed second booth row sat at y 600 (drawBooths, flip=false), and a booth's full drawn extent runs from its little wall (by-22) down to the bench arc's bottom (by+86) — so that row's bottom edge was 600+86 = 686, and the machines' bottoms sit exactly there: y = 686-330 = 356. Across the room they spread with the casino's own margins (first machine x 270, last machine's right edge 2970 in a 3200 room): x = 270 + i*249, an even 39px gap between cabinets. HRSLOTM is in DRAW order like SLOTM, but every machine carries a fixed record id "h0".."h10" — its spin and seat records live under hub/tables/hrslots and hub/tables/hrslotseats, never the casino's slots/slotseats, so the two banks can never land on each other. Everywhere in the HRC slot code, an index into HRSLOTM/HRSLOTSEATS is a DRAW index; shared records are only ever touched through hrSlotKey(). */
 const HR_SLOT_BETS = [100, 500, 1000, 5000, 10000, 50000];
 const HRSLOTM = [];
@@ -1416,7 +1421,7 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, ...SLOTM]; /* the LOUNGE block left this list with the lounge's removal (Jonathan 2026-10-31) */
-  if (me.scene === "highrollers") return [BACT, CRAT, ...hrBarRects(), HRDIV_T, HRDIV_B, HRCTR, ...HRSLOTM]; /* the booths are walk-over (Jonathan 2026-10-31) — the felts, the two bar counters, the two dividers, the service counter and the slot machines are solid; the dividers and the counter you go around, not over. The machines stand solid exactly as the casino's do (...SLOTM in the casino's own list) */
+  if (me.scene === "highrollers") return [BACT, CRAT, HBJT, HRRT, ...hrBarRects(), HRDIV_T, HRDIV_B, HRCTR, ...HRSLOTM]; /* the booths are walk-over (Jonathan 2026-10-31) — the felts, the two bar counters, the two dividers, the service counter and the slot machines are solid; the dividers and the counter you go around, not over. The machines stand solid exactly as the casino's do (...SLOTM in the casino's own list) */
   if (me.scene === "chess") return [...CHBOARDS];
   if (me.scene === "boxing") return boxingBout ? [] : [BOXRING]; /* the bleachers are walk-over scenery (Jonathan 2026-10-31) — only the ring is solid, and only until YOUR bout starts (pass D) */
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
@@ -3260,7 +3265,7 @@ function drawSeatBetOverlay() {
       if (st.phase === "done" && st.results && st.results[i]) { ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3"; ctx.fillText(st.results[i].res, sp.x, sp.y + 96); } /* the result takes the same below-the-pill slot in the done phase — the two never share a phase */
     });
   } else if (me.scene === "highrollers") {
-    [["bac", bacState, BACSEATS], ["cra", craState, CRASEATS]].forEach(([g, st, seats]) => {
+    [["bac", bacState, BACSEATS], ["cra", craState, CRASEATS], ["hbj", hbjState, HBJSEATS], ["hrr", hrrState, HRRSEATS]].forEach(([g, st, seats]) => {
       if (!st || st.phase !== "done" || !st.results || !st.seats) return;
       seats.forEach((sp, i) => {
         const sd = st.seats[i];
@@ -3465,9 +3470,11 @@ function writeClaims(seats, results, keyOf, label) {
    A player who DID tap READY is untouched by all of this: the round they
    agreed to settles exactly as before, win or lose. */
 let refundODArmed = {}; /* "game/idx" -> the claim key this connection currently has armed */
-function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : chStates[CHTABLES.indexOf(game)]; }
+function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : game === "hrr" ? hrrState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : chStates[CHTABLES.indexOf(game)]; }
 function rfKeyFor(game, st, i) {
   if (game === "bj") return "bj" + ((st && st.handId) || 0) + "-" + i + "rf";
+  if (game === "hbj") return "hbj" + ((st && st.handId) || 0) + "-" + i + "rf"; /* the club blackjack's own key family — never the casino's "bj" */
+  if (game === "hrr") return "hrr" + ((st && st.spinId) || 0) + "-" + i + "rf"; /* the club roulette's own key family — never the casino's "roulette" */
   if (game === "rr") return "roulette" + ((st && st.spinId) || 0) + "-" + i + "rf";
   if (game === "hr") return "hr" + ((st && st.raceId) || 0) + "-" + i + "rf";
   if (game.indexOf("ph") === 0) return game + "m" + ((st && st.matchId) || 0) + "-" + i + "rf";
@@ -6009,6 +6016,8 @@ let boxingBout = null; /* {seat} while MY bout is live: it frees the ring obstac
    shared results through settleOnce. The only stakes here are HR_BETS. */
 let bacState = null, craState = null, bacSeat = -1, craSeat = -1, bacLeft = -1, craLeft = -1, hrcHooked = false;
 let bacAmt = 5000, craAmt = 5000;
+let hbjState = null, hrrState = null, hbjSeat = -1, hrrSeat = -1, hbjLeft = -1, hrrLeft = -1; /* the club's second-row tables (Jonathan 2026-11-01): blackjack (hub/tables/hbj) and roulette (hub/tables/hrr) — the casino engines carried into the club on the bac/cra pattern, with the club's own seat globals so a player can hold a chair at exactly one club table */
+let hrrAmt = 5000; /* the club roulette's selected per-pick amount (rouletteAmt's club twin; the ladder is HR_BETS) */
 let hrSlotState = {}, hrSlotSeats = {}, hrSlotSeat = -1, hrSlotLeft = -1, hrSlotAnim = {}, hrSlotBet = 100, hrSlotFxTs = {}, hrSlotFxBaseAt = 0; /* the High Rollers machines' own shared state (hub/tables/hrslots + hub/tables/hrslotseats) and my seat at one of them — the casino slot pattern carried over whole, under the club's own names. hrSlotFxBaseAt is the club's slots backlog baseline (the casino's slotFxBaseAt, mirrored): records at or before the last entry/return stamp are marked seen, never animated */
 let hrcNote = "", hrcNoteAt = 0;
 function noteHRC(txt) { hrcNote = txt; hrcNoteAt = performance.now(); }
@@ -6016,6 +6025,8 @@ function hrListen() {
   if (!db || hrcHooked) return; hrcHooked = true;
   db.ref("hub/tables/bac").on("value", sn => { bacState = sn.val(); bacSettle(); hrcFxCheck("bac"); });
   db.ref("hub/tables/cra").on("value", sn => { craState = sn.val(); craSettle(); hrcFxCheck("cra"); });
+  db.ref("hub/tables/hbj").on("value", sn => { hbjState = sn.val(); hbjSettle(); hrcFxCheck("hbj"); });
+  db.ref("hub/tables/hrr").on("value", sn => { hrrState = sn.val(); hrrSettle(); hrcFxCheck("hrr"); });
   db.ref("hub/tables/hrslots").on("value", sn => { hrSlotState = sn.val() || {}; hrSlotFxCheck(); });
   db.ref("hub/tables/hrslotseats").on("value", sn => { hrSlotSeats = sn.val() || {}; });
   setInterval(hrcHostTick, 900);
@@ -6023,14 +6034,18 @@ function hrListen() {
 }
 function bacSettle() { const st = bacState; if (st && st.phase !== "bet" && bacSeat >= 0) cancelRefundOD("bac", bacSeat); /* the cards are dealt: committed */ if (st && st.phase === "done" && bacSeat >= 0 && st.results && st.results[bacSeat]) settleOnce("bac" + st.roundId + "-" + bacSeat, st.results[bacSeat].amt || 0); }
 function craSettle() { const st = craState; if (st && st.phase !== "bet" && craSeat >= 0) cancelRefundOD("cra", craSeat); /* the dice are out: committed */ if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
+function hbjSettle() { const st = hbjState; if (st && st.phase !== "bet" && hbjSeat >= 0) cancelRefundOD("hbj", hbjSeat); /* the hand has started: committed */ if (st && st.phase === "done" && hbjSeat >= 0 && st.results && st.results[hbjSeat]) settleOnce("hbj" + st.handId + "-" + hbjSeat, st.results[hbjSeat].amt || 0); }
+function hrrSettle() { const st = hrrState; if (st && st.phase !== "bet" && hrrSeat >= 0) cancelRefundOD("hrr", hrrSeat); /* the wheel is spinning: committed */ if (st && st.phase === "done" && hrrSeat >= 0 && st.results && st.results[hrrSeat]) settleOnce("hrr" + st.spinId + "-" + hrrSeat, st.results[hrrSeat].amt || 0); }
 /* ---- sound & light for the High Rollers tables and the Chess Room (Jonathan 2026-10-31): the casino's treatment, carried over — a win bursts coins at the seat, a loss puffs grey, a push dings soft. Client-local only: nothing here writes a record. ---- */
-let bacFxDone = 0, craFxDone = 0, bacFxSnd = -1, craRattleEl = -1, craRattleKey = 0, craClackTs = 0;
+let bacFxDone = 0, craFxDone = 0, hbjFxDone = 0, hrrFxDone = 0, bacFxSnd = -1, craRattleEl = -1, craRattleKey = 0, craClackTs = 0;
 function hrcFxCheck(game) {
   const st = hrcSt(game); if (!st || st.phase !== "done" || !st.doneTs) return;
   if (game === "bac") { if (st.doneTs === bacFxDone) return; bacFxDone = st.doneTs; }
-  else { if (st.doneTs === craFxDone) return; craFxDone = st.doneTs; }
+  else if (game === "cra") { if (st.doneTs === craFxDone) return; craFxDone = st.doneTs; }
+  else if (game === "hbj") { if (st.doneTs === hbjFxDone) return; hbjFxDone = st.doneTs; }
+  else { if (st.doneTs === hrrFxDone) return; hrrFxDone = st.doneTs; }
   if (Date.now() - st.doneTs >= 5000 || me.scene !== "highrollers") return;
-  const seatsList = game === "bac" ? BACSEATS : CRASEATS;
+  const seatsList = hrcPoss(game);
   Object.keys(st.results || {}).forEach(k => {
     const i = Number(k), r = st.results[k], seat = st.seats && st.seats[k];
     if (!r || !seat || !seatsList[i]) return;
@@ -6093,17 +6108,21 @@ function chFxCheck(t) {
     }
   }
 }
-function hrcSt(game) { return game === "bac" ? bacState : craState; }
-function hrcIdx(game) { return game === "bac" ? bacSeat : craSeat; }
-function hrcPoss(game) { return game === "bac" ? BACSEATS : CRASEATS; }
+const HRCGAMES = ["bac", "cra", "hbj", "hrr"];
+function hrcSt(game) { return game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : hrrState; }
+function hrcIdx(game) { return game === "bac" ? bacSeat : game === "cra" ? craSeat : game === "hbj" ? hbjSeat : hrrSeat; }
+function hrcPoss(game) { return game === "bac" ? BACSEATS : game === "cra" ? CRASEATS : game === "hbj" ? HBJSEATS : HRRSEATS; }
+function hrcRect(game) { return game === "bac" ? BACT : game === "cra" ? CRAT : game === "hbj" ? HBJT : HRRT; }
+function hrcLeft(game) { return game === "bac" ? bacLeft : game === "cra" ? craLeft : game === "hbj" ? hbjLeft : hrrLeft; }
+function hrcSetLeft(game, v) { if (game === "bac") bacLeft = v; else if (game === "cra") craLeft = v; else if (game === "hbj") hbjLeft = v; else hrrLeft = v; }
 function hrcMySeat(game) { const st = hrcSt(game), i = hrcIdx(game); return (i >= 0 && st && st.seats && st.seats[i] && st.seats[i].pid === myId) ? st.seats[i] : null; }
 function hrcSetSeat(game, i) {
-  if (game === "bac") bacSeat = i; else craSeat = i;
+  if (game === "bac") bacSeat = i; else if (game === "cra") craSeat = i; else if (game === "hbj") hbjSeat = i; else hrrSeat = i;
   if (i >= 0) mySeatPos = hrcPoss(game)[i];
-  else if (bacSeat < 0 && craSeat < 0 && hrSlotSeat < 0) mySeatPos = null;
+  else if (bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrSlotSeat < 0) mySeatPos = null;
 }
 /* the bottom sit prompts for the two High Rollers tables (Jonathan 2026-10-31): the same near test as the chairs' tap zones, the same sit action */
-function hrcNear(game) { const T = game === "bac" ? BACT : CRAT, seats = game === "bac" ? BACSEATS : CRASEATS; return me.scene === "highrollers" && (Math.hypot(me.x - (T.x + T.w / 2), me.y - (T.y + T.h + 60)) < 470 || nearSeatOf(seats)); }
+function hrcNear(game) { const T = hrcRect(game), seats = hrcPoss(game); return me.scene === "highrollers" && (Math.hypot(me.x - (T.x + T.w / 2), me.y - (T.y + T.h + 60)) < 470 || nearSeatOf(seats)); }
 function hrcTrySit(game) {
   if (hrcIdx(game) >= 0) return;
   const st = hrcSt(game), seats = (st && st.seats) || {}, poss = hrcPoss(game);
@@ -6115,9 +6134,9 @@ function hrcTrySit(game) {
 function hrcSitAt(game, i) {
   if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   pullChips();
-  if (game === "bac") bacLeft = -1; else craLeft = -1;
-  const other = game === "bac" ? craSeat : bacSeat;
-  if (other >= 0) { noteHRC("Stand up from the other table first."); return; }
+  hrcSetLeft(game, -1);
+  if (HRCGAMES.some(g => g !== game && hrcIdx(g) >= 0)) { noteHRC("Stand up from the other table first."); return; }
+  if (hrSlotSeat >= 0) { noteHRC("Stand up from the machine first."); return; }
   if (hrcIdx(game) >= 0) { if (hrcIdx(game) !== i) noteHRC("Stand up from your seat first."); return; }
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) { hrcSetSeat(game, i); seatOD(game, i, true); return; }
@@ -6128,22 +6147,22 @@ function hrcSitAt(game, i) {
 }
 function hrcStand(game) {
   const i = hrcIdx(game); if (i < 0) return;
-  if (game === "bac") bacLeft = i; else craLeft = i;
+  hrcSetLeft(game, i);
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
     if (st.phase === "bet" && s.bet) { addChips(s.bet); noteHRC("🚪 You stood up — your " + s.bet.toLocaleString("en-US") + " bet was returned."); }
     else if (s.bet && st.phase !== "done") noteHRC("🚪 You left mid-round — your spot and bet are forfeited."); /* "done" is not mid-round: the round is decided, standing then is clean and the win banks below */
   }
-  if (game === "bac") bacSettle(); else craSettle(); /* a decided round banks before the chair is freed */
+  if (game === "bac") bacSettle(); else if (game === "cra") craSettle(); else if (game === "hbj") hbjSettle(); else hrrSettle(); /* a decided round banks before the chair is freed */
   if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet(game + "/seats/" + i, null);
   seatOD(game, i, false);
   hrcSetSeat(game, -1);
 }
-function hrStandUpAll() { hrcStand("bac"); hrcStand("cra"); hrSlotStand(); }
+function hrStandUpAll() { hrcStand("bac"); hrcStand("cra"); hrcStand("hbj"); hrcStand("hrr"); hrSlotStand(); }
 function hrcBeatOne(game) {
-  const left = game === "bac" ? bacLeft : craLeft;
+  const left = hrcLeft(game);
   if (hrcIdx(game) < 0) {
-    if (left >= 0) { const ls = hrcSt(game) && hrcSt(game).seats && hrcSt(game).seats[left]; if (!ls || ls.pid !== myId) { if (game === "bac") bacLeft = -1; else craLeft = -1; } }
+    if (left >= 0) { const ls = hrcSt(game) && hrcSt(game).seats && hrcSt(game).seats[left]; if (!ls || ls.pid !== myId) hrcSetLeft(game, -1); }
     const seats = (hrcSt(game) && hrcSt(game).seats) || {};
     for (let i = 0; i < 5; i++) { const s = seats[i]; if (s && s.pid === myId && i !== left && Date.now() - (s.ts || 0) <= 25000) { hrcSetSeat(game, i); seatOD(game, i, true); return; } }
     return;
@@ -6154,7 +6173,7 @@ function hrcBeatOne(game) {
 }
 function hrcSeatBeat() {
   if (!db || !entered || me.scene !== "highrollers") return;
-  hrcBeatOne("bac"); hrcBeatOne("cra"); hrSlotBeatOne();
+  hrcBeatOne("bac"); hrcBeatOne("cra"); hrcBeatOne("hbj"); hrcBeatOne("hrr"); hrSlotBeatOne();
 }
 /* ---- the High Rollers slot machines: the casino's slot engine carried into the club ----
    spinMachine/slotTick/drawSlots/sitAtSlot, mirrored piece for piece onto the
@@ -6171,13 +6190,13 @@ function nearHRSlot() { if (me.scene !== "highrollers") return -1; for (let i = 
 function hrSlotSetSeat(i) {
   hrSlotSeat = i;
   if (i >= 0) mySeatPos = HRSLOTSEATS[i];
-  else if (bacSeat < 0 && craSeat < 0) mySeatPos = null;
+  else if (bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0) mySeatPos = null;
 }
 function hrSitAtSlot(i) {
   if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
   pullChips(); /* about to play: the counter goes on the server amount first */
   hrSlotLeft = -1; /* an explicit sit ends any leave-guard */
-  if (bacSeat >= 0 || craSeat >= 0) { noteHRC("Stand up from the table first."); return; }
+  if (bacSeat >= 0 || craSeat >= 0 || hbjSeat >= 0 || hrrSeat >= 0) { noteHRC("Stand up from the table first."); return; }
   if (hrSlotSeat >= 0) { if (hrSlotSeat !== i) noteHRC("Stand up from the other machine first."); return; }
   const s = hrSlotSeats && hrSlotSeats[hrSlotKey(i)];
   if (s && s.pid === myId) { hrSlotSetSeat(i); seatOD("hrslot", i, true); return; }
@@ -6248,7 +6267,7 @@ function hrSlotSeatsRow() {
   HRSLOTSEATS.forEach((s, i) => {
     const rec = view[i];
     const occ = !!(rec && rec.pid && Date.now() - (rec.ts || 0) < 25000); /* a chair is occupied only by a pid-bearing fresh record */
-    if (!occ && bacSeat < 0 && craSeat < 0 && hrSlotSeat < 0 && nearHRSlot() === i)
+    if (!occ && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrSlotSeat < 0 && nearHRSlot() === i)
       uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => hrSitAtSlot(i) });
     ctx.fillStyle = occ ? "#ffd76a" : "#4a2a72";
     ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
@@ -6335,9 +6354,9 @@ function hrcReady(game) {
   sfxClick();
 }
 function hrcHostSeat(st) { if (!st || !st.seats) return -1; const ks = Object.keys(st.seats).map(Number).sort((a, b) => a - b); for (const i of ks) { const s = st.seats[i]; if (s && s.pid && Date.now() - (s.ts || 0) < 25000) return i; } return -1; }
-function hrcFreshReady(st) {
+function hrcFreshReady(st, game) {
   const now = Date.now(), seats = st.seats || {};
-  Object.keys(seats).forEach(k => { if (!seats[k].pid) tblSet((st === bacState ? "bac" : "cra") + "/seats/" + k, null); });
+  Object.keys(seats).forEach(k => { if (!seats[k].pid) tblSet((game || (st === bacState ? "bac" : "cra")) + "/seats/" + k, null); });
   const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
   const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0);
   return { fresh, ready, bettors: fresh.filter(i => seats[i].bet > 0) };
@@ -6435,17 +6454,179 @@ function craHostTick() {
     tblUpd("cra", { phase: "bet", results: null, point: 0, dice: null, end: null, roundId: newRoundId() });
   }
 }
+/* ---- the club's blackjack (Jonathan 2026-11-01): the casino's bjBet/bjReady/bjHit/bjStand/bjDouble/bjHostTick carried onto the club's own record, seat and names. The ONLY differences are the room's: the stake ladder is HR_BETS (each amount button stakes that amount outright), the notes are the club's, and every key — settle "hbj<handId>-<seat>", claim, rf refund — carries the "hbj" family so this table and the casino's can run side by side and never collide. The ready gate, the frozen decider set, the never-ready decision refund and the never-dealt recycle refund are the casino's, unchanged ---- */
+function hbjBet(amt) {
+  const st = hbjState, mine = hrcMySeat("hbj");
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch."); return; }
+  const prev = mine.bet || 0;
+  if (prev === amt) return;
+  if (!profile || (profile.chips || 0) + prev < amt) { noteHRC("Not enough chips for that bet."); return; }
+  if (prev) addChips(prev);
+  addChips(-amt);
+  if (!st.firstBetTs) tblUpd("hbj", { firstBetTs: Date.now() });
+  tblUpd("hbj/seats/" + hbjSeat, { bet: amt, ts: Date.now() });
+  mine.bet = amt;
+  armRefundOD("hbj", hbjSeat, amt); /* the stake is charged: arm its disconnect refund at the new total (never-lose net) */
+  sfxClick();
+}
+function hbjHit() {
+  const st = hbjState, mine = hrcMySeat("hbj");
+  if (!st || st.phase !== "play" || st.turn !== hbjSeat || !mine) return;
+  const deck = [...(st.deck || [])]; if (!deck.length) return;
+  const hand = [...(mine.hand || []), deck.pop()];
+  tblUpd("hbj", { deck }); tblUpd("hbj/seats/" + hbjSeat, { hand, stood: cardVal(hand) >= 21, ts: Date.now() }); sfxClick();
+}
+function hbjStand() { if (hbjSeat >= 0) { tblUpd("hbj/seats/" + hbjSeat, { stood: true, ts: Date.now() }); sfxClick(); } }
+function hbjDouble() {
+  const st = hbjState, mine = hrcMySeat("hbj");
+  if (!st || st.phase !== "play" || st.turn !== hbjSeat || !mine || !mine.hand || mine.hand.length !== 2) return;
+  if (!profile || profile.chips < mine.bet) return;
+  addChips(-mine.bet);
+  const deck = [...(st.deck || [])]; const hand = [...mine.hand, deck.pop()];
+  tblUpd("hbj", { deck }); tblUpd("hbj/seats/" + hbjSeat, { bet: mine.bet * 2, hand, stood: true, dbl: true, ts: Date.now() }); sfxClick();
+}
+function hbjHostTick() {
+  if (!hbjState) { tblSet("hbj", { phase: "bet", seats: {}, dealer: [], handId: newRoundId(), startReq: 0, ts: Date.now() }); return; }
+  const hi = hrcHostSeat(hbjState); if (hi < 0 || hbjState.seats[hi].pid !== myId) return;
+  const st = hbjState, now = Date.now(), seats = st.seats || {};
+  Object.keys(seats).forEach(k => { if (!seats[k].pid || (now - (seats[k].ts || 0) > 25000 && !seats[k].bet)) tblSet("hbj/seats/" + k, null); });
+  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
+  const bettors = fresh.filter(i => seats[i].bet > 0).sort((a, b) => a - b);
+  const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0);
+  if (st.phase === "bet") {
+    if (st.dealer && st.dealer.length) tblUpd("hbj", { dealer: [] });
+    fresh.forEach(i => { if (seats[i].hand && seats[i].hand.length) tblUpd("hbj/seats/" + i, { hand: [] }); });
+    if (fresh.length && ready.length === fresh.length) {
+      const deck = newDeck();
+      const dealer = [deck.pop(), deck.pop()];
+      bettors.forEach(i => tblUpd("hbj/seats/" + i, { hand: [deck.pop(), deck.pop()], stood: false, dbl: false }));
+      tblUpd("hbj", { phase: "deal", deck, dealer, dealTs: now, results: null, msg: "", startReq: 0 });
+    }
+  } else if (st.phase === "deal") {
+    if (now - (st.dealTs || 0) > 1400 && bettors.length) tblUpd("hbj", { phase: "play", turn: bettors[0], turnTs: now });
+  } else if (st.phase === "play") {
+    const active = bettors.filter(i => !seats[i].stood && cardVal(seats[i].hand || []) < 21);
+    if (!active.length) {
+      const dealer = [...(st.dealer || [])], deck = [...(st.deck || [])];
+      while (cardVal(dealer) < 17 && deck.length) dealer.push(deck.pop());
+      const dv = cardVal(dealer), results = {};
+      const dealt = Object.keys(seats).map(Number).filter(i => seats[i] && (seats[i].hand || []).length);
+      dealt.forEach(i => {
+        const s = seats[i], hv = cardVal(s.hand || []); let res, amt = 0;
+        if (hv > 21) res = "Bust 💥";
+        else if (isBJ(s.hand) && !isBJ(dealer)) { res = "BLACKJACK! 🎉"; amt = Math.floor(s.bet * 2.5); }
+        else if (dv > 21) { res = "Dealer busts — you win! 🎉"; amt = s.bet * 2; }
+        else if (hv > dv) { res = "You win! 🎉"; amt = s.bet * 2; }
+        else if (hv < dv) res = "Dealer wins";
+        else { res = "Push — bet back"; amt = s.bet; }
+        results[i] = { res, amt };
+        if (amt > 0) writeClaim(claimUid(s), "hbj" + st.handId + "-" + i, amt, "🏆 High Rollers Blackjack win");
+      });
+      tblUpd("hbj", { phase: "done", dealer, deck, results, doneTs: now, msg: "Dealer: " + handStr(dealer) + " (" + dv + ")" });
+    } else if (active.indexOf(st.turn) < 0 || now - (st.turnTs || 0) > 25000) {
+      if (active.indexOf(st.turn) < 0 && seats[st.turn] && !seats[st.turn].stood) tblUpd("hbj/seats/" + st.turn, { stood: true });
+      const nxt = active.find(i => i > st.turn); const nt = nxt === undefined ? active[0] : nxt;
+      if (nt !== st.turn) tblUpd("hbj", { turn: nt, turnTs: now });
+    }
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
+    Object.keys(seats).forEach(i => { const s = seats[i]; if (s && s.bet > 0 && !(st.results && st.results[i]) && !(s.hand && s.hand.length)) writeClaim(claimUid(s), rfKeyFor("hbj", st, i), s.bet, "↩️ Bet returned"); }); /* never dealt, never settled (never-lose net): the casino blackjack's recycle refund, on this table's own rf key */
+    Object.keys(seats).forEach(i => tblUpd("hbj/seats/" + i, { bet: 0, hand: [], stood: false, dbl: false, rdy: false }));
+    tblUpd("hbj", { phase: "bet", dealer: [], results: null, handId: newRoundId(), firstBetTs: 0, startReq: 0, msg: "" });
+  }
+}
+/* ---- the club's roulette (Jonathan 2026-11-01): the casino's rouletteBet/rouletteSetAmt/rouletteReady/rouletteHostTick carried onto the club's own record, seat and names — the same three pick groups (rrBetParts/RR_GROUPS shared), the same spin on the shared srvNow timeline, the same frozen deciders and never-ready refund. The ONLY differences are the room's: picks stake hrrAmt each off the HR_BETS ladder, the notes are the club's, and every key carries the "hrr" family ---- */
+function hrrBet(type) {
+  const st = hrrState, mine = hrcMySeat("hrr");
+  if (!st || st.phase !== "bet" || !mine || !RR_GROUPS[type]) return;
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch."); return; }
+  const parts = rrBetParts(mine), prev = mine.bet || 0;
+  const replaced = parts.includes(type) ? "" : (parts.find(tp => RR_GROUPS[tp] === RR_GROUPS[type]) || "");
+  const picked = parts.includes(type) ? parts.filter(tp => tp !== type) : parts.filter(tp => RR_GROUPS[tp] !== RR_GROUPS[type]).concat(type);
+  const next = ["red", "black", "green", "even", "odd"].filter(tp => picked.includes(tp));
+  const amt = next.length * hrrAmt;
+  const avail = (profile ? (profile.chips || 0) : 0) + prev;
+  if (amt > avail) { noteHRC("Not enough chips for a " + amt.toLocaleString("en-US") + " bet."); return; }
+  if (prev) addChips(prev);
+  if (amt) addChips(-amt);
+  if (replaced) noteHRC("🔄 " + replaced.charAt(0).toUpperCase() + replaced.slice(1) + " replaced by " + type.charAt(0).toUpperCase() + type.slice(1) + " — your stake moved with it.");
+  if (!st.firstBetTs && amt) tblUpd("hrr", { firstBetTs: Date.now() });
+  const seatUpd = { bet: amt, betType: next.join("+"), ts: Date.now(), chips: profile ? profile.chips : 0 };
+  if (!amt) seatUpd.rdy = false;
+  tblUpd("hrr/seats/" + hrrSeat, seatUpd);
+  const ms = st.seats && st.seats[hrrSeat]; if (ms) { ms.bet = amt; ms.betType = next.join("+"); if (!amt) ms.rdy = false; }
+  armRefundOD("hrr", hrrSeat, amt); /* re-arm the disconnect refund at the new total — unselecting down to zero disarms it */
+  sfxClick();
+}
+function hrrSetAmt(amt) {
+  const st = hrrState, mine = hrcMySeat("hrr");
+  const parts = mine ? rrBetParts(mine) : [], prev = mine ? (mine.bet || 0) : 0;
+  if (st && st.phase === "bet" && mine && prev > 0 && parts.length) {
+    const total = parts.length * amt;
+    if (total !== prev) {
+      if (!acctUser) return;
+      const avail = (profile ? (profile.chips || 0) : 0) + prev;
+      if (total > avail) { noteHRC("Not enough chips for a " + total.toLocaleString("en-US") + " bet."); return; }
+      hrrAmt = amt;
+      addChips(prev);
+      addChips(-total);
+      tblUpd("hrr/seats/" + hrrSeat, { bet: total, ts: Date.now(), chips: profile ? profile.chips : 0 });
+      const ms = st.seats && st.seats[hrrSeat]; if (ms) ms.bet = total;
+      armRefundOD("hrr", hrrSeat, total);
+      sfxClick();
+      return;
+    }
+  }
+  hrrAmt = amt; sfxClick();
+}
+function hrrHostTick() {
+  if (!hrrState) { tblSet("hrr", { phase: "bet", seats: {}, spinId: newRoundId(), ts: Date.now() }); return; }
+  const hi = hrcHostSeat(hrrState); if (hi < 0 || hrrState.seats[hi].pid !== myId) return;
+  const st = hrrState, now = Date.now(), seats = st.seats || {};
+  Object.keys(seats).forEach(k => { if (!seats[k].pid || (now - (seats[k].ts || 0) > 25000 && !seats[k].bet)) tblSet("hrr/seats/" + k, null); });
+  const fresh = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
+  const ready = fresh.filter(i => seats[i].rdy && seats[i].bet > 0);
+  if (st.phase === "bet") {
+    if (fresh.length && ready.length === fresh.length) tblUpd("hrr", { phase: "spin", result: Math.floor(Math.random() * 37), spinTs: srvNow(), results: null, msg: "" });
+  } else if (st.phase === "spin" && srvNow() - (st.spinTs || 0) > 5600) {
+    const res = st.result || 0, results = {};
+    const deciders = Object.keys(seats).map(Number).filter(i => seats[i] && seats[i].bet > 0);
+    deciders.forEach(i => {
+      const s = seats[i];
+      if (!s.rdy) { results[i] = { res: "↩️ Bet returned — you never hit READY", amt: 0 }; writeClaim(claimUid(s), rfKeyFor("hrr", st, i), s.bet, "↩️ Bet returned"); return; } /* never readied, never settled (never-lose net) */
+      let amt = 0;
+      const parts = rrBetParts(s), per = parts.length ? (s.bet || 0) / parts.length : 0;
+      parts.forEach(tp => {
+        if (tp === "green" && res === 0) amt += per * 36;
+        else if (res !== 0 && ((tp === "red" && ROU_RED[res]) || (tp === "black" && !ROU_RED[res]) || (tp === "even" && res % 2 === 0) || (tp === "odd" && res % 2 === 1))) amt += per * 2;
+      });
+      const net = amt - (s.bet || 0);
+      results[i] = { res: amt === 0 ? "no win" : (net > 0 ? ("🎉 WIN +" + net.toLocaleString("en-US")) : "↩️ Stake back"), amt };
+      if (amt > 0) writeClaim(claimUid(s), "hrr" + st.spinId + "-" + i, amt, "🏆 High Rollers Roulette win");
+    });
+    tblUpd("hrr", { phase: "done", results, doneTs: now });
+  } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
+    Object.keys(seats).forEach(i => tblUpd("hrr/seats/" + i, { bet: 0, betType: "", rdy: false }));
+    tblUpd("hrr", { phase: "bet", results: null, spinId: newRoundId(), firstBetTs: 0, msg: "" });
+  }
+}
 function hrcHostTick() {
   if (!entered || me.scene !== "highrollers" || !db) return;
   if (bacState && !["bet", "deal", "done"].includes(bacState.phase)) tblSet("bac", { phase: "bet", seats: {}, roundId: newRoundId(), ts: Date.now() });
   if (craState && !["bet", "roll", "done"].includes(craState.phase)) tblSet("cra", { phase: "bet", seats: {}, roundId: newRoundId(), point: 0, ts: Date.now() });
+  if (hbjState && !["bet", "deal", "play", "done"].includes(hbjState.phase)) tblSet("hbj", { phase: "bet", seats: {}, dealer: [], handId: newRoundId(), startReq: 0, ts: Date.now() });
+  if (hrrState && !["bet", "spin", "done"].includes(hrrState.phase)) tblSet("hrr", { phase: "bet", seats: {}, spinId: newRoundId(), ts: Date.now() });
   tableIdleClear("bac", bacState, { phase: "bet", seats: {}, roundId: newRoundId(), ts: Date.now() });
   tableIdleClear("cra", craState, { phase: "bet", seats: {}, roundId: newRoundId(), point: 0, ts: Date.now() });
-  bacHostTick(); craHostTick();
+  tableIdleClear("hbj", hbjState, { phase: "bet", seats: {}, dealer: [], handId: newRoundId(), startReq: 0, ts: Date.now() });
+  tableIdleClear("hrr", hrrState, { phase: "bet", seats: {}, spinId: newRoundId(), ts: Date.now() });
+  bacHostTick(); craHostTick(); hbjHostTick(); hrrHostTick();
 }
 function hrcFocusRect() {
   if (bacSeat >= 0) return { x: BACT.x - 60, y: BACT.y - 60, w: BACT.w + 120, h: BACT.h + 254 };
   if (craSeat >= 0) return { x: CRAT.x - 60, y: CRAT.y - 60, w: CRAT.w + 120, h: CRAT.h + 254 };
+  if (hbjSeat >= 0) return { x: HBJT.x - 60, y: HBJT.y - 60, w: HBJT.w + 120, h: HBJT.h + 254 };
+  if (hrrSeat >= 0) return { x: HRRT.x - 60, y: HRRT.y - 60, w: HRRT.w + 120, h: HRRT.h + 254 };
   if (hrSlotSeat >= 0) { const mch = HRSLOTM[hrSlotSeat]; if (mch) return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 250 }; } /* the casino slot seat's own frame, on the club's machine */
   return null;
 }
@@ -7103,15 +7284,15 @@ function drawChairs(seats) {
 }
 function drawHighRollers(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  casinoShell(HRROOM.w, HRROOM.h, "👑 HIGH ROLLERS CLUB 👑", "baccarat · craps — high stakes only: 5,000 and up");
+  casinoShell(HRROOM.w, HRROOM.h, "👑 HIGH ROLLERS CLUB 👑", "baccarat · craps · blackjack · roulette — high stakes only: 5,000 and up");
   /* now playing — the room's OWN song (hub/tables/hrcmusic, picked at the service counter), in the VIP LOUNGE's exact pattern (Jonathan 2026-10-31): the lounge draws "♪ title ♪" in 700 21px gold directly under its title, at the title's baseline + one line height (font x 1.2) + a small margin, and draws NOTHING when no song is on. Mirrored here: the shell's title is 58px at baseline 128, so the line height is ~70 and the song baseline lands at 128 + 70 + 6 = 204, centred on the title's own x (HRROOM.w / 2) — which puts it just under the shell's subtitle (baseline 172, ink ends ~177), clear of the top bars (they flank the sign, ending where it begins), the slot row (tops at y 356) and everything else in the room. The state is the room's own hrcState via hrcSongActive(), never the club's */
   if (hrcSongActive()) {
     ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
     ctx.fillText("♪ " + SONGS[hrcState.idx][1] + " ♪", HRROOM.w / 2, 204);
   }
   uiZones = [];
-  /* the centre medallion (Jonathan 2026-10-31): the main casino's own circle, glow and all — the same gold glow behind it, the same two gold rings, and the same red-and-yellow atom inside, sitting on the floor in the gap between the two tables, CENTRED ON THE TABLES (his correction from his phone screenshot: the room's dead centre sat high against them — the medallion's centre is the tables' own centre line, BACT's mid-height). Floor scenery, walked over */
-  const hmcX = HRROOM.w / 2, hmcY = BACT.y + BACT.h / 2;
+  /* the centre medallion (Jonathan 2026-10-31): the main casino's own circle, glow and all — the same gold glow behind it, the same two gold rings, and the same red-and-yellow atom inside, sitting on the floor in the gap between the tables, CENTRED ON THE TABLES. MOVED DOWN (Jonathan 2026-11-01): with the second table row added, its centre is the CENTROID OF ALL FOUR TABLES — the mean of the four felt centres: x (880+2320+880+2320)/4 = 1600, y (1195+1195+1995+1995)/4 = 1595. Same size, same look, floor scenery, walked over */
+  const hmcX = (BACT.x + BACT.w / 2 + CRAT.x + CRAT.w / 2 + HBJT.x + HBJT.w / 2 + HRRT.x + HRRT.w / 2) / 4, hmcY = (BACT.y + BACT.h / 2 + CRAT.y + CRAT.h / 2 + HBJT.y + HBJT.h / 2 + HRRT.y + HRRT.h / 2) / 4;
   const hmg = ctx.createRadialGradient(hmcX, hmcY, 10, hmcX, hmcY, 260); hmg.addColorStop(0, "rgba(255,190,90,0.16)"); hmg.addColorStop(1, "rgba(255,190,90,0)"); ctx.fillStyle = hmg; ctx.beginPath(); ctx.arc(hmcX, hmcY, 260, 0, 7); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.ellipse(hmcX, hmcY, 190, 190, 0, 0, 7); ctx.stroke();
@@ -7165,6 +7346,8 @@ function drawHighRollers(t) {
   ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(HRDIV_T.x, HRDIV_T.y, HRDIV_T.w, HRDIV_T.h, 12); ctx.stroke();
   drawHRFelt(BACT, "🎴 BACCARAT");
   drawHRFelt(CRAT, "🎲 CRAPS");
+  drawHRFelt(HBJT, "🃏 BLACKJACK");
+  drawHRFelt(HRRT, "🎡 ROULETTE");
   /* the chairs themselves are painted by the table pass (drawHRTableFx), which also owns their tap zones */
   /* the same divider again, below the tables' chairs, and the second booth row */
   ctx.fillStyle = "#2a0a18"; rr(HRDIV_B.x, HRDIV_B.y, HRDIV_B.w, HRDIV_B.h, 12); ctx.fill();
@@ -7193,8 +7376,8 @@ function drawHighRollers(t) {
 function hrcSeatsRow(list, st, game) {
   list.forEach((sp, i) => {
     const occ = st && st.seats && st.seats[i] && st.seats[i].pid && Date.now() - (st.seats[i].ts || 0) < 25000;
-    if (!occ && bacSeat < 0 && craSeat < 0) {
-      const T = game === "bac" ? BACT : CRAT;
+    if (!occ && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0) {
+      const T = hrcRect(game);
       if (Math.hypot(me.x - (T.x + T.w / 2), me.y - (T.y + T.h + 60)) < 470 || Math.hypot(me.x - sp.x, me.y - sp.y) < 150)
         uiZones.push({ x: sp.x - 34, y: sp.y - 34, w: 68, h: 68, fn: () => hrcSitAt(game, i) });
     }
@@ -7216,7 +7399,7 @@ function hrcSeatBets(list, st, game) {
   list.forEach((sp, i) => {
     const sd = st && st.seats && st.seats[i];
     if (!sd || Date.now() - (sd.ts || 0) > 25000) return;
-    const T = game === "bac" ? BACT : CRAT;
+    const T = hrcRect(game);
     const ax = T.x + 110 + i * 170, ay = T.y + T.h - 128;
     if (sd.bet) {
       drawChip(ax, ay, sd.bet);
@@ -7339,9 +7522,144 @@ function drawCraTable() {
   hrcSeatBets(CRASEATS, st, "cra");
   hrcSeatsRow(CRASEATS, st, "cra");
 }
+function drawHbjTable() {
+  /* the casino's drawBJTable carried onto the club felt: same dealer row, seat spots, totals and controls — the amounts are the HR ladder (each button stakes outright, hbjBet), the READY button is the club tables' own (hrcTableHead's spot), and the result line rides the seat BetOverlay like the club's other tables */
+  const st = hbjState, T = HBJT, cx = T.x + T.w / 2;
+  ctx.textAlign = "center";
+  let status = hrcStatus(st, "🃏 The dealer is dealing…", "Next hand soon…");
+  if (st && st.phase === "play") { const ts = st.seats && st.seats[st.turn]; status = (hbjSeat >= 0 && st.turn === hbjSeat) ? "⭐ YOUR TURN ⭐" : ((ts ? ts.name : "A player") + " is playing…"); }
+  else if (st && st.phase === "done" && st.msg) status = st.msg;
+  ctx.font = "700 23px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+  ctx.fillText(status, T.x + 664, T.y + 96);
+  const mine = hrcMySeat("hbj");
+  if (st && st.phase === "bet" && mine) {
+    const hasBet = (mine.bet || 0) > 0, isRdy = !!(mine.rdy && hasBet);
+    drawBtn(T.x + T.w - 168, T.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? () => hrcReady("hbj") : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+  }
+  /* dealer */
+  ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)";
+  ctx.fillText("D E A L E R", cx, T.y + 88);
+  const dh = (st && st.dealer) || [], inDeal = !!st && st.phase === "deal", hideD = !st || st.phase === "bet" || st.phase === "play" || inDeal;
+  const liveHbj = !!(st && st.seats && Object.keys(st.seats).some(k => st.seats[k] && Date.now() - (st.seats[k].ts || 0) < 25000));
+  if (dh.length && st.phase !== "bet" && liveHbj) {
+    const cw = 54, chh = 76, step = 62, tw = cw + (dh.length - 1) * step;
+    dh.forEach((c, i) => drawCard(cx - tw / 2 + i * step, T.y + 100, cw, chh, c, inDeal ? true : (hideD && i === 0)));
+    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
+    ctx.fillText(hideD ? "( ? )" : "( " + cardVal(dh) + " )", cx + tw / 2 + 44, T.y + 148);
+  }
+  /* seat spots: cards, totals, bets (the casino's own arrangement) */
+  HBJSPOTS.forEach((sp, i) => {
+    const s = st && st.seats && st.seats[i];
+    if (!s || Date.now() - (s.ts || 0) > 25000) return;
+    if (st.phase === "play" && st.turn === i) { ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; rr(sp.x - 74, sp.y - 104, 148, 138, 14); ctx.stroke(); }
+    const hand = s.hand || [];
+    if (hand.length) {
+      const cw = 50, chh = 72, step = 36, tw = cw + (hand.length - 1) * step;
+      hand.forEach((c, j) => drawCard(sp.x - tw / 2 + j * step, sp.y - 92, cw, chh, c, false));
+      const v = cardVal(hand);
+      if (!(st.phase === "done" && st.results && st.results[i])) {
+        ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = v > 21 ? "#ff9d9d" : "#ffe9a8";
+        ctx.fillText("( " + v + " )" + (isBJ(hand) ? " BLACKJACK!" : v > 21 ? " BUST" : (s.stood ? " · stood" : "")), sp.x, sp.y + 28);
+      }
+    }
+    if (st.phase === "done" && st.results && st.results[i]) {
+      ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[i].amt ? "#7dffb0" : "#ffb3b3";
+      const net = (st.results[i].amt || 0) - (s.bet || 0);
+      ctx.fillText(st.results[i].res + (st.results[i].amt ? (net > 0 ? " · +" + net.toLocaleString("en-US") : " · stake back") : ""), sp.x, sp.y + 28);
+    } else if (s.bet) {
+      drawChip(sp.x, sp.y + 52, s.bet);
+      if (s.rdy && st.phase === "bet") { ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7dffb0"; ctx.fillText("✓ READY", sp.x, sp.y + 20); }
+    }
+  });
+  /* my controls, on the felt */
+  if (hbjSeat >= 0 && st) {
+    const by = T.y + T.h - 66;
+    if (st.phase === "bet" && mine) {
+      HR_BETS.forEach((amt, k) => drawBtn(cx - 308 + (k % 6) * 104, by + Math.floor(k / 6) * 26, 96, 22, "BET " + phAmtLabel(amt), () => hbjBet(amt), { fs: 15, sel: (mine.bet || 0) === amt }));
+    }
+    if (st.phase === "play" && st.turn === hbjSeat && mine && mine.hand && mine.hand.length) {
+      drawBtn(cx - 207, by, 130, 48, "HIT", hbjHit, { fs: 22 });
+      drawBtn(cx - 65, by, 130, 48, "STAND", hbjStand, { fs: 22 });
+      const canDbl = mine.hand.length === 2 && profile && (profile.chips || 0) >= (mine.bet || 0);
+      drawBtn(cx + 77, by, 130, 48, "DOUBLE", hbjDouble, { fs: 22, dim: !canDbl });
+    }
+  }
+  hrcSeatsRow(HBJSEATS, st, "hbj");
+}
+let hrrLastTickSpin = 0, hrrLastBallPocket = -1;
+function drawHrrTable(t) {
+  /* the casino's drawRouletteTable carried onto the club felt: same wheel, same ball on the shared srvNow timeline, same pick board — the amounts are the HR ladder in the club tables' two-row geometry, per-pick hrrAmt */
+  const st = hrrState, T = HRRT;
+  ctx.textAlign = "center"; ctx.font = "700 23px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+  ctx.fillText(hrcStatus(st, "No more bets — the ball is rolling!", "Next spin soon…"), T.x + 664, T.y + 96);
+  const mine = hrcMySeat("hrr");
+  if (st && st.phase === "bet" && mine) {
+    const hasBet = (mine.bet || 0) > 0, isRdy = !!(mine.rdy && hasBet);
+    drawBtn(T.x + T.w - 168, T.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? () => hrcReady("hrr") : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
+  }
+  const cx = T.x + 285, cy = T.y + 238, R = 148, step = Math.PI * 2 / 37;
+  ctx.fillStyle = "#3d0f14"; ctx.beginPath(); ctx.arc(cx, cy, R + 26, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, R + 26, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.16)"; ctx.lineWidth = 17; ctx.beginPath(); ctx.arc(cx, cy, R + 8, 0, 7); ctx.stroke();
+  for (let idx = 0; idx < 37; idx++) {
+    const v = ROU_ORDER[idx], a0 = idx * step - Math.PI / 2 - step / 2, a1 = a0 + step;
+    ctx.fillStyle = v === 0 ? "#0a8a4a" : (ROU_RED[v] ? "#b3232e" : "#15151f");
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a0, a1); ctx.closePath(); ctx.fill();
+    const am = a0 + step / 2, tx = cx + Math.cos(am) * (R - 24), ty = cy + Math.sin(am) * (R - 24);
+    ctx.fillStyle = "#fff"; ctx.font = "800 14px 'Segoe UI',sans-serif"; ctx.fillText(String(v), tx, ty + 5);
+  }
+  ctx.fillStyle = "#0d5c36"; ctx.beginPath(); ctx.arc(cx, cy, R - 44, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, R - 44, 0, 7); ctx.stroke();
+  ctx.fillStyle = "#241040"; ctx.beginPath(); ctx.arc(cx, cy, 36, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy, 36, 0, 7); ctx.stroke();
+  ctx.font = "30px sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.fillText("⚛", cx, cy + 11);
+  let ballAng = -Math.PI / 2;
+  if (st && (st.phase === "spin" || st.phase === "done") && st.result !== undefined) {
+    const target = ROU_ORDER.indexOf(st.result) * step - Math.PI / 2;
+    if (st.phase === "done") ballAng = target;
+    else {
+      const p = Math.min(1, Math.max(0, (srvNow() - (st.spinTs || 0)) / 4800)), ease = 1 - Math.pow(1 - p, 3);
+      const start = (st.spinTs % 3600) * 0.01;
+      let dlt = (target - start) % (Math.PI * 2); if (dlt < 0) dlt += Math.PI * 2;
+      ballAng = start + (Math.PI * 10 + dlt) * ease;
+    }
+  }
+  const bx2 = cx + Math.cos(ballAng) * (R + 8), by2 = cy + Math.sin(ballAng) * (R + 8);
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.arc(bx2 + 2, by2 + 3, 9, 0, 7); ctx.fill();
+  ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(bx2, by2, 9, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(120,160,255,0.9)"; ctx.beginPath(); ctx.arc(bx2 - 3, by2 - 3, 3, 0, 7); ctx.fill();
+  if (st && st.phase === "spin" && st.spinTs) {
+    if (hrrLastTickSpin !== st.spinTs) { hrrLastTickSpin = st.spinTs; hrrLastBallPocket = -1; }
+    let rel = (ballAng + Math.PI / 2) % (Math.PI * 2); if (rel < 0) rel += Math.PI * 2;
+    const pk = Math.floor(rel / step) % 37;
+    if (hrrLastBallPocket >= 0 && pk !== hrrLastBallPocket && me.scene === "highrollers") sfxTick();
+    hrrLastBallPocket = pk;
+  }
+  if (st && st.phase === "done" && st.result !== undefined) {
+    ctx.font = "800 27px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("🎯 " + st.result + " — " + (st.result === 0 ? "GREEN" : (ROU_RED[st.result] ? "🔴 RED" : "⚫ BLACK")), cx, cy + R + 52);
+  }
+  const canBet = !!(st && st.phase === "bet" && mine);
+  const types = [["red", "🔴 RED", "#a11d28"], ["black", "⚫ BLACK", "#15151f"], ["even", "EVEN", "#1d2b52"], ["odd", "ODD", "#1d2b52"], ["green", "🟢 GREEN 0 · pays 36×", "#0a8a4a"]];
+  types.forEach((tp, k) => {
+    const bw = k === 4 ? 392 : 188, bx = T.x + 478 + (k % 2) * 204, by = T.y + 116 + Math.floor(k / 2) * 76;
+    const myParts = mine ? rrBetParts(mine) : [], sel = !!mine && myParts.includes(tp[0]), per = myParts.length ? (mine.bet || 0) / myParts.length : 0;
+    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + per.toLocaleString("en-US") : ""), () => hrrBet(tp[0]), { fs: 21, fill: tp[2], sel, pad: 6 });
+    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.fillText(tp[1] + (sel ? " · " + per.toLocaleString("en-US") : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
+  });
+  if (hrrSeat >= 0) {
+    HR_BETS.forEach((a, k) => { const row2 = k >= 6; drawBtn(T.x + 478 + (row2 ? k - 6 : k) * 67, T.y + T.h - (row2 ? 50 : 74), 60, 22, a >= 1000000000 ? (a / 1000000000) + "B" : a >= 1000000 ? (a / 1000000) + "M" : a >= 1000 ? (a / 1000) + "k" : String(a), () => hrrSetAmt(a), { fs: 14, sel: hrrAmt === a, pad: row2 ? 0 : 2 }); });
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
+    ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - 86);
+  }
+  hrcSeatBets(HRRSEATS, st, "hrr");
+  hrcSeatsRow(HRRSEATS, st, "hrr");
+}
 function drawHRTableFx(t) {
   drawBacTable();
   drawCraTable();
+  drawHbjTable();
+  drawHrrTable();
   if (hrcNote && performance.now() - hrcNoteAt < 4200) {
     ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
     const w = ctx.measureText(hrcNote).width + 30;
@@ -9509,16 +9827,18 @@ function frame(now) {
   else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
   else if (atHRCounter(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Service Counter — Pick a Song"; promptAction = () => { jukeTarget = "hrc"; openJuke(); }; }
   else if (nearBoxJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Boom Box — Pick a Song"; promptAction = () => { jukeTarget = "box"; openJuke(); }; } /* the boom box (Jonathan 2026-10-31): the song picker, worked from beside the box in the Boxing Arena — the pick is the arena's own song (hub/tables/boxmusic), never the club's or the gym's theme */ /* the service counter (Jonathan 2026-10-31): the song picker, worked ONLY from the strip behind the counter on the room's right side — the prompt exists only while standing in that strip, and the pick is the High Rollers room's own song (hub/tables/hrcmusic), never the club's */
-  else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0 || hrSlotSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
+  else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0 || hbjSeat >= 0 || hrrSeat >= 0 || hrSlotSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
   else if (me.scene === "chess" && chSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = chessStandUp; }
   else if (me.scene === "boxing" && boxSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = boxingBout ? "🏳️ Give up" : "🚪 Stand up"; promptAction = boxingStandUp; }
   else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
   else if (me.scene === "poolhall" && phSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = phStandUp; }
   else if (me.scene === "poolhall" && phNearTable() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Pool Table"; promptAction = () => phTrySit(phNearTable()); }
   else if (me.scene === "chess" && chSeatT < 0 && chessNearBoard()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Board"; promptAction = chessTrySit; }
-  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrcNear("bac")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Baccarat"; promptAction = () => hrcTrySit("bac"); }
-  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrcNear("cra")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Craps"; promptAction = () => hrcTrySit("cra"); }
-  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrSlotSeat < 0 && nearHRSlot() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Slots"; promptAction = () => hrSitAtSlot(nearHRSlot()); }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrcNear("bac")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Baccarat"; promptAction = () => hrcTrySit("bac"); }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrcNear("cra")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Craps"; promptAction = () => hrcTrySit("cra"); }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrcNear("hbj")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Blackjack"; promptAction = () => hrcTrySit("hbj"); }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrcNear("hrr")) { promptBtn.style.display = "block"; promptBtn.textContent = "🎡 Sit at Roulette"; promptAction = () => hrcTrySit("hrr"); }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hbjSeat < 0 && hrrSeat < 0 && hrSlotSeat < 0 && nearHRSlot() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Slots"; promptAction = () => hrSitAtSlot(nearHRSlot()); }
   else if (me.scene === "boxing" && boxNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🥊 Enter the Ring"; promptAction = boxingTrySit; }
   else if (nearBJ()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Blackjack"; promptAction = () => trySit("bj"); }
   else if (nearRR()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎡 Sit at Roulette"; promptAction = () => trySit("rr"); }
