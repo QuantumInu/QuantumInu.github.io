@@ -160,6 +160,14 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #slotbets button.sel,#rranterow button.sel{background:rgba(255,215,106,.45);color:#fff}
 .reel{width:76px;height:76px;border-radius:14px;background:rgba(5,10,24,.85);border:1px solid rgba(255,215,106,.5);display:flex;align-items:center;justify-content:center;font-size:42px}
 #jukestop{margin-top:10px;background:rgba(255,93,143,.16);border:1px solid rgba(255,93,143,.6);color:#ffb3c9;border-radius:999px;padding:10px;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit}
+#store{position:absolute;inset:52px 0 0 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
+#storepanel{background:var(--panel);border:2px solid rgba(255,215,106,.75);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,215,106,.30)} /* the HRC STORE (Jonathan 2026-11-01): the Casino Jukebox's gold family — the same outline and glow as #jukepanel.casino, on its own overlay so the two panels never share state */
+#storepanel h2{margin:0 0 2px;font-size:21px;color:var(--gold);text-align:center}
+#storebal{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px;white-space:nowrap}
+#storelist{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px;overscroll-behavior:none}
+#storelist .jukesong:disabled{opacity:.45;cursor:default}
+#storemsg{min-height:20px;color:#ffd76a;font-weight:700;font-size:14px;margin-top:10px;text-align:center}
+#storeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #jukeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 </style>
 </head>
@@ -188,6 +196,13 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <div id="jukelist"></div>
     <button id="jukestop">⏹ Stop the music</button>
     <button id="jukeclose">Close</button>
+  </div></div>
+  <div id="store"><div id="storepanel">
+    <h2 id="storetitle">🛍️ High Roller's Store</h2>
+    <p id="storebal"></p>
+    <div id="storelist"></div>
+    <p id="storemsg"></p>
+    <button id="storeclose">Close</button>
   </div></div>
   <div id="chatblock">🚫 That message isn't allowed here.</div>
   <div id="chatlog"><div id="logpanel">
@@ -1097,6 +1112,12 @@ let kingMechForm = false; /* OnlineMoney's king mech transform: the same session
 let tonicMechForm = false; /* 7daytonic's galaxy mech transform: the same session-only shape again, hanging off his own hero (76); it shares the same 3s cooldown clock for the same reason */
 let kenMechForm = false; /* Dj Ken's gentleman mech transform: the same session-only shape again, hanging off his own hero (78); it shares the same 3s cooldown clock for the same reason */
 let roboMechForm = false; /* the owner's dome mech transform: the same session-only shape again, hanging off his robo-dog (80) on his own account; it shares the same 3s cooldown clock for the same reason */
+function clearMechForms() { /* the full transform reset (Jonathan 2026-11-01): every form flag down and the shared cooldown zeroed, so the character is simply its base hero again. It exists for the picker switch that used to strand the mech — change base hero while transformed and the flags stayed up, so presence kept publishing the mech id, the self-draw kept wearing it, and T routed against the new base and nothing worked. Session-only, exactly like the forms themselves: nothing here touches the presence record's shape or the saved profile */
+  const was = mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm;
+  mechForm = kingMechForm = tonicMechForm = kenMechForm = roboMechForm = false;
+  mechCdUntil = 0;
+  return was;
+}
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
 const CLUB = { x: 140, y: 1180, w: 420, h: 300 };
@@ -1557,7 +1578,9 @@ function enterHub() {
   acctSave(); drawChips();
   if (lockBeat) clearInterval(lockBeat);
   lockBeat = setInterval(() => { try { localStorage.setItem("qh-tab-lock", JSON.stringify({ id: tabId, ts: Date.now() })); } catch (e) {} }, 3000);
+  const heroPickChanged = pickedHero !== me.hero; /* the picker's verdict, read BEFORE the new base lands: a different base chosen while a mech form is up is the switch that used to strand the transform (Jonathan 2026-11-01) */
   me.name = nm; me.hero = pickedHero; me.g = pickedGender;
+  if (heroPickChanged) clearMechForms(); /* switching base hero in the picker while transformed resets the character to the new base version — untransformed, cooldown cleared, T working from the new base at once */
   entered = true;
   gate.style.display = "none";
   ac(); startMusic(); sfxChime();
@@ -1810,6 +1833,7 @@ function initAuth() {
     acctUser = u || null; acctUi();
     if (!u) {
       acctLoaded = false;
+      loadStoreFromAccount(null); /* signed out: the store forgets the account's tier and backgrounds with everything else */
       if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
       stopTransfers();
       if (prevUser && sessHeld && db) releaseSessSlot(prevUser.uid);
@@ -1839,6 +1863,7 @@ function initAuth() {
           syncOwnerCell(); syncHeroSel();
           checkEnter(); drawChips();
           acctLoaded = true;
+          loadStoreFromAccount(d); /* the store's slice of the account doc (autoTier, slotBg, slotBgs) loads with the rest of the profile */
           if (pk.local) acctSave(); /* the account had no amount yet (legacy record) — the local figure becomes its starting amount, once */
           claimSession(); watchChips(); watchTransfers();
         } else if (!d) { acctLoaded = true; acctSave(); claimSession(); watchChips(); watchTransfers(); } /* first sign-in on this account: push this device's profile up as the starting point */
@@ -6260,6 +6285,7 @@ function hrSitAtSlot(i) {
 }
 function hrSlotStand() {
   if (hrSlotSeat < 0) return;
+  hrAutoOn = false; /* auto-spin dies with the seat (Jonathan 2026-11-01): standing up is one of its off switches */
   const i = hrSlotSeat;
   hrSlotLeft = i; /* until the removal echoes back, the beat must not hand this chair straight back */
   const s = hrSlotSeats && hrSlotSeats[hrSlotKey(i)];
@@ -6315,6 +6341,108 @@ function hrSlotFxCheck() {
     if (s.amt > 0 && Date.now() - s.ts < 5000 && me.scene === "highrollers") { const m = hrSlotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 100000, "highrollers"); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt.toLocaleString("en-US"), "#ffd76a", "highrollers"); } }
   });
 }
+/* ---- the High Roller's Club STORE (Jonathan 2026-11-01, PREVIEW): a desk-side shop in the club. Standing on the LEFT side of the service desk (the room side — atHRCounter's strip is the RIGHT side, behind the desk) offers a prompt button in the DJ-booth pattern; pressing it opens this panel, styled in the Casino Jukebox's gold. Two doors: Slot Backgrounds and Auto Buy. Everything bought lives on the account doc (hub/users/<uid>: autoTier, slotBg, slotBgs) — that doc takes new fields, unlike the field-locked presence record — and every purchase checks the balance first and pays through addChips, so a buy can only ever lower a balance ---- */
+const AUTO_TIERS = [
+  { price: 1000000000, ms: 5000, label: "5 seconds" },
+  { price: 5000000000, ms: 4000, label: "4 seconds" },
+  { price: 10000000000, ms: 3000, label: "3 seconds" },
+  { price: 50000000000, ms: 2000, label: "2 seconds" },
+  { price: 100000000000, ms: 1000, label: "1 second" }
+]; /* the auto-spin ladder, bought strictly in order: tier N costs AUTO_TIERS[N-1].price and, with AUTO on, spins every AUTO_TIERS[N-1].ms */
+const SLOT_BGS = [
+  { id: "default", name: "Default Burgundy", price: 0, img: null }
+]; /* the slot cabinet backgrounds — ONE obvious place: drop a priced entry ({id, name, price, img: "url"}) into this list and it appears in the store with buying, owning and selecting already wired. "default" is the machines' own burgundy: always owned, no image, and selecting it is exactly today's rendering */
+let autoTier = 0; /* my owned auto-spin tier (0 = none), loaded from the account doc at sign-in */
+let mySlotBg = "default"; /* my selected cabinet background id, loaded from the account doc at sign-in */
+let mySlotBgsOwned = []; /* the priced background ids I own, loaded from the account doc at sign-in */
+let storeView = "main"; /* which store page is showing: "main", "auto" or "bgs" */
+let hrAutoOn = false, hrAutoLast = 0; /* the AUTO toggle and its clock — session-only, like the mech forms */
+const slotBgImgs = {}; /* the lazy image cache for priced backgrounds, keyed by entry id */
+function slotBgEntry(id) { for (const e of SLOT_BGS) if (e.id === id) return e; return null; }
+function slotBgOwned(e) { return !!e && (e.price <= 0 || mySlotBgsOwned.indexOf(e.id) >= 0); }
+function slotBgImg(e) { if (!e || !e.img) return null; if (!slotBgImgs[e.id]) { const im = new Image(); im.src = e.img; slotBgImgs[e.id] = im; } return slotBgImgs[e.id]; }
+function acctStoreSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ autoTier: autoTier, slotBg: mySlotBg, slotBgs: mySlotBgsOwned, ts: Date.now() }); } catch (e) {} } /* update, not set — acctSave's own rule: the session claim and the chips fields under this record are not this function's to rewrite */
+function loadStoreFromAccount(d) { /* sign-in (and sign-out, with null): the store's slice of the account doc lands in the session vars, in the same shape as the other account fields */
+  autoTier = d && typeof d.autoTier === "number" ? Math.max(0, Math.min(AUTO_TIERS.length, Math.floor(d.autoTier))) : 0;
+  mySlotBgsOwned = d && Array.isArray(d.slotBgs) ? d.slotBgs.filter(x => typeof x === "string") : [];
+  const want = d && typeof d.slotBg === "string" ? slotBgEntry(d.slotBg) : null;
+  mySlotBg = want && slotBgOwned(want) ? want.id : "default";
+  if (autoTier < 1) hrAutoOn = false;
+}
+function storeMsg(t) { const m = $("storemsg"); if (m) m.textContent = t || ""; }
+function storeRow(label, sub, fn, disabled) { const b = document.createElement("button"); b.className = "jukesong"; b.innerHTML = label + (sub ? " <small>" + sub + "</small>" : ""); if (disabled) b.disabled = true; else if (fn) b.onclick = fn; return b; } /* the jukebox's own row shape: a full-width button with a quieter sub-line */
+function renderStore() {
+  const list = $("storelist"); if (!list) return;
+  list.innerHTML = "";
+  const bal = $("storebal"); if (bal) bal.textContent = acctUser ? ("🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 0).toLocaleString("en-US")) : "🔒 Looking is free — buying takes an account";
+  const title = $("storetitle");
+  if (storeView === "auto") {
+    if (title) title.textContent = "🤖 Auto Buy — Auto-Spin Ladder";
+    AUTO_TIERS.forEach((t, k) => {
+      const n = k + 1;
+      if (autoTier >= n) list.appendChild(storeRow("✅ Tier " + n + " — every " + t.label, "owned", null, true));
+      else if (n === autoTier + 1) list.appendChild(storeRow("Tier " + n + " — every " + t.label, "🪙 " + t.price.toLocaleString("en-US") + " — tap to buy", () => buyAutoTier(n)));
+      else list.appendChild(storeRow("🔒 Tier " + n + " — every " + t.label, "🪙 " + t.price.toLocaleString("en-US") + " — buy Tier " + (n - 1) + " first", null, true));
+    });
+    list.appendChild(storeRow("← Back", "", () => { storeView = "main"; storeMsg(""); renderStore(); sfxClick(); }));
+  } else if (storeView === "bgs") {
+    if (title) title.textContent = "🎨 Slot Backgrounds";
+    SLOT_BGS.forEach(e => {
+      if (mySlotBg === e.id) list.appendChild(storeRow("✅ " + e.name, "on your machines now", null, true));
+      else if (slotBgOwned(e)) list.appendChild(storeRow(e.name, e.price > 0 ? "owned — tap to use it" : "free — tap to use it", () => selectSlotBg(e.id)));
+      else list.appendChild(storeRow(e.name, "🪙 " + e.price.toLocaleString("en-US") + " — tap to buy", () => buySlotBg(e.id)));
+    });
+    list.appendChild(storeRow("← Back", "", () => { storeView = "main"; storeMsg(""); renderStore(); sfxClick(); }));
+  } else {
+    if (title) title.textContent = "🛍️ High Roller's Store";
+    list.appendChild(storeRow("🎨 Slot Backgrounds", "the club machines' backdrop", () => { storeView = "bgs"; storeMsg(""); renderStore(); sfxClick(); }));
+    list.appendChild(storeRow("🤖 Auto Buy", autoTier > 0 ? "tier " + autoTier + " owned — AUTO spins every " + AUTO_TIERS[autoTier - 1].label : "auto-spin for the club slots", () => { storeView = "auto"; storeMsg(""); renderStore(); sfxClick(); }));
+  }
+}
+function openStore() { storeView = "main"; storeMsg(""); renderStore(); $("store").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from the desk-side prompt and stays until it is closed */
+function closeStore() { $("store").style.display = "none"; sfxClick(); }
+function buyAutoTier(n) {
+  if (!acctUser) { storeMsg("🔒 Buying takes an account — guests can look."); return; }
+  if (n !== autoTier + 1) return; /* the ladder is bought strictly in order — a later tier never skips the ones before it */
+  const t = AUTO_TIERS[n - 1]; if (!t) return;
+  pullChips(); /* about to spend: the balance goes on the server amount first, the same rule as sitting down to play */
+  if (!profile || (profile.chips || 0) < t.price) { storeMsg("Not enough chips — Tier " + n + " costs 🪙 " + t.price.toLocaleString("en-US") + "."); sfxBad(); return; }
+  addChips(-t.price); /* a purchase only ever lowers the balance, through the one chips path there is */
+  autoTier = n; acctStoreSave();
+  storeMsg("✅ Tier " + n + " bought — the AUTO button is on your club machines, spinning every " + t.label + ".");
+  sfxChime(); renderStore();
+}
+function buySlotBg(id) {
+  const e = slotBgEntry(id); if (!e || slotBgOwned(e)) return;
+  if (!acctUser) { storeMsg("🔒 Buying takes an account — guests can look."); return; }
+  pullChips();
+  if (!profile || (profile.chips || 0) < e.price) { storeMsg("Not enough chips — " + e.name + " costs 🪙 " + e.price.toLocaleString("en-US") + "."); sfxBad(); return; }
+  addChips(-e.price);
+  mySlotBgsOwned.push(e.id); mySlotBg = e.id; acctStoreSave(); /* a bought background goes straight onto the machines, like a bought tier arms AUTO */
+  storeMsg("✅ " + e.name + " bought and on your machines.");
+  sfxChime(); renderStore();
+}
+function selectSlotBg(id) { const e = slotBgEntry(id); if (!e || !slotBgOwned(e)) return; mySlotBg = id; acctStoreSave(); storeMsg("✅ " + e.name + " is on your machines."); sfxClick(); renderStore(); }
+function atHRStoreDesk(x, y) { return me.scene === "highrollers" && x < HRCTR.x - 4 && x > HRCTR.x - 170 && y >= HRCTR.y - 6 && y <= HRCTR.y + HRCTR.h + 6; } /* standing on the LEFT side of the service desk — the room side, facing the desk (Jonathan 2026-11-01): the store's spot, the mirror image of atHRCounter's behind-the-desk strip on the right. The 170 reach keeps it a stance at the desk, not half the room */
+/* the cabinet backdrop: the player's selected background paints the club machines' faces. The default entry carries no image, so it lands on the flat burgundy fill the machines have always had — selecting Default changes nothing anyone can see */
+function hrSlotCabinetBase(mch) {
+  const e = slotBgEntry(mySlotBg), img = e ? slotBgImg(e) : null;
+  if (img && img.complete && img.naturalWidth > 0) { ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip(); ctx.drawImage(img, mch.x, mch.y, mch.w, mch.h); ctx.restore(); return; }
+  ctx.fillStyle = "#40081b"; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.fill(); /* BURGUNDY body — the room's own burgundy, the same #40081b as its carpet and bar counters (the casino's cabinets are #2a1150 blue) */
+}
+/* AUTO (Jonathan 2026-11-01): the ladder's reward. While ON and seated at a club machine, the tick fires hrSpinMachine itself at the owned tier's interval with the bet currently selected — no second engine: same bag, same pays, same claims rail. It turns itself off when the seat goes (hrSlotStand clears it too), the room changes, the seat record is lost, or the next bet cannot be covered */
+function hrAutoToggle() { if (autoTier < 1 || hrSlotSeat < 0) return; hrAutoOn = !hrAutoOn; if (hrAutoOn) hrAutoLast = performance.now() - AUTO_TIERS[autoTier - 1].ms; sfxClick(); }
+function hrAutoTick() {
+  if (!hrAutoOn) return;
+  if (!entered || me.scene !== "highrollers" || hrSlotSeat < 0 || !acctUser || autoTier < 1) { hrAutoOn = false; return; }
+  if (!profile || (profile.chips || 0) < hrSlotBet) { hrAutoOn = false; noteHRC("⏹ Auto-spin off — not enough chips for the next " + hrSlotBet.toLocaleString("en-US") + " bet."); return; }
+  const now = performance.now();
+  if (now - hrAutoLast < AUTO_TIERS[autoTier - 1].ms) return;
+  hrAutoLast = now;
+  hrSpinMachine(hrSlotSeat);
+}
+setInterval(hrAutoTick, 200);
+$("storeclose").onclick = closeStore;
 function hrSlotSeatsRow() {
   /* drawSeatsRow carried to the club's machines: a chair per machine under its cabinet; a free chair near the player is a tap target for exactly that machine */
   const view = hrSlotSeatView();
@@ -6342,7 +6470,7 @@ function drawHRSlots(t) {
   const near = nearHRSlot();
   hrSlotSeatsRow();
   HRSLOTM.forEach((mch, i) => {
-    ctx.fillStyle = "#40081b"; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.fill(); /* BURGUNDY body — the room's own burgundy, the same #40081b as its carpet and bar counters (the casino's cabinets are #2a1150 blue) */
+    hrSlotCabinetBase(mch); /* the cabinet's backdrop — the player's selected store background, or the flat burgundy default (see hrSlotCabinetBase) */
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke(); /* the yellow border, kept exactly */
     ctx.fillStyle = "#0a0616"; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.fill();
     ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
@@ -6363,6 +6491,7 @@ function drawHRSlots(t) {
       HR_SLOT_BETS.forEach((amt, k) => {
         drawBtn(mch.x + 13 + (k % 3) * 64, mch.y + 156 + Math.floor(k / 3) * 46, 56, 38, amt.toLocaleString("en-US"), () => { hrSlotBet = amt; }, { fs: 14, sel: hrSlotBet === amt });
       });
+      if (autoTier >= 1) drawBtn(mch.x + mch.w - 78, mch.y + 118, 62, 34, hrAutoOn ? "AUTO ON" : "AUTO", () => hrAutoToggle(), { fs: 12, sel: hrAutoOn }); /* the store's AUTO button (Jonathan 2026-11-01): right of the SLOTS word on the machine face, drawn only for ladder owners and only while seated — it toggles the auto-spin that hrAutoTick drives through hrSpinMachine itself */
       drawBtn(mch.x + 16, mch.y + 252, mch.w - 32, 56, spinning ? "···" : "🎰 SPIN " + hrSlotBet.toLocaleString("en-US"), spinning ? null : () => hrSpinMachine(i), { fs: 22, fill: "#8a6a1f", dim: !!spinning });
     } else {
       ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.55)";
@@ -9983,6 +10112,7 @@ function frame(now) {
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
   else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
+  else if (atHRStoreDesk(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🛍️ Service Desk — Store"; promptAction = openStore; } /* the STORE (Jonathan 2026-11-01): worked from the LEFT side of the service desk, the room side — the DJ pattern again: the prompt exists only while standing in the spot, and pressing it opens the store panel. The counter's own song prompt is the desk's other side (atHRCounter, behind it on the right) and never overlaps this spot */
   else if (atHRCounter(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Service Counter — Pick a Song"; promptAction = () => { jukeTarget = "hrc"; openJuke(); }; }
   else if (nearBoxJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Boom Box — Pick a Song"; promptAction = () => { jukeTarget = "box"; openJuke(); }; } /* the boom box (Jonathan 2026-10-31): the song picker, worked from beside the box in the Boxing Arena — the pick is the arena's own song (hub/tables/boxmusic), never the club's or the gym's theme */ /* the service counter (Jonathan 2026-10-31): the song picker, worked ONLY from the strip behind the counter on the room's right side — the prompt exists only while standing in that strip, and the pick is the High Rollers room's own song (hub/tables/hrcmusic), never the club's */
   else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0 || hbjSeat >= 0 || hrrSeat >= 0 || hrSlotSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
