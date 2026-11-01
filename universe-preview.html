@@ -52,6 +52,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .logrow{font-size:14.5px;line-height:1.35;color:var(--ink);word-break:break-word}
 .logrow b{color:var(--gold)}
 .logempty{color:rgba(234,246,255,.55);font-size:14.5px;text-align:center;padding:8px 0}
+.logdiv{color:rgba(56,225,255,.85);font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;text-align:center;padding:6px 0 3px;border-bottom:1px solid rgba(56,225,255,.25)}
 #logclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #onlinelist{position:absolute;inset:52px 0 0 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #onlinepanel{background:var(--panel);border:2px solid rgba(56,225,255,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(56,225,255,.25)}
@@ -707,7 +708,7 @@ try {
 let lastPub = 0, lastPubKey = "";
 function publish(force) {
   if (!db || !entered) return;
-  followChatLog(me.scene);
+  noteRoomEntered(me.scene); /* publish always knows the room I'm standing in: entering a different room drops that room's divider into the session chat log */
   const now = performance.now();
   const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : ""].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000) return;
@@ -1834,6 +1835,7 @@ function initAuth() {
     if (!u) {
       acctLoaded = false;
       loadStoreFromAccount(null); /* signed out: the store forgets the account's tier and backgrounds with everything else */
+      resetSessionLog(); /* signed out: the session chat log dies with the session — the next sign-in starts with a blank log (Jonathan 2026-11-01) */
       if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
       stopTransfers();
       if (prevUser && sessHeld && db) releaseSessSlot(prevUser.uid);
@@ -4732,34 +4734,52 @@ $("sendtokcancel").onclick = () => { closeSendTokens(); sfxClick(); };
 $("sendtok").addEventListener("click", e => { if (e.target === $("sendtok")) closeSendTokens(); });
 $("sendtokamt").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); sendTokensConfirm(); } });
 /* ============ chat log ============ */
-/* Server-saved by room (Jonathan 2026-10-31): every public chat message is
-   stored under hub/tables/chatlog/<scene> with the sender's session id and
-   chat id as its key, so every client can write the same message once
-   without making duplicates. Opening or entering a room follows that room's
-   latest 60 messages, including messages sent while this player was logged
-   out. The heading names the room whose log is on screen. Token-transfer
-   notes stay local to the receiving player and are never saved publicly. */
-const chatLogs = new Map();
+/* Session-only log (Jonathan 2026-11-01 — reverses the 2026-10-31 room-history
+   build): the visible log is ONE stream headed just "Chat Log", built only
+   from what happens while THIS player is inside. It starts completely empty
+   on every entry, shows only live chat from the room the player is standing
+   in (nothing from other rooms, nothing from before they came in), keeps
+   running across room changes for the whole session, and is wiped on
+   sign-out, so the next sign-in starts blank again. It is never read back
+   from the database and never persisted anywhere. Every room entry drops a
+   divider naming the room into the stream, and that room's chat lands under
+   its divider. Messages are still SAVED per room exactly as before —
+   saveChatMessage's write under hub/tables/chatlog/<scene>, keyed by sender
+   session + chat id so every client writes the same message once — only the
+   read/replay that used to reload stored history on login and room entry is
+   gone. Token-transfer notes stay local to the receiving player and are
+   never saved publicly. */
+const sessionLogRows = []; /* the one stream, in arrival order: {divider:"Plaza"} room titles and {scene, name, text, ts, key} messages */
 const loggedChatKeys = new Set();
-let chatHistoryQuery = null, chatHistoryScene = "";
-function chatRoomLog(scene) {
-  if (!chatLogs.has(scene)) chatLogs.set(scene, []);
-  return chatLogs.get(scene);
+let logDividerScene = ""; /* the room the stream's newest divider names — a fresh divider drops only when a different room is entered */
+const SESSION_LOG_CAP = 300; /* the stream keeps the newest 300 rows (dividers + messages), so a long session can't grow the panel without bound */
+function chatRoomLog(scene) { return sessionLogRows.filter(r => !r.divider && r.scene === scene); } /* read-only view kept for the token-note checks: the messages this session's stream holds for one room */
+function resetSessionLog() {
+  sessionLogRows.length = 0;
+  loggedChatKeys.clear();
+  logDividerScene = "";
+  if ($("chatlog") && $("chatlog").style.display === "flex") renderLog();
 }
-function syncLogTitle() {
-  const el = $("logtitle");
-  if (el) el.textContent = "💬 Chat Log — " + onlineRoomName(chatHistoryScene || me.scene);
+function trimSessionLog() {
+  while (sessionLogRows.length > SESSION_LOG_CAP) { const old = sessionLogRows.shift(); if (old && old.key) loggedChatKeys.delete(old.key); }
 }
-function addChatLogMessage(scene, name, text, ts, key) {
+function noteRoomEntered(scene) {
+  if (!ONLINE_ROOM_NAMES[scene] || scene === logDividerScene) return;
+  logDividerScene = scene;
+  sessionLogRows.push({ divider: onlineRoomName(scene) });
+  trimSessionLog();
+  if ($("chatlog").style.display === "flex") renderLog();
+}
+function addChatLogMessage(scene, name, text, ts, key, local) {
   if (!ONLINE_ROOM_NAMES[scene] || !text) return;
+  if (!local && (!entered || scene !== me.scene)) return; /* session-only: network chat counts only once I'm inside, and only from the room I'm standing in. Local notes (token transfers, held wins) are this session's own business and always land. */
   const k = key || (scene + ":" + ts + ":" + name + ":" + text);
   if (loggedChatKeys.has(k)) return;
   loggedChatKeys.add(k);
-  const rows = chatRoomLog(scene);
-  rows.push({ name: String(name || "?").slice(0, 24), text: String(text).slice(0, 300), ts: Number(ts) || 0, key: k });
-  rows.sort((a, b) => (a.ts - b.ts) || String(a.key).localeCompare(String(b.key)));
-  while (rows.length > 60) { const old = rows.shift(); if (old && old.key) loggedChatKeys.delete(old.key); }
-  if (scene === me.scene && $("chatlog").style.display === "flex") renderLog();
+  noteRoomEntered(scene); /* the room's divider always lands ahead of its first message in the stream */
+  sessionLogRows.push({ scene: scene, name: String(name || "?").slice(0, 24), text: String(text).slice(0, 300), ts: Number(ts) || 0, key: k });
+  trimSessionLog();
+  if ($("chatlog").style.display === "flex") renderLog();
 }
 function saveChatMessage(scene, id, chatId, name, text) {
   if (!ONLINE_ROOM_NAMES[scene] || !id || !chatId || !text) return;
@@ -4775,36 +4795,18 @@ function saveChatMessage(scene, id, chatId, name, text) {
     }).catch(() => {});
   } catch (e) {}
 }
-function followChatLog(scene) {
-  if (!db || !ONLINE_ROOM_NAMES[scene]) return;
-  if (chatHistoryQuery && chatHistoryScene === scene) { syncLogTitle(); return; }
-  if (chatHistoryQuery) { try { chatHistoryQuery.off(); } catch (e) {} chatHistoryQuery = null; }
-  chatHistoryScene = scene;
-  try {
-    const base = db.ref("hub/tables/chatlog/" + scene);
-    const query = base.orderByChild ? base.orderByChild("ts").limitToLast(60) : base;
-    chatHistoryQuery = query;
-    query.on("child_added", snap => {
-      const v = snap.val(); if (!v) return;
-      addChatLogMessage(scene, v.name, v.text, Number(v.ts) || 0, scene + ":" + snap.key);
-    });
-  } catch (e) { chatHistoryQuery = null; }
-  syncLogTitle();
-  if ($("chatlog").style.display === "flex") renderLog();
-}
 function logPeerChat(id, name, chatId, text, scene) {
   saveChatMessage(scene, id, chatId, name, text);
 }
 function logChat(name, text) {
-  addChatLogMessage(me.scene, name, text, Date.now(), "local:" + Date.now() + ":" + Math.random());
+  addChatLogMessage(me.scene, name, text, Date.now(), "local:" + Date.now() + ":" + Math.random(), true);
 }
 function renderLog() {
   const el = $("loglist"); if (!el) return;
-  syncLogTitle();
-  const rows = chatRoomLog(me.scene);
   el.innerHTML = "";
-  if (!rows.length) { el.innerHTML = '<div class="logempty">No messages yet — say something!</div>'; return; }
-  for (const m of rows) {
+  if (!sessionLogRows.length) { el.innerHTML = '<div class="logempty">No messages yet — say something!</div>'; return; }
+  for (const m of sessionLogRows) {
+    if (m.divider) { const h = document.createElement("div"); h.className = "logdiv"; h.textContent = m.divider; el.appendChild(h); continue; }
     const d = document.createElement("div"); d.className = "logrow";
     const b = document.createElement("b"); b.textContent = m.name + ": ";
     d.appendChild(b); d.appendChild(document.createTextNode(m.text));
@@ -4812,7 +4814,7 @@ function renderLog() {
   }
   requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
 }
-function openChatLog() { closeOnlineList(); followChatLog(me.scene); $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); }
+function openChatLog() { closeOnlineList(); $("chatlog").style.display = "flex"; renderLog(); requestAnimationFrame(() => { const el = $("loglist"); if (el) el.scrollTop = el.scrollHeight; }); }
 function closeChatLog() { $("chatlog").style.display = "none"; }
 $("logbtn").onclick = openChatLog;
 $("logclose").onclick = closeChatLog;
@@ -6350,7 +6352,57 @@ const AUTO_TIERS = [
   { price: 100000000000, ms: 1000, label: "1 second" }
 ]; /* the auto-spin ladder, bought strictly in order: tier N costs AUTO_TIERS[N-1].price and, with AUTO on, spins every AUTO_TIERS[N-1].ms */
 const SLOT_BGS = [
-  { id: "default", name: "Default Burgundy", price: 0, img: null }
+  { id: "default", name: "Default Burgundy", price: 0, img: null },
+  { id: "bg01", name: "Burgundy Velvet", price: 1000000000, img: "slotbgs/bg-01.jpg" },
+  { id: "bg02", name: "Black Marble", price: 1000000000, img: "slotbgs/bg-02.jpg" },
+  { id: "bg03", name: "Emerald Felt", price: 1000000000, img: "slotbgs/bg-03.jpg" },
+  { id: "bg04", name: "Purple Silk", price: 1000000000, img: "slotbgs/bg-04.jpg" },
+  { id: "bg05", name: "Midnight Starfield", price: 1000000000, img: "slotbgs/bg-05.jpg" },
+  { id: "bg06", name: "Diamond Glitter", price: 1000000000, img: "slotbgs/bg-06.jpg" },
+  { id: "bg07", name: "Art Deco Gold", price: 1000000000, img: "slotbgs/bg-07.jpg" },
+  { id: "bg08", name: "Crimson Leather", price: 1000000000, img: "slotbgs/bg-08.jpg" },
+  { id: "bg09", name: "Obsidian", price: 1000000000, img: "slotbgs/bg-09.jpg" },
+  { id: "bg10", name: "Sapphire Damask", price: 1000000000, img: "slotbgs/bg-10.jpg" },
+  { id: "bg11", name: "Nebula", price: 1000000000, img: "slotbgs/bg-11.jpg" },
+  { id: "bg12", name: "Galaxy Spiral", price: 1000000000, img: "slotbgs/bg-12.jpg" },
+  { id: "bg13", name: "Atom Rings", price: 1000000000, img: "slotbgs/bg-13.jpg" },
+  { id: "bg14", name: "Aurora", price: 1000000000, img: "slotbgs/bg-14.jpg" },
+  { id: "bg15", name: "Supernova", price: 1000000000, img: "slotbgs/bg-15.jpg" },
+  { id: "bg16", name: "Constellations", price: 1000000000, img: "slotbgs/bg-16.jpg" },
+  { id: "bg17", name: "Moonlight", price: 1000000000, img: "slotbgs/bg-17.jpg" },
+  { id: "bg18", name: "Solar Flare", price: 1000000000, img: "slotbgs/bg-18.jpg" },
+  { id: "bg19", name: "Violet Dust", price: 1000000000, img: "slotbgs/bg-19.jpg" },
+  { id: "bg20", name: "Comets", price: 1000000000, img: "slotbgs/bg-20.jpg" },
+  { id: "bg21", name: "Retro Grid", price: 1000000000, img: "slotbgs/bg-21.jpg" },
+  { id: "bg22", name: "Cyberpunk Glow", price: 1000000000, img: "slotbgs/bg-22.jpg" },
+  { id: "bg23", name: "Synthwave", price: 1000000000, img: "slotbgs/bg-23.jpg" },
+  { id: "bg24", name: "Lasers", price: 1000000000, img: "slotbgs/bg-24.jpg" },
+  { id: "bg25", name: "Holo Crystals", price: 1000000000, img: "slotbgs/bg-25.jpg" },
+  { id: "bg26", name: "Circuits", price: 1000000000, img: "slotbgs/bg-26.jpg" },
+  { id: "bg27", name: "Liquid Chrome", price: 1000000000, img: "slotbgs/bg-27.jpg" },
+  { id: "bg28", name: "UV Vines", price: 1000000000, img: "slotbgs/bg-28.jpg" },
+  { id: "bg29", name: "Glitch", price: 1000000000, img: "slotbgs/bg-29.jpg" },
+  { id: "bg30", name: "Tron Lines", price: 1000000000, img: "slotbgs/bg-30.jpg" },
+  { id: "bg31", name: "Halloween", price: 1000000000, img: "slotbgs/bg-31.jpg" },
+  { id: "bg32", name: "Winter Ice", price: 1000000000, img: "slotbgs/bg-32.jpg" },
+  { id: "bg33", name: "Fireworks", price: 1000000000, img: "slotbgs/bg-33.jpg" },
+  { id: "bg34", name: "Carnival Lights", price: 1000000000, img: "slotbgs/bg-34.jpg" },
+  { id: "bg35", name: "Neon Palms", price: 1000000000, img: "slotbgs/bg-35.jpg" },
+  { id: "bg36", name: "Underwater", price: 1000000000, img: "slotbgs/bg-36.jpg" },
+  { id: "bg37", name: "Lava", price: 1000000000, img: "slotbgs/bg-37.jpg" },
+  { id: "bg38", name: "Crystal Cave", price: 1000000000, img: "slotbgs/bg-38.jpg" },
+  { id: "bg39", name: "Candy Swirl", price: 1000000000, img: "slotbgs/bg-39.jpg" },
+  { id: "bg40", name: "Jungle Gold", price: 1000000000, img: "slotbgs/bg-40.jpg" },
+  { id: "bg41", name: "Carbon Fiber", price: 1000000000, img: "slotbgs/bg-41.jpg" },
+  { id: "bg42", name: "Brushed Gold", price: 1000000000, img: "slotbgs/bg-42.jpg" },
+  { id: "bg43", name: "Black Quilted", price: 1000000000, img: "slotbgs/bg-43.jpg" },
+  { id: "bg44", name: "Mosaic", price: 1000000000, img: "slotbgs/bg-44.jpg" },
+  { id: "bg45", name: "Royal Damask", price: 1000000000, img: "slotbgs/bg-45.jpg" },
+  { id: "bg46", name: "White Marble", price: 1000000000, img: "slotbgs/bg-46.jpg" },
+  { id: "bg47", name: "Stained Glass", price: 1000000000, img: "slotbgs/bg-47.jpg" },
+  { id: "bg48", name: "Dragon Scales", price: 1000000000, img: "slotbgs/bg-48.jpg" },
+  { id: "bg49", name: "Phoenix Feathers", price: 1000000000, img: "slotbgs/bg-49.jpg" },
+  { id: "bg50", name: "Gold Atom Lattice", price: 1000000000, img: "slotbgs/bg-50.jpg" }
 ]; /* the slot cabinet backgrounds — ONE obvious place: drop a priced entry ({id, name, price, img: "url"}) into this list and it appears in the store with buying, owning and selecting already wired. "default" is the machines' own burgundy: always owned, no image, and selecting it is exactly today's rendering */
 let autoTier = 0; /* my owned auto-spin tier (0 = none), loaded from the account doc at sign-in */
 let mySlotBg = "default"; /* my selected cabinet background id, loaded from the account doc at sign-in */
