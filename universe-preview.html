@@ -1105,6 +1105,13 @@ const BACT = { x: 430, y: 980, w: 900, h: 430 }; /* baccarat felt — blackjack'
 const CRAT = { x: 1870, y: 980, w: 900, h: 430 }; /* craps felt — roulette's rect, dark red */
 const BACSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BACT.x + 110 + i * 170, y: BACT.y + BACT.h + 150 }));
 const CRASEATS = [0, 1, 2, 3, 4].map(i => ({ x: CRAT.x + 110 + i * 170, y: CRAT.y + CRAT.h + 150 }));
+/* the High Rollers slot machines (Jonathan 2026-10-31): ONE row of ELEVEN where the two TOP booth rows stood — the booths are gone from the top of the room (the bottom rows stay). The casino's own machines in every way — same 210x330 cabinets, same yellow border, same seat-to-spin, same reels, bag and pays — carried into the club with exactly two changes: the blue body is BURGUNDY here, and the bets are the club's own ladder HR_SLOT_BETS, not the casino's small stakes. PLACEMENT arithmetic: the removed second booth row sat at y 600 (drawBooths, flip=false), and a booth's full drawn extent runs from its little wall (by-22) down to the bench arc's bottom (by+86) — so that row's bottom edge was 600+86 = 686, and the machines' bottoms sit exactly there: y = 686-330 = 356. Across the room they spread with the casino's own margins (first machine x 270, last machine's right edge 2970 in a 3200 room): x = 270 + i*249, an even 39px gap between cabinets. HRSLOTM is in DRAW order like SLOTM, but every machine carries a fixed record id "h0".."h10" — its spin and seat records live under hub/tables/hrslots and hub/tables/hrslotseats, never the casino's slots/slotseats, so the two banks can never land on each other. Everywhere in the HRC slot code, an index into HRSLOTM/HRSLOTSEATS is a DRAW index; shared records are only ever touched through hrSlotKey(). */
+const HR_SLOT_BETS = [100, 500, 1000, 5000, 10000, 50000];
+const HRSLOTM = [];
+for (let i = 0; i < 11; i++) HRSLOTM.push({ id: "h" + i, x: 270 + i * 249, y: 356, w: 210, h: 330 });
+const HRSLOTSEATS = HRSLOTM.map(mch => ({ x: mch.x + mch.w / 2, y: mch.y + mch.h + 120 })); /* the casino's own seat placement: centred on the machine, 120 below its bottom edge */
+function hrSlotKey(i) { const m = HRSLOTM[i]; return m ? String(m.id) : String(i); }
+function hrSlotMachineByKey(k) { return HRSLOTM.find(m => String(m.id) === String(k)) || null; }
 const HR_BETS = [5000, 10000, 50000, 100000, 500000, 1000000]; /* the only amounts in the High Rollers Club (Jonathan 2026-10-31) */
 const CHESSROOM = { w: 2640, h: 2640 }; /* four 1200x1200 square sections + a 240-wide centre cross */
 const CHBOARDS = [{ x: 220, y: 220, w: 760, h: 760 }, { x: 1660, y: 220, w: 760, h: 760 }, { x: 220, y: 1660, w: 760, h: 760 }, { x: 1660, y: 1660, w: 760, h: 760 }]; /* TL chess, TR checkers, BL checkers, BR chess */
@@ -1387,7 +1394,7 @@ function obstacles() {
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
   if (me.scene === "hq") return [...HQSCREENS];
   if (me.scene === "casino") return [BJT, RRT, ...SLOTM]; /* the LOUNGE block left this list with the lounge's removal (Jonathan 2026-10-31) */
-  if (me.scene === "highrollers") return [BACT, CRAT, ...hrBarRects(), HRDIV_T, HRDIV_B, HRCTR]; /* the booths are walk-over (Jonathan 2026-10-31) — the felts, the two bar counters, the two dividers and the service counter are solid; the dividers and the counter you go around, not over */
+  if (me.scene === "highrollers") return [BACT, CRAT, ...hrBarRects(), HRDIV_T, HRDIV_B, HRCTR, ...HRSLOTM]; /* the booths are walk-over (Jonathan 2026-10-31) — the felts, the two bar counters, the two dividers, the service counter and the slot machines are solid; the dividers and the counter you go around, not over. The machines stand solid exactly as the casino's do (...SLOTM in the casino's own list) */
   if (me.scene === "chess") return [...CHBOARDS];
   if (me.scene === "boxing") return boxingBout ? [] : [BOXRING]; /* the bleachers are walk-over scenery (Jonathan 2026-10-31) — only the ring is solid, and only until YOUR bout starts (pass D) */
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
@@ -3304,7 +3311,7 @@ function writeClaims(seats, results, keyOf, label) {
 function seatOD(game, idx, on) {
   if (!db) return;
   try {
-    const ref = db.ref(game === "slot" ? "hub/tables/slotseats/" + slotKey(idx) : "hub/tables/" + game + "/seats/" + idx); /* slot idx is a draw index; the seat record lives under the machine's fixed id */
+    const ref = db.ref(game === "slot" ? "hub/tables/slotseats/" + slotKey(idx) : game === "hrslot" ? "hub/tables/hrslotseats/" + hrSlotKey(idx) : "hub/tables/" + game + "/seats/" + idx); /* slot idx is a draw index; the seat record lives under the machine's fixed id — the High Rollers machines ("hrslot") follow the same rule under their own seats node */
     if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel();
   } catch (e) {}
 }
@@ -5783,12 +5790,15 @@ let boxingBout = null; /* {seat} while MY bout is live: it frees the ring obstac
    shared results through settleOnce. The only stakes here are HR_BETS. */
 let bacState = null, craState = null, bacSeat = -1, craSeat = -1, bacLeft = -1, craLeft = -1, hrcHooked = false;
 let bacAmt = 5000, craAmt = 5000;
+let hrSlotState = {}, hrSlotSeats = {}, hrSlotSeat = -1, hrSlotLeft = -1, hrSlotAnim = {}, hrSlotBet = 100, hrSlotFxTs = {}; /* the High Rollers machines' own shared state (hub/tables/hrslots + hub/tables/hrslotseats) and my seat at one of them — the casino slot pattern carried over whole, under the club's own names */
 let hrcNote = "", hrcNoteAt = 0;
 function noteHRC(txt) { hrcNote = txt; hrcNoteAt = performance.now(); }
 function hrListen() {
   if (!db || hrcHooked) return; hrcHooked = true;
   db.ref("hub/tables/bac").on("value", sn => { bacState = sn.val(); bacSettle(); hrcFxCheck("bac"); });
   db.ref("hub/tables/cra").on("value", sn => { craState = sn.val(); craSettle(); hrcFxCheck("cra"); });
+  db.ref("hub/tables/hrslots").on("value", sn => { hrSlotState = sn.val() || {}; hrSlotFxCheck(); });
+  db.ref("hub/tables/hrslotseats").on("value", sn => { hrSlotSeats = sn.val() || {}; });
   setInterval(hrcHostTick, 900);
   setInterval(hrcSeatBeat, 4000);
 }
@@ -5846,7 +5856,7 @@ function hrcMySeat(game) { const st = hrcSt(game), i = hrcIdx(game); return (i >
 function hrcSetSeat(game, i) {
   if (game === "bac") bacSeat = i; else craSeat = i;
   if (i >= 0) mySeatPos = hrcPoss(game)[i];
-  else if (bacSeat < 0 && craSeat < 0) mySeatPos = null;
+  else if (bacSeat < 0 && craSeat < 0 && hrSlotSeat < 0) mySeatPos = null;
 }
 /* the bottom sit prompts for the two High Rollers tables (Jonathan 2026-10-31): the same near test as the chairs' tap zones, the same sit action */
 function hrcNear(game) { const T = game === "bac" ? BACT : CRAT, seats = game === "bac" ? BACSEATS : CRASEATS; return me.scene === "highrollers" && (Math.hypot(me.x - (T.x + T.w / 2), me.y - (T.y + T.h + 60)) < 470 || nearSeatOf(seats)); }
@@ -5884,7 +5894,7 @@ function hrcStand(game) {
   seatOD(game, i, false);
   hrcSetSeat(game, -1);
 }
-function hrStandUpAll() { hrcStand("bac"); hrcStand("cra"); }
+function hrStandUpAll() { hrcStand("bac"); hrcStand("cra"); hrSlotStand(); }
 function hrcBeatOne(game) {
   const left = game === "bac" ? bacLeft : craLeft;
   if (hrcIdx(game) < 0) {
@@ -5899,7 +5909,147 @@ function hrcBeatOne(game) {
 }
 function hrcSeatBeat() {
   if (!db || !entered || me.scene !== "highrollers") return;
-  hrcBeatOne("bac"); hrcBeatOne("cra");
+  hrcBeatOne("bac"); hrcBeatOne("cra"); hrSlotBeatOne();
+}
+/* ---- the High Rollers slot machines: the casino's slot engine carried into the club ----
+   spinMachine/slotTick/drawSlots/sitAtSlot, mirrored piece for piece onto the
+   club's own machines, state and names — the same bag, the same pay branches,
+   the same 950ms spin, the same claims-rail hold at decide time (writeClaim +
+   settleOnce under the spin's own key), the same seat rules (a pid-bearing
+   fresh record occupies; a husk never blocks; standing frees the chair unless
+   a snapshot proves another player holds it fresh). The ONLY differences are
+   the owner's two: the cabinet body is burgundy instead of the casino's blue,
+   and the bet ladder is HR_SLOT_BETS. Settle keys carry the "hrslots" prefix
+   so a club spin's claim can never collide with a casino spin's "slots" one. */
+function hrSlotSeatView() { const v = {}; HRSLOTM.forEach((m, i) => { const s = hrSlotSeats && hrSlotSeats[m.id]; if (s) v[i] = s; }); return v; }
+function nearHRSlot() { if (me.scene !== "highrollers") return -1; for (let i = 0; i < HRSLOTM.length; i++) { const mch = HRSLOTM[i]; if (Math.hypot(me.x - (mch.x + mch.w / 2), me.y - (mch.y + mch.h + 40)) < 180) return i; } return -1; } /* nearSlot's own test, on the club's machines */
+function hrSlotSetSeat(i) {
+  hrSlotSeat = i;
+  if (i >= 0) mySeatPos = HRSLOTSEATS[i];
+  else if (bacSeat < 0 && craSeat < 0) mySeatPos = null;
+}
+function hrSitAtSlot(i) {
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  pullChips(); /* about to play: the counter goes on the server amount first */
+  hrSlotLeft = -1; /* an explicit sit ends any leave-guard */
+  if (bacSeat >= 0 || craSeat >= 0) { noteHRC("Stand up from the table first."); return; }
+  if (hrSlotSeat >= 0) { if (hrSlotSeat !== i) noteHRC("Stand up from the other machine first."); return; }
+  const s = hrSlotSeats && hrSlotSeats[hrSlotKey(i)];
+  if (s && s.pid === myId) { hrSlotSetSeat(i); seatOD("hrslot", i, true); return; }
+  if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHRC("That machine is taken."); return; } /* only a pid-bearing fresh record is a player — a pid-less husk never blocks (the casino's ghost-seat rule) */
+  tblSet("hrslotseats/" + hrSlotKey(i), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
+  hrSlotSetSeat(i); seatOD("hrslot", i, true);
+}
+function hrSlotStand() {
+  if (hrSlotSeat < 0) return;
+  const i = hrSlotSeat;
+  hrSlotLeft = i; /* until the removal echoes back, the beat must not hand this chair straight back */
+  const s = hrSlotSeats && hrSlotSeats[hrSlotKey(i)];
+  if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet("hrslotseats/" + hrSlotKey(i), null); /* free the chair for real: only a snapshot-proven fresh record in somebody else's name survives */
+  seatOD("hrslot", i, false);
+  hrSlotSetSeat(-1);
+}
+function hrSlotBeatOne() {
+  if (hrSlotSeat < 0) {
+    if (hrSlotLeft >= 0) { const ls = hrSlotSeats && hrSlotSeats[hrSlotKey(hrSlotLeft)]; if (!ls || ls.pid !== myId) hrSlotLeft = -1; }
+    for (let i = 0; i < HRSLOTM.length; i++) { const s = hrSlotSeats && hrSlotSeats[hrSlotKey(i)]; if (s && s.pid === myId && i !== hrSlotLeft && Date.now() - (s.ts || 0) <= 25000) { hrSlotSetSeat(i); seatOD("hrslot", i, true); return; } } /* after a reload, adopt my chair back — same machine, spin untouched */
+    return;
+  }
+  const s = hrSlotSeats && hrSlotSeats[hrSlotKey(hrSlotSeat)];
+  if (!s || s.pid !== myId) { hrSlotSetSeat(-1); return; }
+  tblUpd("hrslotseats/" + hrSlotKey(hrSlotSeat), { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* the heartbeat carries my full identity, exactly as the casino slot seats' does */
+}
+function hrSpinMachine(i) {
+  const a = hrSlotAnim[i];
+  if (a && performance.now() < a.endsAt) return;
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  if (hrSlotSeat !== i) { noteHRC("🪑 Sit at the machine to play."); return; }
+  if (!profile || (profile.chips || 0) < hrSlotBet) { noteHRC("Not enough chips for a " + hrSlotBet.toLocaleString("en-US") + " bet."); return; }
+  addChips(-hrSlotBet);
+  const bag = ["🍒", "🍒", "🍒", "🍒", "🍒", "🍋", "🍋", "🍋", "🍋", "🍋", "🔔", "🔔", "🔔", "💎", "💎", "⭐", "⭐", "⚛"]; /* spinMachine's own bag, unchanged — cherry x5, lemon x5, bell x3, gem x2, star x2, atom x1 (N=18). The odds are the casino's odds, by the owner's word */
+  const fin = [bag[Math.floor(Math.random() * bag.length)], bag[Math.floor(Math.random() * bag.length)], bag[Math.floor(Math.random() * bag.length)]];
+  let pay = 0;
+  if (fin[0] === "⚛" && fin[1] === "⚛" && fin[2] === "⚛") pay = hrSlotBet * 50;
+  else if (fin[0] === fin[1] && fin[1] === fin[2]) pay = hrSlotBet * 10;
+  else if (fin[0] === fin[1] || fin[1] === fin[2]) pay = hrSlotBet * 2; /* a pair pays only side by side — the casino's rule, unchanged */
+  else if (fin[0] === "⚛" || fin[1] === "⚛" || fin[2] === "⚛") pay = hrSlotBet;
+  const claimKey = pay > 0 ? "hrslots" + newRoundId() : ""; /* the win is HELD the moment it is decided (claims fix), on the same rail as the casino's — its own "hrslots" prefix keeps the key from ever colliding with a casino spin's */
+  if (claimKey) writeClaim(acctUser.uid, claimKey, pay, "🎰 High Rollers Slots win");
+  hrSlotAnim[i] = { endsAt: performance.now() + 950, fin, bet: hrSlotBet, pay, paid: false, claimKey };
+  sfxClick();
+}
+function hrSlotTick() {
+  const now = performance.now();
+  for (const k in hrSlotAnim) {
+    const a = hrSlotAnim[k];
+    if (!a.paid && now >= a.endsAt) {
+      a.paid = true;
+      if (a.pay) { if (a.claimKey) settleOnce(a.claimKey, a.pay); else addChips(a.pay); sfxChime(); } /* settleOnce under the claim's own key: whichever path pays first, the win lands exactly once */
+      tblSet("hrslots/" + hrSlotKey(Number(k)), { pid: myId, name: me.name, syms: a.fin, amt: a.pay, ts: Date.now() }); /* the shared spin record lives under the machine's fixed id, not its draw index */
+    }
+  }
+}
+function hrSlotFxCheck() {
+  Object.keys(hrSlotState || {}).forEach(k => {
+    const s = hrSlotState[k]; if (!s || !s.ts) return;
+    if (hrSlotFxTs[k] === s.ts) return; hrSlotFxTs[k] = s.ts;
+    if (s.amt > 0 && Date.now() - s.ts < 5000 && me.scene === "highrollers") { const m = hrSlotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 100000, "highrollers"); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt.toLocaleString("en-US"), "#ffd76a", "highrollers"); } }
+  });
+}
+function hrSlotSeatsRow() {
+  /* drawSeatsRow carried to the club's machines: a chair per machine under its cabinet; a free chair near the player is a tap target for exactly that machine */
+  const view = hrSlotSeatView();
+  HRSLOTSEATS.forEach((s, i) => {
+    const rec = view[i];
+    const occ = !!(rec && rec.pid && Date.now() - (rec.ts || 0) < 25000); /* a chair is occupied only by a pid-bearing fresh record */
+    if (!occ && bacSeat < 0 && craSeat < 0 && hrSlotSeat < 0 && nearHRSlot() === i)
+      uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => hrSitAtSlot(i) });
+    ctx.fillStyle = occ ? "#ffd76a" : "#4a2a72";
+    ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
+    ctx.strokeStyle = occ ? "#fff2c4" : "rgba(255,215,106,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", s.x, s.y + 7);
+    if (occ && rec.chips !== undefined) {
+      const txt = "🪙 " + Number(rec.chips || 0).toLocaleString("en-US");
+      ctx.font = "700 19px 'Segoe UI',sans-serif";
+      const w = ctx.measureText(txt).width + 22;
+      ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(s.x - w / 2, s.y + 40, w, 30, 15); ctx.fill();
+      ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(s.x - w / 2, s.y + 40, w, 30, 15); ctx.stroke();
+      ctx.fillStyle = "#ffd76a"; ctx.fillText(txt, s.x, s.y + 62);
+    }
+  });
+}
+function drawHRSlots(t) {
+  /* drawSlots, on the club's machines: the same cabinets, reels and controls — the body burgundy instead of blue (the owner's one colour change), the yellow border kept, and the club's own bet ladder on the buttons. Amounts wear commas here, as everywhere in this room */
+  const near = nearHRSlot();
+  hrSlotSeatsRow();
+  HRSLOTM.forEach((mch, i) => {
+    ctx.fillStyle = "#40081b"; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.fill(); /* BURGUNDY body — the room's own burgundy, the same #40081b as its carpet and bar counters (the casino's cabinets are #2a1150 blue) */
+    ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke(); /* the yellow border, kept exactly */
+    ctx.fillStyle = "#0a0616"; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.fill();
+    ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
+    const a = hrSlotAnim[i], spinning = a && performance.now() < a.endsAt;
+    const st = hrSlotState && hrSlotState[mch.id];
+    let syms = spinning ? [0, 1, 2].map(r => SLOTSYMS[Math.floor(Math.random() * SLOTSYMS.length)]) : (a && a.paid ? a.fin : (st && st.syms ? st.syms : ["⚛", "⚛", "⚛"]));
+    if (!Array.isArray(syms) || syms.length !== 3 || syms.some(s => !s)) syms = ["⚛", "⚛", "⚛"]; /* the casino's display guard, carried over: never draw an empty reel slot */
+    ctx.font = "42px sans-serif"; ctx.textAlign = "center";
+    ctx.fillStyle = "#ffffff";
+    syms.forEach((s, r) => ctx.fillText(s === "⚛" ? "⚛️" : s, mch.x + mch.w * (0.25 + r * 0.25), mch.y + 80));
+    ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    const seatedHere = hrSlotSeat === i;
+    const spinnerSeated = !!(st && hrSlotSeats && hrSlotSeats[mch.id] && hrSlotSeats[mch.id].pid === st.pid);
+    const lastTxt = a && a.paid && seatedHere ? (a.pay ? "🎉 +" + a.pay.toLocaleString("en-US") : "no luck") : (st && st.amt && spinnerSeated ? "+" + Number(st.amt).toLocaleString("en-US") + (st.name ? " · " + String(st.name).slice(0, 12) : "") : "SLOTS"); /* the casino's idle-display rule, unchanged: the win amount and the spinner's name show only while the spinner is still seated there */
+    ctx.fillText(lastTxt, mch.x + mch.w / 2, mch.y + 140);
+    ctx.fillStyle = "#eaf6ff";
+    if (seatedHere) {
+      HR_SLOT_BETS.forEach((amt, k) => {
+        drawBtn(mch.x + 13 + (k % 3) * 64, mch.y + 156 + Math.floor(k / 3) * 46, 56, 38, amt.toLocaleString("en-US"), () => { hrSlotBet = amt; }, { fs: 14, sel: hrSlotBet === amt });
+      });
+      drawBtn(mch.x + 16, mch.y + 252, mch.w - 32, 56, spinning ? "···" : "🎰 SPIN " + hrSlotBet.toLocaleString("en-US"), spinning ? null : () => hrSpinMachine(i), { fs: 22, fill: "#8a6a1f", dim: !!spinning });
+    } else {
+      ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.55)";
+      ctx.fillText(near === i ? "🪑 sit down to play" : "👆 walk up to play", mch.x + mch.w / 2, mch.y + 216);
+    }
+  });
 }
 function hrcBet(game, type) {
   const st = hrcSt(game), mine = hrcMySeat(game), amt = game === "bac" ? bacAmt : craAmt;
@@ -6044,6 +6194,7 @@ function hrcHostTick() {
 function hrcFocusRect() {
   if (bacSeat >= 0) return { x: BACT.x - 60, y: BACT.y - 60, w: BACT.w + 120, h: BACT.h + 254 };
   if (craSeat >= 0) return { x: CRAT.x - 60, y: CRAT.y - 60, w: CRAT.w + 120, h: CRAT.h + 254 };
+  if (hrSlotSeat >= 0) { const mch = HRSLOTM[hrSlotSeat]; if (mch) return { x: mch.x - 70, y: mch.y - 70, w: mch.w + 140, h: mch.h + 250 }; } /* the casino slot seat's own frame, on the club's machine */
   return null;
 }
 /* hrStandUpAll is defined with the High Rollers engine above */
@@ -6736,8 +6887,10 @@ function drawHighRollers(t) {
   }
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
   ctx.fillText("🎵", HRCTR.x + 22, HRCTR.y + HRCTR.h / 2 + 11);
-  drawBooths(360, false); /* the top rows of private booths — two deep, raised a touch (Jonathan 2026-10-31: the top row is gone, the rest shifted up) */
-  drawBooths(600, false);
+  /* the slot machines (Jonathan 2026-10-31): the two TOP booth rows that stood here are GONE — one row of eleven burgundy machines stands in their place, its bottoms on the old second row's bottom line (y 686). Each wears the casino's own pendant glow, as the casino's machines do. The bottom booth rows below the tables are untouched */
+  for (const mch of HRSLOTM) { const sx = mch.x + mch.w / 2, sy = mch.y + 66; const pg = ctx.createRadialGradient(sx, sy, 10, sx, sy, 260); pg.addColorStop(0, "rgba(255,190,90,0.16)"); pg.addColorStop(1, "rgba(255,190,90,0)"); ctx.fillStyle = pg; ctx.fillRect(sx - 260, sy - 260, 520, 520); }
+  drawHRSlots(t);
+  hrSlotTick();
   /* the long divider between the booths and the tables */
   ctx.fillStyle = "#2a0a18"; rr(HRDIV_T.x, HRDIV_T.y, HRDIV_T.w, HRDIV_T.h, 12); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2.5; rr(HRDIV_T.x, HRDIV_T.y, HRDIV_T.w, HRDIV_T.h, 12); ctx.stroke();
@@ -9040,7 +9193,7 @@ function frame(now) {
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
   else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
   else if (atHRCounter(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Service Counter — Pick a Song"; promptAction = () => { jukeTarget = "hrc"; openJuke(); }; } /* the service counter (Jonathan 2026-10-31): the song picker, worked ONLY from the strip behind the counter on the room's right side — the prompt exists only while standing in that strip, and the pick is the High Rollers room's own song (hub/tables/hrcmusic), never the club's */
-  else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
+  else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0 || hrSlotSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
   else if (me.scene === "chess" && chSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = chessStandUp; }
   else if (me.scene === "boxing" && boxSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = boxingBout ? "🏳️ Give up" : "🚪 Stand up"; promptAction = boxingStandUp; }
   else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
@@ -9049,6 +9202,7 @@ function frame(now) {
   else if (me.scene === "chess" && chSeatT < 0 && chessNearBoard()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Board"; promptAction = chessTrySit; }
   else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrcNear("bac")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Baccarat"; promptAction = () => hrcTrySit("bac"); }
   else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrcNear("cra")) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Craps"; promptAction = () => hrcTrySit("cra"); }
+  else if (me.scene === "highrollers" && bacSeat < 0 && craSeat < 0 && hrSlotSeat < 0 && nearHRSlot() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Slots"; promptAction = () => hrSitAtSlot(nearHRSlot()); }
   else if (me.scene === "boxing" && boxNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🥊 Enter the Ring"; promptAction = boxingTrySit; }
   else if (nearBJ()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at Blackjack"; promptAction = () => trySit("bj"); }
   else if (nearRR()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎡 Sit at Roulette"; promptAction = () => trySit("rr"); }
