@@ -289,7 +289,7 @@ const OWNER_EMAIL = "jrod11991@icloud.com";
 const MECH_HERO = 74; /* the DreadMech (Jonathan 2026-10-31): the owner account's transform form — his own uploaded art at hub-heroes/hero-074.webp; never a picker cell, never saved to a profile; only the T transform ever wears it */
 const KING_MECH_HERO = 75; /* the Cosmic King Mech (Jonathan 2026-10-31): OnlineMoney's transform form — the blue-and-gold king mech art at hub-heroes/hero-075.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his King QI avatar (hero 73) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the only differences are the gate, the art, and the smoke: his burst is RED, the owner's stays cyan */
 const TONIC_HERO = 76, TONIC_UID = "Oc3C9sU3pUcOeMWtrXad0C6P78o2"; /* 7daytonic's own hero (Jonathan 2026-10-31): the starry Shiba with the spiderweb beanie — his uploaded art at hub-heroes/hero-076.webp; offered as a picker cell ONLY under his sign-in, exactly like 71/73. His gate keys on the account UID, not an email: the signed-in account object carries its own uid (the send-tokens presence and the hub/users records already key on it), and no email for his account is on file */
-const TONIC_MECH_HERO = 77; /* 7daytonic's Galaxy Mech (Jonathan 2026-10-31): his transform form — the galaxy mech art at hub-heroes/hero-077.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his own hero (76) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the only differences are the gate and the art; his burst is the standard CYAN, like the owner's */
+const TONIC_MECH_HERO = 77; /* 7daytonic's Galaxy Mech (Jonathan 2026-10-31): his transform form — the galaxy mech art at hub-heroes/hero-077.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his own hero (76) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate, the art, and the smoke: his burst is a NORMAL BLUE (the owner's stays cyan, OnlineMoney's stays red) */
 function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
@@ -676,7 +676,7 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
       else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
@@ -1938,13 +1938,13 @@ function toggleKingMech() { /* OnlineMoney's swap (Jonathan 2026-10-31): the Dre
   publish(true);
   syncTBtn();
 }
-function toggleTonicMech() { /* 7daytonic's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — with the standard CYAN burst and the galaxy mech form. It hangs off his own hero (76): any other hero selected and T does nothing */
+function toggleTonicMech() { /* 7daytonic's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — with a NORMAL BLUE burst and the galaxy mech form. It hangs off his own hero (76): any other hero selected and T does nothing */
   if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the others */
   if (me.hero !== TONIC_HERO) return;
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
   mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
   tonicMechForm = !tonicMechForm;
-  spawnSmoke(me.x, me.y, me.scene); /* CYAN smoke — the standard colour */
+  spawnSmoke(me.x, me.y, me.scene, "blue"); /* BLUE smoke — his colour: a normal royal blue, not the owner's cyan */
   sfxSwap();
   publish(true);
   syncTBtn();
@@ -3221,7 +3221,7 @@ function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc
 /* ---- general fx: the same coin bursts and floating texts, but painted by frame()'s actor pass in EVERY scene (Jonathan 2026-10-30: the send-tokens receive animation only showed in the casino, because the room pool above is drawn solely by the casino/gym/track scene draws). Entries carry their origin scene and paint only while the player is still in it — the room pool's leak lock — and casino win fx keep using the room pool exactly as before; this list is for effects that belong to the PLAYER, not the room. ---- */
 let genParts = [], genTexts = [];
 let smokeParts = []; /* cyan transform smoke (Jonathan 2026-10-31): world-space puffs with a scene tag, painted by drawGenFx with the other player fx */
-function spawnSmoke(x, y, sc, red) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: !!red }); } } /* the burst is cyan by default (the owner's DreadMech); red=true paints OnlineMoney's king mech burst red — same count, size, timing and motion either way (Jonathan 2026-10-31) */
+function spawnSmoke(x, y, sc, col) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: col === true || col === "red", blue: col === "blue" }); } } /* the burst is cyan by default (the owner's DreadMech); col=true paints OnlineMoney's king mech burst red, col="blue" paints 7daytonic's galaxy mech burst a normal blue — same count, size, timing and motion either way (Jonathan 2026-10-31) */
 function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
 function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
 /* ============ seat bet displays, painted OVER the sprites (Jonathan 2026-10-31) ============
@@ -3302,7 +3302,7 @@ function drawGenFx(dt) {
   smokeParts.forEach(p => {
     if (p.sc !== me.scene) return;
     const a = Math.max(0, 1 - p.life / p.max) * 0.5;
-    ctx.fillStyle = p.red ? (p.lite ? "rgba(255,206,188," + a + ")" : "rgba(255,56,56," + a + ")") : (p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")"); /* red smoke for OnlineMoney's king mech flips, cyan for the owner's — the two palettes mirror each other (a pale lite tone over a saturated base) */
+    ctx.fillStyle = p.blue ? (p.lite ? "rgba(188,206,255," + a + ")" : "rgba(56,110,255," + a + ")") : p.red ? (p.lite ? "rgba(255,206,188," + a + ")" : "rgba(255,56,56," + a + ")") : (p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")"); /* red smoke for OnlineMoney's king mech flips, a normal blue for 7daytonic's galaxy mech flips, cyan for the owner's — the three palettes mirror each other (a pale lite tone over a saturated base) */
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
   });
 }
@@ -3982,11 +3982,14 @@ function hrHostTick() {
    room renders the published positions (interpolated) and never simulates —
    the Sports Complex follower model, one room over. Sink one of your balls
    and you shoot again; sink nothing and the turn passes; solids/stripes are
-   set by the first ball sunk. The 8 ball LOSES, always (Jonathan 2026-10-31,
-   replacing the old clear-your-set-then-the-8-wins structure): sink it at
-   any point — break included — and the match ends on the spot, the pot to
-   your opponent. A sunk cue ball is a bust: the turn passes and the next
-   player gets ball in hand (he places the cue ball himself). */
+   set by the first ball sunk. The 8 ball is the standard rule (Jonathan
+   2026-10-31): sink it once your set was already fully pocketed BEFORE the
+   shot began and you win the pot; sink it early — your last ball and the 8
+   on one shot counts as early — or sink it with the cue ball, and you lose
+   on the spot, the pot to your opponent. One exception, also his word: the
+   8 on the BREAK is an immediate win for the breaker. A sunk cue ball is a
+   bust: the turn passes and the next player gets ball in hand (he places
+   the cue ball himself). */
 function sfxPhCue() { noiseBurst(0.03, "highpass", 1600, 900, 0.10); tone(340, 180, 0.05, "triangle", 0.05); } /* the cue strike: a sharp tick over the ball's knock */
 function sfxPhClick(k) { noiseBurst(0.018, "bandpass", 2400, 1800, 0.03 + 0.09 * Math.max(0, Math.min(1, k || 0.5))); } /* ball on ball — louder the harder they met */
 function sfxPhPocket() { tone(240, 70, 0.14, "sine", 0.14); noiseBurst(0.07, "lowpass", 700, 200, 0.08, 0.02); } /* the drop and rattle of a sunk ball */
@@ -3995,7 +3998,7 @@ let phFxSince = 0, phFxDone = [0, 0, 0, 0], phHooked = false;
 let phNote = "", phNoteAt = 0;
 function notePh(txt) { phNote = txt; phNoteAt = performance.now(); }
 const phViews = [null, null, null, null]; /* this client's rendered balls per table: the shooter's own view IS the sim; everyone else's lerps to the published state */
-let phSim = null; /* the shooter's live simulation: { t, by, balls: [{x, y, vx, vy, on}], sunk: [ball numbers in the order they dropped], clearedBefore, lastPub } */
+let phSim = null; /* the shooter's live simulation: { t, by, balls: [{x, y, vx, vy, on}], sunk: [ball numbers in the order they dropped], clearedBefore, isBreak, lastPub } */
 let phAim = null; /* the local aim drag: { id, t, x, y } in world coordinates — PULL BACK from the cue ball, away from the target (PREVIEW round 3): the drag's length is the power, its direction reversed is the shot, release to shoot */
 function phKey(t) { return "ph" + (t + 1); }
 function phListen() {
@@ -4117,19 +4120,23 @@ function phRpsPick(pick) {
   sfxClick();
 }
 /* ---- the rules of a finished shot (light 8-ball, no foul rulebook) ---- */
-function phEvalShot(st, shooter, sunk, clearedBefore) {
+function phEvalShot(st, shooter, sunk, clearedBefore, isBreak) {
   let sets = st.sets ? Object.assign({}, st.sets) : null;
   const eight = sunk.indexOf(8) >= 0, scratch = sunk.indexOf(0) >= 0;
   const obj = sunk.filter(b => b > 0 && b !== 8);
   let winner = -1;
-  if (eight) winner = 1 - shooter; /* the 8 ball LOSES, always (Jonathan 2026-10-31 — his word replaces the old structure outright: before this, the 8 WON once your set was already clear when the shot began, and only an early 8 lost). Now sinking it at any point — the break included — ends the match for the other player; clearedBefore is still passed in but no longer decides anything */
+  if (eight) {
+    if (isBreak) winner = shooter; /* the 8 on the BREAK is an immediate WIN for the breaker (Jonathan 2026-10-31) */
+    else if (scratch) winner = 1 - shooter; /* the 8 with a sunk cue ball loses even on a cleared table (the standard rule) */
+    else winner = (sets && clearedBefore) ? shooter : 1 - shooter; /* the standard rule: the 8 pays only once your set was already fully pocketed BEFORE this shot began. clearedBefore is judged on the table as the shot started, so balls sunk on this same shot never count toward the clear — your last set ball and the 8 together is an early 8, and loses */
+  }
   let keep = false;
   if (winner < 0) {
     if (!sets && obj.length) { const g = phGroup(obj[0]); sets = {}; sets[shooter] = g; sets[1 - shooter] = g === "solid" ? "stripe" : "solid"; keep = true; } /* the first ball down sets the groups */
     else if (sets && obj.some(b => phGroup(b) === sets[shooter])) keep = true; /* one of yours down: shoot again */
     if (scratch) keep = false; /* a sunk cue ball hands the turn over even on a scoring shot — the one courtesy rule */
   }
-  return { sets, winner, turn: winner >= 0 ? shooter : (keep ? shooter : 1 - shooter) };
+  return { sets, winner, eightLoss: eight && winner === 1 - shooter, turn: winner >= 0 ? shooter : (keep ? shooter : 1 - shooter) }; /* eightLoss: the 8 fell and the SHOOTER lost by it (early, or with a scratch) — phFinishShot names the 8 in the result lines only then; a legal 8 (the break, or after a cleared set) reads as a plain pot win */
 }
 /* ---- the physics (run ONLY by the player whose turn it is) ---- */
 function phStepBalls(balls, f, dt, ev) {
@@ -4176,8 +4183,8 @@ function phShoot(dx, dy, power) {
   const balls = st.balls.map(b => ({ x: b.x, y: b.y, vx: 0, vy: 0, on: b.on }));
   const sp = 260 + power * 1240; /* a tap nudges; a full drag breaks at 1500 px/s */
   balls[0].vx = dx * sp; balls[0].vy = dy * sp;
-  const clearedBefore = st.sets ? balls.filter(b => b.on && b > 0 && b !== 8 && phGroup(b) === st.sets[phSeatI]).length === 0 : false;
-  phSim = { t, by: phSeatI, balls, sunk: [], clearedBefore, lastPub: 0 };
+  const clearedBefore = st.sets ? !balls.some((b, bi) => b.on && bi > 0 && bi !== 8 && phGroup(bi) === st.sets[phSeatI]) : false; /* judged by ball INDEX over the table as the shot starts (phPcShoot's form). The object form this replaces — filter(b => b.on && b > 0 && …) over the ball OBJECTS — compared an object to 0, which is never true, so the filter was always empty and clearedBefore read TRUE whenever sets existed: any 8 sunk after the groups were set scored as a win, the early-8 bug the owner saw in play (fixed 2026-10-31) */
+  phSim = { t, by: phSeatI, balls, sunk: [], clearedBefore, isBreak: !!st.brk, lastPub: 0 }; /* st.brk is stamped on the record when the RPS winner takes the break and cleared by every finish — true only for the break shot itself */
   tblUpd(phKey(t), { rolling: true, shotBy: phSeatI, shotTs: Date.now() });
   sfxPhCue();
 }
@@ -4231,7 +4238,7 @@ function phPcShoot() {
   const sp = 260 + aim.power * 1240; /* the player's own speed law */
   balls[0].vx = aim.dx * sp; balls[0].vy = aim.dy * sp;
   const clearedBefore = st.sets ? !balls.some((b, bi) => b.on && bi > 0 && bi !== 8 && phGroup(bi) === st.sets[pc]) : false;
-  phSim = { t, by: pc, balls, sunk: [], clearedBefore, lastPub: 0 };
+  phSim = { t, by: pc, balls, sunk: [], clearedBefore, isBreak: !!st.brk, lastPub: 0 }; /* the PC can win the throw and break — the same record flag the player's shot reads */
   tblUpd(phKey(t), { rolling: true, shotBy: pc, shotTs: Date.now() });
   sfxPhCue();
 }
@@ -4245,12 +4252,12 @@ function phFinishShot() {
   if (scratched) { const f = phField(t); balls[0] = { x: Math.round((f.x + f.w * 0.25) * 10) / 10, y: Math.round((f.y + f.h / 2) * 10) / 10, on: false }; }
   const pot = st.pot != null ? st.pot : (st.seats && st.seats[0] ? st.seats[0].bet || 0 : 0) + (st.seats && st.seats[1] ? st.seats[1].bet || 0 : 0); /* the pot as written at rack-up (a leaver's stake is no longer in the seats) */
   const oppGone = st.mode !== "pc" && !(st.seats && st.seats[1 - shooter] && st.seats[1 - shooter].pid); /* in a vs-PC match the other chair is empty by design — never an early end (PREVIEW round 2) */
-  const ev = phEvalShot(st, shooter, sim.sunk, sim.clearedBefore);
-  const upd = { balls, rolling: false, sets: ev.sets, turn: ev.turn };
+  const ev = phEvalShot(st, shooter, sim.sunk, sim.clearedBefore, sim.isBreak);
+  const upd = { balls, rolling: false, sets: ev.sets, turn: ev.turn, brk: false }; /* every finished shot spends the break flag — only the RPS-to-play write stamps it again, for the next match's break */
   upd.place = (scratched && ev.winner < 0 && !oppGone) ? ev.turn : null; /* ball in hand for the incoming player when the match plays on after a bust; null on every other finish, so a stale placement can never survive a shot, and a match end buries it in the done write */
   if (ev.winner >= 0 || oppGone) { /* the match ends: either the 8 decided it, or the opponent's chair is already empty — a forfeit pays the player who stayed (phHostTick covers the same ground when no shot is live) */
     const w = ev.winner >= 0 ? ev.winner : shooter;
-    const byEight = ev.winner >= 0 && sim.sunk.indexOf(8) >= 0; /* the match ended because the 8 fell and the shooter lost by it — the result lines name the 8, so both players can see why the game stopped */
+    const byEight = ev.winner >= 0 && ev.eightLoss; /* the match ended because the 8 fell EARLY (or with a scratch) and the shooter lost by it — the result lines name the 8, so both players can see why the game stopped. A legal 8 (on the break, or after a cleared set) is a plain pot win and keeps the plain texts */
     const results = {}; results[w] = { res: byEight ? "🎉 You won the pot — the 8 fell!" : "🎉 You won the pot!", amt: pot }; if (st.seats && st.seats[1 - w]) results[1 - w] = { res: byEight ? "🎱 Sank the 8 — you lose" : "no win", amt: 0 };
     writeClaim(claimUid(st.seats && st.seats[w]), phKey(t) + "m" + (st.matchId || 0) + "-" + w, pot, "🏆 Pool Hall win"); /* the pot is HELD for the winner at the same moment it is decided (claims fix) — the done window is no longer the only chance to collect it */
     upd.phase = "done"; upd.results = results; upd.doneTs = Date.now(); upd.winner = w;
@@ -4366,7 +4373,7 @@ function phHostTick(t) {
       if (!st.rpsShow) { tblUpd(key, { rpsShow: { a: ta, b: tb, res: phRpsWinner(ta, tb), ts: now } }); return; } /* both throws in: reveal them on the node, so every screen shows the same result */
       if (now - (st.rpsShow.ts || 0) > 1700) { /* the reveal has had its moment on every screen */
         if (st.rpsShow.res < 0) tblUpd(key, { rps: null, rpsShow: null, rpsTs: now }); /* a tie: clear the throws and throw again */
-        else tblUpd(key, { phase: "play", turn: st.rpsShow.res, rps: null, rpsShow: null }); /* the winner of the throw takes the break — turn order runs from them */
+        else tblUpd(key, { phase: "play", turn: st.rpsShow.res, rps: null, rpsShow: null, brk: true }); /* the winner of the throw takes the break — turn order runs from them. brk stamps the record: the NEXT shot taken is the break shot (the 8 there wins on the spot), and the first phFinishShot clears it */
       }
     }
     return;
@@ -5628,11 +5635,11 @@ function drawPhTable(tt, t) {
   /* the rail: dark wood with a gold line, then the felt */
   ctx.fillStyle = "#2a1a12"; rr(T.x - 14, T.y - 14, T.w + 28, T.h + 28, 26); ctx.fill();
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(T.x - 14, T.y - 14, T.w + 28, T.h + 28, 26); ctx.stroke();
-  const phFelt = phIsHR(tt) ? "#6e0a1a" : "#0a5c34"; /* the LEFT two tables wear the High Rollers Club's felt colour — drawHRFelt's #6e0a1a, the dark red of the baccarat/craps felts (Jonathan 2026-10-31). Bed and field take it; the cushions keep their own green (they are not the felt), and the rail, sights and pockets are untouched */
+  const phFelt = phIsHR(tt) ? "#6e0a1a" : "#0a5c34"; /* the LEFT two tables wear the High Rollers Club's felt colour — drawHRFelt's #6e0a1a, the dark red of the baccarat/craps felts (Jonathan 2026-10-31). Bed and field take it, and their green trim went dark burgundy with it (the cushions and chair bases below); the right two tables keep the green felt AND the green trim, and the rail, sights and pockets are untouched on all four */
   ctx.fillStyle = phFelt; rr(T.x, T.y, T.w, T.h, 18); ctx.fill();
   ctx.fillStyle = phFelt; rr(f.x - 3, f.y - 3, f.w + 6, f.h + 6, 10); ctx.fill();
   /* the cushions (PREVIEW round 4): six runs of cushion that STOP at the pockets instead of one ring painted under them — each run ends in a jaw cut, its felt-side nose reaching 12px nearer the pocket than its rail-side back, the funnel a real table's jaws make. The runs leave a 34px gap around each corner pocket centre and a 32px gap around each side pocket centre, and the sockets below sit in those gaps. The band runs f-13 (rail side) to f-1 (felt side). Rendering only — the physics field and pocket centres are untouched */
-  ctx.fillStyle = "#0d6e3e";
+  ctx.fillStyle = phIsHR(tt) ? "#4d0614" : "#0d6e3e"; /* the high-roller tables' cushions are a DARK BURGUNDY darker than their felt (Jonathan 2026-10-31 — the green strips clashed with the burgundy felt in his screenshot): #4d0614, in the casino carpet #40081b family, against the felt's #6e0a1a. The right two tables keep the green cushions */
   function cushRun(pts) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fill(); }
   const CG = 34, SG = 32, JW = 12, fmx = f.x + f.w / 2;
   cushRun([[f.x + CG + JW, f.y - 13], [fmx - SG - JW, f.y - 13], [fmx - SG, f.y - 1], [f.x + CG, f.y - 1]]); /* top side, west of the side pocket */
@@ -5726,7 +5733,7 @@ function drawPhTable(tt, t) {
   PHSEATS[tt].forEach((s, i) => {
     const occ = st && st.seats && st.seats[i] && st.seats[i].pid && Date.now() - (st.seats[i].ts || 0) < 25000; /* a chair is occupied only by a pid-bearing fresh record (the casino rule) */
     if (!occ && phSeatT < 0 && me.scene === "poolhall" && phNearTable() === tt) uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => phSitAt(tt, i) });
-    ctx.fillStyle = occ ? "#ffd76a" : "#2e5d3a";
+    ctx.fillStyle = occ ? "#ffd76a" : (phIsHR(tt) ? "#33040d" : "#2e5d3a"); /* an empty chair's base is the table's other green trim: on the high-roller tables it takes a burgundy deeper than the cushions (#33040d), mirroring the green pair's own depth order */
     ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
     ctx.strokeStyle = occ ? "#fff2c4" : "rgba(255,215,106,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
     ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", s.x, s.y + 7);
@@ -6822,7 +6829,7 @@ function boxPhaseWatch() {
     /* stepping into the ring: the mech stays at the door (Jonathan 2026-10-31) */
     if (mechForm) { mechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); }
     if (kingMechForm) { kingMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, true); sfxSwap(); } /* the king mech stays at the door too — OnlineMoney steps into the ring as King QI, trailing RED smoke */
-    if (tonicMechForm) { tonicMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); } /* the galaxy mech stays at the door too — 7daytonic steps into the ring as his hero, trailing CYAN smoke */
+    if (tonicMechForm) { tonicMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "blue"); sfxSwap(); } /* the galaxy mech stays at the door too — 7daytonic steps into the ring as his hero, trailing BLUE smoke */
     boxingBout = { seat: boxSeat };
     tblUpd("box/seats/" + boxSeat, { rdy: false });
     mySeatPos = null; /* off the chair, into the ring */
