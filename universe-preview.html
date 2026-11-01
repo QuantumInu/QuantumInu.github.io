@@ -1217,17 +1217,21 @@ const GYM_B = { x: 2130, y: 170, w: 1000, h: 340 };
 const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
 /* ============ Quantum Bowling (PREVIEW, Jonathan 2026-11-01) ============
    A fifth plaza building, directly BELOW the Quantum Pool and CENTRED on it:
-   the same width as the pool deck (920 — x 3260..4180, the deck's own edges),
-   its north face fronting the plaza's existing full-width purple walkway
-   (y 1480..1640, centreline 1560), which runs in the gap between the deck's
-   bottom (1480) and the building's top — so the path, the door (on the north
-   face, at the building's centre x 3720, the pool's own centre line) and the
-   building all line up on the one axis. PURPLE, with its own roof (a row of
+   the same width as the pool deck (920 — x 3260..4180, the deck's own edges)
+   on the pool's own centre line (x 3720). It first stood at y 1640 with its
+   door on the north face, fronting the plaza's full-width purple walkway;
+   at Jonathan's word the same day it MOVED DOWN to y 1920..2260 (breathing
+   room above and below, clear of the plaza's bottom edge and the HQ portal)
+   and its door went on the BOTTOM face like every other plaza building's,
+   with a purple path of its own leading to it: the path begins at the bottom
+   of the CASINO's door, runs down the casino's centre line (x 2845), then
+   turns right and runs east along this building's bottom to the door (the
+   detour in drawPlaza's union path). PURPLE, with its own roof (a row of
    bowling pins along the top edge and a giant bowling ball on the marquee —
    no other building's roof). Solid like the other buildings, door excepted.
    Inside: scene "bowling" (see BOWLROOM below). */
-const BOWL_B = { x: 3260, y: 1640, w: 920, h: 340 };
-const BOWLDOOR = { x: 3675, y: 1640, w: 90, h: 40 }; /* on the NORTH face, centred on x 3720 — drawn at the facade's top edge, opening onto the purple path */
+const BOWL_B = { x: 3260, y: 1920, w: 920, h: 340 };
+const BOWLDOOR = { x: 3675, y: 2220, w: 90, h: 34 }; /* on the BOTTOM face, centred on x 3720 — the gym door's own shape (its plate on the bottom-40 line, door 90x34) */
 /* ============ Quantum Horse Track (PREVIEW, Jonathan 2026-10-30) ============
    A third race building east of the Sports Complex, on the plaza's new eastern
    ground (WORLD grew right to hold it). Mirrors the gym's footprint and door
@@ -1285,16 +1289,18 @@ const PHROOM = { w: 3200, h: 1800 };
    Scene id "bowling". A 2560x2000 hall holding FOUR lanes side by side,
    running VERTICALLY — pins at the NORTH (top) end, players at the SOUTH
    (bottom) end. Every measurement hangs off the room's centre line (1280):
-   the lane centres sit at 830 / 1130 / 1430 / 1730 (±150, ±450), so the four
+   the lane centres sit at 380 / 980 / 1580 / 2180 (±300, ±900 — spread wide
+   at Jonathan's word, 2026-11-01, so the lanes run basically edge to edge
+   of the room, only slim margins at the walls), so the four
    lanes, their screens and their chair rows are evenly spaced, perfectly
    aligned and symmetric about the middle of the room. Each lane is a shared
    record at hub/tables/bowl1..bowl4 on the Pool Hall's pattern (see the
    bowling engine below). */
 const BOWLROOM = { w: 2560, h: 2000 };
-const BOWLCX = t => BOWLROOM.w / 2 + (t - 1.5) * 300; /* lane centre lines: 830, 1130, 1430, 1730 */
-const BOWLLANES = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 101, y: 330, w: 202, h: 1240 })); /* the lane field including both gutters — solid in its room, like the pool tables */
-const BOWLSEATS = [0, 1, 2, 3].map(t => [-126, -42, 42, 126].map(dx => ({ x: BOWLCX(t) + dx, y: 1740 }))); /* four chairs per lane at its south end, evenly spaced on the lane's own centre line */
-const BOWLSCREENS = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 130, y: 132, w: 260, h: 176 })); /* the scoring screen hung over each lane's pins end */
+const BOWLCX = t => BOWLROOM.w / 2 + (t - 1.5) * 600; /* lane centre lines: 380, 980, 1580, 2180 (spread from a 300 pitch to 600 at Jonathan's word, 2026-11-01 — the lanes now run basically edge to edge of the room) */
+const BOWLLANES = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 160, y: 330, w: 320, h: 1240 })); /* the lane field including both gutters (260 of boards + 30 of gutter a side) — solid in its room, like the pool tables. Widened from 202 with the spread */
+const BOWLSEATS = [0, 1, 2, 3].map(t => [-141, -47, 47, 141].map(dx => ({ x: BOWLCX(t) + dx, y: 1740 }))); /* four chairs per lane at its south end, evenly spaced across the widened lane on its own centre line */
+const BOWLSCREENS = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 200, y: 132, w: 400, h: 176 })); /* the scoring screen hung over each lane's pins end — widened from 260 to suit the wider lanes */
 const BOWLEXIT = { x: BOWLROOM.w / 2 - 62, y: BOWLROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — the gym's GEXIT shape */
 const BOWL_FOUL_Y = 1470; /* the ball leaves from here, at the lane's south end */
 function bowlPinPos(cx, i) { let r = 0, j = i; while (j > r) { j -= r + 1; r++; } return { x: cx + (j - r / 2) * 56, y: 512 - r * 52 }; } /* pin i of the rack: head pin (0) nearest the player at y 512, rows running north — 1-2-3-4 */
@@ -1489,7 +1495,7 @@ const booths = [];
 booths.push({ x: 420, y: 1470, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 630, y: 1470, w: 210, h: 190 });
 function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B]; /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its north-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
+  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B]; /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
@@ -1514,7 +1520,7 @@ function collide(nx, ny) {
     if (nx > GYMDOOR.x - 6 && nx < GYMDOOR.x + GYMDOOR.w + 6 && ny > GYM_B.y + GYM_B.h - 14 && ny < GYM_B.y + GYM_B.h + 46) return { x: nx, y: ny, gymdoor: true };
     if (nx > SPDDOOR.x - 6 && nx < SPDDOOR.x + SPDDOOR.w + 6 && ny > SPD_B.y + SPD_B.h - 14 && ny < SPD_B.y + SPD_B.h + 46) return { x: nx, y: ny, spddoor: true };
     if (nx > HRDOOR.x - 6 && nx < HRDOOR.x + HRDOOR.w + 6 && ny > HR_B.y + HR_B.h - 14 && ny < HR_B.y + HR_B.h + 46) return { x: nx, y: ny, hrdoor: true };
-    if (nx > BOWLDOOR.x - 6 && nx < BOWLDOOR.x + BOWLDOOR.w + 6 && ny > BOWL_B.y - 46 && ny < BOWL_B.y + 14) return { x: nx, y: ny, bowldoor: true }; /* Quantum Bowling's door is on its NORTH face: the gym door's check flipped — it fires as the walker comes SOUTH off the purple path into the doorway */
+    if (nx > BOWLDOOR.x - 6 && nx < BOWLDOOR.x + BOWLDOOR.w + 6 && ny > BOWL_B.y + BOWL_B.h - 14 && ny < BOWL_B.y + BOWL_B.h + 46) return { x: nx, y: ny, bowldoor: true }; /* Quantum Bowling's door, on its BOTTOM face like every other plaza building's (moved there at Jonathan's word, 2026-11-01) — the gym door's check, word for word */
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
@@ -5070,8 +5076,8 @@ function toCasino() { stopAllTones(); me.scene = "casino"; voiceReset(); me.x = 
 function toPlazaFromCasino() { stopAllTones(); standUpAll(); me.scene = "plaza"; voiceReset(); me.x = 2850; me.y = SIL_R.y + SIL_R.h + 60; sfxChime(); publish(true); }
 function toGym() { stopAllTones(); me.scene = "gym"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); sportsListen(); startLgVideos(); }
 function toPlazaFromGym() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 2630; me.y = GYM_B.y + GYM_B.h + 60; sfxChime(); publish(true); pauseLgVideos(); }
-function toBowling() { stopAllTones(); me.scene = "bowling"; voiceReset(); me.x = BOWLROOM.w / 2; me.y = BOWLROOM.h - 170; sfxChime(); publish(true); bowlListen(); pullChips(); } /* in through the north-face door, landing inside by the exit plate at the south wall, clear of every lane and chair — the horse track's landing pattern */
-function toPlazaFromBowling() { stopAllTones(); bowlStandUp(); me.scene = "plaza"; voiceReset(); me.x = 3720; me.y = BOWL_B.y - 60; sfxChime(); publish(true); } /* back out onto the purple path in front of the door, on the building's centre line (3720) — 14px clear of the door trigger's north edge, the gym landing's own clearance, so the doorway never swallows you straight back in */
+function toBowling() { stopAllTones(); me.scene = "bowling"; voiceReset(); me.x = BOWLROOM.w / 2; me.y = BOWLROOM.h - 170; sfxChime(); publish(true); bowlListen(); pullChips(); } /* in through the bottom-face door, landing inside by the exit plate at the south wall, clear of every lane and chair — the horse track's landing pattern */
+function toPlazaFromBowling() { stopAllTones(); bowlStandUp(); me.scene = "plaza"; voiceReset(); me.x = 3720; me.y = BOWL_B.y + BOWL_B.h + 60; sfxChime(); publish(true); } /* back out onto the bowling path BELOW the door, on the building's centre line (3720) — bottom + 60, every other building's exit landing (casino, gym, club, track), 14px clear of the door trigger's south edge so the doorway never swallows you straight back in */
 function toSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "speedway"; voiceReset(); me.x = 1800; me.y = 2240; sfxChime(); publish(true); speedwayListen(); startSwVideos(); }
 function toPlazaFromSpeedway() { stopAllTones(); stepOutOfCar(true); me.scene = "plaza"; voiceReset(); me.x = 570; me.y = SPD_B.y + SPD_B.h + 60; sfxChime(); publish(true); pauseSwVideos(); swPuffs = []; }
 let portalArmed = true;
@@ -5282,15 +5288,15 @@ function drawBowlingBuilding(t) {
   for (const wx of winX) { rr(wx, b.y + 216, 92, 88, 8); ctx.fill(); }
   ctx.strokeStyle = "rgba(168,85,247,0.4)"; ctx.lineWidth = 1.5;
   for (const wx of winX) { rr(wx, b.y + 216, 92, 88, 8); ctx.stroke(); }
-  /* the door, on the NORTH face at the building's centre: purple light spilling out onto the path, the door plate at the facade's top edge, ENTER written on the path where the walker stands (the gym door's arrangement, flipped to the north face) */
-  const ddy = BOWL_B.y;
-  const ddg = ctx.createLinearGradient(0, ddy - 64, 0, ddy);
-  ddg.addColorStop(0, "rgba(168,85,247,0)"); ddg.addColorStop(1, "rgba(168,85,247,0.5)");
-  ctx.fillStyle = ddg; ctx.fillRect(BOWLDOOR.x - 8, ddy - 64, BOWLDOOR.w + 16, 64);
-  ctx.fillStyle = "#0a1428"; rr(BOWLDOOR.x, ddy, BOWLDOOR.w, 40, 6); ctx.fill();
-  ctx.strokeStyle = "#c084fc"; ctx.lineWidth = 2.5; rr(BOWLDOOR.x, ddy, BOWLDOOR.w, 40, 6); ctx.stroke();
+  /* the door, on the BOTTOM face at the building's centre, like every other plaza building's (moved there at Jonathan's word, 2026-11-01): purple light spilling out onto the path below, the door plate at the facade's bottom edge, ENTER written on the path where the walker stands (the gym door's arrangement, in the alley's colour) */
+  const bdy = BOWL_B.y + BOWL_B.h - 40;
+  const bdg = ctx.createLinearGradient(0, bdy, 0, bdy + 100);
+  bdg.addColorStop(0, "rgba(168,85,247,0.55)"); bdg.addColorStop(1, "rgba(168,85,247,0)");
+  ctx.fillStyle = bdg; ctx.fillRect(BOWLDOOR.x - 8, bdy - 6, BOWLDOOR.w + 16, 104);
+  ctx.fillStyle = "#0a1428"; rr(BOWLDOOR.x, BOWL_B.y + BOWL_B.h - 40, BOWLDOOR.w, 40, 6); ctx.fill();
+  ctx.strokeStyle = "#c084fc"; ctx.lineWidth = 2.5; rr(BOWLDOOR.x, BOWL_B.y + BOWL_B.h - 40, BOWLDOOR.w, 40, 6); ctx.stroke();
   ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#e9d5ff"; ctx.textAlign = "center";
-  ctx.fillText("▼ ENTER ▼", BOWLDOOR.x + BOWLDOOR.w / 2, ddy - 52);
+  ctx.fillText("▼ ENTER ▼", BOWLDOOR.x + BOWLDOOR.w / 2, BOWL_B.y + BOWL_B.h + 62);
 }
 
 function drawSportsBuilding(t) {
@@ -6468,7 +6474,7 @@ function bowlAimRelease() {
 }
 function bowlShoot(a) {
   const t = bowlSeatT, st = bowlStates[t], cx = BOWLCX(t);
-  const startX = cx + Math.max(-62, Math.min(62, a.dx * 90)); /* the pull's sideways lean sets the ball's line */
+  const startX = cx + Math.max(-108, Math.min(108, a.dx * 156)); /* the pull's sideways lean sets the ball's line — the lean scaled to the widened boards (was ±62 of 75; now ±108 of 130) */
   bowlSim = { t, x: startX, y: BOWL_FOUL_Y, vx: a.dx * 340, vy: -(640 + a.pow * 1020), rack: (st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]).slice(), lastPub: 0, gutter: false };
   tblUpd(bowlKey(t), { rolling: true, shotBy: bowlSeatI, shotTs: Date.now(), live: { x: Math.round(startX * 10) / 10, y: BOWL_FOUL_Y, rack: bowlSim.rack } });
   sfxBowlRoll();
@@ -6495,8 +6501,8 @@ function bowlFrameStep(dt) {
     const h = Math.min(sub, rem); rem -= h;
     sim.x += sim.vx * h; sim.y += sim.vy * h;
     sim.vy *= (1 - 0.10 * h); sim.vx *= (1 - 0.35 * h); /* rolling resistance */
-    if (!sim.gutter && Math.abs(sim.x - cx) > 76 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true; /* past the lane's edge the ball drops into the gutter and runs straight to the pit, touching nothing */
-    if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 88; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
+    if (!sim.gutter && Math.abs(sim.x - cx) > 131 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true; /* past the lane's edge the ball drops into the gutter and runs straight to the pit, touching nothing — the edge is the widened boards' own edge (131 = 130 + the ball's skin; the channel centre 145 is the gutter band's middle, 130..160) */
+    if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 145; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
     else if (sim.y < 580) {
       for (let i = 0; i < 10; i++) {
         if (!sim.rack[i]) continue;
@@ -6575,11 +6581,11 @@ function drawBowlScreen(tt, st) {
     } else {
       const rolls = (st.rolls && st.rolls[i]) || [], card = bowlScorecard(rolls), done = bowlFramesComplete(rolls);
       for (let f = 0; f < 10; f++) {
-        const bx = S.x + 96 + f * 13;
-        ctx.fillStyle = "rgba(20,16,44,0.9)"; ctx.fillRect(bx, y - 12, 12, 16);
-        ctx.strokeStyle = st.frame === f + 1 && st.phase === "play" ? "rgba(56,225,255,0.8)" : "rgba(140,120,200,0.4)"; ctx.lineWidth = 1; ctx.strokeRect(bx, y - 12, 12, 16);
-        ctx.textAlign = "center"; ctx.font = "700 8.5px 'Segoe UI',sans-serif"; ctx.fillStyle = f < done ? "#eaf6ff" : "rgba(200,205,225,0.45)";
-        ctx.fillText(f < done ? bowlFrameMarks(rolls, f + 1) : "·", bx + 6, y);
+        const bx = S.x + 118 + f * 24; /* the frame boxes spread across the widened screen (260 -> 400 with the lanes, Jonathan 2026-11-01) */
+        ctx.fillStyle = "rgba(20,16,44,0.9)"; ctx.fillRect(bx, y - 12, 22, 16);
+        ctx.strokeStyle = st.frame === f + 1 && st.phase === "play" ? "rgba(56,225,255,0.8)" : "rgba(140,120,200,0.4)"; ctx.lineWidth = 1; ctx.strokeRect(bx, y - 12, 22, 16);
+        ctx.textAlign = "center"; ctx.font = "700 11px 'Segoe UI',sans-serif"; ctx.fillStyle = f < done ? "#eaf6ff" : "rgba(200,205,225,0.45)";
+        ctx.fillText(f < done ? bowlFrameMarks(rolls, f + 1) : "·", bx + 11, y);
       }
       ctx.textAlign = "right"; ctx.font = "800 14px 'Segoe UI',sans-serif"; ctx.fillStyle = mine ? "#ffd76a" : "#eaf6ff";
       ctx.fillText(String(st.phase === "done" && st.totals && typeof st.totals[i] === "number" ? st.totals[i] : card.total), S.x + S.w - 10, y);
@@ -6599,12 +6605,12 @@ function drawBowlLane(tt, t) {
   ctx.fillStyle = "#2a1052"; ctx.fillRect(L.x, L.y, L.w, L.h); /* the gutters */
   const wg = ctx.createLinearGradient(0, L.y, 0, L.y + L.h);
   wg.addColorStop(0, "#7a4d24"); wg.addColorStop(1, "#5b3a1a");
-  ctx.fillStyle = wg; ctx.fillRect(cx - 75, L.y, 150, L.h); /* the boards */
+  ctx.fillStyle = wg; ctx.fillRect(cx - 130, L.y, 260, L.h); /* the boards — widened with the lane field (150 -> 260 at Jonathan's word, 2026-11-01); the sim's gutter line and channel widened to match, below */
   ctx.strokeStyle = "rgba(0,0,0,0.20)"; ctx.lineWidth = 1;
-  for (let bx = cx - 60; bx < cx + 75; bx += 15) { ctx.beginPath(); ctx.moveTo(bx, L.y); ctx.lineTo(bx, L.y + L.h); ctx.stroke(); }
+  for (let bx = cx - 114; bx < cx + 130; bx += 16) { ctx.beginPath(); ctx.moveTo(bx, L.y); ctx.lineTo(bx, L.y + L.h); ctx.stroke(); }
   ctx.fillStyle = "rgba(255,240,210,0.5)"; /* the lane arrows, pointing at the pins */
-  [-48, -24, 0, 24, 48].forEach(dx => { const ay = 1130 + Math.abs(dx) * 1.6; ctx.beginPath(); ctx.moveTo(cx + dx, ay - 16); ctx.lineTo(cx + dx + 6, ay + 8); ctx.lineTo(cx + dx - 6, ay + 8); ctx.closePath(); ctx.fill(); });
-  ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx - 75, BOWL_FOUL_Y + 30); ctx.lineTo(cx + 75, BOWL_FOUL_Y + 30); ctx.stroke(); /* the foul line */
+  [-84, -42, 0, 42, 84].forEach(dx => { const ay = 1130 + Math.abs(dx) * 1.6; ctx.beginPath(); ctx.moveTo(cx + dx, ay - 16); ctx.lineTo(cx + dx + 6, ay + 8); ctx.lineTo(cx + dx - 6, ay + 8); ctx.closePath(); ctx.fill(); });
+  ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx - 130, BOWL_FOUL_Y + 30); ctx.lineTo(cx + 130, BOWL_FOUL_Y + 30); ctx.stroke(); /* the foul line */
   /* pins: the live snapshot while a ball is rolling on someone else's screen, my own simulation on mine, the record's rack at rest */
   let rack;
   if (bowlSim && bowlSim.t === tt) rack = bowlSim.rack;
@@ -6620,7 +6626,7 @@ function drawBowlLane(tt, t) {
   if (bowlAim && bowlAim.t === tt && bowlMyTurn()) {
     const a = bowlAimDirPow();
     ctx.save(); ctx.setLineDash([8, 8]); ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx + Math.max(-62, Math.min(62, a.dx * 90)), BOWL_FOUL_Y); ctx.lineTo(cx + a.dx * 620, BOWL_FOUL_Y - 620 * Math.max(0.3, -a.dy)); ctx.stroke(); ctx.restore();
+    ctx.beginPath(); ctx.moveTo(cx + Math.max(-108, Math.min(108, a.dx * 156)), BOWL_FOUL_Y); ctx.lineTo(cx + a.dx * 620, BOWL_FOUL_Y - 620 * Math.max(0.3, -a.dy)); ctx.stroke(); ctx.restore();
     ctx.fillStyle = "rgba(8,10,24,0.8)"; rr(cx - 42, BOWL_FOUL_Y + 26, 84, 12, 6); ctx.fill();
     ctx.fillStyle = a.pow > 0.75 ? "#ff5d5d" : a.pow > 0.4 ? "#ffd76a" : "#7dffb0"; rr(cx - 40, BOWL_FOUL_Y + 28, 80 * a.pow, 8, 4); ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
@@ -9488,7 +9494,8 @@ function drawPlaza(t) {
   ctx.lineTo(1680, 670); ctx.lineTo(2550, 670); ctx.lineTo(2550, 460); ctx.lineTo(2710, 460); ctx.lineTo(2710, 670); ctx.lineTo(3690, 670); ctx.lineTo(3690, 460); ctx.lineTo(3850, 460); ctx.lineTo(3850, 830); ctx.lineTo(1680, 830); /* the walkway runs on east past the gym's apron to the Horse Track's apron (PREVIEW — the plaza's eastern ground); the track apron is centred on 3770 — the building's and door's own centreline, exactly the Sports Complex's alignment (its apron was drawn 10px west of that line at first) */
   ctx.lineTo(1680, 1560 - D);
   ctx.arc(CX, 1560, 205, Math.atan2(-D, 80), Math.atan2(-80, D));
-  ctx.lineTo(WORLD.w, 1480); ctx.lineTo(WORLD.w, 1640); ctx.lineTo(CX + D, 1640); /* the bottom walkway runs the plaza's full width — it now passes the swimming pool on the eastern ground */
+  ctx.lineTo(WORLD.w, 1480); ctx.lineTo(WORLD.w, 1640); ctx.lineTo(2905, 1640); /* the bottom walkway runs the plaza's full width — it now passes the swimming pool on the eastern ground. On the way west along its bottom edge, the trace detours around Quantum Bowling's own path (Jonathan 2026-11-01): the path begins at the bottom of the casino's door and runs down the casino's centre line (2845 — the spur's edges at 2785/2905), then turns right and runs east along the bowling building's bottom (2260) to its door (east edge 3765), the band's bottom at 2420 */
+  ctx.lineTo(2905, 2260); ctx.lineTo(3765, 2260); ctx.lineTo(3765, 2420); ctx.lineTo(2785, 2420); ctx.lineTo(2785, 1640); ctx.lineTo(CX + D, 1640);
   /* the HQ portal spur (2026-10-29): a 240-wide path runs off the roundabout's bottom to the portal's own circle below spawn */
   const PD = Math.sqrt(205 * 205 - 120 * 120); /* 166.2 — where the spur's edges meet the roundabout */
   ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(PD, 120));
@@ -9627,8 +9634,8 @@ function drawPlaza(t) {
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
    [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [110, 800, 1.0], /* the tree that stood at (3100, 800) on the east walkway below the Horse Track was removed at Jonathan's word (2026-10-30) — the lamps line that path now */
    [150, 2050, 0.95], [3050, 2050, 1.0],
-   [500, 2380, 1.0], [1050, 2440, 0.9], [2150, 2420, 1.05], [2750, 2360, 0.95], [250, 2300, 0.9], [2950, 2310, 1.0], [1600, 2470, 0.85], /* the new southern ground from the 2026-10-29 plaza growth */
-   [3400, 2130, 1.0], [4040, 2130, 1.0] /* the two trees flanking Quantum Bowling (PREVIEW, Jonathan 2026-11-01): south of the building, symmetric about its own centre line (3720 ± 320), clear of the purple path, the pool and the building itself — appended, so every existing tree keeps its index and phase */
+   [500, 2380, 1.0], [1050, 2440, 0.9], [2150, 2420, 1.05], [250, 2300, 0.9], [1600, 2470, 0.85], /* the new southern ground from the 2026-10-29 plaza growth. The trees that stood at (2750, 2360) and (2950, 2310) were removed at Jonathan's word (2026-11-01): the first stood at the turn of Quantum Bowling's new path with its canopy over the corner, the second right on the path's eastward run below the building */
+   [3400, 1890, 1.0], [4040, 1890, 1.0] /* the two trees flanking Quantum Bowling (PREVIEW, Jonathan 2026-11-01): they first stood south of the building at y 2130; when the building MOVED DOWN the same day they moved to the gap between the bottom walkway and its roof, symmetric about its own centre line (3720 ± 320), clear of the walkway, the pool, the building and the new path — appended, so every existing tree keeps its index and phase */
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
   function silhouette(b) {
