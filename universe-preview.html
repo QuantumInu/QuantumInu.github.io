@@ -5615,6 +5615,9 @@ function seatSkinEntry(rec, mineHere) { /* whose skin paints a slot cabinet (Jon
   if (!id || id === "default") return null;
   return slotBgEntry(id);
 }
+function seatOccupied(rec) { /* is somebody actually sitting at this machine? The house occupancy rule — the same pid + 25s-fresh test seatSkinEntry resolves skins with: a pid-bearing fresh seat record is a sitter; a stale record, or a pid-less husk (the ghost-seat shape), is an EMPTY machine. Gates the slot cabinets' "walk up to play" invitation (Jonathan 2026-11-01): the prompt shows only while the machine is free */
+  return !!(rec && rec.pid && Date.now() - (rec.ts || 0) <= 25000);
+}
 function drawSlotCabinetBase(mch, skinE) { /* the casino cabinets' EMERALD FELT (Jonathan 2026-11-01): the Emerald Felt ARTWORK (slotbgs/bg-03.jpg) painted over the cabinet's whole face, exactly the way hrSlotCabinetBase paints a club machine — clipped to the cabinet's own rounded outline, the drawImage destination = the face rect itself, stretched edge to edge. UNDER it, painted first every frame, sits the procedural emerald cloth: a deep green gradient base (lighter where the room light pools toward the top, darker at the foot), a fine seeded speckle for the nap of the felt, and one soft sheen across the upper face. That cloth is the underlay while the artwork is still loading and the fallback if it ever fails — a cabinet never renders blank. The speckle is SEEDED from the machine's own position, so the nap is identical on every frame and never crawls or flickers. Base material only: everything the face draws afterwards (screen, reels, text, buttons) is unchanged */
   const feltImg = slotBgImg(skinE && skinE.img ? skinE : CASINO_FELT_BG); /* the artwork this cabinet wears this frame: the sitter's skin (seatSkinEntry) while the machine is sat at, the Emerald Felt otherwise — slotBgImg kicks off (and caches) its load on the first cabinet painted; every later frame reuses the cache */
   ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip();
@@ -5659,7 +5662,7 @@ function drawSlots(t) {
         drawBtn(mch.x + 16 + (k % 3) * 62, mch.y + 162 + Math.floor(k / 3) * 46, 54, 38, String(amt), () => { slotBet = amt; }, { fs: 17, sel: slotBet === amt }); /* the bet grid (Jonathan 2026-11-01), matching the club face: shifted down 6 with the face block, and the buttons shrunk 56 -> 54 so the grid's outer span is x+16..x+194 — exactly the casino SPIN button's own span below (x+16, w-32), which does not move. Label size unchanged (fs 17); the last row's bottom lands at y+246, a clear 6px above SPIN's top at y+252 */
       });
       drawBtn(mch.x + 16, mch.y + 252, mch.w - 32, 56, spinning ? "···" : "🎰 SPIN " + slotBet, spinning ? null : () => spinMachine(i), { fs: 24, fill: "#8a6a1f", dim: !!spinning });
-    } else {
+    } else if (!seatOccupied(slotSeats && slotSeats[mch.id])) { /* the invitation hangs only on an EMPTY machine (Jonathan 2026-11-01): while somebody is sitting at this cabinet there is no "walk up to play" — and no "sit down to play" — under its reels. My own seat never reaches this branch (the controls above draw instead), and a stale or pid-less seat record still counts as empty, so the prompt survives a ghost record */
       ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.55)";
       ctx.fillText(near === i ? "🪑 sit down to play" : "👆 walk up to play", mch.x + mch.w / 2, mch.y + 216);
     }
@@ -6648,7 +6651,7 @@ function drawHRSlots(t) {
       });
       if (autoTier >= 1) drawBtn(mch.x + mch.w - 63, mch.y + 131, 47, 26, hrAutoOn ? "AUTO ON" : "AUTO", () => hrAutoToggle(), { fs: 9, sel: hrAutoOn }); /* the store's AUTO button (Jonathan 2026-11-01): right of the SLOTS word on the machine face, drawn only for ladder owners and only while seated — it toggles the auto-spin that hrAutoTick drives through hrSpinMachine itself. Its right edge never moved; it dropped 122 -> 131 so the pill's centre (144) rides the same line as the centred SLOTS text */
       drawBtn(mch.x + 16, mch.y + 252, mch.w - 32, 56, spinning ? "···" : "🎰 SPIN " + hrSlotBet.toLocaleString("en-US"), spinning ? null : () => hrSpinMachine(i), { fs: 22, fill: "#8a6a1f", dim: !!spinning });
-    } else {
+    } else if (!seatOccupied(hrSlotSeats && hrSlotSeats[mch.id])) { /* the casino rule, carried to the club's machines (Jonathan 2026-11-01): an occupied cabinet shows no invitation — the "walk up to play" / "sit down to play" line appears only while this machine is empty, on the same pid + 25s-fresh occupancy test (seatOccupied), read off the club's own hrslotseats record */
       ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.55)";
       ctx.fillText(near === i ? "🪑 sit down to play" : "👆 walk up to play", mch.x + mch.w / 2, mch.y + 216);
     }
