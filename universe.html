@@ -1036,6 +1036,13 @@ function syncJuke() {
     };
   } else if ((me.scene === "club" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "boxing") && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
 }
+function hrcMusicOnReturn() { /* the High Rollers room's song revival (Jonathan 2026-11-01: "sometimes if I leave the high roller club or move my window and come back, the music doesn't keep play again"). ONLY this room's own picked song is revived here — the club jukebox and every other room keep their own behaviour. Two dead states are woken: (1) the shared context the song's gain stage lives on can be left suspended (or interrupted, on iOS) by a window/tab trip away, while the element itself reads as still playing — sound routed into a stopped context, and nothing else in this room ever resumes it, because the room's theme IS the song (startMusic stays out when hrcSongActive), so no tone ever pokes ac(); (2) holdAudio's pause on the way out leaves the element itself paused, and releaseAudio only clears a flag. The context is woken first, then syncJuke restarts the element ONLY if it is actually paused — a song genuinely still playing is never restarted, doubled, or rewound */
+  if (me.scene !== "highrollers" || !hrcSongActive()) return;
+  if (AC && AC.state !== "running") { try { const p = AC.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+  syncJuke();
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) hrcMusicOnReturn(); });
+window.addEventListener("focus", hrcMusicOnReturn);
 function pickSong(i) {
   if (!db) return;
   sfxChime();
@@ -4945,7 +4952,7 @@ function hrAnswer(correct) {
   else { sfxBad(); me.x = Math.max(me.x - 90, 56); publish(true); /* turned away: a step back west, out of the doorway */ }
 }
 function tryHRDoor() { openHRQuiz(); }
-function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = HRDOOR_Y; sfxChime(); publish(true); hrSlotFxBaseAt = Date.now(); hrListen(); pullChips(); } /* arrivals land in front of the exit door, on the medallion's centre line (HRDOOR_Y) where the door now sits. Entry also stamps the club slots' backlog baseline: the machines show their current state, wins that landed before you walked in never animate */
+function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = HRDOOR_Y; sfxChime(); publish(true); hrSlotFxBaseAt = Date.now(); hrListen(); pullChips(); hrcMusicOnReturn(); } /* arrivals land in front of the exit door, on the medallion's centre line (HRDOOR_Y) where the door now sits. Entry also stamps the club slots' backlog baseline: the machines show their current state, wins that landed before you walked in never animate. Entry revives the room's song (hrcMusicOnReturn): this is the one jukebox room whose entry never re-ran the music sync — toClub/toVip call syncJuke on entry — so a song stopped on the way out (or a context left suspended) stayed stopped on re-entry */
 function toCasinoFromHR() { stopAllTones(); hrStandUpAll(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w - 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); slotFxBaseAt = Date.now(); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toChess() { stopAllTones(); me.scene = "chess"; voiceReset(); me.x = CHESSROOM.w - 150; me.y = CHESSROOM.h / 2; sfxChime(); publish(true); chessListen(); pullChips(); }
 function toCasinoFromChess() { stopAllTones(); chessStandUp(); me.scene = "casino"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); slotFxBaseAt = Date.now(); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
