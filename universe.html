@@ -288,12 +288,15 @@ const KING_HERO = 73, KING_EMAIL = "brandogaleno@icloud.com"; /* the crowned kin
 const OWNER_EMAIL = "jrod11991@icloud.com";
 const MECH_HERO = 74; /* the DreadMech (Jonathan 2026-10-31): the owner account's transform form — his own uploaded art at hub-heroes/hero-074.webp; never a picker cell, never saved to a profile; only the T transform ever wears it */
 const KING_MECH_HERO = 75; /* the Cosmic King Mech (Jonathan 2026-10-31): OnlineMoney's transform form — the blue-and-gold king mech art at hub-heroes/hero-075.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his King QI avatar (hero 73) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the only differences are the gate, the art, and the smoke: his burst is RED, the owner's stays cyan */
-function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the two mechs identically */
+const TONIC_HERO = 76, TONIC_UID = "Oc3C9sU3pUcOeMWtrXad0C6P78o2"; /* 7daytonic's own hero (Jonathan 2026-10-31): the starry Shiba with the spiderweb beanie — his uploaded art at hub-heroes/hero-076.webp; offered as a picker cell ONLY under his sign-in, exactly like 71/73. His gate keys on the account UID, not an email: the signed-in account object carries its own uid (the send-tokens presence and the hub/users records already key on it), and no email for his account is on file */
+const TONIC_MECH_HERO = 77; /* 7daytonic's Galaxy Mech (Jonathan 2026-10-31): his transform form — the galaxy mech art at hub-heroes/hero-077.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his own hero (76) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the only differences are the gate and the art; his burst is the standard CYAN, like the owner's */
+function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO; } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
 function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
 function isKingAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === KING_EMAIL); }
-function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); return n >= 1 && n <= 70; }
+function isTonicAcct() { return !!(acctUser && acctUser.uid === TONIC_UID); } /* 7daytonic's gate: his account's uid, read off the signed-in account object the same way the email gates read its email */
+function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); return n >= 1 && n <= 70; }
 const NPC_PID = "qbot-npc"; /* Q-Bot: server-driven NPC wandering the plaza roundabout; renders from presence like any player, but is never a voice peer and does not count as a person online */
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
@@ -593,28 +596,30 @@ function makeHeroCell(n, nm, g) {
 function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift). The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
   grid.innerHTML = "";
   HERO_NAMES.forEach((nm, i) => { const n = i + 1; if (pickedGender === "f" && FEMALE_MISSING[n]) return; grid.appendChild(makeHeroCell(n, nm, pickedGender)); });
-  ownerCells = []; kingCell = null;
+  ownerCells = []; kingCell = null; tonicCell = null;
   syncOwnerCell();
 }
 /* the special heroes exist as picker cells ONLY for their own accounts, always FIRST in the grid, and each player still taps his own himself: hero 71 for the owner account, hero 73 (the king) for OnlineMoney's account — the two are never offered to the same sign-in */
-let ownerCells = [], kingCell = null;
+let ownerCells = [], kingCell = null, tonicCell = null;
 function syncOwnerCell() {
   if (isOwnerAcct() && !ownerCells.length) { const c71 = makeHeroCell(OWNER_HERO, "Owner QI"); grid.insertBefore(c71, grid.firstChild); ownerCells = [c71]; }
   else if (!isOwnerAcct() && ownerCells.length) { ownerCells.forEach(c => c.remove()); ownerCells = []; if (pickedHero === OWNER_HERO) pickedHero = 0; }
   if (isKingAcct() && !kingCell) { kingCell = makeHeroCell(KING_HERO, "King QI"); grid.insertBefore(kingCell, grid.firstChild); }
   else if (!isKingAcct() && kingCell) { kingCell.remove(); kingCell = null; if (pickedHero === KING_HERO) pickedHero = 0; }
+  if (isTonicAcct() && !tonicCell) { tonicCell = makeHeroCell(TONIC_HERO, "7daytonic"); grid.insertBefore(tonicCell, grid.firstChild); }
+  else if (!isTonicAcct() && tonicCell) { tonicCell.remove(); tonicCell = null; if (pickedHero === TONIC_HERO) pickedHero = 0; }
   syncHeroSel();
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
 buildGrid();
-const HERO_TOTAL = 73;
+const HERO_TOTAL = 74;
 function heroLoaded() { loadedCount++; syncLoadLine(); checkEnter(); }
 function heroLoadedF() { femaleLoadedCount++; syncLoadLine(); checkEnter(); }
-function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 73 (70 grid + the 3 special preloads) in male mode, the 68 female cells in female mode */
+function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 74 (70 grid + the 4 special preloads) in male mode, the 68 female cells in female mode */
   if (pickedGender === "f") loadLine.textContent = femaleLoadedCount >= FEMALE_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + femaleLoadedCount + "/" + FEMALE_TOTAL;
   else loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL;
 }
-[71, 72, 73].forEach(n => {
+[71, 72, 73, 76].forEach(n => {
   const im = new Image();
   im.onload = () => { heroImgs[n] = im; heroLoaded(); };
   im.onerror = () => { heroLoaded(); };
@@ -689,7 +694,7 @@ function publish(force) {
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
-  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   myRef.set(rec).catch(() => {});
 }
@@ -1076,6 +1081,7 @@ const me = { name: "", hero: 0, g: "m", scene: "plaza", x: 1600 + spawnOff, y: 1
 let entered = false;
 let mechForm = false, mechCdUntil = 0; /* the owner's mech transform (Jonathan 2026-10-31): session-only — a fresh page load starts as the dog; 3 second cooldown between flips */
 let kingMechForm = false; /* OnlineMoney's king mech transform: the same session-only shape, hanging off his King QI avatar; it shares the 3s cooldown clock above — only one account is ever signed in on a client, so the two forms never contend for it */
+let tonicMechForm = false; /* 7daytonic's galaxy mech transform: the same session-only shape again, hanging off his own hero (76); it shares the same 3s cooldown clock for the same reason */
 const BUILDING = { x: 1280, y: 130, w: 640, h: 380 };
 const DOOR = { x: 1560, y: 486, w: 80, h: 34 };
 const CLUB = { x: 140, y: 1180, w: 420, h: 300 };
@@ -1214,6 +1220,9 @@ const PHROOM = { w: 3200, h: 1800 };
 const PHEXIT = { y: PHROOM.h / 2, half: 92 }; /* CASINO EXPANSION preview (Jonathan 2026-10-31): the hall's Arcade door moved to the CENTRE of its right edge (PHROOM.h / 2 = 900), answering the Arcade door's new middle-of-the-left-edge spot */ /* the exit door, in the hall's RIGHT WALL (PREVIEW round 3): the theatre doorway's twin, gold ARCADE sign and all. Its centre stands exactly as far above this room's bottom border (344px) as the Arcade's Pool Hall door (PHDOOR_A) stands above the Arcade's — door answers door, at the same height off the floor */
 const PHT = [{ x: 370, y: 170 }, { x: 2050, y: 170 }, { x: 370, y: 1030 }, { x: 2050, y: 1030 }].map(r => ({ x: r.x, y: r.y, w: 780, h: 420 })); /* the four tables in a 2x2 grid, spread wide (900px of air between the columns, 440 between the rows) — round 3 shifted both columns 200px right with the room's widening, so only the chair-to-wall gaps grew — solid in their room, like the casino tables */
 const PHRAIL = 44; /* the rail's width: the play field sits this far inside each table rect */
+const PH_MINX = Math.min(...PHT.map(T => T.x));
+function phIsHR(t) { return PHT[t].x === PH_MINX; } /* the LEFT two tables (ph1 and ph3 — the x=370 column) are the hall's HIGH ROLLER tables (Jonathan 2026-10-31): they wear the High Rollers Club's dark-red felt and stake the HR ladder. The right two (ph2/ph4) keep the green felt and the casino amounts, untouched */
+function phAmtLabel(a) { return a >= 1000000000 ? (a / 1000000000) + "B" : a >= 1000000 ? (a / 1000000) + "M" : a >= 1000 ? (a / 1000) + "k" : String(a); } /* the HRC tables' own amount-label format (hrcTableHead's formula): k for the thousands, M for the millions, B for the billion */
 const PHSEATS = PHT.map(T => [{ x: T.x - 84, y: T.y + T.h / 2 }, { x: T.x + T.w + 84, y: T.y + T.h / 2 }]); /* two chairs per table, at the short ends */
 const PH_BR = 13; /* the balls' radius */
 const PH_BALLCOL = ["#f6f2e8", "#f2c531", "#2b4fd8", "#e33b3b", "#7b2ff2", "#ff8c42", "#35c24a", "#9a2a2a", "#14161f", "#f2c531", "#2b4fd8", "#e33b3b", "#7b2ff2", "#ff8c42", "#35c24a", "#9a2a2a"]; /* cue, solids 1-7, the 8, stripes 9-15 */
@@ -1514,7 +1523,7 @@ function enterHub() {
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
-  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct())) return;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct())) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ You're already signed in in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr;
@@ -1803,7 +1812,7 @@ function initAuth() {
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
           syncOwnerCell(); syncHeroSel();
@@ -1898,7 +1907,7 @@ window.addEventListener("resize", resize); resize();
 const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
-  if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — and OnlineMoney's king mech under his King QI avatar; toggleMech routes by account */
+  if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct() || isTonicAcct())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero; toggleMech routes by account */
   /* boxing on PC: NO keyboard punches (Jonathan 2026-10-31, final word) — the mouse is the ONLY way to punch on desktop: Left Mouse = left punch, Right Mouse = right punch (the canvas pointerdown below). Q/E/J/K do nothing in a bout. Phones keep their L / R punch buttons */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
@@ -1915,9 +1924,9 @@ let runBtnHeld = false, runId = null;
 runEl.addEventListener("pointerdown", e => { e.preventDefault(); runId = e.pointerId; runBtnHeld = true; runEl.classList.add("on"); try { runEl.setPointerCapture(runId); } catch (err) {} });
 function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = false; runEl.classList.remove("on"); } }
 runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
-/* ---- the mech transforms (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; on a phone it exists ONLY for the two transform accounts, from the moment they are in — the owner (DreadMech), and OnlineMoney while his King QI avatar is selected (king mech) ---- */
+/* ---- the mech transforms (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; on a phone it exists ONLY for the transform accounts, from the moment they are in — the owner (DreadMech), OnlineMoney while his King QI avatar is selected (king mech), and 7daytonic while his own hero is selected (galaxy mech) ---- */
 const tEl = $("tbtn");
-function syncTBtn() { const show = entered && (isOwnerAcct() || (isKingAcct() && me.hero === KING_HERO)) && !boxingBout && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function syncTBtn() { const show = entered && (isOwnerAcct() || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO)) && !boxingBout && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
 function toggleKingMech() { /* OnlineMoney's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — except the burst is RED and the form is the king mech. It hangs off his King QI avatar: any other hero selected and T does nothing */
   if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the owner */
   if (me.hero !== KING_HERO) return;
@@ -1929,9 +1938,21 @@ function toggleKingMech() { /* OnlineMoney's swap (Jonathan 2026-10-31): the Dre
   publish(true);
   syncTBtn();
 }
+function toggleTonicMech() { /* 7daytonic's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — with the standard CYAN burst and the galaxy mech form. It hangs off his own hero (76): any other hero selected and T does nothing */
+  if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the others */
+  if (me.hero !== TONIC_HERO) return;
+  const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
+  mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
+  tonicMechForm = !tonicMechForm;
+  spawnSmoke(me.x, me.y, me.scene); /* CYAN smoke — the standard colour */
+  sfxSwap();
+  publish(true);
+  syncTBtn();
+}
 function toggleMech() {
   if (!entered) return;
   if (isKingAcct()) { toggleKingMech(); return; } /* OnlineMoney's T drives his king mech, never the owner's */
+  if (isTonicAcct()) { toggleTonicMech(); return; } /* 7daytonic's T drives his galaxy mech, never the others' */
   if (!isOwnerAcct()) return;
   if (boxingBout) return; /* no transforming mid-bout (Jonathan 2026-10-31): entering the arena untransforms you and the T button is gone until the bout ends */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
@@ -1981,6 +2002,7 @@ cv.addEventListener("pointerdown", e => {
     const wx = (e.clientX - r0.left) / SCALE + camX, wy = (e.clientY - r0.top) / SCALE + camY;
     for (const z of uiZones) { if (wx >= z.x && wx <= z.x + z.w && wy >= z.y && wy <= z.y + z.h) { z.fn(); sfxClick(); return; } }
   }
+  if (me.scene === "poolhall" && phPlaceBegin(e)) return; /* ball in hand: a press on my pool table starts the PLACEMENT drag instead of a walk or an aim (only while the table record names me as the placer — phPlaceBegin decides) */
   if (me.scene === "poolhall" && phAimBegin(e)) return; /* a press on my pool table starts the aim drag instead of a walk (only on my turn, balls at rest — phAimBegin decides) */
   holdId = e.pointerId;
   const sx = me.x, sy = me.y, r = cv.getBoundingClientRect();
@@ -2010,13 +2032,14 @@ cv.addEventListener("pointerdown", e => {
 });
 cv.addEventListener("contextmenu", e => { if (boxingBout) e.preventDefault(); }); /* no right-click menu mid-bout: the right button is a punch there */
 cv.addEventListener("pointermove", e => {
+  if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceMove(e); return; }
   if (phAim && e.pointerId === phAim.id) { phAimMove(e); return; }
   if (e.pointerId !== holdId) return;
   const r = cv.getBoundingClientRect();
   holdPX = e.clientX - r.left; holdPY = e.clientY - r.top;
 });
-cv.addEventListener("pointerup", e => { if (phAim && e.pointerId === phAim.id) phAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; });
-cv.addEventListener("pointercancel", e => { if (phAim && e.pointerId === phAim.id) phAim = null; holdId = null; holdVec = { x: 0, y: 0 }; });
+cv.addEventListener("pointerup", e => { if (phPlaceDrag && e.pointerId === phPlaceDrag.id) { phPlaceDrag = null; phPlaceConfirm(); } if (phAim && e.pointerId === phAim.id) phAimRelease(); holdId = null; holdVec = { x: 0, y: 0 }; }); /* letting go of a placement drag CONFIRMS the spot (the release is the confirm, the pull-back aim's own gesture shape) */
+cv.addEventListener("pointercancel", e => { if (phPlaceDrag && e.pointerId === phPlaceDrag.id) phPlaceDrag = null; if (phAim && e.pointerId === phAim.id) phAim = null; holdId = null; holdVec = { x: 0, y: 0 }; }); /* a cancelled placement drag confirms nothing — the ghost stays unplaced and the turn still waits on a real release */
 /* ============ voice chat (tap to talk) — LiveKit (Jonathan 2026-10-31) ============
    Voice rides LiveKit Cloud now, not player-to-player connections: everyone
    in a scene joins that scene's LiveKit room ("hub-<scene>") and the server
@@ -3959,8 +3982,11 @@ function hrHostTick() {
    room renders the published positions (interpolated) and never simulates —
    the Sports Complex follower model, one room over. Sink one of your balls
    and you shoot again; sink nothing and the turn passes; solids/stripes are
-   set by the first ball sunk; clear your set and THEN the 8 to win — the 8
-   early loses, and a sunk cue ball just hands the turn over (respotted). */
+   set by the first ball sunk. The 8 ball LOSES, always (Jonathan 2026-10-31,
+   replacing the old clear-your-set-then-the-8-wins structure): sink it at
+   any point — break included — and the match ends on the spot, the pot to
+   your opponent. A sunk cue ball is a bust: the turn passes and the next
+   player gets ball in hand (he places the cue ball himself). */
 function sfxPhCue() { noiseBurst(0.03, "highpass", 1600, 900, 0.10); tone(340, 180, 0.05, "triangle", 0.05); } /* the cue strike: a sharp tick over the ball's knock */
 function sfxPhClick(k) { noiseBurst(0.018, "bandpass", 2400, 1800, 0.03 + 0.09 * Math.max(0, Math.min(1, k || 0.5))); } /* ball on ball — louder the harder they met */
 function sfxPhPocket() { tone(240, 70, 0.14, "sine", 0.14); noiseBurst(0.07, "lowpass", 700, 200, 0.08, 0.02); } /* the drop and rattle of a sunk ball */
@@ -4027,6 +4053,7 @@ function phStandUp() {
   phSettle(t); /* bank a finished match's pot before the chair is freed — a no-op until the phase is "done" */
   if (phSim && phSim.t === t) phSim = null; /* abandoning a live roll: the table's forfeit path settles up */
   if (phAim && phAim.t === t) phAim = null;
+  if (phPlaceDrag && phPlaceDrag.t === t) phPlaceDrag = null; if (phPlacePos && phPlacePos.t === t) phPlacePos = null; /* an unconfirmed ghost dies with the chair */
   const st = phStates[t], s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
     /* standing up BEFORE the match starts never costs the stake (the standing rule, mirrored): the bet was charged at bet time, so it is handed back before the chair is freed */
@@ -4095,7 +4122,7 @@ function phEvalShot(st, shooter, sunk, clearedBefore) {
   const eight = sunk.indexOf(8) >= 0, scratch = sunk.indexOf(0) >= 0;
   const obj = sunk.filter(b => b > 0 && b !== 8);
   let winner = -1;
-  if (eight) winner = (sets && clearedBefore) ? shooter : 1 - shooter; /* the 8 pays only once your set was already clear when the shot began — early in any other shape, it loses */
+  if (eight) winner = 1 - shooter; /* the 8 ball LOSES, always (Jonathan 2026-10-31 — his word replaces the old structure outright: before this, the 8 WON once your set was already clear when the shot began, and only an early 8 lost). Now sinking it at any point — the break included — ends the match for the other player; clearedBefore is still passed in but no longer decides anything */
   let keep = false;
   if (winner < 0) {
     if (!sets && obj.length) { const g = phGroup(obj[0]); sets = {}; sets[shooter] = g; sets[1 - shooter] = g === "solid" ? "stripe" : "solid"; keep = true; } /* the first ball down sets the groups */
@@ -4214,18 +4241,17 @@ function phFinishShot() {
   const t = sim.t, st = phStates[t]; if (!st || st.phase !== "play") return;
   const shooter = sim.by;
   const balls = sim.balls.map(b => ({ x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10, on: b.on }));
-  if (!balls[0].on) { /* a sunk cue ball is respotted on the head spot (nudged east until it sits clear) — no ball-in-hand, no foul sheet */
-    const f = phField(t); let bx = f.x + f.w * 0.25; const by = f.y + f.h / 2;
-    while (balls.some(b => b.on && Math.hypot(b.x - bx, b.y - by) < PH_BR * 2 + 2)) bx += 14;
-    balls[0] = { x: Math.round(bx * 10) / 10, y: by, on: true };
-  }
+  const scratched = !balls[0].on; /* a sunk cue ball is a BUST (phEvalShot's scratch): the incoming player gets BALL IN HAND (Jonathan 2026-10-31) — the cue ball is NOT respotted any more; it stays off the felt and the next turn opens in placement (the ball-in-hand block below). Its stored x/y park on the head spot, where the placer's ghost starts */
+  if (scratched) { const f = phField(t); balls[0] = { x: Math.round((f.x + f.w * 0.25) * 10) / 10, y: Math.round((f.y + f.h / 2) * 10) / 10, on: false }; }
   const pot = st.pot != null ? st.pot : (st.seats && st.seats[0] ? st.seats[0].bet || 0 : 0) + (st.seats && st.seats[1] ? st.seats[1].bet || 0 : 0); /* the pot as written at rack-up (a leaver's stake is no longer in the seats) */
   const oppGone = st.mode !== "pc" && !(st.seats && st.seats[1 - shooter] && st.seats[1 - shooter].pid); /* in a vs-PC match the other chair is empty by design — never an early end (PREVIEW round 2) */
   const ev = phEvalShot(st, shooter, sim.sunk, sim.clearedBefore);
   const upd = { balls, rolling: false, sets: ev.sets, turn: ev.turn };
+  upd.place = (scratched && ev.winner < 0 && !oppGone) ? ev.turn : null; /* ball in hand for the incoming player when the match plays on after a bust; null on every other finish, so a stale placement can never survive a shot, and a match end buries it in the done write */
   if (ev.winner >= 0 || oppGone) { /* the match ends: either the 8 decided it, or the opponent's chair is already empty — a forfeit pays the player who stayed (phHostTick covers the same ground when no shot is live) */
     const w = ev.winner >= 0 ? ev.winner : shooter;
-    const results = {}; results[w] = { res: "🎉 You won the pot!", amt: pot }; if (st.seats && st.seats[1 - w]) results[1 - w] = { res: "no win", amt: 0 };
+    const byEight = ev.winner >= 0 && sim.sunk.indexOf(8) >= 0; /* the match ended because the 8 fell and the shooter lost by it — the result lines name the 8, so both players can see why the game stopped */
+    const results = {}; results[w] = { res: byEight ? "🎉 You won the pot — the 8 fell!" : "🎉 You won the pot!", amt: pot }; if (st.seats && st.seats[1 - w]) results[1 - w] = { res: byEight ? "🎱 Sank the 8 — you lose" : "no win", amt: 0 };
     writeClaim(claimUid(st.seats && st.seats[w]), phKey(t) + "m" + (st.matchId || 0) + "-" + w, pot, "🏆 Pool Hall win"); /* the pot is HELD for the winner at the same moment it is decided (claims fix) — the done window is no longer the only chance to collect it */
     upd.phase = "done"; upd.results = results; upd.doneTs = Date.now(); upd.winner = w;
   }
@@ -4247,7 +4273,15 @@ function phFrameStep(dt) {
   {
     const st = phSeatT >= 0 ? phStates[phSeatT] : null;
     if (me.scene === "poolhall" && st && st.mode === "pc" && st.phase === "play" && !st.rolling && !phSim && st.turn === 1 - phSeatI && st.balls) {
-      if (!phPcAt) phPcAt = performance.now() + 850 + Math.random() * 550;
+      if (st.place === 1 - phSeatI) { /* the PC has ball in hand (the human busted): the machine places the cue ball itself — the head spot nudged clear, its usual setup — writes it through the same record in the same shape, and takes its shot on the normal pause. The game never stalls waiting on a machine placement */
+        const pos = phSpotPos(phSeatT, st.balls);
+        const nb = st.balls.map(b => ({ x: b.x, y: b.y, on: b.on })); nb[0] = { x: Math.round(pos.x * 10) / 10, y: Math.round(pos.y * 10) / 10, on: true };
+        tblUpd(phKey(phSeatT), { balls: nb, place: null });
+        st.balls = nb; st.place = null; /* mirror the write locally at once (the phBet pattern) */
+        if (phViews[phSeatT]) phViews[phSeatT][0] = { x: nb[0].x, y: nb[0].y, on: true };
+        phPcAt = 0;
+      }
+      else if (!phPcAt) phPcAt = performance.now() + 850 + Math.random() * 550;
       else if (performance.now() >= phPcAt) { phPcAt = 0; phPcShoot(); }
     } else phPcAt = 0;
   }
@@ -4284,6 +4318,15 @@ function phAimDirPow() {
   return { dx: dx / d, dy: dy / d, pow: Math.max(0, Math.min(1, (d - 30) / 300)), d };
 }
 function phAimRelease() { const a = phAimDirPow(); phAim = null; if (a && a.pow > 0.03) phShoot(a.dx, a.dy, a.pow); }
+/* ---- ball in hand (Jonathan 2026-10-31): a bust at this table is the sunk cue ball — phEvalShot's scratch, the one courtesy rule (it already hands the turn over even on a scoring shot). The incoming player's NEXT TURN opens in PLACEMENT instead of aiming: phFinishShot leaves the cue ball off the felt and stamps place = the incoming seat on the table record; until that player places the ball, the cue ball exists nowhere, and shooting is already refused for everyone — phCanShoot wants balls[0].on, and the PC's aim refuses on the same fact. The placer drags a ghost anywhere on his own table's felt with the SAME press-drag-release the pull-back aim uses, mouse or touch — the RELEASE confirms the placement — the spot is clamped inside the cushions and pushed clear of every ball (nearest legal spot), and the confirmed ball is written through hub/tables/phN in the exact shape every pool write uses, so both screens share the same cue ball before the shot. Only the player whose turn it is can place, and only during his placement ---- */
+let phPlaceDrag = null; /* my live placement drag { id, t }; the ghost spot itself is phPlacePos { t, x, y }, kept legal at all times by phPlaceLegal */
+let phPlacePos = null;
+function phPlacingT() { const st = phSeatT >= 0 ? phStates[phSeatT] : null; return (me.scene === "poolhall" && phSeatT >= 0 && !phSim && st && st.phase === "play" && !st.rolling && st.place != null && st.place === phSeatI && st.turn === phSeatI && st.balls) ? phSeatT : -1; }
+function phSpotPos(t, balls) { /* the head spot, nudged until it sits clear — the old respot scan, kept as the PC's own placement and the human placer's cornered fallback */ const f = phField(t); let bx = f.x + f.w * 0.25, by = f.y + f.h / 2, guard = 0; while (balls.some(b => b && b.on && Math.hypot(b.x - bx, b.y - by) < PH_BR * 2 + 2) && guard++ < 80) { bx += 14; if (bx > f.x + f.w - PH_BR) { bx = f.x + f.w * 0.25; by += 14; } } return { x: bx, y: by }; }
+function phPlaceLegal(t, x, y) { /* anywhere on the playing surface, but never inside a cushion or another ball: clamp into the field, push out of every overlap, re-clamp after each pass; a spot still cornered after the passes falls back to the head-spot scan, which always finds clear felt */ const f = phField(t), st = phStates[t], balls = st ? st.balls : null; const cl = () => { x = Math.max(f.x + PH_BR, Math.min(f.x + f.w - PH_BR, x)); y = Math.max(f.y + PH_BR, Math.min(f.y + f.h - PH_BR, y)); }; cl(); if (balls) { for (let pass = 0; pass < 4; pass++) { let moved = false; for (let i = 1; i < balls.length; i++) { const b = balls[i]; if (!b || !b.on) continue; const dx = x - b.x, dy = y - b.y, d = Math.hypot(dx, dy), need = PH_BR * 2 + 1; if (d < need) { const a = d > 0.01 ? Math.atan2(dy, dx) : pass * 1.7 + i * 0.9; x = b.x + Math.cos(a) * need; y = b.y + Math.sin(a) * need; moved = true; } } cl(); if (!moved) break; } if (balls.some((b, i) => i > 0 && b && b.on && Math.hypot(b.x - x, b.y - y) < PH_BR * 2)) { const sp = phSpotPos(t, balls); x = sp.x; y = sp.y; } } return { x, y }; }
+function phPlaceBegin(e) { if (phPlacingT() < 0) return false; const r = cv.getBoundingClientRect(); const wx = (e.clientX - r.left) / SCALE + camX, wy = (e.clientY - r.top) / SCALE + camY; const f = phField(phSeatT); if (wx < f.x - 90 || wx > f.x + f.w + 90 || wy < f.y - 90 || wy > f.y + f.h + 90) return false; /* the press must land on (or just around) my table's felt — the aim drag's own bound, unchanged */ phPlaceDrag = { id: e.pointerId, t: phSeatT }; phPlacePos = Object.assign({ t: phSeatT }, phPlaceLegal(phSeatT, wx, wy)); return true; }
+function phPlaceMove(e) { if (!phPlaceDrag) return; const r = cv.getBoundingClientRect(); phPlacePos = Object.assign({ t: phPlaceDrag.t }, phPlaceLegal(phPlaceDrag.t, (e.clientX - r.left) / SCALE + camX, (e.clientY - r.top) / SCALE + camY)); }
+function phPlaceConfirm() { const t = phPlacingT(); if (t < 0) { phPlacePos = null; return; } const st = phStates[t]; const pos = phPlacePos && phPlacePos.t === t ? phPlaceLegal(t, phPlacePos.x, phPlacePos.y) : phSpotPos(t, st.balls); const balls = st.balls.map(b => ({ x: b.x, y: b.y, on: b.on })); balls[0] = { x: Math.round(pos.x * 10) / 10, y: Math.round(pos.y * 10) / 10, on: true }; tblUpd(phKey(t), { balls, place: null }); st.balls = balls; st.place = null; /* mirror my own write locally at once (phBet's pattern): the aim opens on the placed ball without waiting for the echo */ if (phViews[t]) phViews[t][0] = { x: balls[0].x, y: balls[0].y, on: true }; else phViews[t] = balls.map(b => ({ x: b.x, y: b.y, on: b.on })); phPlacePos = null; sfxClick(); }
 /* ---- hosting: start gate, the mid-match forfeit, the recycle ---- */
 function phHostTick(t) {
   const key = phKey(t), st = phStates[t];
@@ -4879,6 +4922,7 @@ function drawChatBubble(cx, boxBottom, chat) {
 function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving, gender) {
   if (isMe && mechForm) hero = MECH_HERO; /* my own screen draws me from me.hero, not from my presence record — the transform has to land here too, or I would stay a dog on my own screen while the room sees the mech */
   if (isMe && kingMechForm) hero = KING_MECH_HERO; /* the same landing for OnlineMoney's king mech on his own screen */
+  if (isMe && tonicMechForm) hero = TONIC_MECH_HERO; /* the same landing for 7daytonic's galaxy mech on his own screen */
   if (isMechHero(hero)) gender = "m"; /* the mechs live on the male track whatever the wearer's picker gender */
   const img = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
   if (!img) { ensureHero(hero, gender);
@@ -5584,8 +5628,9 @@ function drawPhTable(tt, t) {
   /* the rail: dark wood with a gold line, then the felt */
   ctx.fillStyle = "#2a1a12"; rr(T.x - 14, T.y - 14, T.w + 28, T.h + 28, 26); ctx.fill();
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(T.x - 14, T.y - 14, T.w + 28, T.h + 28, 26); ctx.stroke();
-  ctx.fillStyle = "#0a5c34"; rr(T.x, T.y, T.w, T.h, 18); ctx.fill();
-  ctx.fillStyle = "#0a5c34"; rr(f.x - 3, f.y - 3, f.w + 6, f.h + 6, 10); ctx.fill();
+  const phFelt = phIsHR(tt) ? "#6e0a1a" : "#0a5c34"; /* the LEFT two tables wear the High Rollers Club's felt colour — drawHRFelt's #6e0a1a, the dark red of the baccarat/craps felts (Jonathan 2026-10-31). Bed and field take it; the cushions keep their own green (they are not the felt), and the rail, sights and pockets are untouched */
+  ctx.fillStyle = phFelt; rr(T.x, T.y, T.w, T.h, 18); ctx.fill();
+  ctx.fillStyle = phFelt; rr(f.x - 3, f.y - 3, f.w + 6, f.h + 6, 10); ctx.fill();
   /* the cushions (PREVIEW round 4): six runs of cushion that STOP at the pockets instead of one ring painted under them — each run ends in a jaw cut, its felt-side nose reaching 12px nearer the pocket than its rail-side back, the funnel a real table's jaws make. The runs leave a 34px gap around each corner pocket centre and a 32px gap around each side pocket centre, and the sockets below sit in those gaps. The band runs f-13 (rail side) to f-1 (felt side). Rendering only — the physics field and pocket centres are untouched */
   ctx.fillStyle = "#0d6e3e";
   function cushRun(pts) { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fill(); }
@@ -5614,6 +5659,14 @@ function drawPhTable(tt, t) {
   const view = phViews[tt];
   if (view) for (let n = 1; n < 16; n++) phBallDraw(view[n], n);
   if (view) phBallDraw(view[0], 0); /* the cue ball paints last, on top */
+  /* ball in hand (Jonathan 2026-10-31): while a placement is pending on this table the cue ball is OFF the felt in the shared record, so it paints for nobody — except the placer himself, who sees his ghost at his working spot with a pulsing gold ring, plus the instruction over the table. Everyone else reads the wait off the status strip below */
+  if (st && st.phase === "play" && st.place != null && st.balls && tt === phPlacingT()) {
+    if (!phPlacePos || phPlacePos.t !== tt) phPlacePos = { t: tt, x: st.balls[0].x, y: st.balls[0].y }; /* the ghost opens where the finish parked it — the head spot */
+    ctx.save(); ctx.globalAlpha = 0.85; phBallDraw({ x: phPlacePos.x, y: phPlacePos.y, on: true }, 0); ctx.restore();
+    ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = "rgba(255,215,106,0.9)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(phPlacePos.x, phPlacePos.y, PH_BR + 7 + Math.sin(t / 240) * 2, 0, 7); ctx.stroke(); ctx.restore();
+    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("🏐 BALL IN HAND — drag the cue ball anywhere on the felt, let go to place it", T.x + T.w / 2, T.y - 78);
+  }
   /* my sunk balls (PREVIEW round 7, Jonathan 2026-10-30): the balls I have pocketed this game, racked in a row in the top-left corner ABOVE the table — off the felt, clear of the rail — so I can see my set and my colour at a glance. Read straight off the table's SYNCED state, never a local counter: my group from st.sets, my balls the ones of that group the state marks down (!on), in ball-number order (the state carries no drop sequence — the rack order is the canonical one), the 8 last once the game is done and I took it. A refresh or a mid-game sit-down shows the same row; it clears itself when the table racks a new game (every ball back on). A ball sunk out of turn still counts — the state marks it down, so it shows. My seat only; spectators and the other table's players see nothing here */
   if (st && (st.phase === "play" || st.phase === "done") && st.balls && st.sets && phSeatT === tt && phSeatI >= 0) {
     const myG = st.sets[phSeatI];
@@ -5694,7 +5747,7 @@ function drawPhTable(tt, t) {
     const pot = st.pot != null ? st.pot : fr.reduce((a, i) => a + (ss[i].bet || 0), 0);
     if (st.phase === "bet") status = fr.length === 2 ? ("TABLE " + (tt + 1) + " — match stakes & tap READY" + (pot ? " · pot 🪙 " + pot.toLocaleString() : "")) : "TABLE " + (tt + 1) + " — place your bets";
     else if (st.phase === "rps") status = "TABLE " + (tt + 1) + " — ✊✋✌️ rock paper scissors for the break · pot 🪙 " + pot.toLocaleString();
-    else if (st.phase === "play") { const ts = ss[st.turn]; status = "TABLE " + (tt + 1) + " — " + (st.mode === "pc" && !ts ? "🤖 PC" : (ts ? ts.name : "A player")) + " to shoot · pot 🪙 " + pot.toLocaleString(); }
+    else if (st.phase === "play") { const ts = ss[st.turn]; if (st.place != null) status = "TABLE " + (tt + 1) + " — 🏐 " + ((tt === phSeatT && st.place === phSeatI) ? "BALL IN HAND — place the cue ball!" : ((ss[st.place] ? ss[st.place].name : (st.mode === "pc" ? "🤖 PC" : "A player")) + " has ball in hand…")) + " · pot 🪙 " + pot.toLocaleString(); else status = "TABLE " + (tt + 1) + " — " + (st.mode === "pc" && !ts ? "🤖 PC" : (ts ? ts.name : "A player")) + " to shoot · pot 🪙 " + pot.toLocaleString(); }
     else if (st.phase === "done") { const wn = ss[st.winner]; status = "🏆 TABLE " + (tt + 1) + " — " + (st.mode === "pc" && !wn ? "🤖 PC" : (wn ? wn.name : "A player")) + " took the pot!"; }
   }
   ctx.fillText(status, T.x + T.w / 2, T.y + T.h + 44);
@@ -5724,7 +5777,7 @@ function drawPhTable(tt, t) {
       const hasBet = (mine2.bet || 0) > 0, isRdy = !!(mine2.rdy && hasBet);
       drawBtn(P.x + P.w - 168, P.y + 18, 140, 48, isRdy ? "✓ READY" : "READY", hasBet ? phReady : null, { fs: 22, fill: isRdy ? "#8b30e8" : (hasBet ? "#7b2ff2" : "#3a2060"), color: hasBet ? "#ffffff" : "#d9d0f2", dim: !hasBet, pad: 6 });
       /* the twelve amounts (PREVIEW round 7, Jonathan 2026-10-30: BIGGER and up a bit — the 96x22s were too small to tap): 100x34 at fs 17, two rows of six at a 106 step across and a 38 step down, the block centred (630 wide) and anchored off the panel's bottom at P.y + P.h - 94, so its top row rides 28px higher than the old block's and its bottom row ends 22px off the panel's bottom edge. Comma labels, order and amounts unchanged; drawBtn zones follow the new size and spot exactly */
-      [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(pcx - 315 + (k % 6) * 106, P.y + P.h - 94 + Math.floor(k / 6) * 38, 100, 34, "BET " + amt.toLocaleString("en-US"), () => phBet(amt), { fs: 17 }));
+      (phIsHR(tt) ? HR_BETS : [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000]).forEach((amt, k) => drawBtn(pcx - 315 + (k % 6) * 106, P.y + P.h - 94 + Math.floor(k / 6) * 38, 100, 34, "BET " + (phIsHR(tt) ? phAmtLabel(amt) : amt.toLocaleString("en-US")), () => phBet(amt), { fs: 17 })); /* the LEFT two tables stake the High Rollers ladder (Jonathan 2026-10-31): HR_BETS itself, with the HRC tables' k/M/B labels — same buttons, same geometry, same READY and aiming; phBet stakes whatever amount the button carries, so the HR amount IS the stake (pot 2x as pool always works, the PC covers its side the same) */
     }
     if (st.phase === "rps") {
       /* rock paper scissors for the break (PREVIEW round 3, moved ONTO the table with the rest of the overlay in round 4): the throw is played here, on the felt, where every seat and every spectator can see it */
@@ -6769,6 +6822,7 @@ function boxPhaseWatch() {
     /* stepping into the ring: the mech stays at the door (Jonathan 2026-10-31) */
     if (mechForm) { mechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); }
     if (kingMechForm) { kingMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, true); sfxSwap(); } /* the king mech stays at the door too — OnlineMoney steps into the ring as King QI, trailing RED smoke */
+    if (tonicMechForm) { tonicMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); } /* the galaxy mech stays at the door too — 7daytonic steps into the ring as his hero, trailing CYAN smoke */
     boxingBout = { seat: boxSeat };
     tblUpd("box/seats/" + boxSeat, { rdy: false });
     mySeatPos = null; /* off the chair, into the ring */
@@ -9135,7 +9189,7 @@ function frame(now) {
   if (sprinting && !wading && now - dustAt > 65) {
     dustAt = now;
     dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 14, y: me.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 });
-    if (mechForm || kingMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's running dust mirrors it (regular dust, not red — red is only his transform burst) */
+    if (mechForm || kingMechForm || tonicMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's and the galaxy mech's running dust mirror it (regular dust — red is only the king mech's transform burst) */
   }
   if (wading && me.moving && now - splashAt > 130) { /* a step in the water throws droplets and a ring, walking or running */
     splashAt = now;
