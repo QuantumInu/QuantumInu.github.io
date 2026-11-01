@@ -7601,7 +7601,7 @@ function boxHostTick() {
     tblUpd("box", { phase: "sit", hp: null, punchL: null, punchR: null, winner: -1, pot: null, mode: null, cpu: null }); /* back to betting: fresh stakes and READY for the rematch */
   }
 }
-/* ---- the CPU fighter's simulation (Jonathan 2026-11-01): runs ONLY on the seated player's screen (they host the bout, the chess/pool way) — every other client just draws the body from the record. Same gloves, same ring, same numbers as a human fighter: 6-10 damage inside the same 150 reach, health from the shared hp node, and each arm on its own cooldown (the human 380ms at launch; 250ms at Jonathan's harder-CPU tuning, 2026-11-01; 160ms since he asked for faster punches later the same day). The fairness is in the DECISIONS: a reaction beat between swings (620-1100ms at launch; 380-700ms at the harder tuning; 240-440ms since the faster-punches step), a pace a touch under a walker's 305, no swings wasted on air from out of reach, and a small weave instead of a beeline — a beatable opponent, not a statue and not a wall. Since the per-arm punch records (Jonathan 2026-11-01) its swings come in COMBINATIONS: the beat starts one, the other glove follows ~170ms later while the first is still out, then the beat runs again before the next combination ---- */
+/* ---- the CPU fighter's simulation (Jonathan 2026-11-01): runs ONLY on the seated player's screen (they host the bout, the chess/pool way) — every other client just draws the body from the record. Same gloves, same ring, same numbers as a human fighter: 6-10 damage inside the same 150 reach, health from the shared hp node, and each arm on its own cooldown (the human 380ms at launch; 250ms at Jonathan's harder-CPU tuning, 2026-11-01; 160ms since he asked for faster punches later the same day; 300ms — a full throw — since his fix the same evening so no glove re-fires before its own throw has finished). The fairness is in the DECISIONS: a reaction beat between swings (620-1100ms at launch; 380-700ms at the harder tuning; 240-440ms since the faster-punches step), a pace a touch under a walker's 305, no swings wasted on air from out of reach, and a small weave instead of a beeline — a beatable opponent, not a statue and not a wall. Since the per-arm punch records (Jonathan 2026-11-01) its swings come in COMBINATIONS: the beat starts one, the other glove follows ~300ms later — once the first glove's throw has finished (170ms at first, which cut the reset short) — then the beat runs again before the next combination ---- */
 function boxCpuFrame(dt) {
   const st = boxState;
   if (!st || st.mode !== "pc" || boxSeat < 0 || !boxMyRec()) { if (boxCpuSim && (!st || st.mode !== "pc")) boxCpuSim = null; return; }
@@ -7632,20 +7632,20 @@ function boxCpuFrame(dt) {
   if (!S.nextAt) { S.nextAt = now + 500 + Math.random() * 500; return; }
   if (now < S.nextAt) return;
   if (dist > 150) { S.combo = null; S.nextAt = now + 220; return; } /* out of reach it holds its swing — it does not punch air, and a half-thrown combination dies with the range */
-  /* the combination (Jonathan 2026-11-01): a combination OPENS on the reaction beat with either rested arm; the OTHER arm is then queued and follows after a ~170ms combo gap, while the opener's glove (a ~300ms throw) is still out — the two hands overlap like a human's now that each arm writes its own punch record. The beat still governs how often a NEW combination starts, so the overall rate stays the faster tuning's, just thrown in pairs */
+  /* the combination (Jonathan 2026-11-01): a combination OPENS on the reaction beat with either rested arm; the OTHER arm is then queued and follows after a 300ms combo gap — a full throw (Jonathan 2026-11-01 fix: it was 170ms, mid-throw, which read as a double punch that never let the first hand reset) — so the second glove launches only once the opener's throw has finished. Each arm writes its own punch record, and the beat still governs how often a NEW combination starts */
   let side;
-  if (S.combo) { /* the follow-up: only the queued arm, and only once that arm has rested its own 160ms */
-    if (now - (S.combo === "L" ? S.lastL : S.lastR) < 160) { S.nextAt = now + 40; return; }
+  if (S.combo) { /* the follow-up: only the queued arm, and only once that arm has rested its own full 300ms throw */
+    if (now - (S.combo === "L" ? S.lastL : S.lastR) < 300) { S.nextAt = now + 40; return; }
     side = S.combo; S.combo = null;
     S.nextAt = now + 240 + Math.random() * 200; /* the combination is spent — the next one waits for the beat (240-440ms, as the opener always did) */
   } else {
     const arms = [];
-    if (now - S.lastL >= 160) arms.push("L"); /* each glove on its own 160ms clock — faster than the human 380ms since Jonathan's harder-CPU tuning (250ms, 2026-11-01; stepped to 160ms at his word later the same day), and under the beat's 240ms floor so the beat is never capped by it */
-    if (now - S.lastR >= 160) arms.push("R");
+    if (now - S.lastL >= 300) arms.push("L"); /* each glove on its own 300ms clock (Jonathan 2026-11-01 fix): a full throw's length — 160ms before that, 250ms at the harder-CPU tuning, the human at 380ms — so no arm can throw again until its own throw has finished and the glove has come back; an arm not yet rested simply isn't offered, and the beat retries shortly, as before */
+    if (now - S.lastR >= 300) arms.push("R");
     if (!arms.length) { S.nextAt = now + 60; return; }
     side = arms[Math.floor(Math.random() * arms.length)];
     S.combo = side === "L" ? "R" : "L"; /* the other hand is queued behind this one */
-    S.nextAt = now + 170; /* the combo gap: the follow-up comes ~170ms after the opener — well inside the opener's ~300ms throw, so both gloves are out together */
+    S.nextAt = now + 300; /* the combo gap (Jonathan 2026-11-01 fix): the follow-up comes a full throw (300ms) after the opener — 170ms before that — so it launches only once the opener's glove has finished its throw and come back, never mid-swing */
   }
   if (side === "L") S.lastL = now; else S.lastR = now;
   const dmg = 6 + Math.floor(Math.random() * 5);
@@ -8426,7 +8426,7 @@ function drawBoxingFx(t) {
       ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; /* the winner text is BLACK (Jonathan 2026-10-31) — it sits on the ring's white floor like the health numbers and the punch hint */
       const wnm = st.winner >= 0 ? ((st.mode === "pc" && st.winner === boxCpuSeatOf(st)) ? BOXCPU_NAME : (st.seats && st.seats[st.winner] ? st.seats[st.winner].name : null)) : null; /* a CPU win names the dread, not a draw */
       ctx.fillText(wnm ? "🏆 " + wnm + " WINS!" : "🤝 DOUBLE KO — A DRAW!", 1800, 880);
-      ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.85)";
+      ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#000000"; /* black like the WINS line above it (Jonathan 2026-11-01) — it sits on the same white floor */
       ctx.fillText("stay in your seats for the rematch", 1800, 920);
     }
     /* the gloves: two big gloves on every fighter, stacked one over the other on the side they face — the top glove throws the left punch, the lower one the right. Each fighter wears THEIR END's colour (red end red, blue end blue) and there is NO white cuff bar anywhere on them (Jonathan 2026-10-31). A fresh punch record lunges its glove: reach 34 (was 26), out on a snap curve (170ms, holds near full reach then whips back) with a touch of recoil past rest (130ms) */
