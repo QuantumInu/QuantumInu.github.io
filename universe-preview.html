@@ -1433,7 +1433,7 @@ function collide(nx, ny) {
     if (nx > GEXIT.x - 4 && nx < GEXIT.x + GEXIT.w + 4 && ny > GYMROOM.h - 76) return { x: nx, y: ny, gymexit: true };
     nx = Math.max(56, Math.min(GYMROOM.w - 56, nx)); ny = Math.max(70, Math.min(GYMROOM.h - 46, ny));
   } else if (me.scene === "highrollers") {
-    if (nx < 66 && Math.abs(ny - HRROOM.h / 2) < 92) return { x: nx, y: ny, hrcexit: true }; /* back to the casino, through the MIDDLE of the left wall (Jonathan 2026-10-31): the exit moved up from the entry door's height (CASINODOORS_Y 1856) to HRROOM.h / 2 = 1100, the Pool Hall exit's mid-wall convention — trigger and drawing moved together. The arrival spawn matches the door (toHighRollers lands at x 150, this same height) */
+    if (nx < 66 && Math.abs(ny - (BACT.y + BACT.h / 2)) < 92) return { x: nx, y: ny, hrcexit: true }; /* back to the casino, through the left wall AT THE BACCARAT TABLE'S CENTRE LINE (Jonathan 2026-10-31): the exit first moved up from the entry door's height (CASINODOORS_Y 1856) to the room's middle (1100), then down onto the tables' centre line (1195) — the same line the centre atom sits on. Trigger, drawing (hrcExitY) and the arrival spawn all take the one height */
     nx = Math.max(56, Math.min(HRROOM.w - 56, nx)); ny = Math.max(70, Math.min(HRROOM.h - 46, ny));
   } else if (me.scene === "chess") {
     if (nx > CHESSROOM.w - 66 && Math.abs(ny - CHESSROOM.h / 2) < 92) return { x: nx, y: ny, chessexit: true }; /* the exit, centred in the right wall on the centre path */
@@ -4688,7 +4688,7 @@ function hrAnswer(correct) {
   else { sfxBad(); me.x = Math.max(me.x - 90, 56); publish(true); /* turned away: a step back west, out of the doorway */ }
 }
 function tryHRDoor() { openHRQuiz(); }
-function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = HRROOM.h / 2; sfxChime(); publish(true); hrListen(); pullChips(); }
+function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = BACT.y + BACT.h / 2; sfxChime(); publish(true); hrListen(); pullChips(); } /* arrivals land in front of the exit door, on the baccarat centre line where the door now sits */
 function toCasinoFromHR() { stopAllTones(); hrStandUpAll(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w - 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toChess() { stopAllTones(); me.scene = "chess"; voiceReset(); me.x = CHESSROOM.w - 150; me.y = CHESSROOM.h / 2; sfxChime(); publish(true); chessListen(); pullChips(); }
 function toCasinoFromChess() { stopAllTones(); chessStandUp(); me.scene = "casino"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
@@ -6749,7 +6749,7 @@ function drawHighRollers(t) {
   drawBooths(HRROOM.h - 310, true); /* the bottom booths — two deep, dropped a touch to match the top rows' shift (Jonathan 2026-10-31) */
   drawBooths(HRROOM.h - 70, true);
   /* exit door, MIDDLE of the left wall (Jonathan 2026-10-31) — moved up from the entry door's height (CASINODOORS_Y 1856) to HRROOM.h / 2 = 1100, and drawn in the Arcade door style batch 11 gave the casino's own side doors: dark gap, gold wash running into the room, corner ticks, chevrons, and a horizontal floor plaque in front naming the way back — "← CASINO", the boxing exit's "← SPORTS ARENA" pattern — with the same fitted-text rule (measured at draw time, shrunk to fit the plaque with margin). The old plain plate + rotated label are gone */
-  const hrcExitY = HRROOM.h / 2;
+  const hrcExitY = BACT.y + BACT.h / 2; /* the exit door's centre sits on the baccarat table's centre line — the same line the atom sits on (Jonathan 2026-10-31), not the room's dead centre */
   ctx.fillStyle = "#050914"; ctx.fillRect(0, hrcExitY - 92, 12, 184);
   const heg = ctx.createLinearGradient(0, 0, 90, 0); heg.addColorStop(0, "rgba(255,215,106,0.4)"); heg.addColorStop(1, "rgba(255,215,106,0)");
   ctx.fillStyle = heg; ctx.fillRect(0, hrcExitY - 92, 90, 184);
