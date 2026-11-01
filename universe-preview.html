@@ -170,7 +170,8 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #storelist .jukesong:disabled{opacity:.45;cursor:default}
 #storelist .bggrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px} /* the Slot Backgrounds GRID (Jonathan 2026-11-01): four sample cells across, rows flowing down inside the same scrolling list */
 #storelist .bgcell{display:flex;flex-direction:column;padding:0;overflow:hidden;text-align:center}
-#storelist .bgcell .bgthumb{width:100%;aspect-ratio:7/11;background:linear-gradient(135deg,#2e0410 0%,#5e1228 38%,#40081b 58%,#27030b 100%) center/cover no-repeat;flex:none} /* the cell's sample wears the cabinet's own tall 7:11 (210x330) shape; the default entry has no image, so its thumb is the burgundy swatch — velvet-shaded since 2026-11-01 to match the default cabinet's new finish; a priced entry's own art is set inline as backgroundImage and covers this */
+#storelist .bgcell .bgthumb{width:100%;aspect-ratio:7/11;background:linear-gradient(135deg,#2e0410 0%,#5e1228 38%,#40081b 58%,#27030b 100%) center/cover no-repeat;flex:none} /* the cell's sample wears the cabinet's own tall 7:11 (210x330) shape; every entry's own art (the default's Burgundy Velvet included) is set inline as backgroundImage and covers this — the burgundy gradient under it is only what shows while a cell's art is still loading */
+#storelist .bgconfirm{width:104px;aspect-ratio:7/11;margin:2px auto 8px;border:2px solid #ffd76a;border-radius:8px;background:center/cover no-repeat} /* the CONFIRMATION step's picture (Jonathan 2026-11-01): the actual cabinet artwork being bought, shown in the panel above the name and cost before the buyer confirms — the cabinet's own tall shape, gold-framed like the selected cell */
 #storelist .bgcell .bgname{font-size:12px;font-weight:700;line-height:1.25;padding:5px 3px 1px}
 #storelist .bgcell .bgstate{font-size:10.5px;color:#9fd8ea;line-height:1.3;padding:0 3px 6px}
 #storelist .bgcell.sel{border:3px solid #ffd76a;box-shadow:0 0 12px rgba(255,215,106,.55);background:rgba(255,215,106,.10)} /* the SELECTED background (Jonathan 2026-11-01): a thick YELLOW border in the machines' own #ffd76a, standing clear of the plain cells' 1px outline — the .sel class follows mySlotBg in storeBgCell, so the border moves to whichever background is on the machines */
@@ -6382,10 +6383,8 @@ const AUTO_TIERS = [
   { price: 100000000000, ms: 1000, label: "1 second" }
 ]; /* the auto-spin ladder, bought strictly in order: tier N costs AUTO_TIERS[N-1].price and, with AUTO on, spins every AUTO_TIERS[N-1].ms */
 const SLOT_BGS = [ /* every priced img carries the "?v=3" version tag (Jonathan 2026-11-01): the v3 art was published over the original files at these same addresses and phones kept showing their saved copies of the old art even after a refresh — the tag makes each background a new address no phone has saved, and both loaders (storeBgCell's thumbnail and slotBgImg) read the URL from here, so this one place covers every load. Bump the tag the next time the art under slotbgs/ is replaced */
-  { id: "default", name: "Default Burgundy", price: 0, img: null },
-  { id: "bg01", name: "Burgundy Velvet", price: 100000000, img: "slotbgs/bg-01.jpg?v=3" },
+  { id: "default", name: "Burgundy Velvet", price: 0, img: "slotbgs/bg-01.jpg?v=3" }, /* the DEFAULT cabinet (Jonathan 2026-11-01: "Default Burgundy is NOT the default anymore") — the club machines' own finish IS the Burgundy Velvet artwork, worn free by everyone, painted by the same image path as any pick. It is not an option for sale, so there is no priced Burgundy Velvet entry; and there is no Emerald Felt entry either — that felt is the main casino cabinets' permanent built-in base, never a store item */
   { id: "bg02", name: "Black Marble", price: 100000000, img: "slotbgs/bg-02.jpg?v=3" },
-  { id: "bg03", name: "Emerald Felt", price: 100000000, img: "slotbgs/bg-03.jpg?v=3" },
   { id: "bg04", name: "Purple Silk", price: 100000000, img: "slotbgs/bg-04.jpg?v=3" },
   { id: "bg05", name: "Midnight Starfield", price: 100000000, img: "slotbgs/bg-05.jpg?v=3" },
   { id: "bg06", name: "Diamond Glitter", price: 100000000, img: "slotbgs/bg-06.jpg?v=3" },
@@ -6433,14 +6432,14 @@ const SLOT_BGS = [ /* every priced img carries the "?v=3" version tag (Jonathan 
   { id: "bg48", name: "Dragon Scales", price: 100000000, img: "slotbgs/bg-48.jpg?v=3" },
   { id: "bg49", name: "Phoenix Feathers", price: 100000000, img: "slotbgs/bg-49.jpg?v=3" },
   { id: "bg50", name: "Gold Atom Lattice", price: 100000000, img: "slotbgs/bg-50.jpg?v=3" }
-]; /* the slot cabinet backgrounds — ONE obvious place: drop a priced entry ({id, name, price, img: "url"}) into this list and it appears in the store with buying, owning and selecting already wired. "default" is the machines' own burgundy: always owned, no image, and selecting it is exactly today's rendering */
+]; /* the slot cabinet backgrounds — ONE obvious place: drop a priced entry ({id, name, price, img: "url"}) into this list and it appears in the store with buying, owning and selecting already wired. "default" is the machines' own Burgundy Velvet artwork: always owned, price 0, painted by the same image path as any pick. A stored selection whose id is no longer in this list (a retired pick — the old bg01/bg03) falls back to the default at load time and at paint time; saved docs are never rewritten for it */
 let autoTier = 0; /* my owned auto-spin tier (0 = none), loaded from the account doc at sign-in */
 let mySlotBg = "default"; /* my selected cabinet background id, loaded from the account doc at sign-in */
 let mySlotBgsOwned = []; /* the priced background ids I own, loaded from the account doc at sign-in */
 let storeView = "main"; /* which store page is showing: "main", "auto" or "bgs" */
 let storePending = null; /* a buy paused on its CONFIRMATION step (Jonathan 2026-11-01): {kind:"bg",id} or {kind:"auto",n}. buySlotBg/buyAutoTier only set this and re-render — the render names the item and the exact charge (the real price, or FREE for the owner) — and only confirmStoreBuy runs the purchase itself; cancelStoreBuy drops the pending buy with nothing changed. storeView is never touched while a buy is pending, so cancelling lands back on the exact view the buyer was on */
 let hrAutoOn = false, hrAutoLast = 0; /* the AUTO toggle and its clock — session-only, like the mech forms */
-const slotBgImgs = {}; /* the lazy image cache for priced backgrounds, keyed by entry id */
+const slotBgImgs = {}; /* the lazy image cache for the cabinet backgrounds, keyed by entry id — the default's Burgundy Velvet art caches here too */
 function slotBgEntry(id) { for (const e of SLOT_BGS) if (e.id === id) return e; return null; }
 function slotBgOwned(e) { return !!e && (e.price <= 0 || mySlotBgsOwned.indexOf(e.id) >= 0); }
 function slotBgImg(e) { if (!e || !e.img) return null; let im = slotBgImgs[e.id]; if (!im) { im = new Image(); im.src = e.img; slotBgImgs[e.id] = im; } else if (im.complete && im.naturalWidth === 0 && !im._bgRetried) { im._bgRetried = 1; im.src = e.img + (e.img.indexOf("?") >= 0 ? "&" : "?") + "retry=1"; } return im; } /* a cached image that finished loading BROKEN (complete, no pixels — e.g. picked while the page's host was still catching up) gets exactly one retry with a fresh URL; without it that background would sit on the burgundy fallback for the whole session and never paint at all */
@@ -6449,18 +6448,18 @@ function loadStoreFromAccount(d) { /* sign-in (and sign-out, with null): the sto
   storePending = null; /* a half-confirmed buy never survives an account change */
   autoTier = d && typeof d.autoTier === "number" ? Math.max(0, Math.min(AUTO_TIERS.length, Math.floor(d.autoTier))) : 0;
   mySlotBgsOwned = d && Array.isArray(d.slotBgs) ? d.slotBgs.filter(x => typeof x === "string") : [];
-  const want = d && typeof d.slotBg === "string" ? slotBgEntry(d.slotBg) : null;
+  const want = d && typeof d.slotBg === "string" ? slotBgEntry(d.slotBg) : null; /* a saved pick that is no longer listed (the retired bg01/bg03) resolves to null here and lands on the default below — the saved doc itself is never rewritten for this */
   mySlotBg = want && slotBgOwned(want) ? want.id : "default";
   if (autoTier < 1) hrAutoOn = false;
 }
 function storeMsg(t) { const m = $("storemsg"); if (m) m.textContent = t || ""; }
-function storePendingInfo() { /* what the confirmation step names for the pending buy: the item's label and its real price — renderStore derives the charge shown from this (FREE for the owner). A pending buy whose item no longer resolves reads as no pending buy at all */
+function storePendingInfo() { /* what the confirmation step shows for the pending buy: the item's label, its real price, and — for a background — its picture (Jonathan 2026-11-01: "show the picture of the cabinet you're buying"); an Auto tier's label already names the tier being bought and the spin interval it gives ("show what level you're buying"). renderStore derives the charge shown from the price (FREE for the owner). A pending buy whose item no longer resolves reads as no pending buy at all */
   if (!storePending) return null;
-  if (storePending.kind === "bg") { const e = slotBgEntry(storePending.id); return e ? { label: "🎨 " + e.name, price: e.price } : null; }
+  if (storePending.kind === "bg") { const e = slotBgEntry(storePending.id); return e ? { label: "🎨 " + e.name, price: e.price, img: e.img } : null; }
   const t = AUTO_TIERS[storePending.n - 1]; return t ? { label: "🤖 Tier " + storePending.n + " — auto-spin every " + t.label, price: t.price } : null;
 }
 function storeRow(label, sub, fn, disabled) { const b = document.createElement("button"); b.className = "jukesong"; b.innerHTML = label + (sub ? " <small>" + sub + "</small>" : ""); if (disabled) b.disabled = true; else if (fn) b.onclick = fn; return b; } /* the jukebox's own row shape: a full-width button with a quieter sub-line */
-function storeBgCell(e) { /* one cell of the backgrounds GRID (Jonathan 2026-11-01: "show a sample of the backgrounds on a grid" instead of a list): the entry's own art as a thumbnail at the cabinets' tall 7:11, its name and state under it. A tap is exactly the old list row's tap — buy an unowned one (buySlotBg: balance check, addChips deduction), use an owned one (selectSlotBg), and the one currently on the machines is marked and not tappable, just as its row was disabled. The default entry has no image, so its thumb stays the plain burgundy swatch */
+function storeBgCell(e) { /* one cell of the backgrounds GRID (Jonathan 2026-11-01: "show a sample of the backgrounds on a grid" instead of a list): the entry's own art as a thumbnail at the cabinets' tall 7:11, its name and state under it. A tap is exactly the old list row's tap — buy an unowned one (buySlotBg: balance check, addChips deduction), use an owned one (selectSlotBg), and the one currently on the machines is marked and not tappable, just as its row was disabled. The default entry's art is the Burgundy Velvet picture itself, so its cell shows that artwork like any other — with the default's own state text (free — tap to use it) */
   const b = document.createElement("button"); b.className = "jukesong bgcell";
   const th = document.createElement("div"); th.className = "bgthumb"; if (e.img) th.style.backgroundImage = "url(\"" + e.img + "\")"; b.appendChild(th);
   const nm = document.createElement("div"); nm.className = "bgname"; nm.textContent = e.name; b.appendChild(nm);
@@ -6479,7 +6478,8 @@ function renderStore() {
   const pend = storePendingInfo();
   if (pend) { /* the CONFIRMATION step (Jonathan 2026-11-01): rendered in the panel's own rows, inside the panel — it names the item and the charge THAT buyer will actually pay (the real price, or FREE for the owner, whose buys never move chips). Nothing is recorded or deducted until Buy is tapped; Cancel just drops the pending buy and this same render, with storeView untouched, puts the buyer back on the view they were on */
     if (title) title.textContent = "🛍️ Confirm Purchase";
-    const charge = isOwnerAcct() ? "FREE — your account is never charged" : "🪙 " + pend.price.toLocaleString("en-US");
+    const charge = isOwnerAcct() ? "FREE — your account is never charged" : "🪙 " + pend.price.toLocaleString("en-US"); /* the COST (Jonathan 2026-11-01: "the amount you're buying too — meaning the cost"), shown the same plain way for BOTH kinds of buy: it sits on the item row and again on the Buy row, for a background and for an Auto tier alike; the owner's reads FREE because his account is never charged */
+    if (pend.img) { const pic = document.createElement("div"); pic.className = "bgconfirm"; pic.style.backgroundImage = "url(\"" + pend.img + "\")"; list.appendChild(pic); } /* a background buy shows the cabinet's actual artwork in the panel, above the name and cost; an Auto buy has no picture — its row names the tier and the interval instead */
     list.appendChild(storeRow(pend.label, charge, null, true));
     list.appendChild(storeRow("✅ Buy", charge, () => confirmStoreBuy()));
     list.appendChild(storeRow("✕ Cancel", "nothing is bought", () => cancelStoreBuy()));
@@ -6563,11 +6563,11 @@ function resetStore() { /* the owner's store Reset (Jonathan 2026-11-01): back t
 }
 function selectSlotBg(id) { const e = slotBgEntry(id); if (!e || !slotBgOwned(e)) return; mySlotBg = id; acctStoreSave(); storeMsg("✅ " + e.name + " is on your machines."); sfxClick(); renderStore(); }
 function atHRStoreDesk(x, y) { return me.scene === "highrollers" && x < HRCTR.x - 4 && x > HRCTR.x - 170 && y >= HRCTR.y - 6 && y <= HRCTR.y + HRCTR.h + 6; } /* standing on the LEFT side of the service desk — the room side, facing the desk (Jonathan 2026-11-01): the store's spot, the mirror image of atHRCounter's behind-the-desk strip on the right. The 170 reach keeps it a stance at the desk, not half the room */
-/* the cabinet backdrop: the player's selected background paints the club machines' faces. The default entry carries no image, so it lands on the burgundy velvet painted below — the default cabinet's own finish. FIT RULE (Jonathan 2026-11-01): the art is drawn STRETCHED to the cabinet's exact rectangle — the drawImage destination IS the face rect (mch.x, mch.y, mch.w, mch.h), so it fills edge to edge, no gaps, no letterbox, no crop; the samples are already the cabinets' 210x330 shape, so the stretch is true. The rounded clip is the cabinet's own outline (the yellow border strokes the same rr right after), never a smaller window. This function is the ONE paint path: drawHRSlots calls it for every club machine, and the seated machine's face — reels, bet grid, SPIN — is drawn on that same cabinet in that same pass; there is no separate panel rendering to fit */
+/* the cabinet backdrop: the player's selected background paints the club machines' faces. The DEFAULT is the Burgundy Velvet artwork (Jonathan 2026-11-01: "burgundy velvet goes in the first slot... Default Burgundy is NOT the default anymore") — the default entry carries that picture and paints by the very same image path as a bought pick, and a selection id that is no longer in SLOT_BGS (the retired bg01/bg03 picks) resolves to the default entry right here, so those machines wear the Burgundy Velvet: for a bg01 pick that is the identical artwork, for a bg03 pick it is the default fallback. The velvet gradient painted below is only the fallback while a cabinet's art is still loading (or if it ever fails) — never a look of its own. FIT RULE (Jonathan 2026-11-01): the art is drawn STRETCHED to the cabinet's exact rectangle — the drawImage destination IS the face rect (mch.x, mch.y, mch.w, mch.h), so it fills edge to edge, no gaps, no letterbox, no crop; the samples are already the cabinets' 210x330 shape, so the stretch is true. The rounded clip is the cabinet's own outline (the yellow border strokes the same rr right after), never a smaller window. This function is the ONE paint path: drawHRSlots calls it for every club machine, and the seated machine's face — reels, bet grid, SPIN — is drawn on that same cabinet in that same pass; there is no separate panel rendering to fit */
 function hrSlotCabinetBase(mch) {
-  const e = slotBgEntry(mySlotBg), img = e ? slotBgImg(e) : null;
+  const e = slotBgEntry(mySlotBg) || slotBgEntry("default"), img = e ? slotBgImg(e) : null;
   if (img && img.complete && img.naturalWidth > 0) { ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip(); ctx.drawImage(img, mch.x, mch.y, mch.w, mch.h); ctx.restore(); return; } /* stretch-fit: destination width/height are the cabinet's own, so the image is scaled to the face exactly */
-  /* BURGUNDY VELVET (Jonathan 2026-11-01): the default cabinet is no longer the flat red blank — a deep burgundy body (the room's own #40081b family, the same burgundy as its carpet and bar counters) with a soft VELVET SHEEN: a diagonal light fall across the face and a gentle glow pooled upper-centre, the edges and foot falling darker the way velvet takes light. Only the default's finish changed — a picked background still paints over it by the path above, exactly as before */
+  /* the LOADING FALLBACK under a cabinet's artwork: a burgundy velvet shading in the room's own family (the #40081b of its carpet and bar counters) with a soft sheen — a diagonal light fall across the face and a gentle glow pooled upper-centre, the edges and foot falling darker the way velvet takes light. It is what a machine wears only for the moments before its picture (the default's Burgundy Velvet, or a bought pick) has loaded, and if a picture ever fails outright; the artwork paints over it by the path above */
   ctx.save(); rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.clip();
   const vg = ctx.createLinearGradient(mch.x, mch.y, mch.x + mch.w, mch.y + mch.h);
   vg.addColorStop(0, "#2e0410"); vg.addColorStop(0.38, "#5e1228"); vg.addColorStop(0.58, "#40081b"); vg.addColorStop(1, "#27030b");
@@ -6617,7 +6617,7 @@ function drawHRSlots(t) {
   const near = nearHRSlot();
   hrSlotSeatsRow();
   HRSLOTM.forEach((mch, i) => {
-    hrSlotCabinetBase(mch); /* the cabinet's backdrop — the player's selected store background, or the flat burgundy default (see hrSlotCabinetBase) */
+    hrSlotCabinetBase(mch); /* the cabinet's backdrop — the player's selected store background, or the Burgundy Velvet default (see hrSlotCabinetBase) */
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(mch.x, mch.y, mch.w, mch.h, 16); ctx.stroke(); /* the yellow border, kept exactly */
     ctx.fillStyle = "#0a0616"; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.fill();
     ctx.strokeStyle = "rgba(56,225,255,0.4)"; ctx.lineWidth = 1.5; rr(mch.x + 16, mch.y + 18, mch.w - 32, 96, 10); ctx.stroke();
