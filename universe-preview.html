@@ -7615,7 +7615,7 @@ function boxHostTick() {
     tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1, pot: null, mode: null, cpu: null }); /* back to betting: fresh stakes and READY for the rematch */
   }
 }
-/* ---- the CPU fighter's simulation (Jonathan 2026-11-01): runs ONLY on the seated player's screen (they host the bout, the chess/pool way) — every other client just draws the body from the record. Same gloves, same ring, same numbers as a human fighter: 6-10 damage inside the same 150 reach, health from the shared hp node, and each arm on its own cooldown (the human 380ms at launch; 250ms since Jonathan's harder-CPU tuning, 2026-11-01). The fairness is in the DECISIONS: a reaction beat between swings (620-1100ms at launch; 380-700ms since the same tuning), a pace a touch under a walker's 305, no swings wasted on air from out of reach, and a small weave instead of a beeline — a beatable opponent, not a statue and not a wall ---- */
+/* ---- the CPU fighter's simulation (Jonathan 2026-11-01): runs ONLY on the seated player's screen (they host the bout, the chess/pool way) — every other client just draws the body from the record. Same gloves, same ring, same numbers as a human fighter: 6-10 damage inside the same 150 reach, health from the shared hp node, and each arm on its own cooldown (the human 380ms at launch; 250ms at Jonathan's harder-CPU tuning, 2026-11-01; 160ms since he asked for faster punches later the same day). The fairness is in the DECISIONS: a reaction beat between swings (620-1100ms at launch; 380-700ms at the harder tuning; 240-440ms since the faster-punches step), a pace a touch under a walker's 305, no swings wasted on air from out of reach, and a small weave instead of a beeline — a beatable opponent, not a statue and not a wall ---- */
 function boxCpuFrame(dt) {
   const st = boxState;
   if (!st || st.mode !== "pc" || boxSeat < 0 || !boxMyRec()) { if (boxCpuSim && (!st || st.mode !== "pc")) boxCpuSim = null; return; }
@@ -7645,13 +7645,13 @@ function boxCpuFrame(dt) {
   if (!S.nextAt) { S.nextAt = now + 500 + Math.random() * 500; return; }
   if (now < S.nextAt) return;
   const arms = [];
-  if (now - S.lastL >= 250) arms.push("L"); /* each glove on its own 250ms clock — faster than the human 380ms since Jonathan's harder-CPU tuning (2026-11-01), and under the beat's 380ms floor so the beat is never capped by it */
-  if (now - S.lastR >= 250) arms.push("R");
+  if (now - S.lastL >= 160) arms.push("L"); /* each glove on its own 160ms clock — faster than the human 380ms since Jonathan's harder-CPU tuning (250ms, 2026-11-01; stepped to 160ms at his word later the same day), and under the beat's 240ms floor so the beat is never capped by it */
+  if (now - S.lastR >= 160) arms.push("R");
   if (!arms.length) { S.nextAt = now + 60; return; }
   if (dist > 150) { S.nextAt = now + 220; return; } /* out of reach it holds its swing — it does not punch air */
   const side = arms[Math.floor(Math.random() * arms.length)];
   if (side === "L") S.lastL = now; else S.lastR = now;
-  S.nextAt = now + 380 + Math.random() * 320; /* the reaction beat between decisions — 380-700ms since Jonathan's harder-CPU tuning (2026-11-01), was 620-1100ms */
+  S.nextAt = now + 240 + Math.random() * 200; /* the reaction beat between decisions — 240-440ms since Jonathan's faster-CPU tuning (2026-11-01), was 380-700ms, before that 620-1100ms */
   const dmg = 6 + Math.floor(Math.random() * 5);
   tblUpd("box", { punch: { by: cs, side, ts: srvNow(), hit: 1 } });
   const cur = (st.hp && st.hp[boxSeat]) || 0;
