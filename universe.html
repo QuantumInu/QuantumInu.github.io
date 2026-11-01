@@ -1124,6 +1124,7 @@ const BACSEATS = [0, 1, 2, 3, 4].map(i => ({ x: BACT.x + 110 + i * 170, y: BACT.
 const CRASEATS = [0, 1, 2, 3, 4].map(i => ({ x: CRAT.x + 110 + i * 170, y: CRAT.y + CRAT.h + 150 }));
 const HBJT = { x: 430, y: 1780, w: 900, h: 430 }; /* the club's BLACKJACK (Jonathan 2026-11-01): a second-row table under baccarat — blackjack's rect carried 800 down, wearing the club's dark red felt (drawHRFelt), staking HR_BETS, on its OWN record hub/tables/hbj so it runs beside the casino's blackjack and the club's other tables without ever touching them */
 const HRRT = { x: 1870, y: 1780, w: 900, h: 430 }; /* the club's ROULETTE (Jonathan 2026-11-01): under craps, roulette's rect carried 800 down, dark red, HR_BETS, its own record hub/tables/hrr */
+const HRDOOR_Y = (BACT.y + BACT.h / 2 + CRAT.y + CRAT.h / 2 + HBJT.y + HBJT.h / 2 + HRRT.y + HRRT.h / 2) / 4; /* 1595: the club EXIT DOOR's centre height — the MEDALLION'S CENTRE LINE (Jonathan 2026-11-01): the door stays on the left wall but centres on the atom, the mean of the four tables' centres, the same value drawHighRollers computes as hmcY. The exit trigger (collide), the drawing (hrcExitY) and the arrival spawn (toHighRollers) all take this one height */
 const HBJSEATS = [0, 1, 2, 3, 4].map(i => ({ x: HBJT.x + 110 + i * 170, y: HBJT.y + HBJT.h + 150 }));
 const HRRSEATS = [0, 1, 2, 3, 4].map(i => ({ x: HRRT.x + 110 + i * 170, y: HRRT.y + HRRT.h + 150 }));
 const HBJSPOTS = [0, 1, 2, 3, 4].map(i => ({ x: HBJT.x + 110 + i * 170, y: HBJT.y + HBJT.h - 128 })); /* blackjack's felt spots, carried to the club table */
@@ -1468,7 +1469,7 @@ function collide(nx, ny) {
     if (nx > GEXIT.x - 4 && nx < GEXIT.x + GEXIT.w + 4 && ny > GYMROOM.h - 76) return { x: nx, y: ny, gymexit: true };
     nx = Math.max(56, Math.min(GYMROOM.w - 56, nx)); ny = Math.max(70, Math.min(GYMROOM.h - 46, ny));
   } else if (me.scene === "highrollers") {
-    if (nx < 66 && Math.abs(ny - (BACT.y + BACT.h / 2)) < 92) return { x: nx, y: ny, hrcexit: true }; /* back to the casino, through the left wall AT THE BACCARAT TABLE'S CENTRE LINE (Jonathan 2026-10-31): the exit first moved up from the entry door's height (CASINODOORS_Y 1856) to the room's middle (1100), then down onto the tables' centre line (1195) — the same line the centre atom sits on. Trigger, drawing (hrcExitY) and the arrival spawn all take the one height */
+    if (nx < 66 && Math.abs(ny - HRDOOR_Y) < 92) return { x: nx, y: ny, hrcexit: true }; /* back to the casino, through the left wall AT THE MEDALLION'S CENTRE LINE (HRDOOR_Y 1595): the exit first moved up from the entry door's height (CASINODOORS_Y 1856) to the room's middle (1100), then onto the baccarat centre line (1195) when the atom sat there, and down to 1595 when the atom moved to the four tables' centroid (Jonathan 2026-11-01) — the door follows the atom. Trigger, drawing (hrcExitY) and the arrival spawn all take the one height */
     nx = Math.max(56, Math.min(HRROOM.w - 56, nx)); ny = Math.max(70, Math.min(HRROOM.h - 46, ny));
   } else if (me.scene === "chess") {
     if (nx > CHESSROOM.w - 66 && Math.abs(ny - CHESSROOM.h / 2) < 92) return { x: nx, y: ny, chessexit: true }; /* the exit, centred in the right wall on the centre path */
@@ -4926,7 +4927,7 @@ function hrAnswer(correct) {
   else { sfxBad(); me.x = Math.max(me.x - 90, 56); publish(true); /* turned away: a step back west, out of the doorway */ }
 }
 function tryHRDoor() { openHRQuiz(); }
-function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = BACT.y + BACT.h / 2; sfxChime(); publish(true); hrSlotFxBaseAt = Date.now(); hrListen(); pullChips(); } /* arrivals land in front of the exit door, on the baccarat centre line where the door now sits. Entry also stamps the club slots' backlog baseline: the machines show their current state, wins that landed before you walked in never animate */
+function toHighRollers() { stopAllTones(); me.scene = "highrollers"; voiceReset(); me.x = 150; me.y = HRDOOR_Y; sfxChime(); publish(true); hrSlotFxBaseAt = Date.now(); hrListen(); pullChips(); } /* arrivals land in front of the exit door, on the medallion's centre line (HRDOOR_Y) where the door now sits. Entry also stamps the club slots' backlog baseline: the machines show their current state, wins that landed before you walked in never animate */
 function toCasinoFromHR() { stopAllTones(); hrStandUpAll(); me.scene = "casino"; voiceReset(); me.x = CASINOROOM.w - 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); slotFxBaseAt = Date.now(); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
 function toChess() { stopAllTones(); me.scene = "chess"; voiceReset(); me.x = CHESSROOM.w - 150; me.y = CHESSROOM.h / 2; sfxChime(); publish(true); chessListen(); pullChips(); }
 function toCasinoFromChess() { stopAllTones(); chessStandUp(); me.scene = "casino"; voiceReset(); me.x = 150; me.y = CASINODOORS_Y; sfxChime(); publish(true); slotFxBaseAt = Date.now(); casinoFxSince = Date.now(); casinoListen(); pullChips(); }
@@ -7355,7 +7356,7 @@ function drawHighRollers(t) {
   drawBooths(HRROOM.h - 310, true); /* the bottom booths — two deep, dropped a touch to match the top rows' shift (Jonathan 2026-10-31) */
   drawBooths(HRROOM.h - 70, true);
   /* exit door, MIDDLE of the left wall (Jonathan 2026-10-31) — moved up from the entry door's height (CASINODOORS_Y 1856) to HRROOM.h / 2 = 1100, and drawn in the Arcade door style batch 11 gave the casino's own side doors: dark gap, gold wash running into the room, corner ticks, chevrons, and a horizontal floor plaque in front naming the way back — "← CASINO", the boxing exit's "← SPORTS ARENA" pattern — with the same fitted-text rule (measured at draw time, shrunk to fit the plaque with margin). The old plain plate + rotated label are gone */
-  const hrcExitY = BACT.y + BACT.h / 2; /* the exit door's centre sits on the baccarat table's centre line — the same line the atom sits on (Jonathan 2026-10-31), not the room's dead centre */
+  const hrcExitY = HRDOOR_Y; /* the exit door's centre sits on the MEDALLION'S centre line — the same line the atom sits on (Jonathan 2026-11-01: the door followed the atom down to the four tables' centroid, 1595; it was the baccarat centre line, 1195, while the atom sat there) */
   ctx.fillStyle = "#050914"; ctx.fillRect(0, hrcExitY - 92, 12, 184);
   const heg = ctx.createLinearGradient(0, 0, 90, 0); heg.addColorStop(0, "rgba(255,215,106,0.4)"); heg.addColorStop(1, "rgba(255,215,106,0)");
   ctx.fillStyle = heg; ctx.fillRect(0, hrcExitY - 92, 90, 184);
@@ -7650,7 +7651,7 @@ function drawHrrTable(t) {
   if (hrrSeat >= 0) {
     HR_BETS.forEach((a, k) => { const row2 = k >= 6; drawBtn(T.x + 478 + (row2 ? k - 6 : k) * 67, T.y + T.h - (row2 ? 50 : 74), 60, 22, a >= 1000000000 ? (a / 1000000000) + "B" : a >= 1000000 ? (a / 1000000) + "M" : a >= 1000 ? (a / 1000) + "k" : String(a), () => hrrSetAmt(a), { fs: 14, sel: hrrAmt === a, pad: row2 ? 0 : 2 }); });
     ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.8)";
-    ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - 86);
+    ctx.fillText("your bet amount — high rollers only", T.x + 674, T.y + T.h - 81); /* centred in the gap between the GREEN button's bottom edge (T.h-98) and the amount row's top edge (T.h-74): the gap's middle is T.h-86, and the 19px label's ink (≈14 above / 4 below its baseline) centres on that middle with the baseline at T.h-81 — ink T.h-95..T.h-77, a 3px margin each side. At the old T.h-86 baseline the ink rode 5px high and its top overlapped the green button's bottom edge (Jonathan 2026-11-01) */
   }
   hrcSeatBets(HRRSEATS, st, "hrr");
   hrcSeatsRow(HRRSEATS, st, "hrr");
