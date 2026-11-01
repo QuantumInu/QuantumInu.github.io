@@ -1162,7 +1162,7 @@ const BOXROOM = { w: 2700, h: 1800 };
 const BOXHALL = { x1: 900, top: BOXROOM.h / 2 - 140, bot: BOXROOM.h / 2 + 140 }; /* the entry hallway, the theatre's shape */
 const BOXRING = { x: 1420, y: 520, w: 760, h: 760 }; /* the ring, centred in the arena (arena floor runs x 900..2700, centre 1800,900) */
 const BOXSEATS = [{ x: BOXRING.x - 92, y: 900 }, { x: BOXRING.x + BOXRING.w + 92, y: 900 }]; /* sit at the LEFT end or the RIGHT end of the ring */
-const BOXJUKE = { x: 900, y: 612, w: 104, h: 148 }; /* the boom box (Jonathan 2026-10-31). Placement history: first the open floor west of the ring, then the west wall — a misread — and finally HERE at his corrected word the same night: same height as the wall spot, but moved right to where the hallway ends. Its LEFT edge (900) sits exactly at BOXHALL.x1, against the end of the hallway's top wall, so the box stands just inside the room where the hallway opens up; its BOTTOM edge (612 + 148 = 760) still lies exactly on BOXHALL.top (BOXROOM.h / 2 − 140 = 760). The walkway stays clear (players walk east out of the hallway at y 760..1040, below the box's bottom line), the ring apron (x 1374+) and the top bleachers (y 56..236) are well clear, and its "BOOM BOX" caption now paints on the arena floor under it. Reached from the hallway mouth: nearBoxJuke measures to the prop's bottom centre (952, 760). The VIP jukebox's own footprint (104x148). Walk-over scenery like the plaza fountains, NOT an obstacle: the arena's obstacle list is the ring alone, and interaction is by proximity (nearBoxJuke), so standing on it costs nothing — making it solid like the VIP jukebox is a one-line change here if ever wanted (add BOXJUKE to the boxing line of obstacles) */
+const BOXJUKE = { x: 908, y: 612, w: 104, h: 148 }; /* the boom box (Jonathan 2026-10-31). Placement history: first the open floor west of the ring, then the west wall — a misread — and finally HERE at his corrected word the same night: same height as the wall spot, but moved right to where the hallway ends. Its LEFT edge sat exactly at BOXHALL.x1 (900), against the end of the hallway's top wall, until 2026-11-01, when Jonathan asked for the radio separated from the wall "just a tiny tad": the whole prop now stands 8px EAST of the wall's end (left edge 908) — same size, same panel, bottom edge still on the hallway's top line — so the box stands just inside the room where the hallway opens up, with a small visible gap behind it; its BOTTOM edge (612 + 148 = 760) still lies exactly on BOXHALL.top (BOXROOM.h / 2 − 140 = 760). The walkway stays clear (players walk east out of the hallway at y 760..1040, below the box's bottom line), the ring apron (x 1374+) and the top bleachers (y 56..236) are well clear, and its "BOOM BOX" caption now paints on the arena floor under it. Reached from the hallway mouth: nearBoxJuke measures to the prop's bottom centre (960, 760). The VIP jukebox's own footprint (104x148). Walk-over scenery like the plaza fountains, NOT an obstacle: the arena's obstacle list is the ring alone, and interaction is by proximity (nearBoxJuke), so standing on it costs nothing — making it solid like the VIP jukebox is a one-line change here if ever wanted (add BOXJUKE to the boxing line of obstacles) */
 function nearBoxJuke() { return me.scene === "boxing" && Math.hypot(me.x - (BOXJUKE.x + BOXJUKE.w / 2), me.y - (BOXJUKE.y + BOXJUKE.h)) < 150; } /* nearJuke's own proximity test (to the prop's bottom centre), moved rooms with the prop */
 const BOXBLEACH = [{ x: 1000, y: 56, w: 1600, h: 180 }, { x: 2476, y: 320, w: 168, h: 1160 }, { x: 1000, y: BOXROOM.h - 236, w: 1600, h: 180 }]; /* 3 rows of bleachers: top, right, bottom */
 const BOXDOOR_Y = 1200; /* the gym's centre path (y 1100..1300) meets its right wall here */
@@ -5051,14 +5051,15 @@ function drawChatBubble(cx, boxBottom, chat) {
   ctx.beginPath(); ctx.moveTo(cx - 7, by + bh); ctx.lineTo(cx + 7, by + bh); ctx.lineTo(cx, by + bh + 9); ctx.closePath(); ctx.fill();
   ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, cx, by + 26 + i * 26));
 }
-function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving, gender) {
+function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving, gender, tint) {
   if (isMe && mechForm) hero = MECH_HERO; /* my own screen draws me from me.hero, not from my presence record — the transform has to land here too, or I would stay a dog on my own screen while the room sees the mech */
   if (isMe && kingMechForm) hero = KING_MECH_HERO; /* the same landing for OnlineMoney's king mech on his own screen */
   if (isMe && tonicMechForm) hero = TONIC_MECH_HERO; /* the same landing for 7daytonic's galaxy mech on his own screen */
   if (isMe && kenMechForm) hero = KEN_MECH_HERO; /* the same landing for Dj Ken's gentleman mech on his own screen */
   if (isMe && roboMechForm) hero = ROBO_MECH_HERO; /* the same landing for the owner's dome mech on his own screen */
   if (isMechHero(hero)) gender = "m"; /* the mechs live on the male track whatever the wearer's picker gender */
-  const img = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
+  const baseImg = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
+  const img = tint ? (boxCpuTintImg(hero, tint) || baseImg) : baseImg; /* a tinted actor (the boxing CPU) draws its corner-coloured copy of the sprite; everyone else draws the sprite itself */
   if (!img) { ensureHero(hero, gender);
     ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(wx, wy - 4, 27, 9, 0, 0, 7); ctx.fill();
     ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
@@ -5067,7 +5068,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
     ctx.restore(); return; }
   const bobAmp = isMechHero(hero) ? 20 : 11; /* the mech's walking/running bop is stronger than the dog's so its steps read at its size (Jonathan 2026-10-31) — set at 26 first, then he asked for it reduced a tad but still noticeable: 20 for both walk and run (the same bounce serves both; running just cycles it faster) */
   const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * bobAmp : Math.sin(t / 620 + phase) * 1.4;
-  const H = isMechHero(hero) ? 216 : 96, W = H * (img.naturalWidth / img.naturalHeight || 0.8); /* both mechs stand 216 (2.25x) — OnlineMoney's king mech is the DreadMech's exact size at the owner's corrected word (2026-10-31: "sorry 2.25") */ /* the mech stands 2.25x as tall as the dog (Jonathan 2026-10-31: built at 3x, corrected to 2x, then settled at 2.25x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
+  const H = isMechHero(hero) ? 216 : 96, W = H * (baseImg.naturalWidth / baseImg.naturalHeight || 0.8); /* both mechs stand 216 (2.25x) — OnlineMoney's king mech is the DreadMech's exact size at the owner's corrected word (2026-10-31: "sorry 2.25") */ /* the mech stands 2.25x as tall as the dog (Jonathan 2026-10-31: built at 3x, corrected to 2x, then settled at 2.25x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
   ctx.save(); ctx.translate(wx, wy - H / 2 + bob);
@@ -7123,6 +7124,30 @@ const boxGloveStamp = {}; let boxGloveRecTs = 0; /* the other fighter's gloves, 
 let boxPunchFxTs = 0; /* the instant the LATEST punch record's effects run from on THIS screen: the record's own ts when it is mine or arrives fresh, its first-sight instant when a remote record lands stale (the invisible-opponent-punch fix in drawBoxingFx) */
 let boxNote = "", boxNoteAt = 0;
 function noteBox(txt) { boxNote = txt; boxNoteAt = performance.now(); }
+/* ---- vs the CPU (Jonathan 2026-11-01): alone in your corner with a bet down and READY, the empty corner is filled by the CPU — the dread dog (DreadMark18's own fighter look) tinted to the CPU corner's colour: pick BLUE and you fight the RED dread, pick RED and you fight the BLUE dread. The chess/pool model exactly: the record carries mode "pc" and pot = twice the stake, the CPU's seat stays EMPTY in the record, and the seated player's own client hosts the bout — it moves the CPU, throws its punches on the same per-arm 380ms cooldowns, and publishes the CPU's body at hub/tables/box/cpu so every screen in the room draws the same fighter (a synthetic actor in frame's pass, the door guards' way — no presence record, never a person online). A win pays the pot through the claims rail like any bout; a loss just loses the stake, charged at bet time as always ---- */
+const BOXCPU_HERO = 71; /* the dread sprite: hero 71's art (Owner QI, the cosmic dog) — the CPU wears DreadMark18's dog, tinted to its corner */
+const BOXCPU_NAME = "DREAD";
+let boxCpuSim = null; /* the CPU fighter as simulated on the HOST's screen: {seat, round, x, y, flip, lastL, lastR, nextAt, pubAt, pubX, pubY, pubFlip} — lastL/lastR are its per-arm punch clocks */
+let boxCpuVis = { x: 0, y: 900, flip: true, snap: true, round: "" }; /* a SPECTATOR's eased view of the CPU's body, eased toward the record's cpu node in frame's actor pass — the peers' own easing */
+const boxCpuTintCache = {}; /* hero+colour -> the corner-tinted copy of the dread sprite, built once per colour */
+function boxCpuSeatOf(st) { return st && st.mode === "pc" && st.cpu && typeof st.cpu.seat === "number" ? st.cpu.seat : -1; }
+function boxCpuTintImg(hero, tint) {
+  const key = hero + ":" + tint;
+  if (boxCpuTintCache[key]) return boxCpuTintCache[key];
+  const base = heroImgs[hero];
+  if (!base || !base.naturalWidth) return null;
+  const c = document.createElement("canvas"); c.width = base.naturalWidth; c.height = base.naturalHeight;
+  const g = c.getContext("2d"); if (!g) return null;
+  g.drawImage(base, 0, 0);
+  g.globalCompositeOperation = "source-atop"; g.globalAlpha = 0.42; g.fillStyle = tint; g.fillRect(0, 0, c.width, c.height); /* the sprite's own pixels washed toward the corner colour — the red dread and the blue dread are the same dog, read by their colour */
+  boxCpuTintCache[key] = c; return c;
+}
+function boxCpuVisPos() {
+  const st = boxState; if (!st || !st.cpu) return null;
+  if (boxCpuSim && boxSeat >= 0 && boxMyRec() && boxCpuSim.seat === st.cpu.seat) return { x: boxCpuSim.x, y: boxCpuSim.y }; /* the host draws its own simulation — no lag, no easing */
+  if (boxCpuVis.snap || boxCpuVis.round !== (st.roundId || "")) { boxCpuVis.x = st.cpu.x; boxCpuVis.y = st.cpu.y; boxCpuVis.round = st.roundId || ""; boxCpuVis.snap = false; } /* a fresh bout snaps the view onto the body at once (the glove pass runs before the actor pass's easing) */
+  return { x: boxCpuVis.x, y: boxCpuVis.y };
+}
 function boxingListen() {
   if (!db || boxHooked) return; boxHooked = true;
   db.ref("hub/tables/box").on("value", sn => { boxState = sn.val(); boxPhaseWatch(); });
@@ -7146,6 +7171,7 @@ function boxPhaseWatch() {
     const mine = st.hp[boxSeat] || 0, theirs = st.hp[1 - boxSeat] || 0;
     if (theirs <= 0 && mine > 0) tblUpd("box", { phase: "done", winner: boxSeat, doneTs: Date.now() });
     else if (mine <= 0 && theirs <= 0) tblUpd("box", { phase: "done", winner: -1, doneTs: Date.now() });
+    else if (mine <= 0 && st.mode === "pc") tblUpd("box", { phase: "done", winner: 1 - boxSeat, doneTs: Date.now() }); /* the CPU's win is called by the host too (vs-CPU only): in a human bout the winner's own client calls it, but the CPU has no client — without this branch a lost CPU bout would never end */
   }
   if (ph === "done" && boxSeat >= 0 && boxMyRec() && st.seats) boxWriteClaims(st); /* the decided bout is HELD for the winner the moment any seated client sees it decided (claims fix): both fighters' clients can observe the same decision — the create-only claim note makes every attempt after the first a harmless refusal */
   if (ph === boxPrevPhase) return;
@@ -7190,6 +7216,7 @@ function boxingTrySit() {
 }
 function boxingSitAt(i) {
   if (!acctUser) { noteBox("🔒 Boxing takes an account — guests can watch. Create a free account on the welcome screen."); return; }
+  if (boxState && boxState.mode === "pc" && (boxState.phase === "fight" || boxState.phase === "done")) { noteBox("That bout's against the CPU — pull up and watch."); return; } /* a vs-CPU bout takes no second seat while it runs: the empty corner is the computer's (the pool hall's and chess room's rule) */
   pullChips();
   boxLeft = -1;
   if (boxSeat >= 0) { if (boxSeat !== i) noteBox("Stand up from your end first."); return; }
@@ -7225,6 +7252,7 @@ function boxingStandUp() {
   if (boxingBout && st && st.phase === "fight") {
     const other = 1 - i, os = st.seats && st.seats[other];
     if (os && os.pid) { tblUpd("box", { phase: "done", winner: other, doneTs: Date.now() }); writeClaim(claimUid(os), "box" + (st.roundId || 0) + "-" + other, boxPotOf(st), "🏆 Boxing win"); } /* the forfeit pot is HELD for the fighter who stayed (claims fix) */
+    else if (st.mode === "pc") tblUpd("box", { phase: "done", winner: other, doneTs: Date.now() }); /* giving up to the CPU: the bout is the CPU's — and no claim is written for its empty chair (writeClaim would have nowhere to go) */
     noteBox("🏳️ You gave up the bout.");
   }
   if (st && st.phase === "done" && sd && sd.pid === myId && st.seats) { /* standing after the final bell still banks the win: boxPhaseWatch's own settle, same key, so it can only ever pay once */
@@ -7259,7 +7287,10 @@ function boxPunch(side) {
   if (side === "L") { boxLastPunchAtL = now; myPunchAtL = performance.now(); } else { boxLastPunchAtR = now; myPunchAtR = performance.now(); }
   const st = boxState, opp = 1 - boxSeat, os = st.seats && st.seats[opp];
   let hit = false, dmg = 0;
-  if (os && os.pid) {
+  if (st.mode === "pc") { /* vs the CPU the reach is measured against the CPU's body — my own simulation (I host the bout), the record's cpu node as the fallback */
+    const cp = boxCpuSim && boxCpuSim.seat === opp ? boxCpuSim : st.cpu;
+    if (cp && typeof cp.x === "number" && Math.hypot(me.x - cp.x, me.y - cp.y) < 150) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
+  } else if (os && os.pid) {
     let ox = null, oy = null;
     for (const p of peers.values()) if (p.id === os.pid && p.scene === "boxing") { ox = p.x; oy = p.y; }
     if (ox !== null && Math.hypot(me.x - ox, me.y - oy) < 150) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
@@ -7279,19 +7310,69 @@ function boxHostTick() {
   const seats = st.seats || {}, now = Date.now();
   const fresh = [0, 1].filter(i => seats[i] && seats[i].pid && now - (seats[i].ts || 0) < 25000);
   if (!fresh.length) { /* nobody at the ring: any leftover bout clears (the tables' last-seat rule) */
-    if (st.phase !== "sit" || st.hp) tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1, pot: null });
+    if (st.phase !== "sit" || st.hp) tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1, pot: null, mode: null, cpu: null });
     return;
   }
   if (!(seats[fresh[0]] && seats[fresh[0]].pid === myId)) return; /* the lowest fresh seat hosts */
   if (st.phase === "sit" && fresh.length === 2) {
     const s0 = seats[0], s1 = seats[1];
-    if (s0.rdy && s1.rdy && (s0.bet || 0) > 0 && (s0.bet || 0) === (s1.bet || 0)) tblUpd("box", { phase: "fight", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, pot: (s0.bet || 0) + (s1.bet || 0), roundId: newRoundId() }); /* both READY with MATCHED BETS — the bell (a bet is required to fight, Jonathan 2026-10-31: "dont allow that unless they bet"). The pot is written down NOW, at the bell (claims fix): settle never recomputes it from seats a leaver may already have deleted */
-  } else if (st.phase === "fight" && fresh.length === 1) {
+    if (s0.rdy && s1.rdy && (s0.bet || 0) > 0 && (s0.bet || 0) === (s1.bet || 0)) tblUpd("box", { phase: "fight", mode: null, cpu: null, hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, pot: (s0.bet || 0) + (s1.bet || 0), roundId: newRoundId() }); /* both READY with MATCHED BETS — the bell (a bet is required to fight, Jonathan 2026-10-31: "dont allow that unless they bet"). The pot is written down NOW, at the bell (claims fix): settle never recomputes it from seats a leaver may already have deleted */
+  } else if (st.phase === "sit" && fresh.length === 1) {
+    const s0 = seats[fresh[0]];
+    if (s0.rdy && (s0.bet || 0) > 0) {
+      /* vs the CPU (Jonathan 2026-11-01): alone in my corner with a bet down and READY, the bout starts against the CPU — the chess/pool model. The CPU's seat stays EMPTY in the record; mode "pc" marks the bout, pot carries twice my stake (the house covers its side), and the CPU's body starts on its corner's ring spot in the cpu node, which my client then drives (boxCpuFrame). My corner decides the dread's colour: BLUE seat (1) fights the RED dread (seat 0), RED seat (0) fights the BLUE dread (seat 1) */
+      const cpuSeat = 1 - fresh[0], os = seats[cpuSeat];
+      if (os && (os.bet || 0) > 0) { writeClaim(claimUid(os), rfKeyFor("box", st, cpuSeat), os.bet, "↩️ Bet returned"); tblUpd("box/seats/" + cpuSeat, { bet: 0, rdy: false }); } /* a sleeper's stake in the CPU's corner was never in this pot (never-lose net): hand it back through the rf claim and clear the seat's bet at the same moment the CPU bout starts, so no settle or recycle can zero it */
+      tblUpd("box", { phase: "fight", mode: "pc", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punch: null, winner: -1, pot: (s0.bet || 0) * 2, roundId: newRoundId(), cpu: { seat: cpuSeat, x: cpuSeat === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cpuSeat === 0 } });
+    }
+  } else if (st.phase === "fight" && fresh.length === 1 && st.mode !== "pc") { /* a vs-CPU bout's lone fresh seat is the design, not a walkout — it ends by the health bars or the give-up, never by this branch */
     tblUpd("box", { phase: "done", winner: fresh[0], doneTs: now }); /* your opponent is gone — the bout is yours */
     writeClaim(claimUid(seats[fresh[0]]), "box" + (st.roundId || 0) + "-" + fresh[0], boxPotOf(st), "🏆 Boxing win"); /* held for the fighter who stayed (claims fix) */
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 4500) {
-    tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1, pot: null }); /* back to betting: fresh stakes and READY for the rematch */
+    tblUpd("box", { phase: "sit", hp: null, punch: null, winner: -1, pot: null, mode: null, cpu: null }); /* back to betting: fresh stakes and READY for the rematch */
   }
+}
+/* ---- the CPU fighter's simulation (Jonathan 2026-11-01): runs ONLY on the seated player's screen (they host the bout, the chess/pool way) — every other client just draws the body from the record. Same gloves, same ring, same numbers as a human fighter: 6-10 damage inside the same 150 reach, health from the shared hp node, and each arm on the human 380ms cooldown. The fairness is in the DECISIONS: a human reaction beat between swings (620-1100ms), a pace a touch under a walker's 305, no swings wasted on air from out of reach, and a small weave instead of a beeline — a beatable opponent, not a statue and not a wall ---- */
+function boxCpuFrame(dt) {
+  const st = boxState;
+  if (!st || st.mode !== "pc" || boxSeat < 0 || !boxMyRec()) { if (boxCpuSim && (!st || st.mode !== "pc")) boxCpuSim = null; return; }
+  const cs = boxCpuSeatOf(st);
+  if (cs < 0 || cs === boxSeat) return;
+  if (st.phase !== "fight") return;
+  if (!boxCpuSim || boxCpuSim.seat !== cs || boxCpuSim.round !== (st.roundId || "")) {
+    boxCpuSim = { seat: cs, round: st.roundId || "", x: cs === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cs === 0, lastL: 0, lastR: 0, nextAt: 0, pubAt: 0, pubX: -1, pubY: -1, pubFlip: null };
+  }
+  const S = boxCpuSim, now = Date.now();
+  S.flip = me.x >= S.x; /* a fighter's body faces the opponent — the CPU turns to whoever it is fighting, like everyone else in the ring */
+  const dist = Math.hypot(me.x - S.x, me.y - S.y);
+  let mvx = 0, mvy = 0;
+  const want = 118; /* the fighting distance: punches land inside 150, so the CPU closes to here and holds — in range, never standing inside the player */
+  if (dist > want + 6 && dist > 0) { mvx = (me.x - S.x) / dist; mvy = (me.y - S.y) / dist; }
+  else if (dist < want - 26 && dist > 0) { mvx = -(me.x - S.x) / dist; mvy = -(me.y - S.y) / dist; }
+  else mvy = Math.sin(now / 620) * 0.35; /* in range: a small weave while it waits for its moment */
+  const spd = 238;
+  S.x = Math.max(BOXRING.x + 42, Math.min(BOXRING.x + BOXRING.w - 42, S.x + mvx * spd * dt)); /* the ring clamp is the fighters' own (collide's bout clamp) */
+  S.y = Math.max(BOXRING.y + 64, Math.min(BOXRING.y + BOXRING.h - 30, S.y + mvy * spd * dt));
+  /* publish the CPU's body for the room, throttled — spectators draw it from the record (boxCpuVis), the host never waits on the echo */
+  if (now - S.pubAt >= 110 && (Math.abs(S.x - S.pubX) > 3 || Math.abs(S.y - S.pubY) > 3 || S.pubFlip !== S.flip)) {
+    S.pubAt = now; S.pubX = S.x; S.pubY = S.y; S.pubFlip = S.flip;
+    tblUpd("box/cpu", { seat: cs, x: Math.round(S.x), y: Math.round(S.y), flip: S.flip });
+  }
+  if (srvNow() < (st.fightTs || 0) + 1200) return; /* gloves up until the bell settles — the CPU honours the same grace */
+  if (!S.nextAt) { S.nextAt = now + 500 + Math.random() * 500; return; }
+  if (now < S.nextAt) return;
+  const arms = [];
+  if (now - S.lastL >= 380) arms.push("L"); /* each glove on its own 380ms clock — the human rule, exactly (boxPunch) */
+  if (now - S.lastR >= 380) arms.push("R");
+  if (!arms.length) { S.nextAt = now + 60; return; }
+  if (dist > 150) { S.nextAt = now + 220; return; } /* out of reach it holds its swing — it does not punch air */
+  const side = arms[Math.floor(Math.random() * arms.length)];
+  if (side === "L") S.lastL = now; else S.lastR = now;
+  S.nextAt = now + 620 + Math.random() * 480; /* the reaction beat between decisions */
+  const dmg = 6 + Math.floor(Math.random() * 5);
+  tblUpd("box", { punch: { by: cs, side, ts: srvNow(), hit: 1 } });
+  const cur = (st.hp && st.hp[boxSeat]) || 0;
+  tblSet("box/hp/" + boxSeat, Math.max(0, cur - dmg)); /* the same hp write a human punch lands with (boxPunch) */
 }
 /* boxingStandUp is defined with the Boxing Arena engine above */
 function casinoShell(w, h, title, sub) {
@@ -7977,10 +8058,12 @@ function drawBoxing(t) {
   /* the ring: white floor, apron, corner posts, red and blue ropes */
   ctx.fillStyle = "#d8dce6"; ctx.fillRect(BOXRING.x - 46, BOXRING.y - 46, BOXRING.w + 92, BOXRING.h + 92);
   ctx.fillStyle = "#ffffff"; ctx.fillRect(BOXRING.x, BOXRING.y, BOXRING.w, BOXRING.h);
-  ctx.strokeStyle = "rgba(90,110,160,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(BOXRING.x + 16, BOXRING.y + 16, BOXRING.w - 32, BOXRING.h - 32);
-  ctx.font = "44px sans-serif"; ctx.fillStyle = "#7a8db5"; ctx.fillText("⚛", 1800, 916);
+  /* the corner posts' circles paint FIRST, ahead of everything else on the ring (Jonathan 2026-11-01): the circles sit BEHIND the ropes in draw order, so at every corner the rope lines show OVER the circle where they meet — a circle never covers the ropes. The circles themselves are untouched: same four spots, same 20px, same colours, same dark rim */
   const posts = [[BOXRING.x - 46, BOXRING.y - 46, "#d42a2a"], [BOXRING.x + BOXRING.w + 46, BOXRING.y - 46, "#e8e8e8"], [BOXRING.x - 46, BOXRING.y + BOXRING.h + 46, "#e8e8e8"], [BOXRING.x + BOXRING.w + 46, BOXRING.y + BOXRING.h + 46, "#2a4fd4"]];
   for (const [px, py, col] of posts) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 20, 0, 7); ctx.fill(); ctx.strokeStyle = "#10131c"; ctx.lineWidth = 3; ctx.stroke(); }
+  ctx.strokeStyle = "rgba(90,110,160,0.5)"; ctx.lineWidth = 2; ctx.strokeRect(BOXRING.x + 16, BOXRING.y + 16, BOXRING.w - 32, BOXRING.h - 32);
+  ctx.font = "44px sans-serif"; ctx.fillStyle = "#7a8db5"; ctx.fillText("⚛", 1800, 916);
+  /* the ropes paint AFTER the corner circles (Jonathan 2026-11-01) — red outer, blue inner, same lines as ever, now unambiguously over the posts where they meet at the corners */
   ctx.lineWidth = 7; ctx.strokeStyle = "#d42a2a"; rr(BOXRING.x - 46, BOXRING.y - 46, BOXRING.w + 92, BOXRING.h + 92, 10); ctx.stroke();
   ctx.lineWidth = 7; ctx.strokeStyle = "#2a4fd4"; rr(BOXRING.x - 24, BOXRING.y - 24, BOXRING.w + 48, BOXRING.h + 48, 8); ctx.stroke();
   drawChairs(BOXSEATS);
@@ -8008,7 +8091,7 @@ function drawBoxingFx(t) {
   BOXSEATS.forEach((sp, i) => {
     const sd = st && st.seats && st.seats[i];
     const occ = sd && sd.pid && Date.now() - (sd.ts || 0) < 25000;
-    if (!occ && boxSeat < 0) {
+    if (!occ && boxSeat < 0 && !(st && st.mode === "pc" && st.phase !== "sit")) { /* no sit offer on either corner while a vs-CPU bout runs — the empty corner is the computer's (boxingSitAt refuses it too) */
       if (Math.hypot(me.x - sp.x, me.y - sp.y) < 190 || Math.hypot(me.x - 1800, me.y - 900) < 620)
         uiZones.push({ x: sp.x - 34, y: sp.y - 34, w: 68, h: 68, fn: () => boxingSitAt(i) });
     }
@@ -8023,7 +8106,7 @@ function drawBoxingFx(t) {
   if (st && (st.phase === "fight" || st.phase === "done")) {
     /* health bars INSIDE the ring's top corners, on the white canvas: left seat left, right seat right (Jonathan 2026-10-31) */
     const bar = (i, x, dir) => {
-      const hp = Math.max(0, (st.hp && st.hp[i]) || 0), nm = (st.seats && st.seats[i] && st.seats[i].name) || "—";
+      const hp = Math.max(0, (st.hp && st.hp[i]) || 0), nm = (st.mode === "pc" && i === boxCpuSeatOf(st)) ? BOXCPU_NAME : ((st.seats && st.seats[i] && st.seats[i].name) || "—"); /* the CPU's corner carries the dread's name — its seat record is empty by design */
       const bw = 350, by = BOXRING.y + 14; /* 350 wide so both bars fit the ring's 760 canvas side by side */
       ctx.fillStyle = "rgba(8,10,24,0.85)"; rr(x, by, bw, 40, 10); ctx.fill();
       ctx.strokeStyle = i === 0 ? "#d42a2a" : "#2a4fd4"; ctx.lineWidth = 2.5; rr(x, by, bw, 40, 10); ctx.stroke();
@@ -8041,7 +8124,7 @@ function drawBoxingFx(t) {
     }
     if (st.phase === "done") {
       ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#000000"; /* the winner text is BLACK (Jonathan 2026-10-31) — it sits on the ring's white floor like the health numbers and the punch hint */
-      const wnm = st.winner >= 0 && st.seats && st.seats[st.winner] ? st.seats[st.winner].name : null;
+      const wnm = st.winner >= 0 ? ((st.mode === "pc" && st.winner === boxCpuSeatOf(st)) ? BOXCPU_NAME : (st.seats && st.seats[st.winner] ? st.seats[st.winner].name : null)) : null; /* a CPU win names the dread, not a draw */
       ctx.fillText(wnm ? "🏆 " + wnm + " WINS!" : "🤝 DOUBLE KO — A DRAW!", 1800, 880);
       ctx.font = "700 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.85)";
       ctx.fillText("stay in your seats for the rematch", 1800, 920);
@@ -8074,7 +8157,9 @@ function drawBoxingFx(t) {
     const punchAge = st.punch ? (srvNow() - boxPunchFxTs) : 1e9;
     /* positions first, facing second (Jonathan 2026-10-31): a fighter's gloves and punches point at the OPPONENT's current position — never a fixed corner facing, never their own travel direction. Before this, the flip came from each fighter's presence/movement facing (and a per-seat default when unseen), so a fighter who ran left punched left even with the opponent on their right, and crossing past each other left both fighters punching at empty canvas. Both positions are resolved first, then each facing is chosen against the other's spot, so a cross flips both fighters on the very next frame */
     const boxPos = [null, null];
+    const cpuSeatFx = boxCpuSeatOf(st), cpuPosFx = cpuSeatFx >= 0 ? boxCpuVisPos() : null; /* the CPU's body for the glove pass: the host's simulation, or the eased record view — the same spot the actor pass draws its sprite */
     for (let i = 0; i < 2; i++) {
+      if (i === cpuSeatFx) { if (cpuPosFx) boxPos[i] = cpuPosFx; continue; } /* the CPU's seat record is empty (or a cleared sleeper's) — its position NEVER comes from a seat record */
       const sd = st.seats && st.seats[i]; if (!sd || !sd.pid) continue;
       let fx = null, fy = null;
       if (sd.pid === myId) { fx = me.x; fy = me.y; }
@@ -8083,7 +8168,8 @@ function drawBoxingFx(t) {
       if (fx !== null) boxPos[i] = { x: fx, y: fy };
     }
     for (let i = 0; i < 2; i++) {
-      const sd = st.seats && st.seats[i]; if (!sd || !sd.pid) continue;
+      const isCpuFx = i === cpuSeatFx;
+      const sd = st.seats && st.seats[i]; if (!isCpuFx && (!sd || !sd.pid)) continue;
       if (!boxPos[i]) continue;
       let fx = boxPos[i].x, fy = boxPos[i].y;
       const oppPos = boxPos[1 - i];
@@ -8097,7 +8183,7 @@ function drawBoxingFx(t) {
       const gL = boxGloveStamp[i + "L"], gR = boxGloveStamp[i + "R"];
       if (gL) ageL = srvNow() - gL;
       if (gR) ageR = srvNow() - gR;
-      if (sd.pid === myId) { const np = performance.now(); ageL = Math.min(ageL, np - myPunchAtL); ageR = Math.min(ageR, np - myPunchAtR); } /* my own glove answers to my local throw first, and to my punch record when it echoes back — whichever is fresher */
+      if (!isCpuFx && sd.pid === myId) { const np = performance.now(); ageL = Math.min(ageL, np - myPunchAtL); ageR = Math.min(ageR, np - myPunchAtR); } /* my own glove answers to my local throw first, and to my punch record when it echoes back — whichever is fresher */
       drawGloves(fx, fy, flip, ageL, ageR, i);
       if (st.punch && st.punch.by === (1 - i) && st.punch.hit && punchAge < 260) { /* the impact star on the fighter just hit: lands at 62px with a scale-pop, settles to 46px (was a flat 34px for 220ms) */
         const pop = 46 + 16 * Math.max(0, 1 - punchAge / 150);
@@ -8114,6 +8200,8 @@ function drawBoxingFx(t) {
       if (b0 !== b1) line = "⚠️ Bets must match — " + (ss[0].name || "RED") + " " + b0.toLocaleString("en-US") + " vs " + (ss[1].name || "BLUE") + " " + b1.toLocaleString("en-US");
       else if (ss[0].rdy && ss[1].rdy) line = "Both READY — the bell is about to ring!";
       else line = b0 > 0 ? "Bets matched at " + b0.toLocaleString("en-US") + " — both fighters tap READY to start" : "Both fighters must place a bet to start";
+    } else if (boxSeat >= 0 && ss[boxSeat]) { /* alone in my corner (the other end is empty or asleep): the CPU offers the bout — the pool hall's own words for the same offer */
+      line = (ss[boxSeat].bet || 0) > 0 ? "🤖 Bet down — tap READY to fight the CPU (the house covers its side), or wait for an opponent" : "Bet & tap READY — fight the CPU solo, or wait for an opponent";
     }
     ctx.fillText(line, 1800, 382); /* directly under the title (Jonathan 2026-10-31) */
     if (boxSeat >= 0) {
@@ -9712,10 +9800,12 @@ function frame(now) {
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
+  if (me.scene === "boxing") boxCpuFrame(dt); /* the CPU fighter's simulation runs here — on the HOST's screen only (boxCpuFrame itself refuses everywhere else): it moves, faces and punches the CPU, and publishes its body to the record for the room */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
     const os = boxState.seats && boxState.seats[1 - boxSeat];
     let ox = null;
-    if (os && os.pid) for (const p of peers.values()) if (p.id === os.pid && p.scene === "boxing") { ox = p.x; break; }
+    if (boxState.mode === "pc") { const cp = boxCpuSim && boxCpuSim.seat === 1 - boxSeat ? boxCpuSim : boxState.cpu; if (cp && typeof cp.x === "number") ox = cp.x; } /* vs the CPU there is no opponent presence to face — I face the CPU's body (my own simulation on my screen) */
+    if (ox === null && os && os.pid) for (const p of peers.values()) if (p.id === os.pid && p.scene === "boxing") { ox = p.x; break; }
     if (ox === null) ox = boxSeat === 0 ? BOXRING.x + BOXRING.w - 130 : BOXRING.x + 130;
     me.flip = ox >= me.x;
   }
@@ -9828,6 +9918,19 @@ function frame(now) {
   actors.push(me);
   if (me.scene === "club") actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the VIP door guard (PREVIEW): a fixed Q-Bot post at the club's left-wall door, drawn through the same actor pass as every player so he sorts and renders like one — he is this room's furniture, not a presence record, so he never counts as a person online */
   if (me.scene === "casino") actors.push({ id: "hrc-guard", x: CASINOROOM.w - 128, y: CASINODOORS_Y + 6, tx: CASINOROOM.w - 128, ty: CASINODOORS_Y + 6, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* the High Rollers door guard (Jonathan 2026-10-31): the club guard's twin at the casino's right-wall door — the same drawn Q-Bot figure (NOT the live NPC, who never moves for this), the same 128px-inset post mirrored beside his door, his carpet and ⭐ VIP lettering painted by drawCasino — with ONE difference: he faces the OTHER WAY (flip true; the club guard's is false). Room furniture like his twin: no presence record, never counted online, no speech bubble of his own */
+  if (me.scene === "boxing" && boxState && boxState.mode === "pc" && (boxState.phase === "fight" || boxState.phase === "done")) { /* the boxing CPU (Jonathan 2026-11-01): a synthetic actor like the guards — the dread dog tinted to its corner (seat 0 red, seat 1 blue), drawn through this same pass so he sorts and renders like a fighter. The HOST pushes its own simulation (no lag); every other screen eases boxCpuVis toward the record's cpu node at the peers' own rate. No presence record, never a person online */
+    const cs = boxCpuSeatOf(boxState), tgt = boxState.cpu;
+    if (cs >= 0 && tgt && typeof tgt.x === "number") {
+      let vx, vy, vflip;
+      if (boxCpuSim && boxSeat >= 0 && boxMyRec() && boxCpuSim.seat === cs) { vx = boxCpuSim.x; vy = boxCpuSim.y; vflip = boxCpuSim.flip; }
+      else {
+        if (boxCpuVis.round !== (boxState.roundId || "") || boxCpuVis.snap) { boxCpuVis.x = tgt.x; boxCpuVis.y = tgt.y; boxCpuVis.round = boxState.roundId || ""; boxCpuVis.snap = false; }
+        boxCpuVis.x += (tgt.x - boxCpuVis.x) * Math.min(1, dt * 9); boxCpuVis.y += (tgt.y - boxCpuVis.y) * Math.min(1, dt * 9);
+        vx = boxCpuVis.x; vy = boxCpuVis.y; vflip = !!tgt.flip;
+      }
+      actors.push({ id: "box-cpu", x: vx, y: vy, tx: vx, ty: vy, hero: BOXCPU_HERO, name: BOXCPU_NAME, flip: vflip, bob: 0, run: false, chat: "", chatId: 0, tint: cs === 0 ? "#d42a2a" : "#2a4fd4" }); /* the tint is the corner's own colour — the same red/blue the gloves and health bars wear */
+    }
+  }
   actors.sort((a, b) => a.y - b.y);
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* sprint dust puffs, kicked up at my feet, drawn under the sprites */
@@ -9862,7 +9965,7 @@ function frame(now) {
     }
     const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999); /* Q-Bot's bubble ages from when this screen received his answer (his timestamps come from the server's clock), so it lasts the same 5s as a player's own bubble */
     if (me.scene === "gym") { const ci2 = courtAt(a.x, a.y); if (ci2) { const sd = a.x < ci2.r.x + ci2.r.w / 2 ? "A" : "B"; ctx.beginPath(); ctx.ellipse(a.x, a.y + 26, 30, 10, 0, 0, 7); ctx.strokeStyle = sd === "A" ? "rgba(56,225,255,0.9)" : "rgba(255,93,143,0.9)"; ctx.lineWidth = 3.5; ctx.stroke(); } }
-    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g);
+    drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g, a.tint);
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now)); /* a DJ standing behind the booth: repaint the counter over their lower body so their head pokes up behind it. Actors are y-sorted, so anyone in FRONT of the booth has a larger y and is drawn after this — they paint over the booth as normal. Applies to my sprite and to remote players alike (a.x/a.y are the smoothed positions everyone sees) */
     const aSub = me.scene === "plaza" ? poolSubmersion(a.x, a.y, a.hero) : null;
     if (aSub && heroImgFor(a.hero, a.g)) { /* wading (PREVIEW): the sprite's lower half wears the water — a translucent band over exactly the submerged half (poolSubmersion), with the bright waterline ring sitting on the band's own top edge, the halfway cut. A sprite short of the edge thresholds paints nothing (Jonathan 2026-10-30) */
