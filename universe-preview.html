@@ -184,6 +184,34 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #storemsg{min-height:20px;color:#ffd76a;font-weight:700;font-size:14px;margin-top:10px;text-align:center}
 #storeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #jukeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
+#monbtn{position:absolute;left:18px;bottom:202px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none} /* the M button (PREVIEW): above the move stick, aligned LEFT, the run button's exact size — it exists only while a follower pick is set */
+#monbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
+#moncoll,#monpen{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like every other menu (Jonathan 2026-11-01); z 45 puts the collection over the gate it opens from */
+.monpanel{background:var(--panel);border:2px solid rgba(74,222,128,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(74,222,128,.28)}
+.monpanel h2{margin:0 0 2px;font-size:21px;color:#4ade80;text-align:center}
+.monbal{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
+.monlist{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px;overscroll-behavior:none}
+.monrow{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid rgba(74,222,128,.25);border-radius:12px;padding:7px 9px;font-size:14.5px}
+.monrow .monnm{flex:1;font-weight:700;font-size:14.5px;color:#fff;min-width:0}
+.monslot{flex:none;width:62px;height:62px;border-radius:10px;border:2px solid rgba(255,255,255,.14);background:rgba(5,10,24,.6);padding:2px;cursor:pointer;font-family:inherit}
+.monslot img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.monslot.sil{cursor:default}
+.monslot.sil img{filter:brightness(0);opacity:.8} /* an unowned stage is a BLACK SILHOUETTE — its sprite shows nowhere in colour until it is owned */
+.monslot.sel{border-color:var(--gold);box-shadow:0 0 12px rgba(255,215,106,.55);background:rgba(255,215,106,.10)}
+.monmsg{min-height:20px;color:#ffd76a;font-weight:700;font-size:14px;margin-top:10px;text-align:center}
+.monclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
+.monevo{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);border:1px solid rgba(74,222,128,.25);border-radius:12px;padding:8px 10px}
+.monevo img{width:56px;height:56px;object-fit:contain;flex:none}
+.monevo img.sil{filter:brightness(0);opacity:.8} /* the evolution's next stage: silhouette ONLY until the evolution is bought */
+.monevo .evonm{flex:1;font-weight:700;font-size:14.5px;color:#fff;min-width:0}
+.monevo .evonm small{display:block;color:#9fd8ea;font-weight:400;font-size:12.5px;margin-top:2px}
+.evobtn{flex:none;background:linear-gradient(135deg,#4ade80,#16a34a);border:none;color:#06280f;font-weight:800;border-radius:999px;padding:10px 16px;font-size:14px;cursor:pointer;font-family:inherit}
+.evobtn:active{transform:scale(.96)}
+#evooverlay{position:fixed;inset:0;background:rgba(2,6,18,.88);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:70}
+#evoimg{width:min(46vh,72vw);height:min(46vh,72vw);object-fit:contain}
+#evotext{margin-top:18px;font-size:26px;font-weight:800;color:#fff;text-align:center;text-shadow:0 2px 14px rgba(74,222,128,.8);padding:0 12px}
+#evospark{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#evospark span{position:absolute;font-size:24px;color:#ffd76a}
 </style>
 </head>
 <body>
@@ -202,6 +230,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <div id="joy"><div id="joystick"></div></div>
   <div id="runbtn">RUN</div>
   <div id="tbtn">T</div>
+  <div id="monbtn">M</div>
   <div id="punchl">L</div>
   <div id="punchr">R</div>
   <button id="prompt"></button>
@@ -293,6 +322,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
         <div class="acctrow">
           <button id="acctsignout" type="button">Sign out</button>
         </div>
+        <div class="acctrow" style="margin-top:8px">
+          <button id="moncollbtn" type="button">🐾 Monster Collection</button>
+        </div>
       </div>
       <div id="acctmsg"></div>
     </div>
@@ -302,6 +334,21 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <button class="enterbtn" id="enterbtn" disabled>Enter the Inuverse</button>
   <button id="cancelbtn">Cancel</button>
 </div>
+<div id="moncoll"><div class="monpanel">
+  <h2>🐾 Monster Collection</h2>
+  <p class="monbal" id="moncollbal"></p>
+  <div class="monlist" id="moncolllist"></div>
+  <p class="monmsg" id="moncollmsg"></p>
+  <button class="monclose" id="moncollclose" type="button">Close</button>
+</div></div>
+<div id="monpen"><div class="monpanel">
+  <h2>🏋️ Training Pen — Q-Bot</h2>
+  <p class="monbal" id="monpenbal"></p>
+  <div class="monlist" id="monpenlist"></div>
+  <p class="monmsg" id="monpenmsg"></p>
+  <button class="monclose" id="monpenclose" type="button">Close</button>
+</div></div>
+<div id="evooverlay"><div id="evospark"></div><img id="evoimg" alt=""><div id="evotext"></div></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -717,8 +764,8 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : (v.hero === ROBO_MECH_HERO || p.hero === ROBO_MECH_HERO) ? "red" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech, GOLD when it involves Dj Ken's gentleman mech, RED again when it involves the owner's dome mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
-      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : (v.hero === ROBO_MECH_HERO || p.hero === ROBO_MECH_HERO) ? "red" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech, GOLD when it involves Dj Ken's gentleman mech, RED again when it involves the owner's dome mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     onlineEl.textContent = "👥 " + onlineRoster().length + " online"; if (typeof renderOnlineList === "function") renderOnlineList();
@@ -728,7 +775,7 @@ let lastPub = 0, lastPubKey = "";
 function publish(force) {
   if (!db || !entered) return;
   const now = performance.now();
-  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : ""].join("|");
+  const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : "", (typeof monOut !== "undefined" && monOut && myMonSel) ? myMonSel : ""].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000) return;
   if (!force && now - lastPub < 180 && key === lastPubKey) return;
   lastPub = now; lastPubKey = key;
@@ -736,6 +783,7 @@ function publish(force) {
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
   const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77, and Dj Ken's gentleman mech as 79, and the owner's dome mech as 81 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
+  if (typeof monOut !== "undefined" && monOut && myMonSel) rec.mon = myMonSel; /* the monster follower (PREVIEW, Jonathan 2026-11-02): the rules now accept this ONE optional field — it is present only while a monster is out, as "<line>-<stage>", and never otherwise; NO other field may ever be added here */
   myRef.set(rec).catch(() => {});
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
@@ -1530,13 +1578,14 @@ const STAGE_WALLS = [
 ];
 const booths = [];
 [600, 880, 1160, 1440].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); }); /* the booth columns ride DOWN the walls as one arrangement (Jonathan 2026-11-01): both side columns shifted 80 lower together (rows were 520/800/1080), and the pair that used to sit inset by the entrance (420,1470) and (CLUBROOM.w-630,1470) now form each column's FOURTH row — aligned with its column at x 56 / CLUBROOM.w-266, one row-pitch (280) below the last row, so the whole pattern keeps the rows' own spacing (190 booth + 90 gap) all the way down, the last gap landing 90 above the floor edge. Nothing else in the club moved */
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : me.scene === "rooftop" ? ROOFROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : me.scene === "rooftop" ? ROOFROOM : me.scene === "monstershop" ? MSROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B]; /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
+  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B, MON_B]; /* MON_B: the Monster Shop, below the club across the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
   if (me.scene === "bowling") return [...BOWLLANES]; /* the four lanes are solid in their room, exactly as the pool tables are in theirs */
+  if (me.scene === "monstershop") return [...MONCASES, ...MONPEN]; /* the thirty glass cases and the training pen's fence loop are solid in their hall */
   if (me.scene === "rooftop") return [ROOFBAR_L, ROOFBAR_R, ROOFDJFRONT]; /* the rooftop's solids are the club's own recipe (Jonathan 2026-11-01): the two bar counters and the DJ booth's front slab — the pool stays open water walked through (the plaza pool's rule), and the booths and the railing are walk-over decor, exactly as the club's booths are */
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
@@ -1559,6 +1608,7 @@ function collide(nx, ny) {
     if (nx > SPDDOOR.x - 6 && nx < SPDDOOR.x + SPDDOOR.w + 6 && ny > SPD_B.y + SPD_B.h - 14 && ny < SPD_B.y + SPD_B.h + 46) return { x: nx, y: ny, spddoor: true };
     if (nx > HRDOOR.x - 6 && nx < HRDOOR.x + HRDOOR.w + 6 && ny > HR_B.y + HR_B.h - 14 && ny < HR_B.y + HR_B.h + 46) return { x: nx, y: ny, hrdoor: true };
     if (nx > BOWLDOOR.x - 6 && nx < BOWLDOOR.x + BOWLDOOR.w + 6 && ny > BOWL_B.y + BOWL_B.h - 14 && ny < BOWL_B.y + BOWL_B.h + 46) return { x: nx, y: ny, bowldoor: true }; /* Quantum Bowling's door, on its BOTTOM face like every other plaza building's (moved there at Jonathan's word, 2026-11-01) — the gym door's check, word for word */
+    if (nx > MONDOOR.x - 6 && nx < MONDOOR.x + MONDOOR.w + 6 && ny > MON_B.y + MON_B.h - 14 && ny < MON_B.y + MON_B.h + 46) return { x: nx, y: ny, mondoor: true }; /* the Monster Shop's door, on its BOTTOM face below the club — the gym door's check, word for word */
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
@@ -1582,6 +1632,9 @@ function collide(nx, ny) {
   } else if (me.scene === "bowling") {
     if (nx > BOWLEXIT.x - 4 && nx < BOWLEXIT.x + BOWLEXIT.w + 4 && ny > BOWLROOM.h - 76) return { x: nx, y: ny, bowlexit: true }; /* the exit plate at the south wall — the gym exit's check, word for word */
     nx = Math.max(56, Math.min(BOWLROOM.w - 56, nx)); ny = Math.max(70, Math.min(BOWLROOM.h - 46, ny));
+  } else if (me.scene === "monstershop") {
+    if (nx > MSEXIT.x - 4 && nx < MSEXIT.x + MSEXIT.w + 4 && ny > MSROOM.h - 76) return { x: nx, y: ny, monshopexit: true }; /* the exit plate at the south wall — the bowling exit's check, word for word */
+    nx = Math.max(56, Math.min(MSROOM.w - 56, nx)); ny = Math.max(70, Math.min(MSROOM.h - 46, ny));
   } else if (me.scene === "rooftop") {
     if (nx < 66 && Math.abs(ny - ROOFDOOR.y) < ROOFDOOR.half) return { x: nx, y: ny, roofback: true }; /* the return door in the west wall, at the club door's own height — the theatre door's check, mirrored */
     nx = Math.max(56, Math.min(ROOFROOM.w - 56, nx)); ny = Math.max(70, Math.min(ROOFROOM.h - 46, ny));
@@ -1926,6 +1979,7 @@ function initAuth() {
     if (!u) {
       acctLoaded = false;
       loadStoreFromAccount(null); /* signed out: the store forgets the account's tier and backgrounds with everything else */
+      loadMonstersFromAccount(null); /* signed out: the monster collection is forgotten with the rest of the account */
       resetSessionLog(); /* signed out: the session chat log dies with the session — the next sign-in starts with a blank log (Jonathan 2026-11-01) */
       if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
       stopTransfers();
@@ -1957,6 +2011,7 @@ function initAuth() {
           checkEnter(); drawChips();
           acctLoaded = true;
           loadStoreFromAccount(d); /* the store's slice of the account doc (autoTier, slotBg, slotBgs) loads with the rest of the profile */
+          loadMonstersFromAccount(d); /* the collection's slice of the account doc (mons, monsel) loads the same way */
           if (pk.local) acctSave(); /* the account had no amount yet (legacy record) — the local figure becomes its starting amount, once */
           claimSession(); watchChips(); watchTransfers();
         } else if (!d) { acctLoaded = true; acctSave(); claimSession(); watchChips(); watchTransfers(); } /* first sign-in on this account: push this device's profile up as the starting point */
@@ -4760,7 +4815,7 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 /* ============ online list ============ */
 /* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot is excluded (Jonathan: "Exclude the bots") — neither of his presence records (plaza or Watchtower HQ) is listed or counted, so the roster and the Online button count people only and always agree. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
 const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "vip", "hq", "casino", "gym", "speedway", "track"];
-const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena", bowling: "Quantum Bowling", rooftop: "The Rooftop" };
+const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena", bowling: "Quantum Bowling", rooftop: "The Rooftop", monstershop: "Monster Shop" };
 let onlineSig = "";
 function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
@@ -5232,6 +5287,482 @@ function nearestCabinet() {
 function playCabinet(c) { sfxChime(); window.open("games/" + c.file, "_blank"); }
 let promptAction = null;
 promptBtn.onclick = () => { if (promptAction) promptAction(); };
+/* ============ the MONSTER SHOP (PREVIEW, Jonathan 2026-11-02) ============
+   A new plaza building SOUTH of Club Quantum, across the bottom walkway on
+   the west lawn: a giant shopping-center hall (4400x2800) holding all 30
+   monster lines in glass display cases — 3 aisles of 10 — each monster
+   standing in its own little living environment inside its case. Base forms
+   are bought by walking up to a case (500,000,000; the owner account buys
+   free but is recorded, the bg store's rule). Evolutions happen at the
+   TRAINING PEN at the hall's far (north) end, where Q-Bot charges
+   1,000,000,000 (stage 1→2) and 2,000,000,000 (stage 2→3) and plays a
+   Pokémon-style evolution animation — and the next stage is a BLACK
+   SILHOUETTE everywhere until it is owned (the pen panel, the collection:
+   no colour preview of an unowned stage anywhere, hard rule). Ownership
+   lives on the account doc (hub/users/<uid>: mons = {line: highest stage
+   owned}, monsel = "<line>-<stage>") — that doc takes new fields, unlike
+   the presence record, which only gains the optional "mon" the rules now
+   accept, present solely while a monster is out. The collection opens from
+   the wide Monster Collection button under the account box in the gate;
+   the M button (above the move stick, aligned left, the run button's size)
+   sends the picked monster out to follow its owner — every player in the
+   room sees it, off the presence mon field. */
+const MON_LINES = ["ember", "sprout", "bubble", "pebble", "wisp", "bat", "shroom", "shard", "volt", "frost", "magma", "crab", "owl", "frog", "turtle", "octo", "pony", "panda", "hedge", "drake", "phoenix", "shark", "jelly", "robot", "dino", "axo", "raven", "stag", "boar", "cham"]; /* the fixed order — the cases, the collection rows and the silhouettes all follow it */
+function monName(l) { return l.charAt(0).toUpperCase() + l.slice(1); } /* display names are just the capitalized line names — no invented stage names; stages are "Stage 2" / "Stage 3" */
+const MON_BASE_PRICE = 500000000;
+const MON_EVO_PRICES = [0, 1000000000, 2000000000]; /* indexed by CURRENT stage: evolving from stage 1 costs 1,000,000,000, from stage 2 costs 2,000,000,000 */
+const MON_B = { x: 140, y: 1700, w: 560, h: 320 }; /* the plaza building: below the club, south of the bottom walkway (1480..1640) on the open west lawn — door on the bottom face like every other plaza building's */
+const MONDOOR = { x: 375, y: 1980, w: 90, h: 34 }; /* on the bottom face, centred on x 420 — the gym door's own shape (its plate on the bottom-40 line, door 90x34) */
+const MSROOM = { w: 4400, h: 2800 }; /* the hall itself: three aisles of cases, the training pen at the far (north) end, the entrance hall at the south */
+const MSEXIT = { x: MSROOM.w / 2 - 62, y: MSROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — BOWLEXIT's shape */
+const MONCASES = MON_LINES.map((line, i) => ({ line, x: 250 + (i % 10) * 402, y: 600 + Math.floor(i / 10) * 650, w: 300, h: 350 })); /* 3 aisles of 10 glass cases; a case's rect IS its obstacle (obstacles()) — you stand at its front (south) face to buy */
+const MONPEN = [{ x: 1650, y: 150, w: 1100, h: 14 }, { x: 1650, y: 416, w: 1100, h: 14 }, { x: 1650, y: 150, w: 14, h: 280 }, { x: 2736, y: 150, w: 14, h: 280 }]; /* the training pen's fence loop at the hall's north end — closed, like the horse track's fence: training happens from outside it, at Q-Bot's post */
+const MONQBOT = { x: 2200, y: 505 }; /* Q-Bot's post: south of the pen, in the gap between the first aisle's middle cases */
+const MON_HABITAT = { bubble: "water", crab: "water", octo: "water", jelly: "water", shark: "water", turtle: "water", frog: "water", frost: "snow", magma: "lava", ember: "lava", phoenix: "lava", sprout: "forest", shroom: "forest", stag: "forest", hedge: "forest", owl: "forest", bat: "night", raven: "night", pony: "meadow", boar: "meadow", panda: "meadow", axo: "meadow", shard: "crystal", volt: "storm", pebble: "rock", wisp: "mist", robot: "gears", drake: "jungle", dino: "jungle", cham: "jungle" }; /* each case's little living environment */
+const MON_HAB_STYLE = { water: { sky: ["#0d4066", "#062544"], flr: "#0e5a86" }, snow: { sky: ["#cfeefb", "#84b9da"], flr: "#f2faff" }, lava: { sky: ["#2c0e06", "#170503"], flr: "#200b06" }, forest: { sky: ["#14391f", "#081d0e"], flr: "#17522c" }, night: { sky: ["#150f38", "#070518"], flr: "#1e1545" }, meadow: { sky: ["#1e4d27", "#0f2c16"], flr: "#207038" }, crystal: { sky: ["#1e1547", "#0c0820"], flr: "#271c52" }, storm: { sky: ["#36435f", "#1b2438"], flr: "#25324a" }, rock: { sky: ["#3b3330", "#201a17"], flr: "#2e2521" }, mist: { sky: ["#5f7182", "#33424e"], flr: "#3f505d" }, gears: { sky: ["#2d3138", "#17191d"], flr: "#23262c" }, jungle: { sky: ["#0e3613", "#051a08"], flr: "#11451f" } };
+let myMons = {}; /* my collection: line -> highest stage owned (1..3), loaded from the account doc at sign-in */
+let myMonSel = ""; /* my follower pick: "<line>-<stage>", "" = none — saved on the account doc as monsel */
+let monOut = false; /* session-only: whether my monster is currently out following me (its pick rides my presence as mon) */
+let monFol = { key: "", x: 0, y: 0 }; /* my follower's eased position on my own screen — keyed by pick + scene, so a change snaps it to my side */
+let monNote = "", monNoteAt = 0; /* the buy/evolve note over my head inside the hall — bowlNote's pattern */
+let evoLock = false; /* true while MY evolution animation owns the screen: frame() plants my feet for its length */
+let evoAnim = null; /* the running evolution {line, from, to, t0, swapped, burst} */
+const monImgs = {}; /* the lazy sprite cache, keyed "<line>-<stage>" — slotBgImg's pattern */
+function monImgSrc(line, stage) { return "assets/monsters/" + line + "-" + stage + ".webp"; }
+function monImg(line, stage) { const k = line + "-" + stage; let im = monImgs[k]; if (!im) { im = new Image(); im.src = monImgSrc(line, stage); monImgs[k] = im; } return im; }
+function monParse(s) { if (typeof s !== "string") return null; const m = /^([a-z]+)-([123])$/.exec(s); if (!m || MON_LINES.indexOf(m[1]) < 0) return null; return { line: m[1], stage: Number(m[2]) }; } /* a presence mon / saved monsel only ever resolves to a real line at a real stage */
+function monSay(txt) { monNote = txt; monNoteAt = performance.now(); }
+function acctMonSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ mons: myMons, monsel: myMonSel, ts: Date.now() }); } catch (e) {} } /* update, not set — acctStoreSave's own rule: the session claim and the chips fields under this record are not this function's to rewrite */
+function loadMonstersFromAccount(d) { /* sign-in (and sign-out, with null): the collection's slice of the account doc lands in the session vars, in the store loader's shape */
+  myMons = {};
+  if (d && d.mons && typeof d.mons === "object") for (const l of MON_LINES) { const s = Math.floor(Number(d.mons[l]) || 0); if (s >= 1) myMons[l] = Math.min(3, s); }
+  myMonSel = "";
+  const sel = d && typeof d.monsel === "string" ? monParse(d.monsel) : null;
+  if (sel && (myMons[sel.line] || 0) >= sel.stage) myMonSel = d.monsel; /* a saved pick only stands while that stage is still owned */
+  monOut = false; /* a monster never starts out — the M button sends it out, each visit */
+}
+function monNearCase() { if (me.scene !== "monstershop") return -1; let best = -1, bd = 1e18; MONCASES.forEach((c, i) => { const d = Math.hypot(me.x - (c.x + c.w / 2), me.y - (c.y + c.h + 42)); if (d < bd) { bd = d; best = i; } }); return bd < 175 ? best : -1; } /* standing at a case's FRONT (its south face, where its plaque reads) — the buy prompt's spot */
+function monNearQBot() { return me.scene === "monstershop" && Math.hypot(me.x - MONQBOT.x, me.y - MONQBOT.y) < 180; }
+function monBuyBase(line) { /* the walk-up purchase — doBuySlotBg's shape exactly: guests are refused, the owner is never charged but is recorded identically, everyone else pays through pullChips + a balance check + addChips, so a buy can only ever lower a balance */
+  if (myMons[line]) return;
+  if (!acctUser) { monSay("🔒 Buying takes an account — guests can look."); sfxBad(); return; }
+  if (!isOwnerAcct()) {
+    pullChips();
+    if (!profile || (profile.chips || 0) < MON_BASE_PRICE) { monSay("Not enough chips — " + monName(line) + " costs 🪙 " + MON_BASE_PRICE.toLocaleString("en-US") + "."); sfxBad(); return; }
+    addChips(-MON_BASE_PRICE);
+  }
+  myMons[line] = 1; acctMonSave();
+  monSay("✅ " + monName(line) + " is yours! Find it in your Monster Collection.");
+  sfxMonChing(); /* the register confirms the buy — the owner's free buy rings it too, recorded like a paid one */
+}
+function toMonsterShop() { stopAllTones(); me.scene = "monstershop"; voiceReset(); me.x = MSROOM.w / 2; me.y = MSROOM.h - 170; sfxChime(); publish(true); pullChips(); MON_LINES.forEach(l => { monImg(l, 1); monImg(l, 2); monImg(l, 3); }); } /* in through the bottom-face door, landing inside by the exit plate at the south wall — the bowling entry's pattern; the visit preloads all 90 sprites so the cases, the pen and the collection never pop in */
+function toPlazaFromMonsterShop() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 420; me.y = MON_B.y + MON_B.h + 60; sfxChime(); publish(true); } /* back out below the door, on the building's own centre line (420) — bottom + 60, every other building's exit landing, clear of the door trigger's south edge */
+/* ---- the COLLECTION panel: 30 rows in the fixed line order, three stage slots a row — owned stages in colour, unowned stages BLACK SILHOUETTES; tapping an owned slot makes it the follower pick (tapping the pick again clears it) ---- */
+function monCollMsg(t) { const m = $("moncollmsg"); if (m) m.textContent = t || ""; }
+function renderMonColl() {
+  const list = $("moncolllist"); if (!list) return;
+  list.innerHTML = "";
+  const bal = $("moncollbal"); if (bal) bal.textContent = acctUser ? ("🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 0).toLocaleString("en-US") + " — tap an owned monster to make it your follower pick") : "🔒 The collection lives on an account — sign in to collect";
+  for (const line of MON_LINES) {
+    const owned = myMons[line] || 0;
+    const row = document.createElement("div"); row.className = "monrow";
+    const nm = document.createElement("div"); nm.className = "monnm"; nm.textContent = monName(line); row.appendChild(nm);
+    for (let s = 1; s <= 3; s++) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "monslot";
+      const im = document.createElement("img"); im.src = monImgSrc(line, s); im.alt = monName(line) + " stage " + s; b.appendChild(im);
+      if (s <= owned) {
+        if (myMonSel === line + "-" + s) b.classList.add("sel");
+        b.title = "Stage " + s + (myMonSel === line + "-" + s ? " — your follower pick (tap to clear)" : " — tap to make it your follower pick");
+        b.onclick = () => { myMonSel = myMonSel === line + "-" + s ? "" : line + "-" + s; if (!myMonSel) monOut = false; acctMonSave(); publish(true); monCollMsg(myMonSel ? "🐾 " + monName(line) + " (Stage " + s + ") is your pick — the M button sends it out." : "Pick cleared."); sfxClick(); renderMonColl(); };
+      } else { b.classList.add("sil"); b.disabled = true; b.title = "Stage " + s + " — not owned yet"; } /* silhouette: the shape shows, the colours never do */
+      row.appendChild(b);
+    }
+    list.appendChild(row);
+  }
+}
+function openMonColl() { closeChatLog(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
+function closeMonColl() { $("moncoll").style.display = "none"; sfxClick(); }
+/* ---- the TRAINING PEN panel (Q-Bot's prompt inside the hall): every owned monster that can still evolve — its current stage in colour, its NEXT stage as a BLACK SILHOUETTE only, the evolution's price, and its Evolve button ---- */
+function monPenMsg(t) { const m = $("monpenmsg"); if (m) m.textContent = t || ""; }
+function renderMonPen() {
+  const list = $("monpenlist"); if (!list) return;
+  list.innerHTML = "";
+  const bal = $("monpenbal"); if (bal) bal.textContent = acctUser ? ("🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 0).toLocaleString("en-US")) : "🔒 Training takes an account";
+  let any = false;
+  for (const line of MON_LINES) {
+    const st = myMons[line] || 0;
+    if (st < 1 || st > 2) continue;
+    any = true;
+    const price = MON_EVO_PRICES[st];
+    const row = document.createElement("div"); row.className = "monevo";
+    const cur = document.createElement("img"); cur.src = monImgSrc(line, st); cur.alt = monName(line) + " stage " + st; row.appendChild(cur);
+    const nm = document.createElement("div"); nm.className = "evonm"; nm.textContent = monName(line) + " — Stage " + st + " → Stage " + (st + 1);
+    const sub = document.createElement("small"); sub.textContent = "Evolution " + st + " — " + (isOwnerAcct() ? "FREE for your account" : "🪙 " + price.toLocaleString("en-US")); nm.appendChild(sub); row.appendChild(nm);
+    const nx = document.createElement("img"); nx.className = "sil"; nx.src = monImgSrc(line, st + 1); nx.alt = "???"; row.appendChild(nx); /* the next stage: SILHOUETTE ONLY — evolving is the reveal */
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "evobtn"; btn.textContent = "Evolve";
+    btn.onclick = () => doEvolve(line);
+    row.appendChild(btn);
+    list.appendChild(row);
+  }
+  if (!any) { const d = document.createElement("div"); d.className = "monrow"; d.textContent = MON_LINES.some(l => myMons[l]) ? "All your monsters are fully evolved. 🏆" : "You don't own any monsters yet — buy a base form from the cases first."; list.appendChild(d); }
+}
+function openMonPen() { closeChatLog(); renderMonPen(); monPenMsg(""); $("monpen").style.display = "flex"; sfxClick(); }
+function closeMonPen() { $("monpen").style.display = "none"; sfxClick(); }
+function doEvolve(line) { /* the pen purchase — the store's rails again: the charge lands first (the owner free, recorded identically), the panel closes, THEN the animation plays; the new stage itself lands when the animation ends (endEvoAnim) */
+  const st = myMons[line] || 0;
+  if (!acctUser || st < 1 || st > 2 || evoAnim) return;
+  const price = MON_EVO_PRICES[st];
+  if (!isOwnerAcct()) {
+    pullChips();
+    if (!profile || (profile.chips || 0) < price) { monPenMsg("Not enough chips — Evolution " + st + " costs 🪙 " + price.toLocaleString("en-US") + "."); sfxBad(); return; }
+    addChips(-price);
+  }
+  closeMonPen();
+  sfxMonChing(); /* the register confirms the evolution payment — then the show starts */
+  startEvoAnim(line, st, st + 1);
+}
+/* ---- the EVOLUTION ANIMATION (Pokémon-style, the local player's own show): the current stage shakes and flashes white, faster and faster; morphs into the next stage's black silhouette; then bursts into full colour with sparkles and the "X evolved!" line — sounded throughout: a rising jingle climbs through the shake and morph, and a sparkle burst + triumphant sting lands on the reveal. Input is locked (evoLock) until it ends — and only then does the new stage land on the account ---- */
+/* ---- the feature's sounds (all synthesized through the page's own tone/noiseBurst, so the global mute and the room volumes govern them exactly like every other hub sound — no audio files) ---- */
+function sfxMonChing() { noiseBurst(0.07, "highpass", 3000, 3000, 0.05); tone(1568, 1568, 0.07, "square", 0.045, 0.02); tone(2093, 2093, 0.16, "square", 0.045, 0.08); tone(2637, 2637, 0.22, "sine", 0.05, 0.15); } /* the cash register: a drawer snap, the two rising coin tones, the bell — a base-form buy and an evolution payment both land with it; a refused buy gets the hub's dull sfxBad buzz instead */
+function sfxEvoRise() { /* the RISING evolution jingle, played across the shake and morph phases (~3.3s): a climbing scale whose steps quicken and rise as the change builds — every note scheduled through tone's own when offset */
+  const seq = [392, 440, 494, 523, 587, 659, 587, 659, 784, 659, 784, 880, 988, 880, 988, 1047, 1175, 1319];
+  let w = 0;
+  seq.forEach((f, i) => { tone(f, f, 0.16, "triangle", 0.05, w); w += Math.max(0.09, 0.24 - i * 0.009); });
+}
+function sfxEvoReveal() { /* the reveal: a sparkle burst (a high twinkling noise wash + star pings) under a short triumphant sting, landing with the colour burst */
+  noiseBurst(0.35, "highpass", 5200, 7800, 0.05);
+  [2637, 3136, 3520].forEach((f, i) => tone(f, f, 0.12, "sine", 0.035, 0.03 + i * 0.05));
+  [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.16, "triangle", 0.06, 0.05 + i * 0.08));
+  tone(1319, 1319, 0.4, "sine", 0.055, 0.4); tone(1568, 1568, 0.4, "sine", 0.04, 0.4);
+}
+function sfxMonSummon(out) { if (out) { noiseBurst(0.16, "bandpass", 500, 2400, 0.09); tone(300, 720, 0.14, "sine", 0.06, 0.01); tone(1180, 1180, 0.1, "sine", 0.04, 0.1); } else { noiseBurst(0.12, "bandpass", 1800, 600, 0.05); tone(640, 320, 0.11, "sine", 0.04); } } /* the M button: OUT is a rising whoosh-pop as the monster comes out; back IN is the same pop played down, softer */
+function spawnEvoSparkles() {
+  const sp = $("evospark"); if (!sp) return;
+  sp.innerHTML = "";
+  for (let i = 0; i < 16; i++) {
+    const s = document.createElement("span"); s.textContent = i % 3 ? "✦" : "✧";
+    s.style.left = "50%"; s.style.top = "46%";
+    sp.appendChild(s);
+    const ang = (i / 16) * Math.PI * 2 + Math.random() * 0.4, dist = 130 + Math.random() * 170;
+    if (s.animate) s.animate([{ transform: "translate(-50%,-50%) scale(0.4)", opacity: 1 }, { transform: "translate(" + (Math.cos(ang) * dist - 12) + "px," + (Math.sin(ang) * dist - 12) + "px) scale(1.3)", opacity: 0 }], { duration: 950 + Math.random() * 500, easing: "cubic-bezier(.17,.67,.35,1)" });
+  }
+}
+function startEvoAnim(line, from, to) {
+  evoAnim = { line, from, to, t0: performance.now(), swapped: false, burst: false };
+  evoLock = true;
+  const im = $("evoimg"); im.src = monImgSrc(line, from); im.style.filter = ""; im.style.transform = "";
+  $("evotext").textContent = "";
+  const sp = $("evospark"); if (sp) sp.innerHTML = "";
+  $("evooverlay").style.display = "flex";
+  sfxEvoRise(); /* the rising jingle starts with the shake and climbs through the morph */
+  requestAnimationFrame(evoAnimTick);
+}
+function evoAnimTick() {
+  if (!evoAnim) return;
+  const a = evoAnim, el = performance.now() - a.t0, im = $("evoimg");
+  if (el < 2400) { /* the shake: the sprite flashes between itself and its white silhouette, the flashes speeding up as the change builds */
+    const p = el / 2400;
+    const jx = (Math.random() - 0.5) * (4 + p * 16), jy = (Math.random() - 0.5) * (4 + p * 10);
+    const white = Math.floor(el / Math.max(55, 270 - p * 215)) % 2 === 0;
+    im.style.filter = white ? "brightness(0) invert(1)" : "";
+    im.style.transform = "translate(" + jx.toFixed(1) + "px," + jy.toFixed(1) + "px)";
+    requestAnimationFrame(evoAnimTick);
+  } else if (el < 3300) { /* the morph: the NEXT stage at last — still a black silhouette, swelling into its new shape */
+    if (!a.swapped) { a.swapped = true; im.src = monImgSrc(a.line, a.to); }
+    const p = (el - 2400) / 900;
+    im.style.filter = "brightness(0)";
+    im.style.transform = "scale(" + (1 + p * 0.18).toFixed(3) + ")";
+    requestAnimationFrame(evoAnimTick);
+  } else if (el < 5600) { /* the burst: full colour, sparkles, the line and the jingle — once */
+    if (!a.burst) { a.burst = true; im.style.filter = ""; im.style.transform = "scale(1.18)"; $("evotext").textContent = "🎉 " + monName(a.line) + " evolved!"; spawnEvoSparkles(); sfxEvoReveal(); }
+    requestAnimationFrame(evoAnimTick);
+  } else endEvoAnim();
+}
+function endEvoAnim() {
+  if (!evoAnim) return;
+  const a = evoAnim; evoAnim = null; evoLock = false;
+  $("evooverlay").style.display = "none";
+  myMons[a.line] = a.to; /* the new stage lands NOW — after the show, in the spec's order */
+  if (myMonSel === a.line + "-" + a.from) myMonSel = a.line + "-" + a.to; /* a picked monster evolves with you: the pick — and with it the presence mon and the follower — moves up to the new stage */
+  acctMonSave(); publish(true);
+  monSay("🎉 " + monName(a.line) + " evolved to Stage " + a.to + "!");
+}
+/* ---- the M button: above the move stick, aligned left, the run button's size — it exists only while a follower pick is set, and toggles the monster out/in (the T button's sync pattern) ---- */
+const monBtnEl = $("monbtn");
+function syncMonBtn() { const show = entered && !!myMonSel && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (monBtnEl.style.display !== want) monBtnEl.style.display = want; monBtnEl.classList.toggle("on", show && monOut); }
+monBtnEl.addEventListener("pointerdown", e => { e.preventDefault(); if (!myMonSel) return; monOut = !monOut; sfxMonSummon(monOut); publish(true); syncMonBtn(); });
+setInterval(syncMonBtn, 300);
+$("moncollbtn").onclick = () => openMonColl();
+$("moncollclose").onclick = () => closeMonColl();
+$("monpenclose").onclick = () => closeMonPen();
+function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as drawn faces LEFT; it flips when the owner faces right — the hero sprites' own flip rule. ~122 tall, a gentle bob, a soft shadow. No name plate, no chat: it is not a person */
+  const img = monImg(a.line, a.stage);
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const H = 122, W = H * (img.naturalWidth / img.naturalHeight || 1);
+  const bob = Math.sin(t / 340 + (a.bob || 0) * 7) * 3.2;
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(a.x, a.y - 3, W * 0.34, 8, 0, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(a.x, a.y - H / 2 + bob);
+  if (a.flip) ctx.scale(-1, 1);
+  ctx.drawImage(img, -W / 2, -H / 2, W, H);
+  ctx.restore();
+}
+/* ============ the Monster Shop building (plaza) ============ */
+function drawMonsterShopBuilding(t) {
+  const b = MON_B, cx = b.x + b.w / 2;
+  /* a glass-domed mall entrance: teal glass over a deep-green front, a paw on the dome, a chasing-bulb marquee, its door on the bottom face like every other plaza building's */
+  ctx.fillStyle = "#0a2018"; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(74,222,128,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  /* the glass dome */
+  ctx.save(); ctx.beginPath(); ctx.ellipse(cx, b.y + 16, b.w * 0.36, 74, 0, Math.PI, 0); ctx.closePath();
+  const dg2 = ctx.createLinearGradient(cx, b.y - 58, cx, b.y + 16);
+  dg2.addColorStop(0, "rgba(150,235,255,0.55)"); dg2.addColorStop(1, "rgba(56,150,180,0.25)");
+  ctx.fillStyle = dg2; ctx.fill();
+  ctx.strokeStyle = "rgba(190,245,255,0.7)"; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.strokeStyle = "rgba(190,245,255,0.35)"; ctx.lineWidth = 1.5;
+  [-0.5, 0, 0.5].forEach(f => { ctx.beginPath(); ctx.moveTo(cx + f * b.w * 0.68, b.y + 16); ctx.quadraticCurveTo(cx + f * b.w * 0.36, b.y - 40, cx, b.y - 56); ctx.stroke(); });
+  ctx.restore();
+  /* the golden paw on the dome */
+  ctx.fillStyle = "rgba(255,215,106,0.92)";
+  ctx.beginPath(); ctx.ellipse(cx, b.y - 30, 13, 10, 0, 0, 7); ctx.fill();
+  [[-24, -22], [-9, -33], [9, -33], [24, -22]].forEach(o => { ctx.beginPath(); ctx.ellipse(cx + o[0], b.y + o[1], 5.5, 7, 0, 0, 7); ctx.fill(); });
+  /* the marquee */
+  ctx.fillStyle = "#0d2b1e"; rr(b.x + 40, b.y + 44, b.w - 80, 66, 12); ctx.fill();
+  ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 3; rr(b.x + 40, b.y + 44, b.w - 80, 66, 12); ctx.stroke();
+  for (let i = 0; i < 14; i++) { ctx.fillStyle = (Math.floor(t / 420) + i) % 2 ? "#4ade80" : "#ffd76a"; ctx.beginPath(); ctx.arc(b.x + 62 + i * ((b.w - 124) / 13), b.y + 52, 4.5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(b.x + 62 + i * ((b.w - 124) / 13), b.y + 102, 4.5, 0, 7); ctx.fill(); }
+  ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#4ade80" : "#a7f3c9";
+  ctx.fillText("🐾 MONSTER SHOP", cx, b.y + 90);
+  /* the front windows: lit display glass */
+  for (const fx of [0.10, 0.40, 0.62, 0.86]) {
+    const wx = b.x + b.w * fx - 30;
+    ctx.fillStyle = "rgba(120,220,255,0.20)"; rr(wx, b.y + 138, 60, 74, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(190,245,255,0.45)"; ctx.lineWidth = 1.5; rr(wx, b.y + 138, 60, 74, 8); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.10)"; ctx.beginPath(); ctx.moveTo(wx + 8, b.y + 206); ctx.lineTo(wx + 30, b.y + 144); ctx.lineTo(wx + 42, b.y + 144); ctx.lineTo(wx + 20, b.y + 206); ctx.closePath(); ctx.fill();
+  }
+  /* the door, on the bottom face — the bowling door's own paint in the shop's green */
+  const mdy = MON_B.y + MON_B.h - 40;
+  const mdg = ctx.createLinearGradient(0, mdy, 0, mdy + 100);
+  mdg.addColorStop(0, "rgba(74,222,128,0.55)"); mdg.addColorStop(1, "rgba(74,222,128,0)");
+  ctx.fillStyle = mdg; ctx.fillRect(MONDOOR.x - 8, mdy - 6, MONDOOR.w + 16, 104);
+  ctx.fillStyle = "#0a1428"; rr(MONDOOR.x, mdy, MONDOOR.w, 40, 6); ctx.fill();
+  ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 2.5; rr(MONDOOR.x, mdy, MONDOOR.w, 40, 6); ctx.stroke();
+  ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#4ade80"; ctx.textAlign = "center";
+  ctx.fillText("▼ ENTER ▼", MONDOOR.x + MONDOOR.w / 2, MON_B.y + MON_B.h + 62);
+}
+/* ============ inside the Monster Shop ============ */
+/* one glass case: its habitat (backdrop, floor, props — deterministic per case), the base monster idling inside it, the glass over the top, the frame, and its plaque (name + price, or my ownership) */
+function drawMonCase(c, i, t) {
+  const hab = MON_HABITAT[c.line] || "meadow";
+  const hs = MON_HAB_STYLE[hab] || MON_HAB_STYLE.meadow;
+  const wx = c.x + 12, wy = c.y + 12, ww = c.w - 24, wh = c.h - 76; /* the habitat window: the case's inner area, above the plaque */
+  const floorY = wy + wh - 54;
+  ctx.save(); rr(wx, wy, ww, wh, 10); ctx.clip();
+  const bg = ctx.createLinearGradient(0, wy, 0, wy + wh);
+  bg.addColorStop(0, hs.sky[0]); bg.addColorStop(1, hs.sky[1]);
+  ctx.fillStyle = bg; ctx.fillRect(wx, wy, ww, wh);
+  ctx.fillStyle = hs.flr; ctx.fillRect(wx, floorY, ww, wy + wh - floorY);
+  const h1 = hashN(i * 3.7 + 1), h2 = hashN(i * 7.9 + 2);
+  if (hab === "water") {
+    ctx.strokeStyle = "rgba(160,230,255,0.5)"; ctx.lineWidth = 2;
+    ctx.beginPath(); for (let px = 0; px <= ww; px += 8) ctx.lineTo(wx + px, wy + 12 + Math.sin(px / 22 + t / 500 + i) * 3); ctx.stroke();
+    ctx.strokeStyle = "rgba(46,160,90,0.8)"; ctx.lineWidth = 3;
+    [wx + 18, wx + ww - 18].forEach(kx => { ctx.beginPath(); ctx.moveTo(kx, wy + wh); for (let s = 0; s <= 4; s++) ctx.lineTo(kx + Math.sin(s * 1.4 + t / 700) * 5, wy + wh - s * 12); ctx.stroke(); });
+    ctx.fillStyle = "rgba(200,245,255,0.65)";
+    for (let bIdx = 0; bIdx < 7; bIdx++) { const bx = wx + 20 + hashN(i * 31 + bIdx * 7) * (ww - 40), by = wy + wh - ((t / (26 + bIdx * 3) + bIdx * 47) % (wh - 30)) - 8; ctx.beginPath(); ctx.arc(bx, by, 2.5 + (bIdx % 3), 0, 7); ctx.fill(); }
+    ctx.fillStyle = "rgba(240,220,160,0.5)"; for (let sIdx = 0; sIdx < 8; sIdx++) ctx.fillRect(wx + hashN(i * 17 + sIdx * 3) * ww, floorY + 8 + hashN(sIdx * 5 + i) * 30, 3, 3);
+  } else if (hab === "snow") {
+    ctx.fillStyle = "#ffffff";
+    [[0.25, 0.78], [0.72, 0.9]].forEach(f => { ctx.beginPath(); ctx.ellipse(wx + ww * f[0], floorY + 26, ww * 0.20, 15, 0, 0, 7); ctx.fill(); });
+    ctx.globalAlpha = 0.75;
+    for (let sIdx = 0; sIdx < 14; sIdx++) { const sx = wx + hashN(i * 19 + sIdx * 3.3) * ww, sy = wy + ((t / (30 + sIdx) + sIdx * 31) % (wh - 16)); ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#166534"; const txp = wx + ww * (0.12 + h1 * 0.1), typ = floorY + 8;
+    ctx.beginPath(); ctx.moveTo(txp, typ - 44); ctx.lineTo(txp - 13, typ); ctx.lineTo(txp + 13, typ); ctx.closePath(); ctx.fill();
+  } else if (hab === "lava") {
+    ctx.strokeStyle = "rgba(255,110,30,0.85)"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(wx + 8, floorY + 14); ctx.lineTo(wx + ww * 0.3, floorY + 24); ctx.lineTo(wx + ww * 0.45, floorY + 12); ctx.lineTo(wx + ww * 0.75, floorY + 26); ctx.lineTo(wx + ww - 10, floorY + 15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx + ww * 0.2, floorY + 34); ctx.lineTo(wx + ww * 0.55, floorY + 40); ctx.lineTo(wx + ww * 0.85, floorY + 32); ctx.stroke();
+    ctx.fillStyle = "#1e100c";
+    [[0.16, 20], [0.84, 26]].forEach(f => { ctx.beginPath(); ctx.ellipse(wx + ww * f[0], floorY + 6, f[1], 10, 0, 0, 7); ctx.fill(); });
+    for (let eIdx = 0; eIdx < 6; eIdx++) { const ex = wx + 14 + hashN(i * 23 + eIdx * 5) * (ww - 28), ey = wy + wh - ((t / (34 + eIdx * 4) + eIdx * 53) % (wh - 26)) - 6; ctx.fillStyle = "rgba(255," + (120 + eIdx * 18) + ",40,0.8)"; ctx.beginPath(); ctx.arc(ex, ey, 2.2, 0, 7); ctx.fill(); }
+  } else if (hab === "forest" || hab === "jungle") {
+    ctx.fillStyle = hab === "jungle" ? "#0a2f10" : "#0e4020";
+    [0.10, 0.90].forEach(f => { const txp = wx + ww * f; ctx.fillRect(txp - 3, floorY - 30, 6, 34); ctx.beginPath(); ctx.arc(txp, floorY - 48, 24, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(txp - 16, floorY - 34, 16, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(txp + 16, floorY - 34, 16, 0, 7); ctx.fill(); });
+    ctx.fillStyle = "rgba(140,240,160,0.5)";
+    for (let lIdx = 0; lIdx < 8; lIdx++) ctx.fillRect(wx + hashN(i * 29 + lIdx * 3) * ww, floorY + 6 + hashN(lIdx * 7 + i) * 34, 3, 5);
+    if (hab === "jungle") { ctx.strokeStyle = "rgba(60,180,90,0.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(wx + ww * 0.5, wy); ctx.quadraticCurveTo(wx + ww * 0.56, wy + wh * 0.4, wx + ww * 0.47, wy + wh * 0.62); ctx.stroke(); }
+  } else if (hab === "night") {
+    ctx.fillStyle = "#f5f0c8"; ctx.beginPath(); ctx.arc(wx + ww * 0.80, wy + 38, 17, 0, 7); ctx.fill();
+    ctx.fillStyle = hs.sky[0]; ctx.beginPath(); ctx.arc(wx + ww * 0.80 + 9, wy + 30, 15, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    for (let sIdx = 0; sIdx < 10; sIdx++) ctx.fillRect(wx + hashN(i * 37 + sIdx * 3) * ww, wy + 8 + hashN(sIdx * 11 + i) * (wh * 0.4), 2.5, 2.5);
+    ctx.strokeStyle = "#0a0618"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(wx - 4, wy + 52); ctx.quadraticCurveTo(wx + ww * 0.5, wy + 30, wx + ww + 4, wy + 58); ctx.stroke();
+    ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(wx + ww * 0.62, wy + 42); ctx.lineTo(wx + ww * 0.68, wy + 64); ctx.stroke();
+  } else if (hab === "crystal") {
+    [[0.18, 46, "#67e8f9"], [0.82, 58, "#c084fc"], [0.68, 34, "#67e8f9"]].forEach(cf => {
+      const cxp = wx + ww * cf[0], cyp = floorY + 44;
+      ctx.fillStyle = cf[2]; ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.moveTo(cxp, cyp - cf[1]); ctx.lineTo(cxp + 11, cyp - 8); ctx.lineTo(cxp, cyp + 6); ctx.lineTo(cxp - 11, cyp - 8); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+    ctx.fillStyle = "rgba(220,245,255,0.8)";
+    for (let sIdx = 0; sIdx < 7; sIdx++) { ctx.globalAlpha = 0.3 + 0.6 * (0.5 + 0.5 * Math.sin(t / 300 + sIdx * 2.1 + i)); ctx.fillRect(wx + hashN(i * 41 + sIdx * 3) * ww, wy + 14 + hashN(sIdx * 13 + i) * (wh * 0.5), 3, 3); }
+    ctx.globalAlpha = 1;
+  } else if (hab === "storm") {
+    ctx.fillStyle = "rgba(210,222,240,0.9)";
+    [[0.24, 30], [0.55, 38], [0.82, 28]].forEach(cf => { const cxp = wx + ww * cf[0]; ctx.beginPath(); ctx.ellipse(cxp, wy + 26, cf[1], 14, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.ellipse(cxp - 16, wy + 32, cf[1] * 0.6, 10, 0, 0, 7); ctx.fill(); });
+    ctx.fillStyle = "#ffd76a";
+    ctx.beginPath(); const bx = wx + ww * (0.4 + h2 * 0.2), by = wy + 52; ctx.moveTo(bx + 8, by); ctx.lineTo(bx - 4, by + 26); ctx.lineTo(bx + 3, by + 26); ctx.lineTo(bx - 7, by + 50); ctx.lineTo(bx + 13, by + 22); ctx.lineTo(bx + 5, by + 22); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "rgba(170,210,255,0.4)"; ctx.lineWidth = 1.5;
+    for (let rIdx = 0; rIdx < 9; rIdx++) { const rx = wx + hashN(i * 43 + rIdx * 3) * ww, ry = wy + 60 + ((t / 6 + rIdx * 37) % (wh - 90)); ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 11); ctx.stroke(); }
+  } else if (hab === "rock") {
+    ctx.fillStyle = "#4a4038";
+    [[0.16, 30, 15], [0.80, 40, 19], [0.55, 22, 11]].forEach(sf => { ctx.beginPath(); ctx.ellipse(wx + ww * sf[0], floorY + 30, sf[1], sf[2], 0, 0, 7); ctx.fill(); });
+    ctx.fillStyle = "rgba(220,200,180,0.5)";
+    for (let pIdx = 0; pIdx < 9; pIdx++) ctx.fillRect(wx + hashN(i * 47 + pIdx * 3) * ww, floorY + 6 + hashN(pIdx * 7 + i) * 36, 3.5, 3.5);
+  } else if (hab === "mist") {
+    for (let mIdx = 0; mIdx < 3; mIdx++) { const my2 = wy + wh * (0.35 + mIdx * 0.22) + Math.sin(t / 900 + mIdx * 2 + i) * 5, off = Math.sin(t / 1400 + mIdx * 1.7 + i) * 14; const mg = ctx.createRadialGradient(wx + ww / 2 + off, my2, 6, wx + ww / 2 + off, my2, ww * 0.55); mg.addColorStop(0, "rgba(235,245,255,0.20)"); mg.addColorStop(1, "rgba(235,245,255,0)"); ctx.fillStyle = mg; ctx.fillRect(wx, my2 - 26, ww, 52); }
+  } else if (hab === "gears") {
+    ctx.strokeStyle = "rgba(160,175,195,0.5)"; ctx.lineWidth = 2;
+    for (let gy2 = floorY + 12; gy2 < wy + wh; gy2 += 14) { ctx.beginPath(); ctx.moveTo(wx, gy2); ctx.lineTo(wx + ww, gy2); ctx.stroke(); }
+    [[0.20, 30], [0.85, 22]].forEach((gf, gi) => {
+      const gxp = wx + ww * gf[0], gyp = wy + 46 + gi * 8, gr2 = gf[1];
+      ctx.save(); ctx.translate(gxp, gyp); ctx.rotate(t / (2400 + gi * 700) * (gi ? -1 : 1));
+      ctx.fillStyle = "rgba(190,200,215,0.55)";
+      for (let tooth = 0; tooth < 8; tooth++) { ctx.save(); ctx.rotate(tooth * Math.PI / 4); ctx.fillRect(-4, -gr2 - 5, 8, 10); ctx.restore(); }
+      ctx.beginPath(); ctx.arc(0, 0, gr2, 0, 7); ctx.fill();
+      ctx.fillStyle = hs.sky[1]; ctx.beginPath(); ctx.arc(0, 0, gr2 * 0.42, 0, 7); ctx.fill();
+      ctx.restore();
+    });
+  } else { /* meadow */
+    ctx.strokeStyle = "rgba(90,220,120,0.8)"; ctx.lineWidth = 2;
+    for (let gIdx = 0; gIdx < 12; gIdx++) { const gx = wx + 8 + hashN(i * 53 + gIdx * 3) * (ww - 16), gh = 7 + hashN(gIdx * 3 + i) * 8; ctx.beginPath(); ctx.moveTo(gx, floorY + 42); ctx.lineTo(gx - 2, floorY + 42 - gh); ctx.moveTo(gx + 4, floorY + 42); ctx.lineTo(gx + 6, floorY + 42 - gh); ctx.stroke(); }
+    [["#ff8fb5", 0.2], ["#ffd76a", 0.5], ["#c084fc", 0.8]].forEach(ff => { const fx = wx + ww * ff[1], fy = floorY + 30; ctx.fillStyle = ff[0]; for (let pt = 0; pt < 5; pt++) { const a2 = pt / 5 * Math.PI * 2; ctx.beginPath(); ctx.arc(fx + Math.cos(a2) * 4.5, fy + Math.sin(a2) * 4.5, 3, 0, 7); ctx.fill(); } ctx.fillStyle = "#fff7cc"; ctx.beginPath(); ctx.arc(fx, fy, 2.6, 0, 7); ctx.fill(); });
+    if (c.line === "panda") { ctx.fillStyle = "#3f9e4d"; [wx + 16, wx + 28].forEach(bx => ctx.fillRect(bx, floorY - 44, 6, 88)); ctx.fillStyle = "#2c7a39"; [0.3, 0.6].forEach(f => ctx.fillRect(wx + 12, floorY - 44 + 88 * f, 22, 3)); } /* the panda's own bamboo corner */
+    if (c.line === "axo") { ctx.fillStyle = "rgba(120,210,255,0.55)"; ctx.beginPath(); ctx.ellipse(wx + ww * 0.72, floorY + 30, 52, 13, 0, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(210,245,255,0.7)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(wx + ww * 0.72, floorY + 30, 34, 8, 0, 0, 7); ctx.stroke(); } /* the axolotl's pond */
+  }
+  /* the monster itself, idling in its world (a gentle bob) */
+  const img = monImg(c.line, 1);
+  if (img.complete && img.naturalWidth) { const H = 146, W = H * img.naturalWidth / img.naturalHeight; const bob = Math.sin(t / 620 + i * 1.71) * 4; ctx.drawImage(img, c.x + c.w / 2 - W / 2, wy + wh - H - 4 + bob, W, H); }
+  ctx.restore();
+  /* the glass over everything: a soft sheen and one diagonal shine */
+  const gg = ctx.createLinearGradient(c.x, c.y, c.x + c.w, c.y + c.h);
+  gg.addColorStop(0, "rgba(200,240,255,0.13)"); gg.addColorStop(0.45, "rgba(200,240,255,0.03)"); gg.addColorStop(1, "rgba(200,240,255,0.10)");
+  ctx.fillStyle = gg; rr(c.x, c.y, c.w, c.h, 14); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.10)";
+  ctx.beginPath(); ctx.moveTo(c.x + 34, c.y + c.h - 60); ctx.lineTo(c.x + 108, c.y + 14); ctx.lineTo(c.x + 142, c.y + 14); ctx.lineTo(c.x + 68, c.y + c.h - 60); ctx.closePath(); ctx.fill();
+  /* the frame */
+  ctx.strokeStyle = "#8a6d1f"; ctx.lineWidth = 5; rr(c.x, c.y, c.w, c.h, 14); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 1.5; rr(c.x + 5, c.y + 5, c.w - 10, c.h - 10, 10); ctx.stroke();
+  /* the plaque: the name, and the price — or my ownership of it */
+  const py = c.y + c.h - 56;
+  ctx.fillStyle = "#0d1730"; rr(c.x + 14, py, c.w - 28, 44, 8); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 1.5; rr(c.x + 14, py, c.w - 28, 44, 8); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+  ctx.fillText(monName(c.line), c.x + c.w / 2, py + 20);
+  ctx.font = "700 13.5px 'Segoe UI',sans-serif";
+  if (myMons[c.line]) { ctx.fillStyle = "#4ade80"; ctx.fillText("✓ OWNED — Stage " + myMons[c.line], c.x + c.w / 2, py + 38); }
+  else { ctx.fillStyle = "#ffd76a"; ctx.fillText("🪙 " + MON_BASE_PRICE.toLocaleString("en-US"), c.x + c.w / 2, py + 38); }
+}
+function drawMonsterShop(t) {
+  ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
+  /* the floor: polished mall tiles — big pale slabs in a checker of light, a fine grout grid, and skylight strips pouring soft light down the hall's length */
+  ctx.fillStyle = "#131a2e"; ctx.fillRect(0, 0, MSROOM.w, MSROOM.h);
+  ctx.fillStyle = "rgba(255,255,255,0.025)";
+  for (let gx = 0; gx < MSROOM.w; gx += 220) for (let gy = 0; gy < MSROOM.h; gy += 220) if (((gx + gy) / 220) % 2 === 0) ctx.fillRect(gx, gy, 220, 220);
+  ctx.strokeStyle = "rgba(140,180,255,0.10)"; ctx.lineWidth = 2;
+  for (let gx = 0; gx <= MSROOM.w; gx += 110) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, MSROOM.h); ctx.stroke(); }
+  for (let gy = 0; gy <= MSROOM.h; gy += 110) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(MSROOM.w, gy); ctx.stroke(); }
+  for (const sx of [720, 2120, 3520]) {
+    ctx.fillStyle = "rgba(170,225,255,0.07)"; ctx.fillRect(sx, 60, 560, MSROOM.h - 120);
+    ctx.strokeStyle = "rgba(190,240,255,0.20)"; ctx.lineWidth = 3; ctx.strokeRect(sx, 60, 560, MSROOM.h - 120);
+    ctx.strokeStyle = "rgba(190,240,255,0.10)"; ctx.lineWidth = 2;
+    for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(sx + k * 140, 60); ctx.lineTo(sx + k * 140, MSROOM.h - 60); ctx.stroke(); }
+  }
+  /* the border: a gold double frame, the mall's colours */
+  ctx.strokeStyle = "#c9a227"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, MSROOM.w - 8, MSROOM.h - 8);
+  ctx.strokeStyle = "rgba(74,222,128,0.30)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, MSROOM.w - 36, MSROOM.h - 36);
+  /* the name over the north wall */
+  ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+  ctx.save(); ctx.shadowColor = "rgba(74,222,128,0.8)"; ctx.shadowBlur = 18;
+  ctx.fillStyle = "#d9ffe6"; ctx.fillText("🐾 MONSTER SHOP 🐾", MSROOM.w / 2, 92); ctx.restore();
+  /* pillars along the side margins, gold-banded (walk-over decor, like the club's booths) */
+  for (const py2 of [950, 1600, 2250]) for (const px2 of [82, MSROOM.w - 126]) {
+    ctx.fillStyle = "#1c2742"; rr(px2, py2, 44, 150, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 2; rr(px2, py2, 44, 150, 8); ctx.stroke();
+    ctx.fillStyle = "#c9a227"; ctx.fillRect(px2, py2 + 34, 44, 8); ctx.fillRect(px2, py2 + 108, 44, 8);
+  }
+  /* planters: a green box with a leafy canopy — at the pen's south corners, the room corners and flanking the entrance */
+  function monPlanter(px2, py2) {
+    ctx.fillStyle = "#3a2a16"; rr(px2, py2 + 26, 92, 34, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 1.5; rr(px2, py2 + 26, 92, 34, 7); ctx.stroke();
+    ctx.fillStyle = "#1e6b34";
+    ctx.beginPath(); ctx.arc(px2 + 22, py2 + 22, 19, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px2 + 48, py2 + 12, 23, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px2 + 72, py2 + 22, 18, 0, 7); ctx.fill();
+    ctx.fillStyle = "#ff8fb5"; ctx.beginPath(); ctx.arc(px2 + 36, py2 + 16, 3.5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px2 + 62, py2 + 8, 3.5, 0, 7); ctx.fill();
+  }
+  monPlanter(1520, 452); monPlanter(2788, 452); monPlanter(90, 2480); monPlanter(4218, 2480); monPlanter(90, 420); monPlanter(4218, 420);
+  /* benches in the aisle walkways and the entrance hall */
+  function monBench(bx, by) {
+    ctx.fillStyle = "#5b4632";
+    for (let s = 0; s < 3; s++) ctx.fillRect(bx, by + s * 13, 190, 8);
+    ctx.fillRect(bx + 14, by + 40, 10, 20); ctx.fillRect(bx + 166, by + 40, 10, 20);
+    ctx.fillStyle = "rgba(255,215,106,0.35)"; ctx.fillRect(bx, by, 190, 3);
+  }
+  monBench(1050, 1090); monBench(3050, 1090); monBench(1050, 1740); monBench(3050, 1740); monBench(1200, 2500); monBench(3000, 2500);
+  /* hanging aisle signs at each aisle's west end, and the great sign over the middle walkway */
+  function monHangSign(sx, sy, sw, txt, fs) {
+    ctx.strokeStyle = "rgba(200,220,255,0.5)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx + 26, sy - 34); ctx.lineTo(sx + 26, sy); ctx.moveTo(sx + sw - 26, sy - 34); ctx.lineTo(sx + sw - 26, sy); ctx.stroke();
+    ctx.fillStyle = "#0d2b1e"; rr(sx, sy, sw, 46, 9); ctx.fill();
+    ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 2.5; rr(sx, sy, sw, 46, 9); ctx.stroke();
+    ctx.font = "800 " + fs + "px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#d9ffe6";
+    ctx.fillText(txt, sx + sw / 2, sy + 31);
+  }
+  monHangSign(56, 536, 170, "AISLE 1", 20);
+  monHangSign(56, 1186, 170, "AISLE 2", 20);
+  monHangSign(56, 1836, 170, "AISLE 3", 20);
+  monHangSign(MSROOM.w / 2 - 270, 1006, 540, "🐾 MONSTER SHOP 🐾", 24);
+  /* ---- the TRAINING PEN at the far (north) end: sandy floor, training dummies, its sign, and its closed fence ---- */
+  const pen = { x: 1650, y: 150, w: 1100, h: 280 };
+  ctx.fillStyle = "#8a6f45"; rr(pen.x, pen.y, pen.w, pen.h, 10); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.12)";
+  for (let sIdx = 0; sIdx < 26; sIdx++) ctx.fillRect(pen.x + 14 + hashN(sIdx * 3.3) * (pen.w - 28), pen.y + 14 + hashN(sIdx * 7.7) * (pen.h - 28), 4, 3);
+  [[pen.x + 260, pen.y + 130], [pen.x + 840, pen.y + 130]].forEach(dp => {
+    ctx.fillStyle = "#5b4632"; ctx.fillRect(dp[0] - 5, dp[1] - 10, 10, 74);
+    ctx.fillStyle = "#e33b3b"; ctx.beginPath(); ctx.arc(dp[0], dp[1] - 34, 30, 0, 7); ctx.fill();
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(dp[0], dp[1] - 34, 20, 0, 7); ctx.fill();
+    ctx.fillStyle = "#e33b3b"; ctx.beginPath(); ctx.arc(dp[0], dp[1] - 34, 10, 0, 7); ctx.fill();
+  });
+  ctx.fillStyle = "#5a5148"; ctx.beginPath(); ctx.ellipse(pen.x + 550, pen.y + 200, 42, 22, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#0d2b1e"; rr(pen.x + pen.w / 2 - 235, pen.y + 16, 470, 40, 8); ctx.fill();
+  ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 2; rr(pen.x + pen.w / 2 - 235, pen.y + 16, 470, 40, 8); ctx.stroke();
+  ctx.font = "800 18.5px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#d9ffe6";
+  ctx.fillText("🏋️ TRAINING PEN — evolutions by Q-Bot", pen.x + pen.w / 2, pen.y + 43);
+  /* the fence itself: the MONPEN rails in wood with a lighter top edge, posts all round */
+  for (const r of MONPEN) { ctx.fillStyle = "#8a6a34"; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = "rgba(255,230,170,0.5)"; ctx.fillRect(r.x, r.y, r.w, 3); }
+  ctx.fillStyle = "#6e5226";
+  for (let px2 = pen.x; px2 <= pen.x + pen.w; px2 += 92) { ctx.fillRect(px2 - 5, pen.y - 8, 10, 30); ctx.fillRect(px2 - 5, pen.y + pen.h - 22, 10, 30); }
+  for (let py2 = pen.y + 46; py2 < pen.y + pen.h - 20; py2 += 70) { ctx.fillRect(pen.x - 5, py2, 24, 10); ctx.fillRect(pen.x + pen.w - 19, py2, 24, 10); }
+  /* ---- the cases, aisle by aisle ---- */
+  MONCASES.forEach((c, i) => drawMonCase(c, i, t));
+  /* the note line over my head — the bowling note's twin, in the shop's green */
+  if (monNote && performance.now() - monNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(monNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(74,222,128,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#d9ffe6"; ctx.fillText(monNote, me.x, me.y - 135);
+  }
+  /* the exit: the Arcade-style door at the south wall — the bowling exit's paint, word for word in the shop's gold */
+  ctx.fillStyle = "#050914"; ctx.fillRect(MSEXIT.x - 6, MSROOM.h - 12, MSEXIT.w + 12, 12);
+  ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
+  ctx.fillStyle = "#150b31"; rr(MSEXIT.x, MSEXIT.y, MSEXIT.w, MSEXIT.h, 11); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(MSEXIT.x, MSEXIT.y, MSEXIT.w, MSEXIT.h, 11); ctx.stroke();
+  ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("EXIT", MSEXIT.x + MSEXIT.w / 2, MSEXIT.y + 29);
+  ctx.fillStyle = "#c9a227"; ctx.fillRect(MSEXIT.x - 6, MSROOM.h - 7, MSEXIT.w + 12, 6);
+  ctx.restore();
+}
 window.addEventListener("pagehide", () => { if (myRef) { try { myRef.remove(); } catch (e) {} } });
 /* ============ drawing ============ */
 const stars = [];
@@ -10264,7 +10795,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawBowlingBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawBowlingBuilding(t); drawMonsterShopBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -11495,6 +12026,7 @@ function frame(now) {
   me.moving = mySeatPos ? false : m > 0.12;
   if (myCar >= 0) { vx = 0; vy = 0; me.moving = false; } /* driving: stepSpeedway owns my position (the car) — the walk block must not move me */
   if (boxingBout && boxState && boxState.phase === "fight" && srvNow() < (boxState.fightTs || 0) + 1200) { vx = 0; vy = 0; me.moving = false; } /* GET READY freeze (Jonathan 2026-11-01): while the bell's window runs — the draw's own test, phase "fight" and srvNow() < fightTs + 1200 — a seated fighter's input is simply discarded at this same application point: no teleport, no position rewrite, they stay on the corner spot the bout placed them on, and the frame the window ends movement is exactly as normal. Punches and the CPU already wait out this window; walking the room outside a bout (boxingBout null) never reaches this line's condition */
+  if (evoLock) { vx = 0; vy = 0; me.moving = false; } /* the EVOLUTION animation (PREVIEW): while my monster evolves on its overlay, my feet stay planted — the overlay owns the screen until endEvoAnim lets go */
   const sprinting = me.moving && !boxingBout && (runBtnHeld || keys.has(" ")); /* no sprinting during MY boxing bout (Jonathan 2026-10-31): on a phone the RUN button is replaced by the punch buttons, and on PC the space bar now does the same — nothing */
   me.run = sprinting;
   const wading = (me.scene === "plaza" && inPoolWater(me.x, me.y)) || (me.scene === "rooftop" && inPoolWater(me.x, me.y, ROOFPOOLW)); /* in the pool (PREVIEW): no dust here, splashes instead, and the water drags at your pace — the rooftop pool's water counts exactly the same way, against its own rect */
@@ -11539,6 +12071,8 @@ function frame(now) {
     if (res.gymexit) toPlazaFromGym();
     if (res.bowldoor) toBowling();
     if (res.bowlexit) toPlazaFromBowling();
+    if (res.mondoor) toMonsterShop();
+    if (res.monshopexit) toPlazaFromMonsterShop();
     if (res.spddoor) toSpeedway();
     if (res.swexit) toPlazaFromSpeedway();
     if (res.clubexit) toPlazaFromClub();
@@ -11688,7 +12222,7 @@ function frame(now) {
   if (fxPrevScene !== null && me.scene !== fxPrevScene) clearRoomFx(); /* a room change wipes every pending room effect — nothing earned in one room replays in the next */
   fxPrevScene = me.scene;
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else if (me.scene === "highrollers") drawHighRollers(now); else if (me.scene === "chess") drawChess(now); else if (me.scene === "boxing") drawBoxing(now); else if (me.scene === "bowling") drawBowling(now); else if (me.scene === "rooftop") drawRooftop(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else if (me.scene === "highrollers") drawHighRollers(now); else if (me.scene === "chess") drawChess(now); else if (me.scene === "boxing") drawBoxing(now); else if (me.scene === "bowling") drawBowling(now); else if (me.scene === "monstershop") drawMonsterShop(now); else if (me.scene === "rooftop") drawRooftop(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
@@ -11709,6 +12243,22 @@ function frame(now) {
   if (me.scene === "club") actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the VIP door guard (PREVIEW): a fixed Q-Bot post at the club's left-wall door, drawn through the same actor pass as every player so he sorts and renders like one — he is this room's furniture, not a presence record, so he never counts as a person online */
   if (me.scene === "highrollers") actors.push({ id: "hrc-clerk", x: HRCTR.x + HRCTR.w + 34, y: HRCTR.y + HRCTR.h / 2 + 24, tx: HRCTR.x + HRCTR.w + 34, ty: HRCTR.y + HRCTR.h / 2 + 24, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* Q-Bot the CLERK (Jonathan 2026-11-01): the guards' third post — he stands BEHIND the service counter in the strip the DJ works from, centred on the counter BY EYE — anchored 24px BELOW its midpoint (y 1619, not 1595): the sprite anchors at its feet and draws upward, so at the exact midpoint he read as sitting high on the counter; the nudge is Jonathan's word (2026-11-01, "move Q bot down a bit so he looks more centered"). The over-clerk repaint clips from his own y, so its band follows the nudge and the counter front still overlaps his lower body exactly as before. Facing the room (flip true, like his casino twin at the right-wall door). Drawn through this same actor pass at the standard hero height; the pass repaints the counter's front over his lower body (drawHRCounterOverClerk) so he reads as staff behind the desk. Room furniture like his twins: NOT the live NPC, no presence record, never counted online, never speaks or moves */
   if (me.scene === "casino") actors.push({ id: "hrc-guard", x: CASINOROOM.w - 128, y: CASINODOORS_Y + 6, tx: CASINOROOM.w - 128, ty: CASINODOORS_Y + 6, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* the High Rollers door guard (Jonathan 2026-10-31): the club guard's twin at the casino's right-wall door — the same drawn Q-Bot figure (NOT the live NPC, who never moves for this), the same 128px-inset post mirrored beside his door, his carpet and ⭐ VIP lettering painted by drawCasino — with ONE difference: he faces the OTHER WAY (flip true; the club guard's is false). Room furniture like his twin: no presence record, never counted online, no speech bubble of his own */
+  if (me.scene === "monstershop") actors.push({ id: "monshop-qbot", x: MONQBOT.x, y: MONQBOT.y, tx: MONQBOT.x, ty: MONQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the TRAINING PEN's Q-Bot (PREVIEW): the guards' fourth post — he stands south of the pen in the Monster Shop and works the evolutions (the Train prompt keys off his spot, MONQBOT). Room furniture like his twins: NOT the live NPC, no presence record, never counted online */
+  /* the monster followers (PREVIEW): one pseudo-actor per player in the room whose monster is out — mine from my own pick while monOut is on, everyone else's from their presence mon field. They join the actors BEFORE the sort, so each follower layers with the room exactly like a player standing at its feet, and the loop's isMon branch paints them. Mine eases after me (monFol); a remote's rides a trailing offset behind its owner's smoothed position, opposite their facing */
+  for (const a of actors) {
+    const ms = a === me ? (monOut ? myMonSel : "") : (a.mon || "");
+    const pr = ms ? monParse(ms) : null;
+    if (!pr) continue;
+    let fx, fy;
+    if (a === me) {
+      const fkey = ms + "|" + me.scene;
+      if (!monFol || monFol.key !== fkey) monFol = { key: fkey, x: me.x, y: me.y }; /* a new pick or a new room: the follower starts at my side, never trails in from the last room's coordinates */
+      monFol.x += ((me.x + (me.flip ? -95 : 95)) - monFol.x) * Math.min(1, dt * 5);
+      monFol.y += ((me.y + 8) - monFol.y) * Math.min(1, dt * 5);
+      fx = monFol.x; fy = monFol.y;
+    } else { fx = a.x + (a.flip ? -95 : 95); fy = a.y + 8; }
+    actors.push({ isMon: true, id: "monfol-" + (a === me ? "me" : a.id), x: fx, y: fy, line: pr.line, stage: pr.stage, flip: !!a.flip, bob: a === me ? 0 : (a.bob || 0) });
+  }
   if (me.scene === "boxing" && boxState && boxState.mode === "pc" && (boxState.phase === "fight" || boxState.phase === "done")) { /* the boxing CPU (Jonathan 2026-11-01): a synthetic actor like the guards — the dread dog tinted to its corner (seat 0 red, seat 1 blue), drawn through this same pass so he sorts and renders like a fighter. The HOST pushes its own simulation (no lag); every other screen eases boxCpuVis toward the record's cpu node at the peers' own rate. No presence record, never a person online */
     const cs = boxCpuSeatOf(boxState), tgt = boxState.cpu;
     if (cs >= 0 && tgt && typeof tgt.x === "number") {
@@ -11741,6 +12291,7 @@ function frame(now) {
   }
   for (const a of actors) {
     const isMe = a === me;
+    if (a.isMon) { drawMonFollower(a, now); continue; } /* a monster follower (PREVIEW): no name plate, no chat, no shadow ring of its own beyond its sprite's — it just trails its owner, facing the owner's way */
     if (me.scene === "speedway" && (isMe ? myCar >= 0 : swCarOfDriver(a.id) >= 0)) continue; /* drivers render inside their cars (drawn with the track, name tags included), never as loose sprites */
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
     let phase = isMe ? sprintPhase : a.bob * 7;
@@ -11775,6 +12326,8 @@ function frame(now) {
   else if (me.scene === "speedway" && myCar >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => stepOutOfCar(false); }
   else if (me.scene === "speedway") { promptBtn.style.display = "none"; promptAction = null; }
   else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
+  else if (me.scene === "monstershop" && monNearQBot()) { promptBtn.style.display = "block"; promptBtn.textContent = "🏋️ Train with Q-Bot — Evolve"; promptAction = openMonPen; } /* the TRAINING PEN (PREVIEW): Q-Bot works the evolutions from his post south of the pen — the prompt exists only while standing at his post, the DJ pattern */
+  else if (me.scene === "monstershop" && monNearCase() >= 0) { const mc = MONCASES[monNearCase()]; promptBtn.style.display = "block"; if (myMons[mc.line]) { promptBtn.textContent = "✓ " + monName(mc.line) + " — Owned"; promptAction = () => sfxClick(); } else { promptBtn.textContent = "🐾 Buy " + monName(mc.line) + " — 🪙 " + MON_BASE_PRICE.toLocaleString("en-US"); promptAction = () => monBuyBase(mc.line); } } /* walk-up buying (PREVIEW): stand at a case's front and the prompt offers that case's base form; an owned case just says so */
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
