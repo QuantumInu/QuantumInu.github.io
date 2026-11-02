@@ -8453,6 +8453,16 @@ function boxSeatBeat() {
   if (!sd || sd.pid !== myId) { boxSeat = -1; boxingBout = null; if (bacSeat < 0 && craSeat < 0 && chSeatT < 0) mySeatPos = null; return; }
   tblUpd("box/seats/" + boxSeat, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 });
 }
+/* ---- the glove test (Jonathan 2026-11-01): a punch lands ONLY when the glove itself reaches the other fighter's sprite. The old test was a bare 150px tape measure between the two fighters' feet, so a swing connected even when the glove visibly passed above the opponent's head or below their body. This test replays the DRAW's own geometry: the glove's centre at full extension, exactly where drawGloves paints it (rest 40px out on the facing side and 58px up from the feet — the top glove on that line, the bottom glove 40px lower — lunged 34px further at the throw's peak, radius 27), against the body rect drawPlayer paints (feet-anchored, the form's own height — 96, or 216 for a mech — and the width from the sprite's own aspect). Circle against rect: any overlap is a hit; a glove passing over or under the body is a miss however close the fighters stand. EVERY punch answers to it — mine against a player, mine against the CPU, and the CPU's against me ---- */
+function boxGloveHit(ax, ay, flip, side, ox, oy, oHero, oGender) {
+  const s = flip ? 1 : -1;
+  const gx = ax + s * 74, gy = ay - 58 + (side === "L" ? 0 : 40); /* full extension: the 40px rest + the 34px lunge, the draw's own numbers */
+  if (isMechHero(oHero)) oGender = "m"; /* drawPlayer forces the male track for the mechs — the test reads the same sprite the draw does */
+  const img = oGender === "f" ? heroImgsF[oHero] : heroImgs[oHero];
+  const H = isMechHero(oHero) ? 216 : 96, W = H * ((img && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 0) || 0.8); /* drawPlayer's own height, and its width from the sprite's aspect (its 0.8 fallback included) */
+  const nx = Math.max(ox - W / 2, Math.min(gx, ox + W / 2)), ny = Math.max(oy - H, Math.min(gy, oy)); /* the body rect's nearest point to the glove's centre */
+  return (gx - nx) * (gx - nx) + (gy - ny) * (gy - ny) <= 27 * 27; /* the glove's drawn radius */
+}
 function boxPunch(side) {
   if (!boxingBout || !boxState || boxState.phase !== "fight") return;
   const now = Date.now();
@@ -8461,13 +8471,13 @@ function boxPunch(side) {
   if (side === "L") { boxLastPunchAtL = now; myPunchAtL = performance.now(); } else { boxLastPunchAtR = now; myPunchAtR = performance.now(); }
   const st = boxState, opp = 1 - boxSeat, os = st.seats && st.seats[opp];
   let hit = false, dmg = 0;
-  if (st.mode === "pc") { /* vs the CPU the reach is measured against the CPU's body — my own simulation (I host the bout), the record's cpu node as the fallback */
+  if (st.mode === "pc") { /* vs the CPU the glove is measured against the CPU's body — my own simulation (I host the bout), the record's cpu node as the fallback */
     const cp = boxCpuSim && boxCpuSim.seat === opp ? boxCpuSim : st.cpu;
-    if (cp && typeof cp.x === "number" && Math.hypot(me.x - cp.x, me.y - cp.y) < 150) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
+    if (cp && typeof cp.x === "number" && boxGloveHit(me.x, me.y, cp.x >= me.x, side, cp.x, cp.y, BOXCPU_HERO, "m")) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
   } else if (os && os.pid) {
-    let ox = null, oy = null;
-    for (const p of peers.values()) if (p.id === os.pid && p.scene === "boxing") { ox = p.x; oy = p.y; }
-    if (ox !== null && Math.hypot(me.x - ox, me.y - oy) < 150) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
+    let op = null;
+    for (const p of peers.values()) if (p.id === os.pid && p.scene === "boxing") { op = p; break; }
+    if (op && boxGloveHit(me.x, me.y, op.x >= me.x, side, op.x, op.y, op.hero, op.g)) { hit = true; dmg = 6 + Math.floor(Math.random() * 5); }
   }
   if (side === "L") tblUpd("box", { punchL: { by: boxSeat, ts: srvNow(), hit: hit ? 1 : 0 } }); else tblUpd("box", { punchR: { by: boxSeat, ts: srvNow(), hit: hit ? 1 : 0 } }); /* PER-ARM punch records (Jonathan 2026-11-01): each glove writes its OWN node, so a punch thrown while the other hand is still out never overwrites it — the first punch's glove, shake and star play out in full on every screen */
   if (hit) {
@@ -8561,10 +8571,14 @@ function boxCpuFrame(dt) {
     S.nextAt = now + 50; /* the combo gap: the follow-up comes 50ms after the opener (Jonathan 2026-11-01: recovery set to 50ms at his word, following the same-day steps 200 → 150 → 100 → 50; 170ms before that) */
   }
   if (side === "L") S.lastL = now; else S.lastR = now;
-  const dmg = 6 + Math.floor(Math.random() * 5);
-  if (side === "L") tblUpd("box", { punchL: { by: cs, ts: srvNow(), hit: 1 } }); else tblUpd("box", { punchR: { by: cs, ts: srvNow(), hit: 1 } }); /* per-arm record — the follow-up never overwrites the opener's glove, shake or star */
-  const cur = (st.hp && st.hp[boxSeat]) || 0;
-  tblSet("box/hp/" + boxSeat, Math.max(0, cur - dmg)); /* the same hp write a human punch lands with (boxPunch) */
+  const vHero = mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : me.hero; /* my body as THIS screen draws it (drawPlayer's own isMe hero chain — a bout holds every form off, but the test reads the same hero the draw would) */
+  const hit = boxGloveHit(S.x, S.y, S.flip, side, me.x, me.y, vHero, me.g); /* the CPU's swings answer to the same glove test as a human's (Jonathan 2026-11-01): closing inside the old 150 tape measure no longer guarantees a landing — the glove has to reach my sprite, and a swing over or under it finds air and is written as the miss it is */
+  if (side === "L") tblUpd("box", { punchL: { by: cs, ts: srvNow(), hit: hit ? 1 : 0 } }); else tblUpd("box", { punchR: { by: cs, ts: srvNow(), hit: hit ? 1 : 0 } }); /* per-arm record — the follow-up never overwrites the opener's glove, shake or star */
+  if (hit) {
+    const dmg = 6 + Math.floor(Math.random() * 5);
+    const cur = (st.hp && st.hp[boxSeat]) || 0;
+    tblSet("box/hp/" + boxSeat, Math.max(0, cur - dmg)); /* the same hp write a human punch lands with (boxPunch) */
+  }
 }
 /* boxingStandUp is defined with the Boxing Arena engine above */
 function casinoShell(w, h, title, sub) {
