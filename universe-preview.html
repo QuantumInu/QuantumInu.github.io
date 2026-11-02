@@ -1452,9 +1452,11 @@ const ROOFROOM = { w: 2304, h: 1500 };
 const ROOFPOOL = { x: 602, y: 430, w: 1100, h: 480 }; /* the deck, BIGGER (Jonathan 2026-11-01: 920x400 -> 1100x480) and restyled in Club Quantum's language (see drawRoofPool) — still centred on the room's heart (1152, 670), so the water's centre, and with it the beach ball's spawn and reset point, never moved */
 const ROOFPOOLW = { x: 648, y: 476, w: 1008, h: 388 }; /* the water, inset from the deck rim exactly as POOLW is from POOL (+46, +46, -92, -92). The droplet referee's ROOFPOOLW / ROOFPOOL_DECK carry these same numbers */
 const ROOF_SKY_H = 760; /* the galaxy band painted beyond the north edge (y -760..0) — only its lower sweep ever enters the frame (see ROOF_SKY_VIEW) */
-const ROOF_SKY_VIEW = 300; /* how much of the sky the room's scrollable bounds include above the north edge (Jonathan 2026-11-01, final form): the balcony camera lift is GONE — no trigger zone, no eased offset. The rooftop pans with the ORDINARY follow camera over bounds whose top sits this far above the roof's edge, so walking to the railing pans the normal camera up to its top clamp and the railing rests in frame with the galaxy beyond it; anywhere the top edge is out of view, no galaxy shows at all, exactly like any other room edge */
-const ROOFBOOTHS = []; /* Club Quantum's booth ARRANGEMENT carried to the roof (Jonathan 2026-11-01): the ring around the pool is gone — the booths now stand as the club's stand, a column of FOUR down each side wall and SIX along the bottom, the club's own 210x190 boxes, walk-over decor exactly as the club's are. The club's columns (x 56 / CLUBROOM.w - 266, a 280 row pitch — a 190 booth and a 90 gap — and the last row's bottom 90 above the floor) are fitted up by the rooms' height difference (CLUBROOM.h 1720 - ROOFROOM.h 1500 = 220): the side rows run 380 / 660 / 940 and the bottom six ride the fourth row's own line (1220, its bottom 90 above this floor), spread evenly wall to wall at a 396 pitch, their end booths doubling as the columns' fourth rows */
-[380, 660, 940].forEach(y => { ROOFBOOTHS.push({ x: 56, y, w: 210, h: 190 }); ROOFBOOTHS.push({ x: ROOFROOM.w - 266, y, w: 210, h: 190 }); }); /* the side columns — the club's own x offsets and row pitch, fitted up by the height difference */
+const ROOF_SKY_VIEW = 300; /* how much galaxy the balcony-edge pan reveals above the north edge (Jonathan 2026-11-01, latest form): the sky is GATED on the edge — from anywhere except the railing, ZERO galaxy is visible on any viewport, and the old always-on top extension is gone (it leaked the sky into tall views from anywhere: on a portrait phone the whole room fits the view, the base camera CENTRES at camY -422 and never moves, so the galaxy simply sat in frame mid-room and nothing ever panned). Standing at the railing (ROOF_EDGE_Y) eases roofSkyT open and the NORMAL follow camera's top clamp extends by this much, so the view pans up to the railing and the galaxy beyond it — on mobile too, where the centred camera now pans up by the reveal as well; walking away eases it shut and the galaxy leaves the frame */
+const ROOF_EDGE_Y = 170; /* "at the balcony edge": feet at or above this line are up against the railing (feet clamp at 70; the DJ's strip is 112..144; leaning on a bar's south face rests at 166) — the only place the galaxy may show */
+const ROOFBOOTHS = []; /* Club Quantum's booth ARRANGEMENT carried to the roof (Jonathan 2026-11-01): the ring around the pool is gone — the booths now stand as the club's stand, a column down each side wall and SIX along the bottom, the club's own 210x190 boxes, walk-over decor exactly as the club's are. The club's columns (x 56 / CLUBROOM.w - 266, a 280 row pitch — a 190 booth and a 90 gap — and the last row's bottom 90 above the floor) are fitted up by the rooms' height difference (CLUBROOM.h 1720 - ROOFROOM.h 1500 = 220): the side rows run 380 / 660 / 940 and the bottom six ride the fourth row's own line (1220, its bottom 90 above this floor), spread evenly wall to wall at a 396 pitch, their end booths doubling as the columns' fourth rows. ELEVEN booths stand, not twelve: the west column's 380 booth stood directly in front of the west door, over its "← CLUB QUANTUM" band, and is REMOVED at Jonathan's word (2026-11-01) — the west column starts at 660 and the doorway stands clear; every other booth is exactly where the club fit put it */
+[380, 660, 940].forEach(y => { ROOFBOOTHS.push({ x: ROOFROOM.w - 266, y, w: 210, h: 190 }); }); /* the east column — all three fitted rows */
+[660, 940].forEach(y => { ROOFBOOTHS.push({ x: 56, y, w: 210, h: 190 }); }); /* the west column — two rows only: its 380 booth blocked the door and is gone (see above) */
 [56, 452, 848, 1244, 1640, 2038].forEach(x => ROOFBOOTHS.push({ x, y: 1220, w: 210, h: 190 })); /* the bottom six on the columns' fourth-row line — the two ends ARE the columns' fourth rows */
 const ROOFBAR_L = { x: 56, y: 76, w: 560, h: 60 }, ROOFBAR_R = { x: ROOFROOM.w - 616, y: 76, w: 560, h: 60 }; /* Club Quantum's two bars, carried to the rooftop's top corners (Jonathan 2026-11-01): BAR_L / BAR_R's own rects — the club room is the same 2304 wide, so the corners land identically — drawn by the club's own bar code in drawRooftop, and solid, as the club's bars are */
 const ROOFDJBOOTH = { x: ROOFROOM.w / 2 - 150, y: 118, w: 300, h: 92 }; /* the DJ booth at the TOP of the rooftop, centred (Jonathan 2026-11-01): the club booth's own shape (300x92), painted by drawDJBooth itself. It stands clear of the balcony walk — the railing rides the room's very edge (y 8..71) and the strip behind the booth (the DJ's spot, atRoofDJBooth) is the open floor between the rail and the booth's front slab */
@@ -5301,6 +5303,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
 }
 let camX = 0, camY = 0, SCALE = 0.6;
 let vipCamOx = 0; /* the VIP overlook camera lean (PREVIEW, Jonathan 2026-10-31): eased extra camX while up against the balcony, so the club below comes into frame — a phone's view is narrower than the room, so without the lean the overlook never reaches its screen */
+let roofSkyT = 0; /* the ROOFTOP's galaxy reveal (Jonathan 2026-11-01): eased 0..1, open only while you stand at the balcony edge (frame's rooftop block drives it). It gates BOTH the camera's top extension and the sky's paint in drawRooftop, so from anywhere else in the room the galaxy cannot be in frame on any viewport — not even on a portrait phone, where the centred camera parks camY below zero all by itself */
 let hrCamGlide = null; /* the seated horse-table camera's glide state {s, x, y} (Jonathan 2026-10-30): the track focus EASES between the selecting close-up and the full-track race frame instead of jump-cutting. It lives only while the seated track focus block in frame() runs — standing up or leaving the room clears it, and the follow camera owns the view again. */
 let drawnScene = "";
 function worldToScreen(wx, wy) { return { x: (wx - camX) * SCALE, y: (wy - camY) * SCALE }; }
@@ -10803,15 +10806,18 @@ function drawRooftop(t) {
   t = decorT(t); /* decorT: the rooftop is a pure-decor scene like the club — its ambient sky steps at graphics 1/4 */
   const beat = Math.pow(1 - ((t % 480) / 480), 2); /* the club's kick-drum pulse — the rooftop's neon (its border, its bars, its booth, its pool rim) flashes on the same beat as the club's, the club's own rule */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  /* THE SKY, beyond the north edge: Jonathan's galaxy panorama in a band above the roof (y -ROOF_SKY_H..0). There is no balcony lift any more (Jonathan 2026-11-01, final form): the ordinary follow camera's bounds include the band's lower sweep (frame's rooftop block), so the sky enters the frame exactly when the view reaches the room's top edge — and from anywhere below the edge it never shows at all. Painted only while some of the band is actually in frame (camY < 0) */
-  if (camY < 0) {
+  /* THE SKY, beyond the north edge: Jonathan's galaxy panorama in a band above the roof (y -ROOF_SKY_H..0). It paints ONLY while the balcony-edge reveal is open (roofSkyT, driven by frame's rooftop block) — never on camY < 0 alone: on a portrait phone the centred camera parks camY at -422 from anywhere in the room, and painting on that alone is what put the galaxy over the room mid-visit (Jonathan's screenshot, 2026-11-01). The painted height grows with the reveal from the railing upward, so as the camera pans up at the edge the sky opens with it instead of popping in whole */
+  if (camY < 0 && roofSkyT > 0.01) {
     const sx0 = camX - 140, sw = VW / SCALE + 280;
-    ctx.fillStyle = "#05030f"; ctx.fillRect(sx0, -ROOF_SKY_H, sw, ROOF_SKY_H + 90);
+    const paintH = Math.ceil(ROOF_SKY_H * roofSkyT); /* the revealed slice of the band, measured up from the railing (y 0) */
+    ctx.fillStyle = "#05030f"; ctx.fillRect(sx0, -paintH, sw, paintH + 90);
     if (roofSkyImg.complete && roofSkyImg.naturalWidth) {
       const iw = roofSkyImg.naturalWidth, ih = roofSkyImg.naturalHeight, sc = Math.max((ROOFROOM.w + 320) / iw, (ROOF_SKY_H + 60) / ih), dw = iw * sc, dh = ih * sc;
-      ctx.drawImage(roofSkyImg, (ROOFROOM.w - dw) / 2, (ROOF_SKY_H + 60 - dh) / 2 - ROOF_SKY_H, dw, dh); /* cover-fit, centred on the band */
+      ctx.save(); ctx.beginPath(); ctx.rect(sx0, -paintH, sw, paintH + 90); ctx.clip();
+      ctx.drawImage(roofSkyImg, (ROOFROOM.w - dw) / 2, (ROOF_SKY_H + 60 - dh) / 2 - ROOF_SKY_H, dw, dh); /* cover-fit, centred on the band — clipped to the revealed slice */
+      ctx.restore();
     }
-    ctx.save(); ctx.beginPath(); ctx.rect(sx0, -ROOF_SKY_H, sw, ROOF_SKY_H + 30); ctx.clip();
+    ctx.save(); ctx.beginPath(); ctx.rect(sx0, -paintH, sw, paintH + 30); ctx.clip();
     /* (the drifting cloud haze that used to soften this sky is GONE at Jonathan's word, 2026-11-01 — the galaxy paints bare) */
     /* shooting stars (Jonathan 2026-11-01): LONG-lived streaks that cross the sky CLOSE TO THE BALCONY — they spawn in the band's lower sweep (y -240..-40), just above the railing where a player at the edge is looking, not high in the band; a gentler fall and a half-second tail keep each one on show for a good two seconds */
     if (t > roofNextStar) { roofNextStar = t + 3200 + Math.random() * 5500; roofStars.push({ x: camX + Math.random() * (VW / SCALE), y: -40 - Math.random() * 200, vx: -(300 + Math.random() * 260), vy: 55 + Math.random() * 75, at: t, life: 1700 + Math.random() * 900 }); }
@@ -11567,9 +11573,18 @@ function frame(now) {
     vipCamOx += (vipLean - vipCamOx) * Math.min(1, dt * 5);
     if (vipCamOx > 0.5) camX += vipCamOx;
   } else vipCamOx = 0;
-  if (me.scene === "rooftop" && roomH * SCALE >= VH) {
-    camY = Math.max(-ROOF_SKY_VIEW, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE))); /* the ORDINARY follow camera over the room's extended bounds (Jonathan 2026-11-01, final form): the balcony lift is gone — no trigger zone, no easing, no offset. The scrollable top simply sits ROOF_SKY_VIEW above the roof's edge, so the normal pan carries the view up as you approach the railing and rests at its top clamp with the galaxy beyond it; while the top edge is out of view, no galaxy shows at all. (When the whole room fits the view, this block steps aside and the base camera's centring above stands, as in any room — the top edge is in frame there too.) */
-  }
+  if (me.scene === "rooftop") {
+    /* THE GALAXY SHOWS ONLY AT THE EDGE (Jonathan 2026-11-01, from his phone: the sky sat in frame mid-room and never panned): the reveal eases open only while you stand at the balcony railing, shut everywhere else — and it gates the NORMAL camera, it is not a separate lift. Ease rate matches the VIP lean's (dt * 5) */
+    const atRoofEdge = me.y <= ROOF_EDGE_Y;
+    roofSkyT += ((atRoofEdge ? 1 : 0) - roofSkyT) * Math.min(1, dt * 5);
+    if (!atRoofEdge && roofSkyT < 0.002) roofSkyT = 0;
+    const roofExt = ROOF_SKY_VIEW * roofSkyT;
+    if (roomH * SCALE >= VH) {
+      camY = Math.max(-roofExt, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE))); /* the ordinary follow camera, its top clamp extended only by the eased reveal: away from the edge the clamp is 0, so the pan up the room never lets a pixel of sky in; at the edge the clamp opens and the same follow pan carries the view up to the railing with the galaxy beyond it; walking away closes it and the sky slides back out of frame */
+    } else {
+      camY = (roomH - VH / SCALE) / 2 - roofExt; /* the whole room fits the view (a tall phone): the base camera CENTRES and never follows at all, which is exactly why nothing panned on mobile and — camY sitting at -422 with the sky painted on camY < 0 alone — why the galaxy showed from anywhere. The centring stands, but the sky's paint is gated on roofSkyT (drawRooftop), so mid-room the band above the roof is plain backdrop like any other room's; at the edge the centred view pans UP by the reveal, the railing drops in the frame and the galaxy opens above it */
+    }
+  } else roofSkyT = 0;
   if (me.scene === "highrollers" && mySeatPos) {
     const f = hrcFocusRect();
     if (f) {
