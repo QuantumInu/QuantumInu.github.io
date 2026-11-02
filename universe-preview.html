@@ -1309,7 +1309,7 @@ const BOWLROOM = { w: 2560, h: 2000 };
 const BOWLCX = t => BOWLROOM.w / 2 + (t - 1.5) * 600; /* lane centre lines: 380, 980, 1580, 2180 (spread from a 300 pitch to 600 at Jonathan's word, 2026-11-01 — the lanes now run basically edge to edge of the room) */
 const BOWLLANES = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 160, y: 330, w: 320, h: 1240 })); /* the lane field including both gutters (260 of boards + 30 of gutter a side) — solid in its room, like the pool tables. Widened from 202 with the spread */
 const BOWLSEATS = [0, 1, 2, 3].map(t => [-141, -47, 47, 141].map(dx => ({ x: BOWLCX(t) + dx, y: 1740 }))); /* four chairs per lane at its south end, evenly spaced across the widened lane on its own centre line */
-const BOWLSCREENS = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 250, y: 132, w: 500, h: 176 })); /* the scoring screen hung over each lane's pins end, centred on its centre line — widened 260 -> 400 with the lanes, then 400 -> 500 (Jonathan 2026-11-01, "just make score cards wider and font bigger"): the fonts inside grew into the extra room, and a clear 100 of dark floor still stands between neighbouring boards on the 600 pitch */
+const BOWLSCREENS = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 250, y: 126, w: 500, h: 186 })); /* the scoring screen hung over each lane's pins end, centred on its centre line — widened 260 -> 400 with the lanes, then 400 -> 500 (Jonathan 2026-11-01, "just make score cards wider and font bigger"): the fonts inside grew into the extra room, and a clear 100 of dark floor still stands between neighbouring boards on the 600 pitch. It grew a little taller and rode 6px up (176 -> 186 at y 132 -> 126) when the game's status line moved INSIDE the card as its third line (Jonathan 2026-11-01): its bottom (312) still clears the pin-deck backing at 314 */
 const BOWLEXIT = { x: BOWLROOM.w / 2 - 62, y: BOWLROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — the gym's GEXIT shape */
 const BOWL_FOUL_Y = 1470; /* the ball leaves from here, at the lane's south end */
 function bowlPinPos(cx, i) { let r = 0, j = i; while (j > r) { j -= r + 1; r++; } return { x: cx + (j - r / 2) * 56, y: 512 - r * 52 }; } /* pin i of the rack: head pin (0) nearest the player at y 512, rows running north — 1-2-3-4 */
@@ -6274,8 +6274,17 @@ function bowlKey(t) { return "bowl" + (t + 1); }
 function bowlSeatRec(t, i) { const st = bowlStates[t]; return st && st.seats ? st.seats[i] : null; }
 function myBowlSeatRec() { return bowlSeatT >= 0 ? bowlSeatRec(bowlSeatT, bowlSeatI) : null; }
 function bowlFresh(s) { return !!(s && s.pid && Date.now() - (s.ts || 0) < 25000); } /* a chair is occupied only by a pid-bearing fresh record (the casino rule) */
-function sfxBowlRoll() { noiseBurst(0.35, "lowpass", 300, 120, 0.10); }
-function sfxBowlPins(n) { noiseBurst(0.16, "bandpass", 1800, 700, Math.min(0.3, 0.12 + n * 0.03)); tone(220, 90, 0.1, "triangle", 0.10); }
+function sfxBowlRoll() { noiseBurst(0.35, "lowpass", 300, 120, 0.10); noiseBurst(0.12, "bandpass", 500, 1400, 0.05); } /* the release: the hand's whoosh over the ball's first rumble */
+function sfxBowlPins(n) { noiseBurst(0.16, "bandpass", 1800, 700, Math.min(0.3, 0.12 + n * 0.03)); tone(220, 90, 0.1, "triangle", 0.10); } /* pin clatter, louder the more pins the physics just put down */
+function sfxBowlCrash(n, v) { const k = Math.max(0.35, Math.min(1, (v || 900) / 1400)), vol = Math.min(0.34, 0.10 + 0.10 * k + 0.03 * Math.min(6, n || 1)); noiseBurst(0.22, "bandpass", 2100, 600, vol); noiseBurst(0.10, "highpass", 3200, 2400, vol * 0.5); tone(190, 70, 0.12, "triangle", 0.10 * k); } /* the ball ARRIVES: a crash scaled by the ball's speed at contact and how many pins it met — a solid pocket hit cracks, a corner clip ticks */
+function sfxBowlGutter() { tone(160, 60, 0.16, "sine", 0.14); noiseBurst(0.12, "lowpass", 500, 150, 0.10); } /* the dull drop into the channel */
+function sfxBowlStrike() { [523, 659, 784, 1046].forEach((f, i) => tone(f, f, 0.12, "triangle", 0.06, i * 0.07)); } /* the strike jingle */
+function sfxBowlSpare() { [523, 784].forEach((f, i) => tone(f, f, 0.12, "triangle", 0.055, i * 0.08)); } /* the smaller spare jingle */
+function bowlRumbleTick(sim) { /* the rolling rumble under a live ball: short lowpassed bursts on a ~110ms beat, pitch and level following the ball's speed, stopping the moment the ball is spent. Driven by the thrower's own frame steps for their ball, and by bowlSfxWatch off the live snapshot for everyone else's */
+  const now = performance.now(); if (sim.rumbleAt && now - sim.rumbleAt < 110) return; sim.rumbleAt = now;
+  const sp = Math.hypot(sim.vx || 0, sim.vy || 0); if (sp < 60) return;
+  noiseBurst(0.10, "lowpass", 130 + sp * 0.10, 70, Math.max(0.04, Math.min(0.13, 0.04 + sp * 0.00005)));
+}
 /* ---- standard 10-frame scoring, off one player's flat rolls list (a missing roll scores 0 — a forfeited frame) ---- */
 function bowlScorecard(rolls) {
   const R = i => (rolls && typeof rolls[i] === "number") ? rolls[i] : 0;
@@ -6323,7 +6332,7 @@ function bowlAdvance(st, pinsStanding) { /* the state after the ball just added 
 }
 function bowlListen() {
   if (!db || bowlHooked) return; bowlHooked = true;
-  for (let t = 0; t < 4; t++) { const tt = t; db.ref("hub/tables/" + bowlKey(tt)).on("value", sn => { bowlStates[tt] = sn.val(); bowlFxCheck(tt); bowlSettle(tt); }); }
+  for (let t = 0; t < 4; t++) { const tt = t; db.ref("hub/tables/" + bowlKey(tt)).on("value", sn => { bowlStates[tt] = sn.val(); bowlFxCheck(tt); bowlSfxCheck(tt); bowlSettle(tt); }); }
   setInterval(() => { if (entered && me.scene === "bowling" && db) for (let t = 0; t < 4; t++) bowlHostTick(t); }, 900);
   setInterval(bowlSeatBeat, 4000);
 }
@@ -6345,6 +6354,39 @@ function bowlFxCheck(t) { /* a decided game bursts coins at the winner's chair, 
     else if (bet > 0 && amt === 0) { fxPuff(x, y, "bowling"); fxText(x, y - 18, "−" + bet.toLocaleString("en-US"), "rgba(205,210,225,0.95)", "bowling"); if (mine) sfxLose(); }
     else if (bet > 0 && amt === bet && mine) sfxPush();
   });
+}
+/* ---- the room's ears for OTHER people's throws (Jonathan 2026-11-01): a throw I am not simulating myself is heard off the live snapshot stream, the same events seen from the stream — the release when a roll starts on a lane, the rumble while its ball travels (speed estimated between snapshots), the crash when its pins first start falling, clatter as more go down, and the gutter thud when its ball runs wide into the channel. A lane I AM simulating (my own throw, or the CPU's on my screen as its host) is skipped — the local sim already made those sounds, and nothing plays twice ---- */
+const bowlWatch = [null, null, null, null];
+function bowlLiveDown(live) { if (!live || !live.pins) return 0; let n = 0; for (const p of live.pins) if (p && p[2]) n++; return n; } /* pins in the snapshot that are tipping or down */
+function bowlSfxWatch() {
+  if (me.scene !== "bowling") return;
+  const now = performance.now();
+  for (let t = 0; t < 4; t++) {
+    if ((bowlSim && bowlSim.t === t) || (bowlCpuSim && bowlCpuSim.t === t)) { bowlWatch[t] = null; continue; } /* my own simulation's lane: its sounds are the local ones */
+    const st = bowlStates[t];
+    if (!st || st.phase !== "play" || !st.rolling || !st.live) { bowlWatch[t] = null; continue; }
+    let W = bowlWatch[t];
+    if (!W || W.shotTs !== st.shotTs) { bowlWatch[t] = W = { shotTs: st.shotTs, x: st.live.x, y: st.live.y, down: bowlLiveDown(st.live), gutter: false, rumbleAt: 0, speed: 0, lastMove: now }; sfxBowlRoll(); continue; } /* a new roll on this lane: the release */
+    if (st.live.x !== W.x || st.live.y !== W.y) { const dtm = Math.max(30, now - (W.lastMove || now)); W.speed = Math.hypot(st.live.x - W.x, st.live.y - W.y) / dtm * 1000; W.x = st.live.x; W.y = st.live.y; W.lastMove = now; }
+    if (st.live.y < BOWL_FOUL_Y - 80 && now - W.rumbleAt > 120) { W.rumbleAt = now; const sp = W.speed || 800; noiseBurst(0.10, "lowpass", 130 + sp * 0.10, 70, Math.max(0.04, Math.min(0.12, 0.04 + sp * 0.00005))); } /* the rumble, on the snapshot's own cadence */
+    if (!W.gutter && Math.abs(st.live.x - BOWLCX(t)) > 136 && st.live.y < BOWL_FOUL_Y - 60) { W.gutter = true; sfxBowlGutter(); } /* the ball has run into the channel */
+    const dn = bowlLiveDown(st.live);
+    if (dn > W.down) { if (W.down === 0) sfxBowlCrash(dn, 1000); else sfxBowlPins(dn - W.down); W.down = dn; } /* first pins down: the crash; more after: clatter */
+  }
+}
+/* ---- the strike / spare jingles, heard by the whole room off the record (Jonathan 2026-11-01): a finished throw lands in the rolls through the listener, so every screen in the room — the thrower's included, exactly once — judges the ball that was just written against the frame it belonged to: a full rack cleared is a strike, a two-ball clear is a spare ---- */
+const bowlSfxPrev = [null, null, null, null];
+function bowlSfxCheck(t) {
+  const st = bowlStates[t], prev = bowlSfxPrev[t];
+  bowlSfxPrev[t] = st ? { phase: st.phase, frame: st.frame, ball: st.ball || 0, turnSeat: st.turnSeat, rack: st.rack, rolls: st.rolls } : null; /* each value event hands over a fresh object, so keeping the last one's fields is keeping a true snapshot of the game before this write */
+  if (!prev || !st || me.scene !== "bowling") return;
+  if (prev.phase !== "play" || prev.turnSeat == null) return;
+  const pr = (prev.rolls && prev.rolls[prev.turnSeat]) || [], nr = (st.rolls && st.rolls[prev.turnSeat]) || [];
+  if (nr.length <= pr.length) return; /* no new ball was written by this update */
+  const v = nr[pr.length]; if (typeof v !== "number") return;
+  const rackSum = (prev.rack || []).reduce((a, b) => a + b, 0), fb = bowlFrameBalls(pr, prev.frame || 1);
+  if (v === 10 && rackSum === 10) sfxBowlStrike(); /* cleared a full rack with one ball */
+  else if ((prev.ball || 0) >= 1 && fb.length >= 1 && fb[0] !== 10 && fb[0] + v === 10) sfxBowlSpare(); /* the frame's balls add to ten the two-ball way */
 }
 /* ---- chairs ---- */
 function bowlNearLane() { for (let t = 0; t < 4; t++) if (nearSeatOf(BOWLSEATS[t])) return t; return -1; }
@@ -6605,7 +6647,7 @@ function bowlNewSim(t, cx, x, vx, vy, st) { /* a throw, ready to step: the ball 
   for (let i = 0; i < 10; i++) { const s = bowlPinPos(cx, i); prevLay.push(lay ? lay[i].slice() : [s.x, s.y, rack[i] ? 0 : 77, 0]); }
   const pins = [];
   for (let i = 0; i < 10; i++) { if (prevLay[i][2] !== 0) continue; pins.push({ i, x: prevLay[i][0], y: prevLay[i][1], sx: prevLay[i][0], sy: prevLay[i][1], vx: 0, vy: 0, down: false, fall: 0, fdx: 0, fdy: -1, fsign: 1, pit: false }); }
-  return { t, cx, x, y: BOWL_FOUL_Y, vx, vy, pins, rack, prevLay, lastPub: 0, gutter: false, ballDone: false, settleT: 0, fellFx: 0 };
+  return { t, cx, x, y: BOWL_FOUL_Y, vx, vy, pins, rack, prevLay, lastPub: 0, gutter: false, ballDone: false, settleT: 0, fellFx: 0, ballTouched: false, crashFx: 0, crashN: 0, crashSent: false, gutterFx: 0, rumbleAt: 0 }; /* the Fx fields are the sound layer's: first-contact crash, gutter one-shot, rumble throttle */
 }
 function bowlTopple(sim, p, dx, dy) { /* the pin goes over: the fall's direction is the way it was moving (or being shoved) at this instant, and its momentum is untouched — it falls AS it flies, which is what lets it take a neighbour down during the fall */
   p.down = true; if (!p.fall) p.fall = 0.0001;
@@ -6614,19 +6656,20 @@ function bowlTopple(sim, p, dx, dy) { /* the pin goes over: the fall's direction
 }
 function bowlHit(a, b, ma, mb, e, rs) { /* one circle collision: part the pair along the line of centres (the heavier body gives less ground) and trade the impulse along it, with e of bounce. The ball is just body a — the sim object carries x/y/vx/vy like any pin */
   const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
-  if (d2 >= rs * rs || d2 === 0) return;
+  if (d2 >= rs * rs || d2 === 0) return false;
   const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, ov = rs - d, tot = ma + mb;
   a.x -= nx * ov * (mb / tot); a.y -= ny * ov * (mb / tot);
   b.x += nx * ov * (ma / tot); b.y += ny * ov * (ma / tot);
   const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-  if (rv < 0) { const j = -(1 + e) * rv / (1 / ma + 1 / mb); a.vx -= j * nx / ma; a.vy -= j * ny / ma; b.vx += j * nx / mb; b.vy += j * ny / mb; }
+  if (rv < 0) { const j = -(1 + e) * rv / (1 / ma + 1 / mb); a.vx -= j * nx / ma; a.vy -= j * ny / ma; b.vx += j * nx / mb; b.vy += j * ny / mb; return true; } /* a true contact: momentum actually traded — the sound layer below reads these, the physics is unchanged */
+  return false;
 }
 function bowlSubStep(sim, h) { /* one 1/240s tick of a throw: the ball's flight down the lane (the old sim's, untouched — same drag, same gutter), then the deck */
   const cx = sim.cx;
   if (!sim.ballDone) {
     sim.x += sim.vx * h; sim.y += sim.vy * h;
     sim.vy *= (1 - 0.10 * h); sim.vx *= (1 - 0.35 * h); /* rolling resistance */
-    if (!sim.gutter && Math.abs(sim.x - cx) > 131 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true; /* past the lane's edge the ball drops into the gutter and runs straight to the pit, touching nothing — the edge is the widened boards' own edge (131 = 130 + the ball's skin; the channel centre 145 is the gutter band's middle, 130..160) */
+    if (!sim.gutter && Math.abs(sim.x - cx) > 131 && sim.y < BOWL_FOUL_Y - 60) { sim.gutter = true; sim.gutterFx = 1; } /* past the lane's edge the ball drops into the gutter and runs straight to the pit, touching nothing — the edge is the widened boards' own edge (131 = 130 + the ball's skin; the channel centre 145 is the gutter band's middle, 130..160). gutterFx is the sound layer's one-shot flag, consumed by the frame steps */
     if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 145; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
   }
   const pins = sim.pins;
@@ -6639,7 +6682,7 @@ function bowlSubStep(sim, h) { /* one 1/240s tick of a throw: the ball's flight 
     if (p.x < wl) { p.x = wl; p.vx = Math.abs(p.vx) * 0.45; } else if (p.x > wr) { p.x = wr; p.vx = -Math.abs(p.vx) * 0.45; } /* the kickbacks: pins bounce off the deck's side walls back into the rack */
     if (p.y < BOWL_PIT_Y) { if (!p.down) bowlTopple(sim, p, p.vx, p.vy - 1); p.pit = true; p.y = BOWL_PIT_Y; p.vx = 0; p.vy = 0; if (p.fall < 0.6) p.fall = 0.6; } /* over the pit line the pin is down and out of the action */
   }
-  if (!sim.gutter && !sim.ballDone && sim.y < 580) for (const p of pins) { if (!p.pit) bowlHit(sim, p, BOWL_BALL_M, BOWL_PIN_M, 0.25, BOWL_BALL_R + BOWL_PIN_R); } /* the ball meets the deck — every pin it reaches pushes back on it */
+  if (!sim.gutter && !sim.ballDone && sim.y < 580) for (const p of pins) { if (!p.pit && bowlHit(sim, p, BOWL_BALL_M, BOWL_PIN_M, 0.25, BOWL_BALL_R + BOWL_PIN_R) && !sim.crashSent) { if (!sim.ballTouched) { sim.ballTouched = true; sim.crashFx = Math.hypot(sim.vx, sim.vy); sim.crashN = 1; } else if (sim.crashFx) sim.crashN++; } } /* the ball meets the deck — every pin it reaches pushes back on it. The FIRST contact of the throw is remembered (the ball's speed at that instant, how many pins it met in the same breath) for the crash sound; crashSent latches once the frame step has played it, so a throw crashes once, however long the deck action runs */
   for (let a = 0; a < pins.length; a++) for (let b = a + 1; b < pins.length; b++) { if (!pins[a].pit && !pins[b].pit) bowlHit(pins[a], pins[b], BOWL_PIN_M, BOWL_PIN_M, 0.35, BOWL_PIN_R * 2); } /* pin action: a struck pin flies into its neighbours at full weight */
   for (const p of pins) { /* what stays standing is only what the physics leaves near its spot and near still — no dice anywhere in it */
     if (p.down || p.pit) continue;
@@ -6675,12 +6718,18 @@ function bowlPinsLayout(sim) { /* the resting layout a finished throw leaves on 
   for (const p of sim.pins) out[p.i] = [Math.round(p.x), Math.round(p.y), p.down ? Math.round(p.fsign * 77) : 0, p.down ? Math.round(Math.atan2(p.fdy, p.fdx) * 57.3) : 0];
   return out;
 }
+function bowlSimSfx(sim) { /* the throw sounds a LOCAL simulation makes (my own throw, and the CPU's throw on its host's screen — one path, so a CPU throw sounds exactly like a human's): the first-contact crash, the gutter drop, and the rolling rumble while the ball is live. The clatter of falling pins (fellFx) stays with the frame steps, where it always lived */
+  if (sim.crashFx) { sfxBowlCrash(sim.crashN || 1, sim.crashFx); sim.crashFx = 0; sim.crashSent = true; }
+  if (sim.gutterFx) { sfxBowlGutter(); sim.gutterFx = 0; }
+  if (!sim.ballDone) bowlRumbleTick(sim);
+}
 function bowlFrameStep(dt) {
   if (!bowlSim) return;
   const sim = bowlSim, st = bowlStates[sim.t];
   if (!st || st.phase !== "play" || st.turnSeat !== bowlSeatI) { bowlSim = null; return; } /* my turn ended another way (a host skip, a reset) — the local ball goes away */
   if (!sim.dwellUntil) { /* the throw itself: step the shared physics until it settles — then the dwell starts instead of the finish firing on the spot */
     const done = bowlStepThrow(sim, dt); /* the shared throw step: the ball's flight and the pin deck's real physics */
+    bowlSimSfx(sim); /* the crash, the gutter drop, the rumble */
     if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; } /* the clatter of however many pins the physics just put down */
     if (done) { for (const p of sim.pins) if (p.down) p.fall = 1; sim.dwellUntil = performance.now() + BOWL_RESULT_DWELL_MS; } /* the falls settle onto the exact resting layout the finish is about to write (bowlPinsLayout writes full falls anyway), so the deck the room stares at through the dwell is the deck that gets scored */
   }
@@ -6759,6 +6808,7 @@ function bowlCpuFrameStep(dt) {
   if (sim.t !== t || st.turnSeat !== sim.seat) { bowlCpuSim = null; return; } /* its turn ended another way (a host skip, a reset) — the local ball goes away, exactly as a human's does */
   if (!sim.dwellUntil) { /* the CPU's throw itself, stepped and settled exactly like a human's — then the same dwell, so a CPU game breathes the same way (Jonathan 2026-11-01) */
     const done = bowlStepThrow(sim, dt); /* the shared step, literally the player's own: the same ball flight, the same pin physics — only the aim was a decision (the fairness rule) */
+    bowlSimSfx(sim); /* the CPU's throw sounds like a human's: crash, gutter, rumble, on the host's screen */
     if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; }
     if (done) { for (const p of sim.pins) if (p.down) p.fall = 1; sim.dwellUntil = performance.now() + BOWL_RESULT_DWELL_MS; }
   }
@@ -6810,24 +6860,55 @@ function drawBowlPin(x, y, fallDeg, fallDirDeg) { /* fallDeg 0 stands the pin up
     ctx.restore(); ctx.globalAlpha = 1;
   }
 }
+function bowlCardStatus(tt, st) { /* the game's status line, as the person LOOKING at this lane's card reads it (Jonathan 2026-11-01: the status moved out of the bet panel and INTO the scorecard, as its third line — below the players, above the pot). The play-phase wording is the panel's old play line word for word, judged per viewer exactly as the panel judged it: my throw reads YOUR THROW, anyone else's names the thrower; rolling and the result dwell read as the ball and the pins; bet and done carry their own per-viewer lines the same way */
+  if (!st) return "";
+  const seats = st.seats || {};
+  const myRec = bowlSeatT === tt ? seats[bowlSeatI] : null, iAmSeated = !!(myRec && myRec.pid === myId);
+  if (st.phase === "bet") {
+    if (iAmSeated) {
+      if (!(myRec.bet > 0)) return "🎳 Your bet — pick an amount to play";
+      if (!myRec.rdy) return "🎳 Bet placed — tap READY when you're set";
+      return "✓ You're READY — waiting for the others";
+    }
+    return [0, 1, 2, 3].some(i => bowlFresh(seats[i])) ? "🎳 Placing bets — sit down to join in" : "🎳 Waiting for players to sit down";
+  }
+  if (st.phase === "play") {
+    const tRec = seats[st.turnSeat] || {}, tName = String(tRec.name || "…"), myThrow = iAmSeated && st.turnSeat === bowlSeatI;
+    if (st.rolling) { /* a ball is live on this lane — early flight reads as rolling; once the ball is deep (or in the pit, through the result dwell, which holds rolling true) it reads as the throw and the pins */
+      const ly = st.live ? st.live.y : 9999;
+      if (ly <= 720) return myThrow ? "🎳 Your throw — watch the pins!" : "🎳 " + tName + "'s throw — watch the pins!";
+      return myThrow ? "🎳 Your ball is rolling…" : "🎳 " + tName + "'s ball is rolling…";
+    }
+    return myThrow ? "🎳 YOUR THROW — pull back on the lane, release to roll" : "🎳 " + tName + " to throw";
+  }
+  if (st.phase === "done") {
+    const res = st.results || {}, myRes = iAmSeated ? res[bowlSeatI] : null, myBet = myRec ? (myRec.bet || 0) : 0;
+    if (myRes && myRes.amt > myBet) return "🏆 You won 🪙 " + Number(myRes.amt).toLocaleString("en-US") + "!";
+    if (myRes && myRes.amt > 0) return "🤝 A tie — your bet came back";
+    const tops = Object.keys(res).filter(k => (res[k].amt || 0) > 0);
+    if (tops.length) return "🏆 " + tops.map(k => String((seats[k] && seats[k].name) || "—").slice(0, 12)).join(" · ") + " took the pot";
+    return "🎳 Game over";
+  }
+  return "";
+}
 function drawBowlScreen(tt, st) {
   const S = BOWLSCREENS[tt];
   ctx.fillStyle = "rgba(6,8,20,0.95)"; rr(S.x, S.y, S.w, S.h, 14); ctx.fill();
   ctx.strokeStyle = "rgba(168,85,247,0.75)"; ctx.lineWidth = 2.5; rr(S.x, S.y, S.w, S.h, 14); ctx.stroke();
   ctx.textAlign = "left"; ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("LANE " + (tt + 1), S.x + 16, S.y + 34);
+  ctx.fillText("LANE " + (tt + 1), S.x + 16, S.y + 32);
   ctx.textAlign = "right"; ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7ee7ff";
   const status = !st ? "OPEN" : st.phase === "bet" ? "PLACE BETS" : st.phase === "play" ? "FRAME " + (st.frame || 1) + " / 10" : "GAME OVER";
-  ctx.fillText(status, S.x + S.w - 16, S.y + 34);
-  ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 14, S.y + 44); ctx.lineTo(S.x + S.w - 14, S.y + 44); ctx.stroke();
+  ctx.fillText(status, S.x + S.w - 16, S.y + 32);
+  ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 14, S.y + 42); ctx.lineTo(S.x + S.w - 14, S.y + 42); ctx.stroke();
   const seats = (st && st.seats) || {};
   const rows = !st ? [] : st.phase === "bet" ? [0, 1, 2, 3].filter(i => bowlFresh(seats[i])) : (st.players || []);
   if (!rows.length) {
     ctx.textAlign = "center"; ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(210,220,240,0.55)";
-    ctx.fillText("— open lane —", S.x + S.w / 2, S.y + 110);
+    ctx.fillText("— open lane —", S.x + S.w / 2, S.y + 104);
   }
   rows.forEach((i, r) => {
-    const s = seats[i] || {}, y = S.y + 70 + r * 25, mine = s.pid === myId;
+    const s = seats[i] || {}, y = S.y + 64 + r * 22, mine = s.pid === myId; /* the rows ride a little tighter (start 70 -> 64, step 25 -> 22) so the card's third line — the status, below the players — has its own air above the pot line */
     const gone = st && st.phase !== "bet" && !bowlFresh(s);
     ctx.textAlign = "left"; ctx.font = "700 16px 'Segoe UI',sans-serif";
     ctx.fillStyle = gone ? "rgba(160,165,180,0.6)" : (st && st.phase === "play" && st.turnSeat === i ? "#ffd76a" : "#eaf6ff");
@@ -6850,6 +6931,15 @@ function drawBowlScreen(tt, st) {
       ctx.fillText(String(st.phase === "done" && st.totals && typeof st.totals[i] === "number" ? st.totals[i] : card.total), S.x + S.w - 12, y);
     }
   });
+  /* the THIRD LINE (Jonathan 2026-11-01): the game's status, inside the card — below the player rows, above the pot line. Per viewer, per phase (bowlCardStatus); the font steps down only if a long winner line would spill */
+  const cardStat = bowlCardStatus(tt, st);
+  if (cardStat) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = st.phase === "play" && !st.rolling && bowlSeatT === tt && st.turnSeat === bowlSeatI ? "#ffd76a" : "rgba(220,200,255,0.92)";
+    let fs = 15; ctx.font = "700 " + fs + "px 'Segoe UI',sans-serif";
+    while (fs > 11 && ctx.measureText(cardStat).width > S.w - 24) { fs--; ctx.font = "700 " + fs + "px 'Segoe UI',sans-serif"; }
+    ctx.fillText(cardStat, S.x + S.w / 2, S.y + 156);
+  }
   ctx.textAlign = "center"; ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.75)";
   if (st && st.phase === "play") ctx.fillText("POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), S.x + S.w / 2, S.y + S.h - 8);
   else if (st && st.phase === "done" && st.results) { const w = Object.keys(st.results).filter(k => st.results[k].amt > 0); ctx.fillText(w.length ? "🏆 " + w.map(k => (st.seats && st.seats[k] && st.seats[k].name) || "—").join(" · ") : "", S.x + S.w / 2, S.y + S.h - 8); }
@@ -6924,7 +7014,7 @@ function drawBowlPanel(t) {
   /* on a phone (the page's own coarse-pointer test, the one the joystick and run button answer to) the panel is CENTRED, BIGGER and HIGHER (Jonathan 2026-11-01): centred — the desktop shift-left that dodges the Stand up pill is dropped, because on a phone the pill sits bottom-centre BELOW the panel's new height; bigger — PS scales the panel to 644 wide, and every offset, button, row and font in the body below is written in unscaled panel units multiplied by PS (uiZones included), so at PS = 1 the desktop panel is exactly the one it always was; higher — a 180 screen-px bottom margin instead of 110, lifting the panel clear of the joystick and the Stand up row */
   const bowlMob = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
   const PS = bowlMob ? 1.15 : 1;
-  const P = { x: 0, y: 0, w: 560 * PS, h: (showCpu ? 196 : 156) * PS };
+  const P = { x: 0, y: 0, w: 560 * PS, h: (st.phase === "play" ? 116 : st.phase === "done" ? 150 : (showCpu ? 196 : 156)) * PS }; /* the height follows the phase: bet keeps its full stack; play shrank when its status line moved into the lane's scorecard (Jonathan 2026-11-01) — title and score only now; done keeps room for its three lines */
   const scrW = P.w * SCALE;
   if (bowlMob) {
     P.x = camX + Math.max(8, (VW - scrW) / 2) / SCALE;
@@ -6965,13 +7055,11 @@ function drawBowlPanel(t) {
     }
   } else if (st.phase === "play") {
     const card = bowlScorecard((st.rolls && st.rolls[bowlSeatI]) || []);
-    const turnSeat = st.seats && st.seats[st.turnSeat];
     ctx.font = "800 " + Math.round(20 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("FRAME " + (st.frame || 1) + " / 10 · POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), cx, P.y + 34 * PS);
-    ctx.font = "700 " + Math.round(19 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-    ctx.fillText(st.turnSeat === bowlSeatI ? "🎳 YOUR THROW — pull back on the lane, release to roll" : "🎳 " + ((turnSeat && turnSeat.name) || "…") + " to throw", cx, P.y + 72 * PS);
+    ctx.fillText("FRAME " + (st.frame || 1) + " / 10 · POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), cx, P.y + 38 * PS);
+    /* the status line that used to sit here ("YOUR THROW — …" / "<name> to throw") is GONE from the panel (Jonathan 2026-11-01): it lives in the lane's scorecard now, as the card's third line — bowlCardStatus carries the same words, per viewer. What remains is the frame/pot title and my running score, reflowed into the smaller play panel */
     ctx.font = "700 " + Math.round(17 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
-    ctx.fillText("Your score so far: " + card.total, cx, P.y + 106 * PS);
+    ctx.fillText("Your score so far: " + card.total, cx, P.y + 78 * PS);
   } else if (st.phase === "done") {
     const myRes = st.results && st.results[bowlSeatI];
     ctx.font = "800 " + Math.round(22 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
@@ -11053,7 +11141,7 @@ function frame(now) {
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
-  if (me.scene === "bowling") { bowlFrameStep(dt); bowlCpuFrameStep(dt); } /* the thrower's ball-and-pins physics runs here, on the thrower's client only (bowlFrameStep itself refuses everywhere else) — and beside it the CPU's throws in a 1v1, on the seated host's client only (bowlCpuFrameStep itself refuses everywhere else) */
+  if (me.scene === "bowling") { bowlFrameStep(dt); bowlCpuFrameStep(dt); bowlSfxWatch(); } /* the thrower's ball-and-pins physics runs here, on the thrower's client only (bowlFrameStep itself refuses everywhere else) — and beside it the CPU's throws in a 1v1, on the seated host's client only (bowlCpuFrameStep itself refuses everywhere else). bowlSfxWatch gives the room its ears for the throws it is NOT simulating, off the live snapshots */
   if (me.scene === "boxing") boxCpuFrame(dt); /* the CPU fighter's simulation runs here — on the HOST's screen only (boxCpuFrame itself refuses everywhere else): it moves, faces and punches the CPU, and publishes its body to the record for the room */
   boxMousePunchDriver(); /* the instant-glove driver runs every frame alongside the CPU sim — it self-gates to an active fight on a non-coarse pointer, so outside a desktop bout it costs nothing */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
