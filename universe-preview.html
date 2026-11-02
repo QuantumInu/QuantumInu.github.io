@@ -7019,14 +7019,14 @@ function bowlShootOrder(players, first, hist) { /* the game's turn order once th
   });
   return grp.concat(rest);
 }
-function bowlAdvance(st, pinsStanding) { /* the state after the ball just added to rolls[turnSeat]: frames 1-9 end on a strike or a second ball; the 10th runs to three balls on a strike or spare, the rack resetting whenever it is cleared */
-  const frame = st.frame, ball = st.ball || 0, fb = bowlFrameBalls((st.rolls && st.rolls[st.turnSeat]) || [], frame);
+function bowlAdvance(st, pinsStanding) { /* the state after the ball just added to rolls[turnSeat]: frames 1-9 end on a strike or a second ball; the 10th runs to three balls on a strike or spare, the rack resetting whenever it is cleared. WHICH ball was just thrown is read off the frame's own recorded balls (fb — bowlFrameBalls includes the ball just written), NEVER off the record's ball counter: the counter is a second copy of the same fact, kept in step only by the finishes' snapshot writes, and a finish that read it as 0 for a frame already holding its first ball armed the same player again — a third ball in the frame (owner's report, 2026-11-02). The rolls are the score; the rolls decide */
+  const frame = st.frame, fb = bowlFrameBalls((st.rolls && st.rolls[st.turnSeat]) || [], frame);
   if (frame < 10) {
-    if (ball === 0 && fb[0] !== 10) return { frame, turnSeat: st.turnSeat, ball: 1, rack: null, over: false };
+    if (fb.length === 1 && fb[0] !== 10) return { frame, turnSeat: st.turnSeat, ball: 1, rack: null, over: false };
     const nx = bowlAfterFrame(st); return { frame: nx.frame, turnSeat: nx.turnSeat, ball: 0, rack: "fresh", over: nx.over };
   }
-  if (ball === 0) return { frame, turnSeat: st.turnSeat, ball: 1, rack: fb[0] === 10 ? "fresh" : null, over: false };
-  if (ball === 1 && (fb[0] === 10 || fb[0] + fb[1] === 10)) return { frame, turnSeat: st.turnSeat, ball: 2, rack: pinsStanding <= 0 ? "fresh" : null, over: false };
+  if (fb.length === 1) return { frame, turnSeat: st.turnSeat, ball: 1, rack: fb[0] === 10 ? "fresh" : null, over: false };
+  if (fb.length === 2 && (fb[0] === 10 || fb[0] + fb[1] === 10)) return { frame, turnSeat: st.turnSeat, ball: 2, rack: pinsStanding <= 0 ? "fresh" : null, over: false };
   const nx = bowlAfterFrame(st); return { frame: nx.frame, turnSeat: nx.turnSeat, ball: 0, rack: "fresh", over: nx.over };
 }
 function bowlListen() {
@@ -7327,7 +7327,7 @@ function bowlHostTick(t) {
       const betAmt = seats[ready[0]].bet, players = ready.slice().sort((a, b) => a - b);
       freshIdx.forEach(i => { if (players.indexOf(i) < 0 && (seats[i].bet || 0) > 0) { writeClaim(claimUid(seats[i]), rfKeyFor(key, st, i), seats[i].bet, "↩️ Bet returned"); tblUpd(key + "/seats/" + i, { bet: 0, rdy: false }); } }); /* a staked chair that is not part of this game never consented to it — its bet comes back through the rail and its stake clears */
       const rolls = {}; players.forEach(i => { rolls[i] = []; });
-      tblUpd(key, { phase: "shoot", mode: null, players, pot: betAmt * players.length, soRound: 1, soGroup: players.slice(), soQueue: players.slice(), soCounts: {}, soFirst: {}, soHist: [], soResult: null, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() }); /* the game does NOT start here any more (Jonathan 2026-11-01): with 2+ players the SHOOT-OFF runs first — one ball each at a fresh rack, in seat order, and only when its lead stands settled does the shoot-off's last throw write the play state (frame 1, fresh rack, the winner to throw, the decided order as the game's players). The bets are already committed: the pot rides through the shoot-off untouched */
+      tblUpd(key, { phase: "shoot", mode: null, players, pot: betAmt * players.length, soRound: 1, soGroup: players.slice(), soQueue: players.slice(), soCounts: {}, soFirst: {}, soHist: [], soResult: null, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, rolls, rolling: false, shotBy: null, shotTs: null, live: bowlHomeLive(t, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], null), results: null, totals: null, playTs: Date.now() }); /* the game does NOT start here any more (Jonathan 2026-11-01): with 2+ players the SHOOT-OFF runs first — one ball each at a fresh rack, in seat order, and only when its lead stands settled does the shoot-off's last throw write the play state (frame 1, fresh rack, the winner to throw, the decided order as the game's players). The bets are already committed: the pot rides through the shoot-off untouched */
       return;
     }
     /* the 1v1 gate (Jonathan 2026-11-01): the CPU is armed, I am the lane's only fresh human, my bet is down and I am READY, and the CPU's record matches my bet — the game starts on MY ready, pot = twice my stake (the house covers the CPU's side, the pool/chess model) */
@@ -7336,7 +7336,7 @@ function bowlHostTick(t) {
       if ((seats[h].bet || 0) > 0 && seats[h].rdy && (seats[cpuSeatI].bet || 0) === seats[h].bet) {
         const betAmt = seats[h].bet, players = [h, cpuSeatI].sort((a, b) => a - b);
         const rolls = {}; players.forEach(i => { rolls[i] = []; });
-        tblUpd(key, { phase: "shoot", mode: "pc", players, pot: betAmt * players.length, soRound: 1, soGroup: players.slice(), soQueue: players.slice(), soCounts: {}, soFirst: {}, soHist: [], soResult: null, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() }); /* a 1v1 vs the CPU runs the SHOOT-OFF too (Jonathan 2026-11-01): the CPU throws with its normal aim, on the host's client, through the same machinery */
+        tblUpd(key, { phase: "shoot", mode: "pc", players, pot: betAmt * players.length, soRound: 1, soGroup: players.slice(), soQueue: players.slice(), soCounts: {}, soFirst: {}, soHist: [], soResult: null, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, rolls, rolling: false, shotBy: null, shotTs: null, live: bowlHomeLive(t, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], null), results: null, totals: null, playTs: Date.now() }); /* a 1v1 vs the CPU runs the SHOOT-OFF too (Jonathan 2026-11-01): the CPU throws with its normal aim, on the host's client, through the same machinery */
       }
     }
     return;
@@ -7469,6 +7469,12 @@ function bowlPinsLayout(sim) { /* the resting layout a finished throw leaves on 
   for (const p of sim.pins) out[p.i] = [Math.round(p.x), Math.round(p.y), p.down ? Math.round(p.fsign * 77) : 0, p.down ? Math.round(Math.atan2(p.fdy, p.fdx) * 57.3) : 0];
   return out;
 }
+function bowlHomeLive(t, rack, pinLay) { /* the ball's HOME state, written into the shared record the moment a throw resolves — and at the shoot-off's start — so the fresh ball sits at the foul line on the lane's centre for EVERY screen at the table while the next thrower aims (owner's report, 2026-11-02: the waiting player saw no ball at all until the opponent released; the respawn existed only as a local paint on the thrower's own screen). The pins ride in the live snapshot's own format, at rest: the kept layout when it agrees with the rack, plain rack spots otherwise — the same resting layout bowlNewSim seeds a throw from */
+  const cx = BOWLCX(t), lay = bowlSeedLay({ rack, pinLay });
+  const pins = [];
+  for (let i = 0; i < 10; i++) { const s = bowlPinPos(cx, i); pins.push(lay ? lay[i].slice() : [s.x, s.y, rack[i] ? 0 : 77, 0]); }
+  return { x: cx, y: BOWL_FOUL_Y, rack, pins };
+}
 function bowlSimSfx(sim) { /* the throw sounds a LOCAL simulation makes (my own throw, and the CPU's throw on its host's screen — one path, so a CPU throw sounds exactly like a human's): the first-contact crash, the gutter drop, and the rolling rumble while the ball is live. The clatter of falling pins (fellFx) stays with the frame steps, where it always lived */
   if (sim.crashFx) { sfxBowlCrash(sim.crashN || 1, sim.crashFx); sim.crashFx = 0; sim.crashSent = true; }
   if (sim.gutterFx) { sfxBowlGutter(); sim.gutterFx = 0; }
@@ -7504,7 +7510,7 @@ function bowlFinishThrow() {
   const rolls = {}; Object.keys(st.rolls || {}).forEach(k => { rolls[k] = (st.rolls[k] || []).slice(); });
   rolls[bowlSeatI] = (rolls[bowlSeatI] || []).concat([knocked]);
   const adv = bowlAdvance(Object.assign({}, st, { rolls }), standingAfter);
-  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, soResult: null, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, pinLay: adv.rack === "fresh" ? null : bowlPinsLayout(sim) }; /* a fresh rack clears the layout with it; a kept rack leaves the pins lying and standing where the physics put them. soResult dies with the game's first written ball — the "goes first!" line has had its moment */
+  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: bowlHomeLive(t, adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, adv.rack === "fresh" ? null : bowlPinsLayout(sim)), ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, soResult: null, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, pinLay: adv.rack === "fresh" ? null : bowlPinsLayout(sim) }; /* a fresh rack clears the layout with it; a kept rack leaves the pins lying and standing where the physics put them. soResult dies with the game's first written ball — the "goes first!" line has had its moment. The ball goes HOME in the same write (bowlHomeLive): the next thrower's aim shows the fresh ball to the whole table, the waiting players included */
   tblUpd(bowlKey(t), upd);
   if (adv.over) bowlFinishGame(t, Object.assign({}, st, upd), -1); /* the last ball of the game: the thrower writes the decision and the claims, the pool hall rule */
 }
@@ -7583,7 +7589,7 @@ function bowlCpuFinishThrow() { /* bowlFinishThrow with the CPU's seat in place 
   const rolls = {}; Object.keys(st.rolls || {}).forEach(k => { rolls[k] = (st.rolls[k] || []).slice(); });
   rolls[sim.seat] = (rolls[sim.seat] || []).concat([knocked]);
   const adv = bowlAdvance(Object.assign({}, st, { rolls }), standingAfter);
-  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, pinLay: adv.rack === "fresh" ? null : bowlPinsLayout(sim) }; /* a fresh rack clears the layout with it; a kept rack leaves the pins lying and standing where the physics put them */
+  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: bowlHomeLive(t, adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, adv.rack === "fresh" ? null : bowlPinsLayout(sim)), ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, pinLay: adv.rack === "fresh" ? null : bowlPinsLayout(sim) }; /* a fresh rack clears the layout with it; a kept rack leaves the pins lying and standing where the physics put them. The ball goes HOME in the same write (bowlHomeLive), exactly as a human's finish writes it */
   tblUpd(bowlKey(t), upd);
   if (adv.over) bowlFinishGame(t, Object.assign({}, st, upd), -1);
 }
@@ -7596,7 +7602,7 @@ function bowlShootSettle(t, seat, sim) {
   const counts = Object.assign({}, st.soCounts || {}); counts[seat] = knocked;
   const first = Object.assign({}, st.soFirst || {}); if ((st.soRound || 1) === 1) first[seat] = knocked;
   const queue = st.soQueue || st.players || [], group = st.soGroup || st.players || [];
-  const upd = { rolling: false, shotBy: null, shotTs: null, live: null, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, soCounts: counts, soFirst: first }; /* every shoot-off throw faces a fresh full rack — the next thrower's, and frame 1's after it */
+  const upd = { rolling: false, shotBy: null, shotTs: null, live: bowlHomeLive(t, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], null), rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, soCounts: counts, soFirst: first }; /* every shoot-off throw faces a fresh full rack — the next thrower's, and frame 1's after it — with the ball already home on the record, so the whole table sees it while they aim */
   const left = queue.filter(i => counts[i] === undefined);
   if (left.length) { upd.turnSeat = left[0]; tblUpd(bowlKey(t), upd); return; } /* the round rolls on, in seat order */
   const leaders = bowlShootLeaders(group, counts);
@@ -7767,11 +7773,12 @@ function drawBowlLane(tt, t) {
   else if (st && st.phase !== "bet") lay = bowlSeedLay(st);
   if (lay) { for (let i = 9; i >= 0; i--) { const P = lay[i]; if (P) drawBowlPin(P[0], P[1], P[2], P[3]); } }
   else { const rack = st && st.phase !== "bet" && st.rack ? st.rack : [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]; for (let i = 9; i >= 0; i--) { const p = bowlPinPos(cx, i); drawBowlPin(p.x, p.y, rack[i] ? 0 : 77, 0); } } /* no layout on the record (a game from before they were kept): the rack spots, the fallen tipped as they always were */
-  /* the ball: my simulation while my throw runs (and through the result dwell, while the settled scene holds for reading), the same for a CPU throw I host, a follower's live snapshot on the same terms (it paints only while the record says the throw is live — rolling — so the streamed ball vanishes the moment the finish writes the throw over), and at the foul line ONLY while it is my throw and I am lining it up. Once a throw is finished there is no ball on the lane at all (Jonathan 2026-11-01): none resting in the pit at the scorecard's edge, none parked at the foul line between turns — it comes back when the next throw starts */
+  /* the ball: my simulation while my throw runs (and through the result dwell, while the settled scene holds for reading), the same for a CPU throw I host, a follower's live snapshot on the same terms (it paints only while the record says the throw is live — rolling — so the streamed ball vanishes the moment the finish writes the throw over), and between throws at the foul line for the WHOLE table: every finish (and the shoot-off's start) writes the ball's home state into the shared record (bowlHomeLive), so the waiting players watch the fresh ball sit there while the thrower aims (Jonathan 2026-11-02 — the 2026-11-01 paint, under which the ball existed only on the thrower's own screen between throws, is exactly what the owner reported as the missing respawn). Still none resting in the pit at the scorecard's edge */
   if (bowlSim && bowlSim.t === tt) drawBowlBall(bowlSim.x, bowlSim.y);
   else if (bowlCpuSim && bowlCpuSim.t === tt) drawBowlBall(bowlCpuSim.x, bowlCpuSim.y);
   else if (st && st.rolling && st.live) drawBowlBall(st.live.x, st.live.y);
-  else if (tt === bowlSeatT && bowlMyTurn()) drawBowlBall(cx, BOWL_FOUL_Y);
+  else if (st && (st.phase === "play" || st.phase === "shoot") && st.live) drawBowlBall(st.live.x, st.live.y); /* between throws: the ball at home, off the SHARED record (bowlHomeLive) — every screen at the table sees the fresh ball waiting while the thrower aims, the waiting players included */
+  else if (tt === bowlSeatT && bowlMyTurn()) drawBowlBall(cx, BOWL_FOUL_Y); /* a record that carries no home state (written before it existed): the thrower's own screen keeps its local ball, as it always did */
   /* my aim: the dashed line up the lane and the power meter by the ball (the pool hall's guide, carried over) */
   if (bowlAim && bowlAim.t === tt && bowlMyTurn()) {
     const a = bowlAimDirPow();
@@ -10703,7 +10710,7 @@ function drawPlaza(t) {
   ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(PD, 120));
   ctx.lineTo(1720, 2080); ctx.arc(1600, 2080, 120, 0, Math.PI); ctx.lineTo(1480, 1560 + PD);
   ctx.arc(CX, 1560, 205, Math.atan2(PD, -120), Math.atan2(80, -D));
-  ctx.lineTo(1055, 1640); ctx.lineTo(1055, 2120); ctx.lineTo(975, 2120); ctx.lineTo(975, 2280); ctx.lineTo(0, 2280); ctx.lineTo(0, 2120); ctx.lineTo(895, 2120); ctx.lineTo(895, 1640); ctx.lineTo(0, 1640); /* the Monster Shop's path network is traced into this same outline (2026-11-02): running west along the walkway's south edge, the trace detours down the up-leg's east side (x 1055), across the leg's foot to the band's east end (975), west along the band's south edge to the plaza's edge, back east along its north edge, and up the leg's west side (895) — one unbroken outline, no line across the leg's mouth or its foot */
+  ctx.lineTo(1055, 1640); ctx.lineTo(1055, 2280); ctx.lineTo(0, 2280); ctx.lineTo(0, 2120); ctx.lineTo(895, 2120); ctx.lineTo(895, 1640); ctx.lineTo(0, 1640); /* the Monster Shop's path network is traced into this same outline (2026-11-02): running west along the walkway's south edge, the trace detours straight down the up-leg's east side (x 1055) to the band's south edge — the band runs east to the leg's own east edge, so the leg lands fully on it with no step at its foot — then west along the band's south edge to the plaza's edge, back east along its north edge, and up the leg's west side (895) — one unbroken outline, no line across the leg's mouth or its foot */
   ctx.lineTo(0, 1480); ctx.lineTo(CX - D, 1480);
   ctx.arc(CX, 1560, 205, Math.atan2(-80, -D), Math.atan2(-D, -80));
   /* the Speedway branch (2026-10-29): the gym branch mirrored — same height off the main walkway, the other way, with its apron up to the orange door */
@@ -10743,7 +10750,7 @@ function drawPlaza(t) {
   lamp(1448, 1900); lamp(1752, 1900); lamp(1448, 2160); lamp(1752, 2160); /* flanking the portal spur and its circle */
   lamp(2745, 1790); lamp(2945, 1790); lamp(2745, 2030); lamp(2945, 2030); lamp(2745, 2240); lamp(2945, 2240); /* flanking Quantum Bowling's spur (2026-11-01): pairs just outside its widened edges (2765/2925), from below the casino walkway down to the turn */
   lamp(3150, 2240); lamp(3150, 2440); lamp(3500, 2440); lamp(4000, 2440); lamp(4250, 2240); lamp(4250, 2440); /* flanking the run below the bowling building (2026-11-01): pairs where the ground allows — the building's own wall crowds the band's top edge along its frontage, so there the lamps ride the bottom edge only — clear of the door landing (3720, 2320), running with the path to the plaza's east edge */
-  /* the Monster Shop's own path network (owner's word, 2026-11-02): purple runs in the plaza's path paint. The door-front band: AS WIDE as the path to Quantum Bowling (160 — the bowling spur's width), centred on the door latitude, running from the plaza's left edge (x 0) east past the door pad (door centre 420) to x 975 — halfway between Club Quantum and the atom symbol (the club's centre x is 350: CLUB x 140 + w 420 / 2; the roundabout atom / HQ portal axis sits at x 1600; the midpoint, the band's east end, is 975). The band moved DOWN 40 with the shop (2120..2280, its centre 2200 = the exit landing). From the band's east end a matching leg, 160 wide and centred on x 975, climbs straight up to the bottom walkway's south edge (1640) — no gap, no overlap past it — tying the shop into the plaza's path grid. Ground decor like every path here: players walk over it and draw over it, and the lamps along it are the plaza's own lamp() scenery — no obstacles, and the door tile and pad stay clear */
+  /* the Monster Shop's own path network (owner's word, 2026-11-02): purple runs in the plaza's path paint. The door-front band: AS WIDE as the path to Quantum Bowling (160 — the bowling spur's width), centred on the door latitude, running from the plaza's left edge (x 0) east past the door pad (door centre 420) to x 1055 — the up-leg's own east edge, so the leg lands fully on the band with no step at its foot (the leg is centred on x 975, halfway between Club Quantum and the atom symbol: the club's centre x is 350 — CLUB x 140 + w 420 / 2; the roundabout atom / HQ portal axis sits at x 1600; the midpoint is 975). The band moved DOWN 40 with the shop (2120..2280, its centre 2200 = the exit landing). From the band a matching leg, 160 wide and centred on x 975, climbs straight up to the bottom walkway's south edge (1640) — no gap, no overlap past it — tying the shop into the plaza's path grid. Ground decor like every path here: players walk over it and draw over it, and the lamps along it are the plaza's own lamp() scenery — no obstacles, and the door tile and pad stay clear */
   /* (the band and leg themselves are painted by the plaza's main path outline above — one union shape, no seams) */
   lamp(80, 2092); lamp(800, 2092); /* the band's north edge at the plaza's 28px edge offset — only where the building (x 140..700, its south wall at y 2140) leaves the edge room: west of it and east of it */
   lamp(80, 2308); lamp(320, 2308); lamp(560, 2308); lamp(800, 2308); /* the band's south edge at the bottom walkway's own 240 pitch, running the band's full length to the plaza's edge */
@@ -10844,7 +10851,7 @@ function drawPlaza(t) {
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
    [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [110, 800, 1.0], /* the tree that stood at (3100, 800) on the east walkway below the Horse Track was removed at Jonathan's word (2026-10-30) — the lamps line that path now */
    [150, 2050, 0.95], [3050, 2050, 1.0],
-   [1050, 2440, 0.9], [2150, 2420, 1.05], [1600, 2470, 0.85], /* the new southern ground from the 2026-10-29 plaza growth. The trees that stood at (2750, 2360) and (2950, 2310) were removed at Jonathan's word (2026-11-01): the first stood at the turn of Quantum Bowling's new path with its canopy over the corner, the second right on the path's eastward run below the building. The two trees that stood below the Monster Shop at (500, 2380) and (250, 2300) were removed at Jonathan's word (2026-11-02) — the ground south of the moved shop stands open */
+   [2150, 2420, 1.05], [1600, 2470, 0.85], /* the new southern ground from the 2026-10-29 plaza growth. The trees that stood at (2750, 2360) and (2950, 2310) were removed at Jonathan's word (2026-11-01): the first stood at the turn of Quantum Bowling's new path with its canopy over the corner, the second right on the path's eastward run below the building. The two trees that stood below the Monster Shop at (500, 2380) and (250, 2300) were removed at Jonathan's word (2026-11-02) — the ground south of the moved shop stands open. The tree that stood at (1050, 2440) was removed at Jonathan's word the same day: its canopy crowded the foot of the Monster Shop path's up-leg */
    [3400, 1890, 1.0], [4040, 1890, 1.0] /* the two trees flanking Quantum Bowling (PREVIEW, Jonathan 2026-11-01): they first stood south of the building at y 2130; when the building MOVED DOWN the same day they moved to the gap between the bottom walkway and its roof, symmetric about its own centre line (3720 ± 320), clear of the walkway, the pool, the building and the new path — appended, so every existing tree keeps its index and phase */
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
