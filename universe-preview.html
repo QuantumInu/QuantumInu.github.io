@@ -1224,8 +1224,9 @@ const GYMDOOR = { x: 2585, y: 470, w: 90, h: 34 };
    room above and below, clear of the plaza's bottom edge and the HQ portal)
    and its door went on the BOTTOM face like every other plaza building's,
    with a purple path of its own leading to it: the path begins at the bottom
-   of the CASINO's door, runs down the casino's centre line (x 2845), then
-   turns right and runs east along this building's bottom to the door (the
+   of the CASINO's door, runs down the casino's centre line (x 2845 — the spur
+   160 wide, as wide as the run is tall), then turns right and runs east along
+   this building's bottom, past the door to the plaza's east edge (the
    detour in drawPlaza's union path). PURPLE, with its own roof (a row of
    bowling pins along the top edge and a giant bowling ball on the marquee —
    no other building's roof). Solid like the other buildings, door excepted.
@@ -5217,9 +5218,11 @@ function drawCasinoBuilding(t) {
   ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#ffd76a" : "#ffdf94";
   ctx.fillText("🎰 QUANTUM CASINO", cx, b.y + 110);
   ctx.fillStyle = "rgba(150,210,255,0.28)";
-  /* the four front windows (Jonathan 2026-10-29): the two pairs keep their EXACT layout — same within-pair spacing, same wide middle gap — the whole group is simply shifted LEFT as one rigid block until its midpoint sits on the building's centre line. (The fraction spots put the group's midpoint at b.w * 0.47 + 28, right of centre; winShift is exactly that overshoot, 11.2px on this 560-wide front.) Size, colour and row height unchanged. */
+  /* the four front windows (Jonathan 2026-10-29): the two pairs keep their EXACT layout — same within-pair spacing, same wide middle gap — the whole group is simply shifted LEFT as one rigid block until its midpoint sits on the building's centre line. (The fraction spots put the group's midpoint at b.w * 0.47 + 28, right of centre; winShift is exactly that overshoot, 11.2px on this 560-wide front.) Size, colour and row height unchanged.
+     (2026-11-01) the pairs then moved as UNITS toward the middle — the LEFT pair 30px right, the RIGHT pair 40px left, within-pair spacing untouched — so the four sit symmetric about the DOOR's centre line (2845, 5px left of the building's own centre) under the marquee's span, lining up with the marquee above them. */
   const winShift = 28 - b.w * 0.03;
-  for (const fx of [0.14, 0.32, 0.62, 0.8]) { rr(b.x + b.w * fx - winShift, b.y + 168, 56, 62, 6); ctx.fill(); }
+  for (const fx of [0.14, 0.32]) { rr(b.x + b.w * fx - winShift + 30, b.y + 168, 56, 62, 6); ctx.fill(); }
+  for (const fx of [0.62, 0.8]) { rr(b.x + b.w * fx - winShift - 40, b.y + 168, 56, 62, 6); ctx.fill(); }
   const cdy = SIL_R.y + SIL_R.h - 40;
   const cdg = ctx.createLinearGradient(0, cdy, 0, cdy + 100);
   cdg.addColorStop(0, "rgba(255,215,106,0.55)"); cdg.addColorStop(1, "rgba(255,215,106,0)");
@@ -9494,8 +9497,8 @@ function drawPlaza(t) {
   ctx.lineTo(1680, 670); ctx.lineTo(2550, 670); ctx.lineTo(2550, 460); ctx.lineTo(2710, 460); ctx.lineTo(2710, 670); ctx.lineTo(3690, 670); ctx.lineTo(3690, 460); ctx.lineTo(3850, 460); ctx.lineTo(3850, 830); ctx.lineTo(1680, 830); /* the walkway runs on east past the gym's apron to the Horse Track's apron (PREVIEW — the plaza's eastern ground); the track apron is centred on 3770 — the building's and door's own centreline, exactly the Sports Complex's alignment (its apron was drawn 10px west of that line at first) */
   ctx.lineTo(1680, 1560 - D);
   ctx.arc(CX, 1560, 205, Math.atan2(-D, 80), Math.atan2(-80, D));
-  ctx.lineTo(WORLD.w, 1480); ctx.lineTo(WORLD.w, 1640); ctx.lineTo(2905, 1640); /* the bottom walkway runs the plaza's full width — it now passes the swimming pool on the eastern ground. On the way west along its bottom edge, the trace detours around Quantum Bowling's own path (Jonathan 2026-11-01): the path begins at the bottom of the casino's door and runs down the casino's centre line (2845 — the spur's edges at 2785/2905), then turns right and runs east along the bowling building's bottom (2260) to its door (east edge 3765), the band's bottom at 2420 */
-  ctx.lineTo(2905, 2260); ctx.lineTo(3765, 2260); ctx.lineTo(3765, 2420); ctx.lineTo(2785, 2420); ctx.lineTo(2785, 1640); ctx.lineTo(CX + D, 1640);
+  ctx.lineTo(WORLD.w, 1480); ctx.lineTo(WORLD.w, 1640); ctx.lineTo(2925, 1640); /* the bottom walkway runs the plaza's full width — it now passes the swimming pool on the eastern ground. On the way west along its bottom edge, the trace detours around Quantum Bowling's own path (Jonathan 2026-11-01): the path begins at the bottom of the casino's door and runs down the casino's centre line (2845 — the spur 160 wide, its edges at 2765/2925, as wide as the eastward run is tall), then turns right and runs east along the bowling building's bottom (2260), past its door, all the way to the plaza's east edge — the band's bottom at 2420 */
+  ctx.lineTo(2925, 2260); ctx.lineTo(WORLD.w, 2260); ctx.lineTo(WORLD.w, 2420); ctx.lineTo(2765, 2420); ctx.lineTo(2765, 1640); ctx.lineTo(CX + D, 1640);
   /* the HQ portal spur (2026-10-29): a 240-wide path runs off the roundabout's bottom to the portal's own circle below spawn */
   const PD = Math.sqrt(205 * 205 - 120 * 120); /* 166.2 — where the spur's edges meet the roundabout */
   ctx.arc(CX, 1560, 205, Math.atan2(80, D), Math.atan2(PD, 120));
@@ -9533,11 +9536,13 @@ function drawPlaza(t) {
   }
   for (let y = 560; y <= 1500; y += 188) { if (y !== 748 && y !== 1500) { lamp(1492, y); lamp(1708, y); } } /* two rows draw NEITHER lamp: y=748 (the crossroads pair) and y=1500 — that pair flanked the roundabout atom on its ring, removed at Jonathan's word (2026-10-29) */
   for (let x = 660; x <= 1380; x += 240) { lamp(x, 1452); lamp(x, 1668); }
-  for (let x = 1880; x <= 4040; x += 240) { lamp(x, 1452); lamp(x, 1668); } /* the bottom walkway's lamp row runs the path's FULL length now (PREVIEW, Jonathan 2026-10-30): it used to stop at x2600, partway along the Casino front — the same lamps at the same 240 spacing now continue past the casino and along the pool's front to the pool's own east end */
+  for (let x = 1880; x <= 4040; x += 240) { lamp(x, 1452); if (x !== 2840) lamp(x, 1668); } /* the bottom walkway's lamp row runs the path's FULL length now (PREVIEW, Jonathan 2026-10-30): it used to stop at x2600, partway along the Casino front — the same lamps at the same 240 spacing now continue past the casino and along the pool's front to the pool's own east end. ONE gap (2026-11-01): the 1668-row lamp at x2840 stood on Quantum Bowling's path at its head, right in front of the casino door — removed at Jonathan's word */
   lamp(1960, 642); lamp(2360, 642); lamp(1960, 858); lamp(2360, 858); lamp(2532, 580); lamp(2728, 580);
   lamp(1240, 642); lamp(840, 642); lamp(1240, 858); lamp(840, 858); lamp(668, 580); lamp(472, 580); /* the Speedway branch's lamps, mirrored from the gym branch */
   lamp(2760, 642); lamp(3160, 642); lamp(3560, 642); lamp(2760, 858); lamp(3160, 858); lamp(3560, 858); lamp(3672, 580); lamp(3868, 580); /* the Horse Track branch's lamps (PREVIEW): the gym branch's pattern continued east — flanking pairs along the walkway at the same 400 spacing, and a pair flanking the track's apron (3690..3850) the way 2532/2728 flank the gym's */
   lamp(1448, 1900); lamp(1752, 1900); lamp(1448, 2160); lamp(1752, 2160); /* flanking the portal spur and its circle */
+  lamp(2745, 1790); lamp(2945, 1790); lamp(2745, 2030); lamp(2945, 2030); lamp(2745, 2240); lamp(2945, 2240); /* flanking Quantum Bowling's spur (2026-11-01): pairs just outside its widened edges (2765/2925), from below the casino walkway down to the turn */
+  lamp(3150, 2240); lamp(3150, 2440); lamp(3500, 2440); lamp(4000, 2440); lamp(4250, 2240); lamp(4250, 2440); /* flanking the run below the bowling building (2026-11-01): pairs where the ground allows — the building's own wall crowds the band's top edge along its frontage, so there the lamps ride the bottom edge only — clear of the door landing (3720, 2320), running with the path to the plaza's east edge */
   /* crystals scattered as decor */
   function crystal(x, y, s, col) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
@@ -9593,7 +9598,7 @@ function drawPlaza(t) {
   }
   fountain(1150, 1000, t); fountain(2050, 1000, t);
   drawPlazaBoards(t); /* the two sign boards, standing below the fountains in the open strips between each fountain and the purple road — drawn with the ground decor, so everyone walks right past them */
-  crystal(360, 1980, 26, "rgba(255,215,106,0.25)"); crystal(2840, 1980, 26, "rgba(255,215,106,0.25)");
+  crystal(360, 1980, 26, "rgba(255,215,106,0.25)"); /* its twin at (2840, 1980) was removed at Jonathan's word (2026-11-01): Quantum Bowling's path now runs down the casino's centre line straight over that spot — the diamond sat in the middle of the path */
   crystal(1050, 260, 20, "rgba(56,225,255,0.25)"); crystal(2150, 260, 20, "rgba(168,85,247,0.25)");
   /* quantum trees — floating in the space around the plaza, atom fruit in the canopy */
   function quantumTree(tx, ty, ts, ph) {
@@ -10850,8 +10855,8 @@ function frame(now) {
     if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
   }
   if (me.scene === "bowling" && bowlSeatT >= 0) {
-    /* seated at a lane the camera frames my whole lane — screen, pins, lane and chairs (the pool hall's seated framing, stretched to a lane's length) */
-    const cx = BOWLCX(bowlSeatT), f = { x: cx - 330, y: 96, w: 660, h: 1750 };
+    /* seated at a lane the camera frames my whole lane — screen, pins, lane and chairs (the pool hall's seated framing, stretched to a lane's length), and the bet panel below the chairs: the frame's bottom is the room's floor edge (2000), so the whole panel (bottom 1946) sits inside it — at h 1750 the frame ended at 1846 and the bet buttons were cut in half (Jonathan's screenshot, 2026-11-01) */
+    const cx = BOWLCX(bowlSeatT), f = { x: cx - 330, y: 96, w: 660, h: 1904 };
     SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
     camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
     camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
