@@ -10221,6 +10221,13 @@ function frame(now) {
     vipCamOx += (vipLean - vipCamOx) * Math.min(1, dt * 5);
     if (vipCamOx > 0.5) camX += vipCamOx;
   } else vipCamOx = 0;
+  if (me.scene === "club") {
+    /* THE CLUB STRETCHES TO THE SCREEN (Jonathan 2026-11-01, from his desktop screenshot of the normal club: "the right and left edge show space. Just have to expand them like you did with rooftop"): the same per-scene fit the rooftop takes — the base scale caps at 1.0, so on a screen wider than the room the club floated mid-screen with viewable gaps beyond its side borders. SCALE never lets the view be wider than the room, so the club's left and right borders sit ON the screen's edges and the gaps are covered; where the stretched room fills the height the follow camera recentres on it, and where the whole room still fits (a portrait phone) the base centring stands untouched. Gameplay coordinates are untouched; only the presented width stretches */
+    SCALE = Math.max(SCALE, VW / CLUBROOM.w);
+    camX = Math.max(0, Math.min(roomW - VW / SCALE, me.x - VW / (2 * SCALE)));
+    if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+    if (roomH * SCALE >= VH) camY = Math.max(0, Math.min(roomH - VH / SCALE, me.y - VH / (2 * SCALE)));
+  }
   if (me.scene === "highrollers" && mySeatPos) {
     const f = hrcFocusRect();
     if (f) {
