@@ -11574,6 +11574,10 @@ function frame(now) {
     if (vipCamOx > 0.5) camX += vipCamOx;
   } else vipCamOx = 0;
   if (me.scene === "rooftop") {
+    /* THE ROOM STRETCHES TO THE SCREEN (Jonathan 2026-11-01, from his wide desktop screenshot: "you have to stretch the room, that's all" / "make sure the border touches the edges of the screen"): the base scale caps at 1.0, so on a screen wider than the room the whole rooftop floated mid-screen with viewable world beyond its side borders — and when the reveal opened, galaxy wrapped around the sides, behind the border. So the rooftop takes its own fit, the same per-scene scale override the seated-focus blocks below use: SCALE never lets the view be wider than the room, so the room's left and right borders sit ON the screen's edges and there is no viewable area outside them at all — the galaxy can only ever show above the top edge, across the full screen width. Gameplay coordinates are untouched; only the presented width stretches */
+    SCALE = Math.max(SCALE, VW / ROOFROOM.w);
+    camX = Math.max(0, Math.min(roomW - VW / SCALE, me.x - VW / (2 * SCALE)));
+    if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
     /* THE GALAXY SHOWS ONLY AT THE EDGE (Jonathan 2026-11-01, from his phone: the sky sat in frame mid-room and never panned): the reveal eases open only while you stand at the balcony railing, shut everywhere else — and it gates the NORMAL camera, it is not a separate lift. Ease rate matches the VIP lean's (dt * 5) */
     const atRoofEdge = me.y <= ROOF_EDGE_Y;
     roofSkyT += ((atRoofEdge ? 1 : 0) - roofSkyT) * Math.min(1, dt * 5);
