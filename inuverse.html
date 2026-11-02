@@ -3432,6 +3432,15 @@ function rrFxCheck() {
 function slotFxCheck() {
   Object.keys(slotState || {}).forEach(k => {
     const s = slotState[k]; if (!s || !s.ts) return;
+    if (s.wins && typeof s.wins === "object") {
+      /* durable win events (the always-play fix, Jonathan 2026-11-01: "it should always play the coins animation"): a win also lives on as an event in the record's wins/<claim key>, checked off one by one from slotWinSeen — it can no longer be lost to the next spin overwriting the record (auto spin buried wins ~1s later), to snapshots coalescing past it, or to the old mark-seen-before-the-freshness-gate ordering below. Events are consumed in ts order; at most the 3 newest per machine per pass actually burst — a longer backlog from a stalled client is checked off silently, so nobody gets machine-gunned. The baseline discipline is unchanged: events from before my last entry/return stamp (slotFxBaseAt / casinoFxSince), events seen while the tab is hidden, and events in a room I am not in are checked off without animating */
+      slotFxTs[k] = s.ts;
+      const seen = slotWinSeen[k] || (slotWinSeen[k] = {});
+      const evs = Object.keys(s.wins).filter(q => !seen[q]).map(q => { const e = s.wins[q] || {}; return { q, amt: e.amt || 0, ts: e.ts || 0 }; }).sort((a, b) => a.ts - b.ts);
+      evs.forEach(e => { seen[e.q] = 1; });
+      if (!document.hidden && me.scene === "casino") evs.slice(-3).forEach(e => { if (e.amt > 0 && e.ts > slotFxBaseAt && e.ts >= casinoFxSince) { const m = slotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, e.amt >= 1000, "casino"); fxText(m.x + m.w / 2, m.y - 14, "+\🪙 " + e.amt, "#ffd76a", "casino"); } } });
+      return;
+    }
     if (slotFxTs[k] === s.ts) return; slotFxTs[k] = s.ts;
     if (s.ts <= slotFxBaseAt || document.hidden) return; /* the backlog gate (Jonathan 2026-10-31): a record from before my last return (entry / tab wake) is marked seen above but NEVER animates, and nothing is marked for animation while the tab is hidden either — hidden wins used to fire their bursts into the shared fx pool where they sat un-aged (the render loop is paused) and all went off at once on return. Spins that land while you are present and looking fall through to the original check below and animate exactly as before */
     if (s.amt > 0 && Date.now() - s.ts < 5000 && s.ts >= casinoFxSince && me.scene === "casino") { const m = slotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 1000, "casino"); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt, "#ffd76a", "casino"); } }
@@ -3439,8 +3448,8 @@ function slotFxCheck() {
 }
 function slotFxOnReturn() { /* the slots backlog fix, return half (Jonathan 2026-10-31): the tab/window coming back stamps both slot rooms' baselines at this moment and marks every currently-loaded spin record seen, so the machines simply show their current state — nothing you missed replays. Registered for visibility and focus returns; the room entries stamp their own baseline in toCasino/toHighRollers. Slots ONLY: no other game's fx bookkeeping is touched */
   const n = Date.now(); slotFxBaseAt = n; hrSlotFxBaseAt = n;
-  Object.keys(slotState || {}).forEach(k => { const s = slotState[k]; if (s && s.ts) slotFxTs[k] = s.ts; });
-  Object.keys(hrSlotState || {}).forEach(k => { const s = hrSlotState[k]; if (s && s.ts) hrSlotFxTs[k] = s.ts; });
+  Object.keys(slotState || {}).forEach(k => { const s = slotState[k]; if (s && s.ts) slotFxTs[k] = s.ts; const w = s && s.wins; if (w) { const seen = slotWinSeen[k] || (slotWinSeen[k] = {}); Object.keys(w).forEach(q => { seen[q] = 1; }); } });
+  Object.keys(hrSlotState || {}).forEach(k => { const s = hrSlotState[k]; if (s && s.ts) hrSlotFxTs[k] = s.ts; const w = s && s.wins; if (w) { const seen = hrSlotWinSeen[k] || (hrSlotWinSeen[k] = {}); Object.keys(w).forEach(q => { seen[q] = 1; }); } });
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) slotFxOnReturn(); });
 window.addEventListener("focus", slotFxOnReturn);
@@ -4587,6 +4596,15 @@ function spinMachine(i) {
   slotAnim[i] = { endsAt: performance.now() + 950, fin, bet: slotBet, pay, paid: false, claimKey };
   sfxClick();
 }
+let slotWinSeen = {}; /* win events this client has already celebrated or baselined, per machine record id (slotFxCheck) */
+function slotWinEvents(key, claimKey, pay, tsNow) {
+  /* the durable win events (the always-play fix): a win is ALSO kept as an event in the machine record's own wins/<the win's claim key> = {amt, ts} — the claim key is the event's seq, already unique per winning spin — and every result publish, win or loss, carries the unexpired events forward inside the record it writes, so a later spin can never overwrite a win out from under the room's watchers the way the lone {amt, ts} record let it (auto spin's next publish landed ~1s after the win). Events older than 60 seconds are dropped here, at publish: long past any celebration, and the record stays small */
+  const prev = (slotState && slotState[key] && slotState[key].wins) || {};
+  const out = {};
+  Object.keys(prev).forEach(q => { const e = prev[q]; if (e && e.ts && tsNow - e.ts < 60000) out[q] = { amt: e.amt || 0, ts: e.ts }; });
+  if (pay > 0 && claimKey) out[claimKey] = { amt: pay, ts: tsNow };
+  return Object.keys(out).length ? out : null;
+}
 function slotTick() {
   const now = performance.now();
   for (const k in slotAnim) {
@@ -4594,7 +4612,9 @@ function slotTick() {
     if (!a.paid && now >= a.endsAt) {
       a.paid = true;
       if (a.pay) { if (a.claimKey) settleOnce(a.claimKey, a.pay); else addChips(a.pay); sfxChime(); } /* settleOnce under the claim's own key (claims fix): if the claim note already collected it, this is a no-op; if the note is somehow gone, this still pays — exactly once either way */
-      tblSet("slots/" + slotKey(Number(k)), { pid: myId, name: me.name, syms: a.fin, amt: a.pay, ts: Date.now() }); /* the shared spin record lives under the machine's fixed id, not its draw index */
+      const tsNow = Date.now(), rec = { pid: myId, name: me.name, syms: a.fin, amt: a.pay, ts: tsNow }, wins = slotWinEvents(slotKey(Number(k)), a.claimKey, a.pay, tsNow);
+      if (wins) rec.wins = wins;
+      tblSet("slots/" + slotKey(Number(k)), rec); /* the shared spin record lives under the machine's fixed id, not its draw index */
     }
   }
 }
@@ -6370,6 +6390,15 @@ function hrSpinMachine(i) {
   hrSlotAnim[i] = { endsAt: performance.now() + 950, fin, bet: hrSlotBet, pay, paid: false, claimKey };
   sfxClick();
 }
+let hrSlotWinSeen = {}; /* the club's twin of slotWinSeen: win events this client has already celebrated or baselined, per machine record id (hrSlotFxCheck) */
+function hrSlotWinEvents(key, claimKey, pay, tsNow) {
+  /* slotWinEvents carried into the club, on hrSlotState: the win rides as an event in the machine record's wins/<claim key>, carried forward by every publish and pruned at 60 seconds, so the club's watchers check wins off one by one instead of racing the next auto spin's overwrite */
+  const prev = (hrSlotState && hrSlotState[key] && hrSlotState[key].wins) || {};
+  const out = {};
+  Object.keys(prev).forEach(q => { const e = prev[q]; if (e && e.ts && tsNow - e.ts < 60000) out[q] = { amt: e.amt || 0, ts: e.ts }; });
+  if (pay > 0 && claimKey) out[claimKey] = { amt: pay, ts: tsNow };
+  return Object.keys(out).length ? out : null;
+}
 function hrSlotTick() {
   const now = performance.now();
   for (const k in hrSlotAnim) {
@@ -6377,13 +6406,24 @@ function hrSlotTick() {
     if (!a.paid && now >= a.endsAt) {
       a.paid = true;
       if (a.pay) { if (a.claimKey) settleOnce(a.claimKey, a.pay); else addChips(a.pay); sfxChime(); } /* settleOnce under the claim's own key: whichever path pays first, the win lands exactly once */
-      tblSet("hrslots/" + hrSlotKey(Number(k)), { pid: myId, name: me.name, syms: a.fin, amt: a.pay, ts: Date.now() }); /* the shared spin record lives under the machine's fixed id, not its draw index */
+      const tsNow = Date.now(), rec = { pid: myId, name: me.name, syms: a.fin, amt: a.pay, ts: tsNow }, wins = hrSlotWinEvents(hrSlotKey(Number(k)), a.claimKey, a.pay, tsNow);
+      if (wins) rec.wins = wins;
+      tblSet("hrslots/" + hrSlotKey(Number(k)), rec); /* the shared spin record lives under the machine's fixed id, not its draw index */
     }
   }
 }
 function hrSlotFxCheck() {
   Object.keys(hrSlotState || {}).forEach(k => {
     const s = hrSlotState[k]; if (!s || !s.ts) return;
+    if (s.wins && typeof s.wins === "object") {
+      /* the casino's durable win events, mirrored (the always-play fix): events under the record's wins/<claim key> are checked off one by one from hrSlotWinSeen in ts order, at most the 3 newest per machine per pass bursting; pre-baseline (hrSlotFxBaseAt), hidden-tab and other-room events are checked off silently, exactly as the casino's are */
+      hrSlotFxTs[k] = s.ts;
+      const seen = hrSlotWinSeen[k] || (hrSlotWinSeen[k] = {});
+      const evs = Object.keys(s.wins).filter(q => !seen[q]).map(q => { const e = s.wins[q] || {}; return { q, amt: e.amt || 0, ts: e.ts || 0 }; }).sort((a, b) => a.ts - b.ts);
+      evs.forEach(e => { seen[e.q] = 1; });
+      if (!document.hidden && me.scene === "highrollers") evs.slice(-3).forEach(e => { if (e.amt > 0 && e.ts > hrSlotFxBaseAt) { const m = hrSlotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, e.amt >= 100000, "highrollers"); fxText(m.x + m.w / 2, m.y - 14, "+\🪙 " + e.amt.toLocaleString("en-US"), "#ffd76a", "highrollers"); } } });
+      return;
+    }
     if (hrSlotFxTs[k] === s.ts) return; hrSlotFxTs[k] = s.ts;
     if (s.ts <= hrSlotFxBaseAt || document.hidden) return; /* the casino's backlog gate, mirrored: pre-return records baseline silently, hidden-tab wins never queue a burst */
     if (s.amt > 0 && Date.now() - s.ts < 5000 && me.scene === "highrollers") { const m = hrSlotMachineByKey(k); if (m) { fxBurst(m.x + m.w / 2, m.y + 12, s.amt >= 100000, "highrollers"); fxText(m.x + m.w / 2, m.y - 14, "+🪙 " + s.amt.toLocaleString("en-US"), "#ffd76a", "highrollers"); } }
