@@ -7008,13 +7008,17 @@ function drawBowlPanel(t) {
   if (bowlSeatT < 0) return;
   const st = bowlStates[bowlSeatT], mine = myBowlSeatRec();
   if (!st || !mine) return;
+  if (st.phase === "play") return; /* no popup at all once the game is on (Jonathan 2026-11-01): betting is done, and the lane's scorecard carries the frame, the pot, the scores and the status line now — the lane stays clear while you bowl */
+  if (st.phase === "bet" && mine.bet > 0 && mine.rdy) return; /* my bet is in and I am READY (Jonathan 2026-11-01): the popup closes for ME — I am only waiting on the others, with a clear view of the lane. It comes back on its own when the next game returns to the bet phase (bets and READY zero out on the recycle). Until I am READY it stays: no bet yet, or a bet placed but not readied, is still a betting action to take */
   /* the panel is anchored to the VIEW, not to a fixed world spot (Jonathan 2026-11-01): parked under the chairs it slid under the HTML Stand up button, which hid the last bet amount and the end of the READY line. Each frame its world position is computed from the camera (camX/camY/VW/VH/SCALE) so that ON SCREEN it sits at the bottom of the visible view — centred, but shifted left far enough to clear the prompt button's column on the right, and lifted ~110 screen px off the bottom edge so it clears the chat strip too. The uiZones below are pushed in the same world coordinates the pointer handler hit-tests with, so the taps land exactly on the paint. On a PHONE that anchoring changes (see the PS block below): centred outright, scaled up, lifted higher */
   const cpuI = bowlCpuSeatIdx(st);
   const showCpu = st.phase === "bet" && (cpuI >= 0 || bowlCpuOffered(st)); /* the CPU row only exists in the bet phase, and only while I am the lane's only human (or it is already armed) */
   /* on a phone (the page's own coarse-pointer test, the one the joystick and run button answer to) the panel is CENTRED, BIGGER and HIGHER (Jonathan 2026-11-01): centred — the desktop shift-left that dodges the Stand up pill is dropped, because on a phone the pill sits bottom-centre BELOW the panel's new height; bigger — PS scales the panel to 644 wide, and every offset, button, row and font in the body below is written in unscaled panel units multiplied by PS (uiZones included), so at PS = 1 the desktop panel is exactly the one it always was; higher — a 180 screen-px bottom margin instead of 110, lifting the panel clear of the joystick and the Stand up row */
   const bowlMob = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-  const PS = bowlMob ? 1.15 : 1;
-  const P = { x: 0, y: 0, w: 560 * PS, h: (st.phase === "play" ? 116 : st.phase === "done" ? 150 : (showCpu ? 196 : 156)) * PS }; /* the height follows the phase: bet keeps its full stack; play shrank when its status line moved into the lane's scorecard (Jonathan 2026-11-01) — title and score only now; done keeps room for its three lines */
+  const PS0 = bowlMob ? 1.15 : 1;
+  /* the BET popup is BIGGER (Jonathan 2026-11-01): 1.35x on top of the platform scale, desktop AND mobile — every offset, button, row, font and uiZone in the body below is written in units x PS, so the whole stack (bet grid, READY, the CPU row, all the text) grows together and the taps still land on the paint. The one brake is the view itself: the scale never lets the panel run wider than the visible view with 8 screen px to spare on each side, so on a narrow portrait phone it grows as far as the screen honestly allows instead of spilling its edge zones off-view. DONE keeps the plain platform scale — only placing bets grew */
+  const PS = st.phase === "bet" ? Math.min(PS0 * 1.35, (VW - 16) / (SCALE * 560)) : PS0;
+  const P = { x: 0, y: 0, w: 560 * PS, h: (st.phase === "done" ? 150 : (showCpu ? 196 : 156)) * PS }; /* the height follows the phase: bet keeps its full stack; done keeps room for its three lines. There is no play height any more — the play popup is gone entirely (see the early return at the top) */
   const scrW = P.w * SCALE;
   if (bowlMob) {
     P.x = camX + Math.max(8, (VW - scrW) / 2) / SCALE;
@@ -7053,13 +7057,6 @@ function drawBowlPanel(t) {
       ctx.fillText(armed ? "🤖 CPU ARMED — it matches your bet · tap to stand it down" : "🤖 PLAY vs CPU — the house matches your bet", cx, ty + 21 * PS);
       uiZones.push({ x: P.x + 13 * PS, y: ty, w: P.w - 26 * PS, h: 32 * PS, fn: () => bowlCpuToggle() });
     }
-  } else if (st.phase === "play") {
-    const card = bowlScorecard((st.rolls && st.rolls[bowlSeatI]) || []);
-    ctx.font = "800 " + Math.round(20 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("FRAME " + (st.frame || 1) + " / 10 · POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), cx, P.y + 38 * PS);
-    /* the status line that used to sit here ("YOUR THROW — …" / "<name> to throw") is GONE from the panel (Jonathan 2026-11-01): it lives in the lane's scorecard now, as the card's third line — bowlCardStatus carries the same words, per viewer. What remains is the frame/pot title and my running score, reflowed into the smaller play panel */
-    ctx.font = "700 " + Math.round(17 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
-    ctx.fillText("Your score so far: " + card.total, cx, P.y + 78 * PS);
   } else if (st.phase === "done") {
     const myRes = st.results && st.results[bowlSeatI];
     ctx.font = "800 " + Math.round(22 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
