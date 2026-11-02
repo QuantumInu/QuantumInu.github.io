@@ -5314,13 +5314,13 @@ const MON_LINES = ["ember", "sprout", "bubble", "pebble", "wisp", "bat", "shroom
 function monName(l) { return l.charAt(0).toUpperCase() + l.slice(1); } /* display names are just the capitalized line names — no invented stage names; stages are "Stage 2" / "Stage 3" */
 const MON_BASE_PRICE = 500000000;
 const MON_EVO_PRICES = [0, 1000000000, 2000000000]; /* indexed by CURRENT stage: evolving from stage 1 costs 1,000,000,000, from stage 2 costs 2,000,000,000 */
-const MON_B = { x: 140, y: 1700, w: 560, h: 320 }; /* the plaza building: below the club, south of the bottom walkway (1480..1640) on the open west lawn — door on the bottom face like every other plaza building's */
-const MONDOOR = { x: 375, y: 1980, w: 90, h: 34 }; /* on the bottom face, centred on x 420 — the gym door's own shape (its plate on the bottom-40 line, door 90x34) */
+const MON_B = { x: 140, y: 1780, w: 560, h: 320 }; /* the plaza building: below the club, south of the bottom walkway (1480..1640) on the open west lawn — door on the bottom face like every other plaza building's. Moved DOWN 80px at the owner's word (2026-11-02): the door tile, the plaza obstacle and the exit landing all read this rect, so the whole building travels together */
+const MONDOOR = { x: 375, y: 2060, w: 90, h: 34 }; /* on the bottom face, centred on x 420 — the gym door's own shape (its plate on the bottom-40 line, door 90x34); moved down with the building (+80) */
 const MSROOM = { w: 4400, h: 2800 }; /* the hall itself: three aisles of cases, the training pen at the far (north) end, the entrance hall at the south */
 const MSEXIT = { x: MSROOM.w / 2 - 62, y: MSROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — BOWLEXIT's shape */
 const MONCASES = MON_LINES.map((line, i) => ({ line, x: 250 + (i % 10) * 402, y: 600 + Math.floor(i / 10) * 650, w: 300, h: 350 })); /* 3 aisles of 10 glass cases; a case's rect IS its obstacle (obstacles()) — you stand at its front (south) face to buy */
 const MONPEN = [{ x: 1650, y: 150, w: 1100, h: 14 }, { x: 1650, y: 416, w: 1100, h: 14 }, { x: 1650, y: 150, w: 14, h: 280 }, { x: 2736, y: 150, w: 14, h: 280 }]; /* the training pen's fence loop at the hall's north end — closed, like the horse track's fence: training happens from outside it, at Q-Bot's post */
-const MONQBOT = { x: 2200, y: 505 }; /* Q-Bot's post: south of the pen, in the gap between the first aisle's middle cases */
+const MONQBOT = { x: 2200, y: 290 }; /* Q-Bot's post: INSIDE the training pen, at its centre (the owner's fix, 2026-11-02 — he used to stand south of the fence); the 180px prompt reach still covers a player standing at the pen's south fence */
 const MON_HABITAT = { bubble: "water", crab: "water", octo: "water", jelly: "water", shark: "water", turtle: "water", frog: "water", frost: "snow", magma: "lava", ember: "lava", phoenix: "lava", sprout: "forest", shroom: "forest", stag: "forest", hedge: "forest", owl: "forest", bat: "night", raven: "night", pony: "meadow", boar: "meadow", panda: "meadow", axo: "meadow", shard: "crystal", volt: "storm", pebble: "rock", wisp: "mist", robot: "gears", drake: "jungle", dino: "jungle", cham: "jungle" }; /* each case's little living environment */
 const MON_HAB_STYLE = { water: { sky: ["#0d4066", "#062544"], flr: "#0e5a86" }, snow: { sky: ["#cfeefb", "#84b9da"], flr: "#f2faff" }, lava: { sky: ["#2c0e06", "#170503"], flr: "#200b06" }, forest: { sky: ["#14391f", "#081d0e"], flr: "#17522c" }, night: { sky: ["#150f38", "#070518"], flr: "#1e1545" }, meadow: { sky: ["#1e4d27", "#0f2c16"], flr: "#207038" }, crystal: { sky: ["#1e1547", "#0c0820"], flr: "#271c52" }, storm: { sky: ["#36435f", "#1b2438"], flr: "#25324a" }, rock: { sky: ["#3b3330", "#201a17"], flr: "#2e2521" }, mist: { sky: ["#5f7182", "#33424e"], flr: "#3f505d" }, gears: { sky: ["#2d3138", "#17191d"], flr: "#23262c" }, jungle: { sky: ["#0e3613", "#051a08"], flr: "#11451f" } };
 let myMons = {}; /* my collection: line -> highest stage owned (1..3), loaded from the account doc at sign-in */
@@ -5493,11 +5493,13 @@ function endEvoAnim() {
 /* ---- the M button: above the move stick, aligned left, the run button's size — it exists only while a follower pick is set, and toggles the monster out/in (the T button's sync pattern) ---- */
 const monBtnEl = $("monbtn");
 function syncMonBtn() { const show = entered && !!myMonSel && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (monBtnEl.style.display !== want) monBtnEl.style.display = want; monBtnEl.classList.toggle("on", show && monOut); }
-function toggleMonOut() { /* the M toggle itself (the owner's fix, 2026-11-02) — ONE function behind the on-screen button AND the M key, so the two can never drift: the pick must exist, my own evolution show locks it like every other input, and the monster comes out / goes back in with a burst of smoke in ITS OWN colour (spawnMonSmoke — the mech transforms' treatment) at the follower's spot: its eased position while it is out on this screen, my own side otherwise */
+function toggleMonOut() { /* the M toggle itself (the owner's fix, 2026-11-02) — ONE function behind the on-screen button AND the M key, so the two can never drift: the pick must exist, my own evolution show locks it like every other input, and the monster comes out / goes back in with a burst of smoke in ITS OWN colour (spawnMonSmoke — the mech transforms' treatment). Coming out, the follower SNAPS to the follow spot first (the pop-in fix, 2026-11-02): the smoke bursts there and the monster stands beside me from the very first frame — it never glides in from my position or from wherever it was when it last went in. Going back in, the burst goes off where the follower actually stands */
   if (!myMonSel || evoLock) return;
   const pr = monParse(myMonSel); if (!pr) return;
-  const atFol = monFol && monFol.key === myMonSel + "|" + me.scene;
-  const sx = atFol ? monFol.x : me.x, sy = atFol ? monFol.y : me.y;
+  const tx = me.x + (me.flip ? -95 : 95), ty = me.y; /* the follow spot: behind me, on my own ground line */
+  let sx, sy;
+  if (!monOut) { monFol = { key: myMonSel + "|" + me.scene, x: tx, y: ty }; sx = tx; sy = ty; }
+  else { const atFol = monFol && monFol.key === myMonSel + "|" + me.scene; sx = atFol ? monFol.x : me.x; sy = atFol ? monFol.y : me.y; }
   monOut = !monOut;
   sfxMonSummon(monOut);
   spawnMonSmoke(sx, sy, me.scene, pr.line);
@@ -5508,11 +5510,11 @@ setInterval(syncMonBtn, 300);
 $("moncollbtn").onclick = () => openMonColl();
 $("moncollclose").onclick = () => closeMonColl();
 $("monpenclose").onclick = () => closeMonPen();
-function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as drawn faces LEFT; it flips when the owner faces right — the hero sprites' own flip rule. Drawn at 1/4 of the sprite's NATURAL pixel size, every stage alike (the owner's rule, 2026-11-02): no stage gets any size beyond what its own art gives at that quarter. A gentle bob, a soft shadow. No name plate, no chat: it is not a person */
+function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as drawn faces LEFT; it flips when the owner faces right — the hero sprites' own flip rule. Drawn at 1/4 of the sprite's NATURAL pixel size, every stage alike (the owner's rule, 2026-11-02): no stage gets any size beyond what its own art gives at that quarter. Its feet share its OWNER's ground line (the owner's fix, 2026-11-02): drawPlayer bottoms the hero at owner.y + the hero's bob, so the follower draws with that very bob (a.gbob, computed in the actor assembly with drawPlayer's own formula) instead of a wobble of its own — bottom edge for bottom edge, the two stand on the same ground. A soft shadow at the ground line. No name plate, no chat: it is not a person */
   const img = monImg(a.line, a.stage);
   if (!img || !img.complete || !img.naturalWidth) return;
   const W = img.naturalWidth * 0.25, H = img.naturalHeight * 0.25;
-  const bob = Math.sin(t / 340 + (a.bob || 0) * 7) * 3.2;
+  const bob = a.gbob || 0; /* the owner's bob, not the monster's — the shared ground line */
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(a.x, a.y - 3, W * 0.34, 8, 0, 0, 7); ctx.fill();
   ctx.save(); ctx.translate(a.x, a.y - H / 2 + bob);
   if (a.flip) ctx.scale(-1, 1);
@@ -5522,22 +5524,18 @@ function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as 
 /* ============ the Monster Shop building (plaza) ============ */
 function drawMonsterShopBuilding(t) {
   const b = MON_B, cx = b.x + b.w / 2;
-  /* a glass-domed mall entrance: teal glass over a deep-green front, a paw on the dome, a chasing-bulb marquee, its door on the bottom face like every other plaza building's */
+  /* a glass-domed mall entrance: teal glass over a deep-green front, a full-width glass dome seated on its top edge, a chasing-bulb marquee, its door on the bottom face like every other plaza building's */
   ctx.fillStyle = "#0a2018"; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
   ctx.strokeStyle = "rgba(74,222,128,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
-  /* the glass dome */
-  ctx.save(); ctx.beginPath(); ctx.ellipse(cx, b.y + 16, b.w * 0.36, 74, 0, Math.PI, 0); ctx.closePath();
-  const dg2 = ctx.createLinearGradient(cx, b.y - 58, cx, b.y + 16);
+  /* the glass dome: BIG and seated properly at the owner's word (2026-11-02) — it spans the building edge to edge (the full b.w), and its base line rests exactly on the building's top edge: the ellipse is centred ON b.y, so the diameter sits flush on the facade with no bulge floating above it and no gap. The golden paw that sat in the middle of the old, narrower dome is gone */
+  ctx.save(); ctx.beginPath(); ctx.ellipse(cx, b.y, b.w / 2, 112, 0, Math.PI, 0); ctx.closePath();
+  const dg2 = ctx.createLinearGradient(cx, b.y - 112, cx, b.y);
   dg2.addColorStop(0, "rgba(150,235,255,0.55)"); dg2.addColorStop(1, "rgba(56,150,180,0.25)");
   ctx.fillStyle = dg2; ctx.fill();
   ctx.strokeStyle = "rgba(190,245,255,0.7)"; ctx.lineWidth = 2.5; ctx.stroke();
   ctx.strokeStyle = "rgba(190,245,255,0.35)"; ctx.lineWidth = 1.5;
-  [-0.5, 0, 0.5].forEach(f => { ctx.beginPath(); ctx.moveTo(cx + f * b.w * 0.68, b.y + 16); ctx.quadraticCurveTo(cx + f * b.w * 0.36, b.y - 40, cx, b.y - 56); ctx.stroke(); });
+  [-0.5, 0, 0.5].forEach(f => { ctx.beginPath(); ctx.moveTo(cx + f * b.w, b.y); ctx.quadraticCurveTo(cx + f * b.w * 0.55, b.y - 78, cx, b.y - 108); ctx.stroke(); });
   ctx.restore();
-  /* the golden paw on the dome */
-  ctx.fillStyle = "rgba(255,215,106,0.92)";
-  ctx.beginPath(); ctx.ellipse(cx, b.y - 30, 13, 10, 0, 0, 7); ctx.fill();
-  [[-24, -22], [-9, -33], [9, -33], [24, -22]].forEach(o => { ctx.beginPath(); ctx.ellipse(cx + o[0], b.y + o[1], 5.5, 7, 0, 0, 7); ctx.fill(); });
   /* the marquee */
   ctx.fillStyle = "#0d2b1e"; rr(b.x + 40, b.y + 44, b.w - 80, 66, 12); ctx.fill();
   ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 3; rr(b.x + 40, b.y + 44, b.w - 80, 66, 12); ctx.stroke();
@@ -5545,8 +5543,8 @@ function drawMonsterShopBuilding(t) {
   ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#4ade80" : "#a7f3c9";
   ctx.fillText("🐾 MONSTER SHOP", cx, b.y + 90);
-  /* the front windows: lit display glass */
-  for (const fx of [0.10, 0.40, 0.62, 0.86]) {
+  /* the front windows: lit display glass — ALIGNED at the owner's word (2026-11-02): one even row of four, every window the same size on the same line, on an even 140px pitch (centres at the four quarter points of the facade) with equal 40px margins at both building edges, sitting square under the full-width dome */
+  for (const fx of [0.125, 0.375, 0.625, 0.875]) {
     const wx = b.x + b.w * fx - 30;
     ctx.fillStyle = "rgba(120,220,255,0.20)"; rr(wx, b.y + 138, 60, 74, 8); ctx.fill();
     ctx.strokeStyle = "rgba(190,245,255,0.45)"; ctx.lineWidth = 1.5; rr(wx, b.y + 138, 60, 74, 8); ctx.stroke();
@@ -5693,13 +5691,14 @@ function drawMonsterShop(t) {
   ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(74,222,128,0.8)"; ctx.shadowBlur = 18;
   ctx.fillStyle = "#d9ffe6"; ctx.fillText("🐾 MONSTER SHOP 🐾", MSROOM.w / 2, 92); ctx.restore();
-  /* pillars along the side margins, gold-banded (walk-over decor, like the club's booths) */
-  for (const py2 of [950, 1600, 2250]) for (const px2 of [82, MSROOM.w - 126]) {
+  /* pillars along the EAST margin only, gold-banded (walk-over decor, like the club's booths). The matching vertical bars on the LEFT side — posts with their two yellow bands — were removed at the owner's word (2026-11-02): the hall's west side stands open, nothing else on that wall changed */
+  for (const py2 of [950, 1600, 2250]) {
+    const px2 = MSROOM.w - 126;
     ctx.fillStyle = "#1c2742"; rr(px2, py2, 44, 150, 8); ctx.fill();
     ctx.strokeStyle = "rgba(255,215,106,0.5)"; ctx.lineWidth = 2; rr(px2, py2, 44, 150, 8); ctx.stroke();
     ctx.fillStyle = "#c9a227"; ctx.fillRect(px2, py2 + 34, 44, 8); ctx.fillRect(px2, py2 + 108, 44, 8);
   }
-  /* planters: a green box with a leafy canopy — at the pen's south corners, the room corners and flanking the entrance */
+  /* planters: a green box with a leafy canopy — exactly FOUR, one in each corner of the room and nowhere else (the owner's word, 2026-11-02: none at the training pen, none along the walls or the aisles, none flanking the entrance) */
   function monPlanter(px2, py2) {
     ctx.fillStyle = "#3a2a16"; rr(px2, py2 + 26, 92, 34, 7); ctx.fill();
     ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 1.5; rr(px2, py2 + 26, 92, 34, 7); ctx.stroke();
@@ -5707,16 +5706,16 @@ function drawMonsterShop(t) {
     ctx.beginPath(); ctx.arc(px2 + 22, py2 + 22, 19, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px2 + 48, py2 + 12, 23, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px2 + 72, py2 + 22, 18, 0, 7); ctx.fill();
     ctx.fillStyle = "#ff8fb5"; ctx.beginPath(); ctx.arc(px2 + 36, py2 + 16, 3.5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px2 + 62, py2 + 8, 3.5, 0, 7); ctx.fill();
   }
-  monPlanter(1520, 452); monPlanter(2788, 452); monPlanter(90, 2480); monPlanter(4218, 2480); monPlanter(90, 420); monPlanter(4218, 420);
-  /* benches in the aisle walkways and the entrance hall */
+  monPlanter(90, 90); monPlanter(4218, 90); monPlanter(90, 2480); monPlanter(4218, 2480); /* the four corners — NW, NE, SW, SE — and no fifth bush anywhere */
+  /* benches: exactly FOUR, at the owner's word (2026-11-02) — one to the LEFT of the training pen and one to its RIGHT, and one to the LEFT of the entrance door inside and one to its RIGHT; none along the aisles or the walls any more (the six that stood in the aisle walkways and the entrance hall were relocated to these four spots, clear of the pen fence's prompt range, the case walkways and the door) */
   function monBench(bx, by) {
     ctx.fillStyle = "#5b4632";
     for (let s = 0; s < 3; s++) ctx.fillRect(bx, by + s * 13, 190, 8);
     ctx.fillRect(bx + 14, by + 40, 10, 20); ctx.fillRect(bx + 166, by + 40, 10, 20);
     ctx.fillStyle = "rgba(255,215,106,0.35)"; ctx.fillRect(bx, by, 190, 3);
   }
-  monBench(1050, 1090); monBench(3050, 1090); monBench(1050, 1740); monBench(3050, 1740); monBench(1200, 2500); monBench(3000, 2500);
-  /* hanging aisle signs at each aisle's west end, and the great sign over the middle walkway */
+  monBench(1400, 260); monBench(2810, 260); monBench(1902, 2732); monBench(2308, 2732); /* the pen pair first (bx 1400 left of the fence, 2810 right of it, both centred on the pen's own latitude y 290), then the entrance pair (1902 left of the exit door plate, 2308 right of it, against the south wall) */
+  /* hanging aisle signs at each aisle's west end */
   function monHangSign(sx, sy, sw, txt, fs) {
     ctx.strokeStyle = "rgba(200,220,255,0.5)"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(sx + 26, sy - 34); ctx.lineTo(sx + 26, sy); ctx.moveTo(sx + sw - 26, sy - 34); ctx.lineTo(sx + sw - 26, sy); ctx.stroke();
@@ -5728,7 +5727,7 @@ function drawMonsterShop(t) {
   monHangSign(56, 536, 170, "AISLE 1", 20);
   monHangSign(56, 1186, 170, "AISLE 2", 20);
   monHangSign(56, 1836, 170, "AISLE 3", 20);
-  monHangSign(MSROOM.w / 2 - 270, 1006, 540, "🐾 MONSTER SHOP 🐾", 24);
+  /* the big green "MONSTER SHOP" hanging label that hung in the middle walkway under the Bat case was removed at the owner's word (2026-11-02) — that one label only; the three aisle signs above stay, and the name still stands over the north wall */
   /* ---- the TRAINING PEN at the far (north) end: sandy floor, training dummies, its sign, and its closed fence ---- */
   const pen = { x: 1650, y: 150, w: 1100, h: 280 };
   ctx.fillStyle = "#8a6f45"; rr(pen.x, pen.y, pen.w, pen.h, 10); ctx.fill();
@@ -5740,7 +5739,6 @@ function drawMonsterShop(t) {
     ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(dp[0], dp[1] - 34, 20, 0, 7); ctx.fill();
     ctx.fillStyle = "#e33b3b"; ctx.beginPath(); ctx.arc(dp[0], dp[1] - 34, 10, 0, 7); ctx.fill();
   });
-  ctx.fillStyle = "#5a5148"; ctx.beginPath(); ctx.ellipse(pen.x + 550, pen.y + 200, 42, 22, 0, 0, 7); ctx.fill();
   ctx.fillStyle = "#0d2b1e"; rr(pen.x + pen.w / 2 - 235, pen.y + 16, 470, 40, 8); ctx.fill();
   ctx.strokeStyle = "#4ade80"; ctx.lineWidth = 2; rr(pen.x + pen.w / 2 - 235, pen.y + 16, 470, 40, 8); ctx.stroke();
   ctx.font = "800 18.5px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#d9ffe6";
@@ -10521,11 +10519,11 @@ const FALL_PUMPKIN_SPOTS = [ /* [centreX, groundY, scale] — spread along each 
   [4080, 522, 0.80], [4124, 530, 0.62], [4168, 524, 0.95]
 ];
 const FALL_LEAF_SPOTS = [ /* [centreX, groundY, radius, seed] — drifts of fallen leaves: the four tree-side grounds the scarecrows held and the Horse Track corner, plus scatter along the walkway edges and building bases drawn from the pumpkin rows */
-  [512, 1168, 64, 1], [2688, 1168, 64, 2], [618, 1918, 68, 3], [2582, 1918, 68, 4], [3224, 556, 56, 5],
+  [512, 1168, 64, 1], [2688, 1168, 64, 2], [2582, 1918, 68, 4], [3224, 556, 56, 5], /* the 618,1918 drift that backed the tree east of the Monster Shop painted over the shop's east windows once the building stood there — removed at the owner's word (2026-11-02); its east mirror at 2582,1918 stays */
   [1470, 545, 48, 6], [2820, 545, 48, 7], [3800, 545, 48, 8],
   [900, 1420, 52, 9], [2300, 1420, 52, 10],
   [1000, 884, 44, 11], [2200, 884, 44, 12],
-  [700, 1704, 48, 13], [2900, 1704, 48, 14]
+  [2900, 1704, 48, 14] /* the west twin of this pair, the 700,1704 drift, sat ON the Monster Shop's NE roofline corner — removed at the owner's word (2026-11-02): no fall drift touches the shop building any more */
 ];
 const FALL_HAY_SPOTS = [ /* [x, groundY, scale] — golden bales: the west bale stands roadside south of the west walkway (moved off Club Quantum's roofline, Jonathan 2026-11-02), plus one tree spot and the Horse Track building's west corner */
   [760, 905, 1.00], [2582, 1918, 1.05], [3224, 556, 1.00]
@@ -10690,6 +10688,9 @@ function drawPlaza(t) {
   lamp(1448, 1900); lamp(1752, 1900); lamp(1448, 2160); lamp(1752, 2160); /* flanking the portal spur and its circle */
   lamp(2745, 1790); lamp(2945, 1790); lamp(2745, 2030); lamp(2945, 2030); lamp(2745, 2240); lamp(2945, 2240); /* flanking Quantum Bowling's spur (2026-11-01): pairs just outside its widened edges (2765/2925), from below the casino walkway down to the turn */
   lamp(3150, 2240); lamp(3150, 2440); lamp(3500, 2440); lamp(4000, 2440); lamp(4250, 2240); lamp(4250, 2440); /* flanking the run below the bowling building (2026-11-01): pairs where the ground allows — the building's own wall crowds the band's top edge along its frontage, so there the lamps ride the bottom edge only — clear of the door landing (3720, 2320), running with the path to the plaza's east edge */
+  /* the Monster Shop's own path (owner's word, 2026-11-02): a purple run in the plaza's path paint coming in from the RIGHT — it leaves the HQ portal's circle and runs west along the shop's door-front latitude straight to the door pad of the moved shop (door centre 420, landing y 2160). Ground decor like every path here: players walk over it and draw over it, and the lamps along it are the plaza's own lamp() scenery — no obstacles, and the door tile and pad stay clear */
+  pathRect(360, 2130, 1140, 60);
+  lamp(560, 2218); lamp(800, 2102); lamp(800, 2218); lamp(1040, 2102); lamp(1040, 2218); lamp(1280, 2102); lamp(1280, 2218); /* flanking pairs at the bottom walkway's own 240 pitch and 28px edge offset; at the west end the building crowds the north edge, so there the lamp rides the south edge only — the bowling spur's treatment */
   /* crystals scattered as decor */
   function crystal(x, y, s, col) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
@@ -10786,7 +10787,7 @@ function drawPlaza(t) {
    [1060, 470, 1.05], [2140, 470, 1.05], [78, 1380, 0.85], [622, 1380, 0.85],
    [200, 180, 0.9], [900, 180, 1.1], [1980, 250, 0.95], [110, 800, 1.0], /* the tree that stood at (3100, 800) on the east walkway below the Horse Track was removed at Jonathan's word (2026-10-30) — the lamps line that path now */
    [150, 2050, 0.95], [3050, 2050, 1.0],
-   [500, 2380, 1.0], [1050, 2440, 0.9], [2150, 2420, 1.05], [250, 2300, 0.9], [1600, 2470, 0.85], /* the new southern ground from the 2026-10-29 plaza growth. The trees that stood at (2750, 2360) and (2950, 2310) were removed at Jonathan's word (2026-11-01): the first stood at the turn of Quantum Bowling's new path with its canopy over the corner, the second right on the path's eastward run below the building */
+   [1050, 2440, 0.9], [2150, 2420, 1.05], [1600, 2470, 0.85], /* the new southern ground from the 2026-10-29 plaza growth. The trees that stood at (2750, 2360) and (2950, 2310) were removed at Jonathan's word (2026-11-01): the first stood at the turn of Quantum Bowling's new path with its canopy over the corner, the second right on the path's eastward run below the building. The two trees that stood below the Monster Shop at (500, 2380) and (250, 2300) were removed at Jonathan's word (2026-11-02) — the ground south of the moved shop stands open */
    [3400, 1890, 1.0], [4040, 1890, 1.0] /* the two trees flanking Quantum Bowling (PREVIEW, Jonathan 2026-11-01): they first stood south of the building at y 2130; when the building MOVED DOWN the same day they moved to the gap between the bottom walkway and its roof, symmetric about its own centre line (3720 ± 320), clear of the walkway, the pool, the building and the new path — appended, so every existing tree keeps its index and phase */
   ].forEach((tr, i) => quantumTree(tr[0], tr[1], tr[2], i * 1.37));
   /* the two silhouette buildings — coming soon */
@@ -12250,21 +12251,26 @@ function frame(now) {
   if (me.scene === "club") actors.push({ id: "vip-guard", x: 128, y: VIPDOOR.y + 6, tx: 128, ty: VIPDOOR.y + 6, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: (Date.now() - guardBubbleAt < 5000) ? guardBubble : "", chatId: guardBubbleAt }); /* the VIP door guard (PREVIEW): a fixed Q-Bot post at the club's left-wall door, drawn through the same actor pass as every player so he sorts and renders like one — he is this room's furniture, not a presence record, so he never counts as a person online */
   if (me.scene === "highrollers") actors.push({ id: "hrc-clerk", x: HRCTR.x + HRCTR.w + 34, y: HRCTR.y + HRCTR.h / 2 + 24, tx: HRCTR.x + HRCTR.w + 34, ty: HRCTR.y + HRCTR.h / 2 + 24, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* Q-Bot the CLERK (Jonathan 2026-11-01): the guards' third post — he stands BEHIND the service counter in the strip the DJ works from, centred on the counter BY EYE — anchored 24px BELOW its midpoint (y 1619, not 1595): the sprite anchors at its feet and draws upward, so at the exact midpoint he read as sitting high on the counter; the nudge is Jonathan's word (2026-11-01, "move Q bot down a bit so he looks more centered"). The over-clerk repaint clips from his own y, so its band follows the nudge and the counter front still overlaps his lower body exactly as before. Facing the room (flip true, like his casino twin at the right-wall door). Drawn through this same actor pass at the standard hero height; the pass repaints the counter's front over his lower body (drawHRCounterOverClerk) so he reads as staff behind the desk. Room furniture like his twins: NOT the live NPC, no presence record, never counted online, never speaks or moves */
   if (me.scene === "casino") actors.push({ id: "hrc-guard", x: CASINOROOM.w - 128, y: CASINODOORS_Y + 6, tx: CASINOROOM.w - 128, ty: CASINODOORS_Y + 6, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* the High Rollers door guard (Jonathan 2026-10-31): the club guard's twin at the casino's right-wall door — the same drawn Q-Bot figure (NOT the live NPC, who never moves for this), the same 128px-inset post mirrored beside his door, his carpet and ⭐ VIP lettering painted by drawCasino — with ONE difference: he faces the OTHER WAY (flip true; the club guard's is false). Room furniture like his twin: no presence record, never counted online, no speech bubble of his own */
-  if (me.scene === "monstershop") actors.push({ id: "monshop-qbot", x: MONQBOT.x, y: MONQBOT.y, tx: MONQBOT.x, ty: MONQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the TRAINING PEN's Q-Bot (PREVIEW): the guards' fourth post — he stands south of the pen in the Monster Shop and works the evolutions (the Train prompt keys off his spot, MONQBOT). Room furniture like his twins: NOT the live NPC, no presence record, never counted online */
+  if (me.scene === "monstershop") actors.push({ id: "monshop-qbot", x: MONQBOT.x, y: MONQBOT.y, tx: MONQBOT.x, ty: MONQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the TRAINING PEN's Q-Bot (PREVIEW): the guards' fourth post — he stands INSIDE the pen in the Monster Shop and works the evolutions (the Train prompt keys off his spot, MONQBOT). Room furniture like his twins: NOT the live NPC, no presence record, never counted online */
   /* the monster followers (PREVIEW): one pseudo-actor per player in the room whose monster is out — mine from my own pick while monOut is on, everyone else's from their presence mon field. They join the actors BEFORE the sort, so each follower layers with the room exactly like a player standing at its feet, and the loop's isMon branch paints them. Mine eases after me (monFol); a remote's rides a trailing offset behind its owner's smoothed position, opposite their facing */
   for (const a of actors) {
     const ms = a === me ? (monOut ? myMonSel : "") : (a.mon || "");
     const pr = ms ? monParse(ms) : null;
     if (!pr) continue;
+    /* the owner's ground line (the owner's fix, 2026-11-02): drawPlayer bottoms the hero sprite at owner.y + the hero's bob — so the follower rides the SAME bob (drawPlayer's own formula, fed the same phase/moving this actor's draw will use) and stands on the follow spot at the owner's own y: its bottom edge lands exactly on its owner's ground line, never floating on a wobble or an offset of its own */
+    const oMoving = a === me ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
+    const oPhase = a === me ? sprintPhase : a.bob * 7;
+    const oHero = a === me ? (mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : a.hero) : a.hero;
+    const gbob = oMoving ? -Math.abs(Math.sin(now / 105 + oPhase)) * (isMechHero(oHero) ? 20 : 11) : Math.sin(now / 620 + oPhase) * 1.4;
     let fx, fy;
     if (a === me) {
       const fkey = ms + "|" + me.scene;
-      if (!monFol || monFol.key !== fkey) monFol = { key: fkey, x: me.x, y: me.y }; /* a new pick or a new room: the follower starts at my side, never trails in from the last room's coordinates */
+      if (!monFol || monFol.key !== fkey) monFol = { key: fkey, x: me.x + (me.flip ? -95 : 95), y: me.y }; /* a summon, a new pick or stage, or a new room: the follower POPS IN at the follow spot beside me — it never flies in from my position, the map edge, or the last room's coordinates (the owner's fix, 2026-11-02); the ease below only serves ordinary following once it exists */
       monFol.x += ((me.x + (me.flip ? -95 : 95)) - monFol.x) * Math.min(1, dt * 5);
-      monFol.y += ((me.y + 8) - monFol.y) * Math.min(1, dt * 5);
+      monFol.y += (me.y - monFol.y) * Math.min(1, dt * 5);
       fx = monFol.x; fy = monFol.y;
-    } else { fx = a.x + (a.flip ? -95 : 95); fy = a.y + 8; }
-    actors.push({ isMon: true, id: "monfol-" + (a === me ? "me" : a.id), x: fx, y: fy, line: pr.line, stage: pr.stage, flip: !!a.flip, bob: a === me ? 0 : (a.bob || 0) });
+    } else { fx = a.x + (a.flip ? -95 : 95); fy = a.y; } /* a remote's follower is a pure offset off its owner's smoothed spot — no travel state of its own, so a presence mon appearing, vanishing or changing stage lands it beside its owner on that very frame (the presence handler already bursts its smoke there) */
+    actors.push({ isMon: true, id: "monfol-" + (a === me ? "me" : a.id), x: fx, y: fy, line: pr.line, stage: pr.stage, flip: !!a.flip, bob: a === me ? 0 : (a.bob || 0), gbob });
   }
   if (me.scene === "boxing" && boxState && boxState.mode === "pc" && (boxState.phase === "fight" || boxState.phase === "done")) { /* the boxing CPU (Jonathan 2026-11-01): a synthetic actor like the guards — the dread dog tinted to its corner (seat 0 red, seat 1 blue), drawn through this same pass so he sorts and renders like a fighter. The HOST pushes its own simulation (no lag); every other screen eases boxCpuVis toward the record's cpu node at the peers' own rate. No presence record, never a person online */
     const cs = boxCpuSeatOf(boxState), tgt = boxState.cpu;
@@ -12333,7 +12339,7 @@ function frame(now) {
   else if (me.scene === "speedway" && myCar >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => stepOutOfCar(false); }
   else if (me.scene === "speedway") { promptBtn.style.display = "none"; promptAction = null; }
   else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
-  else if (me.scene === "monstershop" && monNearQBot()) { promptBtn.style.display = "block"; promptBtn.textContent = "🏋️ Train with Q-Bot — Evolve"; promptAction = openMonPen; } /* the TRAINING PEN (PREVIEW): Q-Bot works the evolutions from his post south of the pen — the prompt exists only while standing at his post, the DJ pattern */
+  else if (me.scene === "monstershop" && monNearQBot()) { promptBtn.style.display = "block"; promptBtn.textContent = "🏋️ Train with Q-Bot — Evolve"; promptAction = openMonPen; } /* the TRAINING PEN (PREVIEW): Q-Bot works the evolutions from his post inside the pen — the prompt exists only while standing at the fence by his post, the DJ pattern */
   else if (me.scene === "monstershop" && monNearCase() >= 0) { const mc = MONCASES[monNearCase()]; promptBtn.style.display = "block"; if (myMons[mc.line]) { promptBtn.textContent = "✓ " + monName(mc.line) + " — Owned"; promptAction = () => sfxClick(); } else { promptBtn.textContent = "🐾 Buy " + monName(mc.line) + " — 🪙 " + MON_BASE_PRICE.toLocaleString("en-US"); promptAction = () => monBuyBase(mc.line); } } /* walk-up buying (PREVIEW): stand at a case's front and the prompt offers that case's base form; an owned case just says so */
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
