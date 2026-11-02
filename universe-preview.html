@@ -5329,7 +5329,7 @@ let myMons = {}; /* my collection: line -> highest stage owned (1..3), loaded fr
 let myMonSel = ""; /* my follower pick: "<line>-<stage>", "" = none — saved on the account doc as monsel */
 let monOut = false; /* session-only: whether my monster is currently out following me (its pick rides my presence as mon) */
 let monFol = { key: "", x: 0, y: 0 }; /* my follower's eased position on my own screen — keyed by pick + scene, so a change snaps it to my side */
-let monAll = false; /* the OWNER's unlock-all toggle (his order, 2026-11-02): his account doc carries it as monAll; while it is on, his EFFECTIVE collection (monEffMons / monEffStage) is every line at stage 3 — display and selection read the effective map, while buys, evolutions and saves keep writing the REAL myMons underneath, untouched by the switch */
+let monAll = false; /* the OWNER's unlock-all toggle (his order, 2026-11-02): his account doc carries it as monAll; while it is on, his EFFECTIVE collection (monEffMons / monEffStage) is every line at stage 3 — display and selection read the effective map, while buys, evolutions and saves keep writing the REAL myMons underneath; the switch's LOCK tap is the one exception: it wipes the real map too (his order, later the same day) */
 const MON_STAGE_SCALE = [0, 1, 1.62, 2.25]; /* a monster's draw scale by stage, relative to stage 1 (the owner's word, 2026-11-02): stage 1 at the follower's quarter scale (natural × 0.25), stage 2 at 1.62× that (× 0.405), stage 3 at 2.25× that (× 0.5625) — followers and case displays share this one table */
 function monEffMons() { if (monAll && isOwnerAcct()) { const o = {}; for (const l of MON_LINES) o[l] = 3; return o; } return myMons; } /* the effective collection for DISPLAY and SELECTION: the owner's toggle-on map, or the real map itself (the same object — every other account's reads are the real map's, byte for byte) */
 function monEffStage(line) { return (monAll && isOwnerAcct()) ? 3 : (myMons[line] || 0); } /* monEffMons for a single line — the per-frame readers (cases, prompts) use this one */
@@ -5395,13 +5395,14 @@ function renderMonColl() {
 }
 function openMonColl() { closeChatLog(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
 function closeMonColl() { $("moncoll").style.display = "none"; sfxClick(); }
-function toggleMonAll() { /* the owner's unlock-all switch (his order, 2026-11-02): flips his EFFECTIVE collection between everything at stage 3 and his real saved mons. The real map is never touched by the switch itself — only the monAll field on his account doc changes, saved through acctMonSave like mons/monsel. A follower pick the new state doesn't own can't stand, so locking back down clears it (and puts the monster away) */
+function toggleMonAll() { /* the owner's unlock-all switch (his order, 2026-11-02): flips his EFFECTIVE collection between everything at stage 3 and his real saved mons, saved through acctMonSave like mons/monsel. LOCKING also erases his real purchase progress (his order, later the same day): the real mons map and the follower pick are wiped in the same tap, so a locked owner owns nothing until he buys again; unlocking again restores everything through the toggle alone. A follower pick the new state doesn't own can't stand, so locking back down clears it (and puts the monster away) */
   if (!isOwnerAcct()) return;
   monAll = !monAll;
+  if (!monAll) { myMons = {}; myMonSel = ""; monOut = false; }
   const sel = monParse(myMonSel);
   if (sel && monEffStage(sel.line) < sel.stage) { myMonSel = ""; monOut = false; }
   acctMonSave(); publish(true); sfxClick(); renderMonColl();
-  monCollMsg(monAll ? "🔓 All Unlocked — every monster is yours." : "🔒 All Locked — your real collection again.");
+  monCollMsg(monAll ? "🔓 All Unlocked — every monster is yours." : "🔒 All Locked — purchase progress erased.");
 }
 /* ---- the TRAINING PEN panel (Q-Bot's prompt inside the hall): every owned monster that can still evolve — its current stage in colour, its NEXT stage as a BLACK SILHOUETTE only, the evolution's price, and its Evolve button ---- */
 function monPenMsg(t) { const m = $("monpenmsg"); if (m) m.textContent = t || ""; }
