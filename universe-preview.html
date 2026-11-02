@@ -6343,7 +6343,7 @@ function bowlStandUp() {
   const t = bowlSeatT, i = bowlSeatI, st = bowlStates[t], rec = bowlSeatRec(t, i);
   bowlLeft = { t, i }; /* marked first: the reload reclaim must not hand the chair straight back (the pool hall rule) */
   bowlSettle(t); /* bank a decided game before anything else moves */
-  bowlSim = null; bowlAim = null;
+  bowlSim = null; bowlAim = null; bowlCpuSim = null; bowlCpuDue = 0; /* a CPU game I was driving stops with me — the record is left for the idle clear, the standard abandonment path */
   bowlSeatT = -1; bowlSeatI = -1; bowlSeatPos = null; mySeatPos = null;
   if (rec && rec.pid === myId) {
     if (st && st.phase === "bet") { if (rec.bet > 0) { addChips(rec.bet); noteBowl("Bet refunded: 🪙 " + rec.bet.toLocaleString("en-US")); } }
@@ -6376,6 +6376,7 @@ function bowlBet(amt) {
   if (!st.firstBetTs) tblUpd(bowlKey(bowlSeatT), { firstBetTs: Date.now() });
   tblUpd(bowlKey(bowlSeatT) + "/seats/" + bowlSeatI, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
   mine.bet = amt;
+  const cpuI = bowlCpuSeatIdx(st); if (cpuI >= 0) tblUpd(bowlKey(bowlSeatT) + "/seats/" + cpuI, { bet: amt, ts: Date.now() }); /* an armed CPU matches MY bet — I set the amount on the normal grid, the house's side follows (its record's stake is never charged to anyone) */
   armRefundOD(bowlKey(bowlSeatT), bowlSeatI, amt);
   sfxClick();
 }
@@ -6388,6 +6389,28 @@ function bowlReady() {
   tblUpd(bowlKey(bowlSeatT) + "/seats/" + bowlSeatI, { rdy: nr, ts: Date.now() });
   mine.rdy = nr;
   sfxClick();
+}
+/* ---- vs the CPU (Jonathan 2026-11-01): alone at a lane, a player can arm the CPU for a 1v1 — the pool hall / chess / boxing model carried to a four-chair lane. The CPU holds a REAL seat record (pid "bowl-cpu", hero 2, flag cpu) so the lane screen names it and scores it like any player — but it is not a person: its acct is empty, so claimUid resolves "" and no claim, refund or settlement can ever be written for its side (writeClaim refuses an empty uid); it never counts as a fresh HUMAN anywhere (the host gate, the start gate and the sit prompts all filter it out); and its stake is the house's side of the pot — nothing is charged for it, and at the start the pot is written as twice the player's bet (pot = betAmt * players.length with players = [me, cpu] does exactly that). The host (the lone seated player's client) heartbeats its record, drives its throws on the shared sim, and stands it down the moment a second human sits at the lane ---- */
+const BOWLCPU_PID = "bowl-cpu";
+function bowlCpuSeatIdx(st) { const seats = (st && st.seats) || {}; for (let i = 0; i < 4; i++) if (seats[i] && seats[i].cpu) return i; return -1; } /* the CPU's chair at this lane, armed or in a game — its record is the armed state */
+function bowlCpuOffered(st) { const seats = (st && st.seats) || {}; for (let i = 0; i < 4; i++) { if (i === bowlSeatI) continue; const s = seats[i]; if (s && !s.cpu && bowlFresh(s)) return false; } return true; } /* the toggle is offered only while I am the lane's ONLY fresh human — a second human sitting down ends the offer (and the host stands an armed CPU down) */
+function bowlCpuToggle() {
+  const t = bowlSeatT, st = bowlStates[t], mine = myBowlSeatRec();
+  if (!st || st.phase !== "bet" || !mine) return;
+  if (!acctUser) { noteBowl("🔒 Playing takes an account — guests can watch."); return; }
+  const key = bowlKey(t), seats = st.seats || {}, cpuI = bowlCpuSeatIdx(st);
+  if (cpuI >= 0) { tblSet(key + "/seats/" + cpuI, null); sfxClick(); return; } /* stand the CPU down — its stake was the house's, nothing is owed either way */
+  if (!bowlCpuOffered(st)) { noteBowl("The CPU only plays when you're alone at the lane."); return; }
+  for (let i = 0; i < 4; i++) {
+    if (i === bowlSeatI) continue;
+    const ex = seats[i];
+    if (bowlFresh(ex)) continue; /* a live chair is never taken (a fresh CPU chair can't exist here — cpuI < 0 — so any fresh chair is a human's) */
+    if (ex && ex.bet > 0) writeClaim(claimUid(ex), rfKeyFor(key, st, i), ex.bet, "↩️ Bet returned"); /* a stale chair's stake goes back through the claims rail before the chair changes hands (the pool hall rule, mirrored from bowlSitAt) */
+    tblSet(key + "/seats/" + i, { pid: BOWLCPU_PID, acct: "", name: "🤖 CPU", hero: 2, ts: Date.now(), bet: mine.bet || 0, rdy: true, cpu: true }); /* matched from birth: its bet follows mine (bowlBet keeps it in step), and it is always READY — my READY is the gate */
+    sfxClick();
+    return;
+  }
+  noteBowl("No free chair for the CPU.");
 }
 /* ---- the finish: totals off the rolls, the pot to the winner, claims written the same moment (the pool hall rule) ---- */
 function bowlFinishGame(t, st, forcedWinner) {
@@ -6414,20 +6437,34 @@ function bowlHostTick(t) {
   tableIdleClear(key, st, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() });
   st = bowlStates[t]; if (!st) return;
   const seats = st.seats || {};
-  const freshIdx = [0, 1, 2, 3].filter(i => bowlFresh(seats[i]));
-  if (!freshIdx.length || seats[freshIdx[0]].pid !== myId) return; /* the lowest fresh seat's client hosts — everyone else's tick stops here */
+  const freshIdx = [0, 1, 2, 3].filter(i => bowlFresh(seats[i]) && !seats[i].cpu); /* fresh HUMANS only: the CPU's record is fresh too while it is hosted, but it is never a host, never a start-gate vote (Jonathan 2026-11-01) */
+  if (!freshIdx.length || seats[freshIdx[0]].pid !== myId) return; /* the lowest fresh human seat's client hosts — everyone else's tick stops here */
+  const cpuSeatI = bowlCpuSeatIdx(st);
+  if (cpuSeatI >= 0) tblUpd(key + "/seats/" + cpuSeatI, { ts: Date.now() }); /* the host keeps the CPU's record fresh while it is armed or in a game — its freshness is what the play-phase forfeit filter and the stall guard read */
   if (st.phase === "bet") {
     /* reap husk chairs (stale or pid-less) — a stake still riding on one goes back through the rf rail first (never-lose net) */
     const upd = {}; let changed = false;
     [0, 1, 2, 3].forEach(i => { const s = seats[i]; if (s && !bowlFresh(s)) { if (s.bet > 0 && s.pid) writeClaim(claimUid(s), rfKeyFor(key, st, i), s.bet, "↩️ Bet returned"); upd[i] = null; changed = true; } });
     if (changed) tblUpd(key + "/seats", upd);
+    /* the CPU stands down the moment a second human is seated at the lane (Jonathan 2026-11-01): a human game never carries the CPU — its record is removed before any gate is read */
+    if (cpuSeatI >= 0 && freshIdx.length >= 2) { tblSet(key + "/seats/" + cpuSeatI, null); return; }
     /* the start gate: at least two fresh seated players, MATCHED bets, all of them READY */
     const ready = freshIdx.filter(i => (seats[i].bet || 0) > 0 && seats[i].rdy);
     if (ready.length >= 2 && ready.every(i => seats[i].bet === seats[ready[0]].bet)) {
       const betAmt = seats[ready[0]].bet, players = ready.slice().sort((a, b) => a - b);
       freshIdx.forEach(i => { if (players.indexOf(i) < 0 && (seats[i].bet || 0) > 0) { writeClaim(claimUid(seats[i]), rfKeyFor(key, st, i), seats[i].bet, "↩️ Bet returned"); tblUpd(key + "/seats/" + i, { bet: 0, rdy: false }); } }); /* a staked chair that is not part of this game never consented to it — its bet comes back through the rail and its stake clears */
       const rolls = {}; players.forEach(i => { rolls[i] = []; });
-      tblUpd(key, { phase: "play", players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
+      tblUpd(key, { phase: "play", mode: null, players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
+      return;
+    }
+    /* the 1v1 gate (Jonathan 2026-11-01): the CPU is armed, I am the lane's only fresh human, my bet is down and I am READY, and the CPU's record matches my bet — the game starts on MY ready, pot = twice my stake (the house covers the CPU's side, the pool/chess model) */
+    if (cpuSeatI >= 0 && freshIdx.length === 1) {
+      const h = freshIdx[0];
+      if ((seats[h].bet || 0) > 0 && seats[h].rdy && (seats[cpuSeatI].bet || 0) === seats[h].bet) {
+        const betAmt = seats[h].bet, players = [h, cpuSeatI].sort((a, b) => a - b);
+        const rolls = {}; players.forEach(i => { rolls[i] = []; });
+        tblUpd(key, { phase: "play", mode: "pc", players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
+      }
     }
     return;
   }
@@ -6445,8 +6482,8 @@ function bowlHostTick(t) {
     }
     return;
   }
-  if (st.phase === "done" && st.doneTs && Date.now() - st.doneTs > 3500) { /* the rematch recycle: everyone stays seated, bets and READY clear (the pool hall's) */
-    const upd = {}; [0, 1, 2, 3].forEach(i => { if (seats[i]) upd[i] = Object.assign({}, seats[i], { bet: 0, rdy: false }); });
+  if (st.phase === "done" && st.doneTs && Date.now() - st.doneTs > 3500) { /* the rematch recycle: everyone stays seated, bets and READY clear (the pool hall's) — everyone HUMAN: the CPU's chair is left out of the new node entirely, so a rematch against it is armed again on purpose (Jonathan 2026-11-01) */
+    const upd = {}; [0, 1, 2, 3].forEach(i => { if (seats[i] && !seats[i].cpu) upd[i] = Object.assign({}, seats[i], { bet: 0, rdy: false }); });
     tblSet(key, { phase: "bet", seats: upd, matchId: newRoundId(), ts: Date.now() });
   }
 }
@@ -6530,6 +6567,85 @@ function bowlFinishThrow() {
   const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack };
   tblUpd(bowlKey(t), upd);
   if (adv.over) bowlFinishGame(t, Object.assign({}, st, upd), -1); /* the last ball of the game: the thrower writes the decision and the claims, the pool hall rule */
+}
+/* ---- the CPU's throws (Jonathan 2026-11-01): simulated on the seated player's client (the host), on the SAME ball-and-pins sim as a human throw — the only difference is the aim, which is a decision, not a different physics (the boxing CPU's fairness rule). First ball goes at the pocket with a realistic spread; the second ball is aimed at the biggest cluster of what's standing, tighter. Its rolls and live snapshots go through the same record fields as a human's, so the lane screen scores it like any player ---- */
+let bowlCpuSim = null, bowlCpuDue = 0;
+function bowlCpuGauss() { return (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 0.5774; } /* a rough normal, mean 0, sd 1 */
+function bowlCpuAim(t, st, cpuI) { /* where the CPU tries to cross the pin deck (an offset from the lane's centre) and how hard it throws */
+  const cx = BOWLCX(t), rack = st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+  const standing = []; for (let i = 0; i < 10; i++) if (rack[i]) standing.push(i);
+  /* a gentle roll, always: in this pin model a firm ball that touches the rack cascades (the chain chance rides ball speed), so a beatable CPU plays soft — headless tuning against this exact model put a hot pocket game near 300 and this soft line in the 120-170 band (mean ~160) */
+  const pow = Math.random() * 0.06;
+  if (!standing.length || standing.length === 10) {
+    if (Math.random() < 0.26) return { entry: 10 + bowlCpuGauss() * 30, pow }; /* its groove ball: at the pocket with a wide honest spread — strikes sometimes */
+    const side = Math.random() < 0.5 ? -1 : 1;
+    return { entry: side * (84 + Math.abs(bowlCpuGauss()) * 14), pow }; /* its bread-and-butter outside line: clips the corner of the rack for 6-9, strays into the gutter now and then */
+  }
+  const xs = standing.map(i => bowlPinPos(cx, i).x).sort((a, b) => a - b);
+  const clusters = [[xs[0]]]; for (let k = 1; k < xs.length; k++) { if (xs[k] - xs[k - 1] > 70) clusters.push([]); clusters[clusters.length - 1].push(xs[k]); } /* pins more than a chain's reach apart are separate targets — a split is picked off one side at a time, like real bowling */
+  clusters.sort((a, b) => b.length - a.length || Math.abs(a.reduce((s, x) => s + x, 0) / a.length - cx) - Math.abs(b.reduce((s, x) => s + x, 0) / b.length - cx));
+  const target = clusters[0].reduce((s, x) => s + x, 0) / clusters[0].length - cx;
+  return { entry: target + bowlCpuGauss() * 22, pow }; /* at what's left: the biggest cluster's middle — a decent spare conversion (~55%), not a lock */
+}
+function bowlCpuShoot(t, cpuI) {
+  const st = bowlStates[t], cx = BOWLCX(t), a = bowlCpuAim(t, st, cpuI);
+  const vy = -(640 + a.pow * 1020);
+  const T = -Math.log(1 - 95.8 / Math.abs(vy)) / 0.10; /* the sim's own drag, solved for the flight time to the pin deck — so the drift below lands the ball on its chosen line */
+  const lean = a.entry * 0.35, startX = cx + lean;
+  const vx = (a.entry - lean) / ((1 - Math.exp(-0.35 * T)) / 0.35);
+  bowlCpuSim = { t, seat: cpuI, x: startX, y: BOWL_FOUL_Y, vx, vy, rack: (st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]).slice(), lastPub: 0, gutter: false };
+  tblUpd(bowlKey(t), { rolling: true, shotBy: cpuI, shotTs: Date.now(), live: { x: Math.round(startX * 10) / 10, y: BOWL_FOUL_Y, rack: bowlCpuSim.rack } });
+  sfxBowlRoll();
+}
+function bowlCpuFrameStep(dt) {
+  if (bowlSeatT < 0) { bowlCpuSim = null; bowlCpuDue = 0; return; } /* only the seated player's client drives the CPU — spectators follow the live snapshots */
+  const t = bowlSeatT, st = bowlStates[t];
+  if (!st || st.phase !== "play" || st.mode !== "pc") { bowlCpuSim = null; bowlCpuDue = 0; return; }
+  const cpuI = bowlCpuSeatIdx(st);
+  if (!bowlCpuSim) { /* the CPU's turn, nothing rolling: a thinking pause, then its throw — the pool PC's own beat */
+    if (cpuI < 0 || st.turnSeat !== cpuI || st.rolling) { bowlCpuDue = 0; return; }
+    const now = performance.now();
+    if (!bowlCpuDue) { bowlCpuDue = now + 900 + Math.random() * 500; return; }
+    if (now < bowlCpuDue) return;
+    bowlCpuDue = 0;
+    bowlCpuShoot(t, cpuI);
+    return;
+  }
+  const sim = bowlCpuSim;
+  if (sim.t !== t || st.turnSeat !== sim.seat) { bowlCpuSim = null; return; } /* its turn ended another way (a host skip, a reset) — the local ball goes away, exactly as a human's does */
+  const cx = BOWLCX(sim.t);
+  let rem = Math.min(dt, 0.05);
+  const sub = 1 / 240;
+  while (rem > 0) { /* bowlFrameStep's ball, word for word — the same drag, the same gutter, the same pin model */
+    const h = Math.min(sub, rem); rem -= h;
+    sim.x += sim.vx * h; sim.y += sim.vy * h;
+    sim.vy *= (1 - 0.10 * h); sim.vx *= (1 - 0.35 * h);
+    if (!sim.gutter && Math.abs(sim.x - cx) > 131 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true;
+    if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 145; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
+    else if (sim.y < 580) {
+      for (let i = 0; i < 10; i++) {
+        if (!sim.rack[i]) continue;
+        const p = bowlPinPos(cx, i);
+        if (Math.hypot(sim.x - p.x, sim.y - p.y) < 28) { bowlKnockPins(sim, i); sim.vx += (p.x - sim.x) * 1.4; sim.vy *= 0.88; }
+      }
+    }
+    if (sim.y < 306 || Math.abs(sim.vy) < 30) { bowlCpuFinishThrow(); return; }
+  }
+  const now = performance.now();
+  if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack } }); } /* the room watches the CPU's ball off the same live snapshot as a human's */
+}
+function bowlCpuFinishThrow() { /* bowlFinishThrow with the CPU's seat in place of mine — the result lands in the same rolls, the finish (and the claims rail) is the shared one */
+  const sim = bowlCpuSim; bowlCpuSim = null;
+  const t = sim.t, st = bowlStates[t];
+  if (!st || st.phase !== "play") return;
+  const standingBefore = (st.rack || []).reduce((a, b) => a + b, 0), standingAfter = sim.rack.reduce((a, b) => a + b, 0);
+  const knocked = Math.max(0, standingBefore - standingAfter);
+  const rolls = {}; Object.keys(st.rolls || {}).forEach(k => { rolls[k] = (st.rolls[k] || []).slice(); });
+  rolls[sim.seat] = (rolls[sim.seat] || []).concat([knocked]);
+  const adv = bowlAdvance(Object.assign({}, st, { rolls }), standingAfter);
+  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack };
+  tblUpd(bowlKey(t), upd);
+  if (adv.over) bowlFinishGame(t, Object.assign({}, st, upd), -1);
 }
 /* ---- drawing the alley ---- */
 function drawBowlBall(x, y) {
@@ -6617,12 +6733,14 @@ function drawBowlLane(tt, t) {
   /* pins: the live snapshot while a ball is rolling on someone else's screen, my own simulation on mine, the record's rack at rest */
   let rack;
   if (bowlSim && bowlSim.t === tt) rack = bowlSim.rack;
+  else if (bowlCpuSim && bowlCpuSim.t === tt) rack = bowlCpuSim.rack; /* the host of a CPU 1v1 draws its own simulation of the CPU's ball too — no lag (the boxing CPU's rule) */
   else if (st && st.rolling && st.live && st.live.rack) rack = st.live.rack;
   else if (st && st.phase !== "bet" && st.rack) rack = st.rack;
   else rack = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
   for (let i = 9; i >= 0; i--) { const p = bowlPinPos(cx, i); drawBowlPin(p.x, p.y, !!rack[i]); }
   /* the ball: my simulation, a follower's live snapshot, or resting at the foul line on the next throw */
   if (bowlSim && bowlSim.t === tt) drawBowlBall(bowlSim.x, bowlSim.y);
+  else if (bowlCpuSim && bowlCpuSim.t === tt) drawBowlBall(bowlCpuSim.x, bowlCpuSim.y);
   else if (st && st.rolling && st.live) drawBowlBall(st.live.x, st.live.y);
   else if (st && st.phase === "play") drawBowlBall(cx, BOWL_FOUL_Y);
   /* my aim: the dashed line up the lane and the power meter by the ball (the pool hall's guide, carried over) */
@@ -6660,7 +6778,14 @@ function drawBowlPanel(t) {
   if (bowlSeatT < 0) return;
   const st = bowlStates[bowlSeatT], mine = myBowlSeatRec();
   if (!st || !mine) return;
-  const cx = BOWLCX(bowlSeatT), P = { x: cx - 280, y: 1790, w: 560, h: 156 };
+  /* the panel is anchored to the VIEW, not to a fixed world spot (Jonathan 2026-11-01): parked under the chairs it slid under the HTML Stand up button, which hid the last bet amount and the end of the READY line. Each frame its world position is computed from the camera (camX/camY/VW/VH/SCALE) so that ON SCREEN it sits at the bottom of the visible view — centred, but shifted left far enough to clear the prompt button's column on the right, and lifted ~110 screen px off the bottom edge so it clears the chat strip too. The uiZones below are pushed in the same world coordinates the pointer handler hit-tests with, so the taps land exactly on the paint */
+  const cpuI = bowlCpuSeatIdx(st);
+  const showCpu = st.phase === "bet" && (cpuI >= 0 || bowlCpuOffered(st)); /* the CPU row only exists in the bet phase, and only while I am the lane's only human (or it is already armed) */
+  const P = { x: 0, y: 0, w: 560, h: showCpu ? 196 : 156 };
+  const scrW = P.w * SCALE, reserve = VW >= 700 ? 280 : 190; /* the prompt button's column: a wide pill on desktop, a narrower one on a phone */
+  P.x = camX + Math.max(8, Math.min((VW - scrW) / 2, VW - reserve - scrW)) / SCALE;
+  P.y = camY + (VH - 110) / SCALE - P.h;
+  const cx = P.x + P.w / 2; /* the panel's own centre — every line below centres on the panel */
   ctx.fillStyle = "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16); ctx.fill();
   ctx.strokeStyle = "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16); ctx.stroke();
   ctx.textAlign = "center";
@@ -6679,8 +6804,16 @@ function drawBowlPanel(t) {
     ctx.fillStyle = mine.bet > 0 ? (mine.rdy ? "#1d5c33" : "#3b1470") : "rgba(40,40,55,0.9)"; rr(P.x + 13, ry, P.w - 26, 32, 9); ctx.fill();
     ctx.strokeStyle = mine.rdy ? "#7dffb0" : "rgba(192,132,252,0.6)"; ctx.lineWidth = 1.5; rr(P.x + 13, ry, P.w - 26, 32, 9); ctx.stroke();
     ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = mine.bet > 0 ? "#eaf6ff" : "rgba(220,220,230,0.5)";
-    ctx.fillText(mine.bet > 0 ? (mine.rdy ? "✓ READY — tap to unready" : "✔ READY — start when 2+ match bets and ready up") : "place a bet first", cx, ry + 21);
+    ctx.fillText(mine.bet > 0 ? (mine.rdy ? "✓ READY — tap to unready" : cpuI >= 0 ? "✔ READY — start your 1v1 vs the CPU" : "✔ READY — start when 2+ match bets and ready up") : "place a bet first", cx, ry + 21);
     uiZones.push({ x: P.x + 13, y: ry, w: P.w - 26, h: 32, fn: () => bowlReady() });
+    if (showCpu) { /* the CPU row (Jonathan 2026-11-01): arm the house for a 1v1 while I am alone at the lane, or stand it down */
+      const ty = P.y + 156, armed = cpuI >= 0;
+      ctx.fillStyle = armed ? "#1d5c33" : "#3b1470"; rr(P.x + 13, ty, P.w - 26, 32, 9); ctx.fill();
+      ctx.strokeStyle = armed ? "#7dffb0" : "rgba(192,132,252,0.6)"; ctx.lineWidth = 1.5; rr(P.x + 13, ty, P.w - 26, 32, 9); ctx.stroke();
+      ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+      ctx.fillText(armed ? "🤖 CPU ARMED — it matches your bet · tap to stand it down" : "🤖 PLAY vs CPU — the house matches your bet", cx, ty + 21);
+      uiZones.push({ x: P.x + 13, y: ty, w: P.w - 26, h: 32, fn: () => bowlCpuToggle() });
+    }
   } else if (st.phase === "play") {
     const card = bowlScorecard((st.rolls && st.rolls[bowlSeatI]) || []);
     const turnSeat = st.seats && st.seats[st.turnSeat];
@@ -10757,7 +10890,7 @@ function frame(now) {
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
-  if (me.scene === "bowling") bowlFrameStep(dt); /* the thrower's ball-and-pins physics runs here, on the thrower's client only (bowlFrameStep itself refuses everywhere else) */
+  if (me.scene === "bowling") { bowlFrameStep(dt); bowlCpuFrameStep(dt); } /* the thrower's ball-and-pins physics runs here, on the thrower's client only (bowlFrameStep itself refuses everywhere else) — and beside it the CPU's throws in a 1v1, on the seated host's client only (bowlCpuFrameStep itself refuses everywhere else) */
   if (me.scene === "boxing") boxCpuFrame(dt); /* the CPU fighter's simulation runs here — on the HOST's screen only (boxCpuFrame itself refuses everywhere else): it moves, faces and punches the CPU, and publishes its body to the record for the room */
   boxMousePunchDriver(); /* the instant-glove driver runs every frame alongside the CPU sim — it self-gates to an active fight on a non-coarse pointer, so outside a desktop bout it costs nothing */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
@@ -10855,8 +10988,8 @@ function frame(now) {
     if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
   }
   if (me.scene === "bowling" && bowlSeatT >= 0) {
-    /* seated at a lane the camera frames my whole lane — screen, pins, lane and chairs (the pool hall's seated framing, stretched to a lane's length), and the bet panel below the chairs: the frame's bottom is the room's floor edge (2000), so the whole panel (bottom 1946) sits inside it — at h 1750 the frame ended at 1846 and the bet buttons were cut in half (Jonathan's screenshot, 2026-11-01) */
-    const cx = BOWLCX(bowlSeatT), f = { x: cx - 330, y: 96, w: 660, h: 1904 };
+    /* seated at a lane the camera frames my lane — screen, pins, lane and chairs (the pool hall's seated framing, stretched to a lane's length). ZOOMED IN at Jonathan's word (2026-11-01): the frame is the lane itself, 500 wide on its centre line, from above the screens (96) to just past the chairs (1846) — the bet panel no longer needs room in the frame at all, because it is anchored to the VIEW now (see drawBowlPanel), not parked under the chairs */
+    const cx = BOWLCX(bowlSeatT), f = { x: cx - 250, y: 96, w: 500, h: 1750 };
     SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
     camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
     camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
