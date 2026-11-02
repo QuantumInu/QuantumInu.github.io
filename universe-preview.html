@@ -200,6 +200,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .monslot.sel{border-color:var(--gold);box-shadow:0 0 12px rgba(255,215,106,.55);background:rgba(255,215,106,.10)}
 .monmsg{min-height:20px;color:#ffd76a;font-weight:700;font-size:14px;margin-top:10px;text-align:center}
 .monclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
+.monallbtn{margin-top:8px;background:rgba(255,215,106,.12);border:2px solid rgba(255,215,106,.65);color:#ffd76a;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit;width:100%} /* the owner's unlock-all switch (PREVIEW): the collection panel's bottom button — display stays none in the markup and renderMonColl only ever shows it under the owner's account */
 .monevo{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);border:1px solid rgba(74,222,128,.25);border-radius:12px;padding:8px 10px}
 .monevo img{width:56px;height:56px;object-fit:contain;flex:none}
 .monevo img.sil{filter:brightness(0);opacity:.8} /* the evolution's next stage: silhouette ONLY until the evolution is bought */
@@ -340,6 +341,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <div class="monlist" id="moncolllist"></div>
   <p class="monmsg" id="moncollmsg"></p>
   <button class="monclose" id="moncollclose" type="button">Close</button>
+  <button class="monallbtn" id="monallbtn" type="button" style="display:none">🔓 All Unlocked — tap to lock</button>
 </div></div>
 <div id="monpen"><div class="monpanel">
   <h2>🏋️ Training Pen — Q-Bot</h2>
@@ -5327,6 +5329,10 @@ let myMons = {}; /* my collection: line -> highest stage owned (1..3), loaded fr
 let myMonSel = ""; /* my follower pick: "<line>-<stage>", "" = none — saved on the account doc as monsel */
 let monOut = false; /* session-only: whether my monster is currently out following me (its pick rides my presence as mon) */
 let monFol = { key: "", x: 0, y: 0 }; /* my follower's eased position on my own screen — keyed by pick + scene, so a change snaps it to my side */
+let monAll = false; /* the OWNER's unlock-all toggle (his order, 2026-11-02): his account doc carries it as monAll; while it is on, his EFFECTIVE collection (monEffMons / monEffStage) is every line at stage 3 — display and selection read the effective map, while buys, evolutions and saves keep writing the REAL myMons underneath, untouched by the switch */
+const MON_STAGE_SCALE = [0, 1, 1.62, 2.25]; /* a monster's draw scale by stage, relative to stage 1 (the owner's word, 2026-11-02): stage 1 at the follower's quarter scale (natural × 0.25), stage 2 at 1.62× that (× 0.405), stage 3 at 2.25× that (× 0.5625) — followers and case displays share this one table */
+function monEffMons() { if (monAll && isOwnerAcct()) { const o = {}; for (const l of MON_LINES) o[l] = 3; return o; } return myMons; } /* the effective collection for DISPLAY and SELECTION: the owner's toggle-on map, or the real map itself (the same object — every other account's reads are the real map's, byte for byte) */
+function monEffStage(line) { return (monAll && isOwnerAcct()) ? 3 : (myMons[line] || 0); } /* monEffMons for a single line — the per-frame readers (cases, prompts) use this one */
 let monNote = "", monNoteAt = 0; /* the buy/evolve note over my head inside the hall — bowlNote's pattern */
 let evoLock = false; /* true while MY evolution animation owns the screen: frame() plants my feet for its length */
 let evoAnim = null; /* the running evolution {line, from, to, t0, swapped, burst} */
@@ -5334,20 +5340,22 @@ const monImgs = {}; /* the lazy sprite cache, keyed "<line>-<stage>" — slotBgI
 function monImgSrc(line, stage) { return "assets/monsters/" + line + "-" + stage + ".webp"; }
 function monImg(line, stage) { const k = line + "-" + stage; let im = monImgs[k]; if (!im) { im = new Image(); im.src = monImgSrc(line, stage); monImgs[k] = im; } return im; }
 function monParse(s) { if (typeof s !== "string") return null; const m = /^([a-z]+)-([123])$/.exec(s); if (!m || MON_LINES.indexOf(m[1]) < 0) return null; return { line: m[1], stage: Number(m[2]) }; } /* a presence mon / saved monsel only ever resolves to a real line at a real stage */
+
 function monSay(txt) { monNote = txt; monNoteAt = performance.now(); }
-function acctMonSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ mons: myMons, monsel: myMonSel, ts: Date.now() }); } catch (e) {} } /* update, not set — acctStoreSave's own rule: the session claim and the chips fields under this record are not this function's to rewrite */
+function acctMonSave() { if (!acctUser || !db) return; try { const u = { mons: myMons, monsel: myMonSel, ts: Date.now() }; if (isOwnerAcct()) u.monAll = monAll; db.ref("hub/users/" + acctUser.uid).update(u); } catch (e) {} } /* update, not set — acctStoreSave's own rule: the session claim and the chips fields under this record are not this function's to rewrite. The monAll field rides the same save, but ONLY on the owner's doc — no other account ever grows the field */
 function loadMonstersFromAccount(d) { /* sign-in (and sign-out, with null): the collection's slice of the account doc lands in the session vars, in the store loader's shape */
   myMons = {};
   if (d && d.mons && typeof d.mons === "object") for (const l of MON_LINES) { const s = Math.floor(Number(d.mons[l]) || 0); if (s >= 1) myMons[l] = Math.min(3, s); }
+  monAll = !!(d && isOwnerAcct() && d.monAll !== false); /* the owner's unlock-all state: a doc that has never saved it reads as UNLOCKED (his order — "just unlock them all on my account now"), so his first load of this build shows everything open; once he toggles, the saved word rules. No other account can hold it on: signed out or not the owner, it is off */
   myMonSel = "";
   const sel = d && typeof d.monsel === "string" ? monParse(d.monsel) : null;
-  if (sel && (myMons[sel.line] || 0) >= sel.stage) myMonSel = d.monsel; /* a saved pick only stands while that stage is still owned */
+  if (sel && monEffStage(sel.line) >= sel.stage) myMonSel = d.monsel; /* a saved pick only stands while that stage is still owned — effectively owned, so the owner's unlocked stages hold his pick the same way */
   monOut = false; /* a monster never starts out — the M button sends it out, each visit */
 }
 function monNearCase() { if (me.scene !== "monstershop") return -1; let best = -1, bd = 1e18; MONCASES.forEach((c, i) => { const d = Math.hypot(me.x - (c.x + c.w / 2), me.y - (c.y + c.h + 42)); if (d < bd) { bd = d; best = i; } }); return bd < 175 ? best : -1; } /* standing at a case's FRONT (its south face, where its plaque reads) — the buy prompt's spot */
 function monNearQBot() { return me.scene === "monstershop" && Math.hypot(me.x - MONQBOT.x, me.y - MONQBOT.y) < 180; }
 function monBuyBase(line) { /* the walk-up purchase — doBuySlotBg's shape exactly: guests are refused, the owner is never charged but is recorded identically, everyone else pays through pullChips + a balance check + addChips, so a buy can only ever lower a balance */
-  if (myMons[line]) return;
+  if (monEffStage(line)) return; /* already owned — effectively owned counts: with the owner's unlock-all on, every case is already his */
   if (!acctUser) { monSay("🔒 Buying takes an account — guests can look."); sfxBad(); return; }
   if (!isOwnerAcct()) {
     pullChips();
@@ -5366,8 +5374,10 @@ function renderMonColl() {
   const list = $("moncolllist"); if (!list) return;
   list.innerHTML = "";
   const bal = $("moncollbal"); if (bal) bal.textContent = acctUser ? ("🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 0).toLocaleString("en-US") + " — tap an owned monster to make it your follower pick") : "🔒 The collection lives on an account — sign in to collect";
+  const ab = $("monallbtn"); if (ab) { const own = isOwnerAcct(); ab.style.display = own ? "block" : "none"; if (own) ab.textContent = monAll ? "🔓 All Unlocked — tap to lock" : "🔒 All Locked — tap to unlock"; } /* the owner's unlock-all switch at the panel's bottom — rendered for HIS account only; every other account (and every guest) never sees it */
+  const eff = monEffMons();
   for (const line of MON_LINES) {
-    const owned = myMons[line] || 0;
+    const owned = eff[line] || 0;
     const row = document.createElement("div"); row.className = "monrow";
     const nm = document.createElement("div"); nm.className = "monnm"; nm.textContent = monName(line); row.appendChild(nm);
     for (let s = 1; s <= 3; s++) {
@@ -5385,6 +5395,14 @@ function renderMonColl() {
 }
 function openMonColl() { closeChatLog(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
 function closeMonColl() { $("moncoll").style.display = "none"; sfxClick(); }
+function toggleMonAll() { /* the owner's unlock-all switch (his order, 2026-11-02): flips his EFFECTIVE collection between everything at stage 3 and his real saved mons. The real map is never touched by the switch itself — only the monAll field on his account doc changes, saved through acctMonSave like mons/monsel. A follower pick the new state doesn't own can't stand, so locking back down clears it (and puts the monster away) */
+  if (!isOwnerAcct()) return;
+  monAll = !monAll;
+  const sel = monParse(myMonSel);
+  if (sel && monEffStage(sel.line) < sel.stage) { myMonSel = ""; monOut = false; }
+  acctMonSave(); publish(true); sfxClick(); renderMonColl();
+  monCollMsg(monAll ? "🔓 All Unlocked — every monster is yours." : "🔒 All Locked — your real collection again.");
+}
 /* ---- the TRAINING PEN panel (Q-Bot's prompt inside the hall): every owned monster that can still evolve — its current stage in colour, its NEXT stage as a BLACK SILHOUETTE only, the evolution's price, and its Evolve button ---- */
 function monPenMsg(t) { const m = $("monpenmsg"); if (m) m.textContent = t || ""; }
 function renderMonPen() {
@@ -5392,8 +5410,9 @@ function renderMonPen() {
   list.innerHTML = "";
   const bal = $("monpenbal"); if (bal) bal.textContent = acctUser ? ("🪙 " + (profile && typeof profile.chips === "number" ? profile.chips : 0).toLocaleString("en-US")) : "🔒 Training takes an account";
   let any = false;
+  const eff = monEffMons();
   for (const line of MON_LINES) {
-    const st = myMons[line] || 0;
+    const st = eff[line] || 0;
     if (st < 1 || st > 2) continue;
     any = true;
     const price = MON_EVO_PRICES[st];
@@ -5407,12 +5426,12 @@ function renderMonPen() {
     row.appendChild(btn);
     list.appendChild(row);
   }
-  if (!any) { const d = document.createElement("div"); d.className = "monrow"; d.textContent = MON_LINES.some(l => myMons[l]) ? "All your monsters are fully evolved. 🏆" : "You don't own any monsters yet — buy a base form from the cases first."; list.appendChild(d); }
+  if (!any) { const d = document.createElement("div"); d.className = "monrow"; d.textContent = MON_LINES.some(l => eff[l]) ? "All your monsters are fully evolved. 🏆" : "You don't own any monsters yet — buy a base form from the cases first."; list.appendChild(d); }
 }
 function openMonPen() { closeChatLog(); renderMonPen(); monPenMsg(""); $("monpen").style.display = "flex"; sfxClick(); }
 function closeMonPen() { $("monpen").style.display = "none"; sfxClick(); }
 function doEvolve(line) { /* the pen purchase — the store's rails again: the charge lands first (the owner free, recorded identically), the panel closes, THEN the animation plays; the new stage itself lands when the animation ends (endEvoAnim) */
-  const st = myMons[line] || 0;
+  const st = monEffStage(line); /* the stage being evolved FROM is read off the effective collection — with the owner's unlock-all on every line already stands at stage 3, so nothing offers; off, effective is the real map and the rails run exactly as before. The stage that LANDS still writes the real myMons in endEvoAnim */
   if (!acctUser || st < 1 || st > 2 || evoAnim) return;
   const price = MON_EVO_PRICES[st];
   if (!isOwnerAcct()) {
@@ -5509,14 +5528,54 @@ monBtnEl.addEventListener("pointerdown", e => { e.preventDefault(); toggleMonOut
 setInterval(syncMonBtn, 300);
 $("moncollbtn").onclick = () => openMonColl();
 $("moncollclose").onclick = () => closeMonColl();
+$("monallbtn").onclick = () => toggleMonAll();
 $("monpenclose").onclick = () => closeMonPen();
-function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as drawn faces LEFT; it flips when the owner faces right — the hero sprites' own flip rule. Drawn at 1/4 of the sprite's NATURAL pixel size, every stage alike (the owner's rule, 2026-11-02): no stage gets any size beyond what its own art gives at that quarter. Its feet share its OWNER's ground line (the owner's fix, 2026-11-02): drawPlayer bottoms the hero at owner.y + the hero's bob, so the follower draws with that very bob (a.gbob, computed in the actor assembly with drawPlayer's own formula) instead of a wobble of its own — bottom edge for bottom edge, the two stand on the same ground. A soft shadow at the ground line. No name plate, no chat: it is not a person */
+/* ---- visible-feet measurement (2026-11-02): an image's lowest SOLID row (alpha ≥ 200, at least 2px in the row) can sit above its bottom edge, leaving a clear run under the feet that the eye reads as the sprite floating or sinking. These helpers measure that run's fraction of the image height, once per image ---- */
+const feetScanCache = new WeakMap();
+let feetCanvas = null;
+function scanFeetFrac(img) { /* readable art (the monster sprites, same-origin) scans straight off the loaded image */
+  if (!img || !img.complete || !img.naturalWidth) return 0;
+  let f = feetScanCache.get(img);
+  if (f !== undefined) return f;
+  f = 0;
+  try {
+    if (!feetCanvas) feetCanvas = document.createElement("canvas");
+    feetCanvas.width = img.naturalWidth; feetCanvas.height = img.naturalHeight;
+    const g2 = feetCanvas.getContext("2d");
+    g2.clearRect(0, 0, feetCanvas.width, feetCanvas.height);
+    g2.drawImage(img, 0, 0);
+    const w = feetCanvas.width, h = feetCanvas.height, d = g2.getImageData(0, 0, w, h).data;
+    scan: for (let y = h - 1; y >= 0; y--) { let n = 0; const row = y * w * 4; for (let x = 0; x < w; x++) { if (d[row + x * 4 + 3] >= 200 && ++n >= 2) { f = (h - 1 - y) / h; break scan; } } }
+  } catch (e) { f = 0; }
+  feetScanCache.set(img, f);
+  return f;
+}
+const heroFeetCache = {}, heroFeetProbing = {};
+const HERO_FEET_FALLBACK = 18 / 256; /* the hub's hero sheets carry ~18px of clear canvas under the feet on a 256 canvas (measured on the served art: heroes 1/2/3/5 measure 18, hero 71 measures 19) — the stand-in if a probe copy ever fails to load */
+function heroFeetFrac(hero, g) { /* hero art lives on Firebase Storage and the page's own copies are plain cross-origin loads whose pixels can't be read back, so the pad is measured off a CORS probe copy of the same sheet — the bucket answers this site's origin, so the probe reads clean. Until a hero's probe lands this returns 0 for it (no shift) and the feet settle within a frame or two */
+  const key = hero + "|" + (g === "f" ? "f" : "m");
+  if (heroFeetCache[key] !== undefined) return heroFeetCache[key];
+  if (!heroFeetProbing[key]) {
+    heroFeetProbing[key] = 1;
+    try {
+      const im = new Image(); im.crossOrigin = "anonymous";
+      im.onload = () => { heroFeetCache[key] = scanFeetFrac(im); };
+      im.onerror = () => { heroFeetCache[key] = HERO_FEET_FALLBACK; };
+      im.src = heroUrl(hero, g === "f" ? "f" : "m");
+    } catch (e) { heroFeetCache[key] = HERO_FEET_FALLBACK; }
+  }
+  return 0;
+}
+function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as drawn faces LEFT; it flips when the owner faces right — the hero sprites' own flip rule. Drawn at the stage's scale (MON_STAGE_SCALE, the owner's word, 2026-11-02): stage 1 at 1/4 of the sprite's natural size, stage 2 at 1.62× that, stage 3 at 2.25×. Its feet share its OWNER's ground line (the owner's fix, 2026-11-02): drawPlayer bottoms the hero at owner.y + the hero's bob, so the follower draws with that very bob (a.gbob, computed in the actor assembly with drawPlayer's own formula) instead of a wobble of its own — and it anchors by VISIBLE FEET, not frame edges (the measured fix, 2026-11-02): the instrumented probe showed the two destination rects landing on the line EXACTLY (0.000 world px apart), but the hero art carries ~6.75 world px of clear canvas under its feet while the trimmed monster art carries ~0.5, so edge-to-edge the monster's feet stood ~6px lower than its owner's. The follower rises by the difference of the two pads (heroFeetFrac/scanFeetFrac, measured off the art itself), so the feet share the line at every stage. A soft shadow at the ground line. No name plate, no chat: it is not a person */
   const img = monImg(a.line, a.stage);
   if (!img || !img.complete || !img.naturalWidth) return;
-  const W = img.naturalWidth * 0.25, H = img.naturalHeight * 0.25;
+  const q = 0.25 * MON_STAGE_SCALE[a.stage];
+  const W = img.naturalWidth * q, H = img.naturalHeight * q;
   const bob = a.gbob || 0; /* the owner's bob, not the monster's — the shared ground line */
+  const heroPad = a.oHero ? heroFeetFrac(a.oHero, a.oG) * (isMechHero(a.oHero) ? 216 : 96) : 0;
+  const feetShift = heroPad - scanFeetFrac(img) * H; /* rise by the hero's under-feet clear run, less the monster's own — the visible feet land on the owner's visible feet */
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(a.x, a.y - 3, W * 0.34, 8, 0, 0, 7); ctx.fill();
-  ctx.save(); ctx.translate(a.x, a.y - H / 2 + bob);
+  ctx.save(); ctx.translate(a.x, a.y - H / 2 + bob - feetShift);
   if (a.flip) ctx.scale(-1, 1);
   ctx.drawImage(img, -W / 2, -H / 2, W, H);
   ctx.restore();
@@ -5652,9 +5711,9 @@ function drawMonCase(c, i, t) {
     if (c.line === "panda") { ctx.fillStyle = "#3f9e4d"; [wx + 16, wx + 28].forEach(bx => ctx.fillRect(bx, floorY - 44, 6, 88)); ctx.fillStyle = "#2c7a39"; [0.3, 0.6].forEach(f => ctx.fillRect(wx + 12, floorY - 44 + 88 * f, 22, 3)); } /* the panda's own bamboo corner */
     if (c.line === "axo") { ctx.fillStyle = "rgba(120,210,255,0.55)"; ctx.beginPath(); ctx.ellipse(wx + ww * 0.72, floorY + 30, 52, 13, 0, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(210,245,255,0.7)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(wx + ww * 0.72, floorY + 30, 34, 8, 0, 0, 7); ctx.stroke(); } /* the axolotl's pond */
   }
-  /* the monster itself, idling in its world (a gentle bob) */
+  /* the monster itself, idling in its world (a gentle bob) — the BASE form only (the owner's word, 2026-11-02): the cases show stage 1, never the evolved forms, drawn at the stage-1 FOLLOWER's size (natural × 0.25, ≈96 tall — the very q drawMonFollower uses for a stage 1), its bottom on the case floor */
   const img = monImg(c.line, 1);
-  if (img.complete && img.naturalWidth) { const H = 146, W = H * img.naturalWidth / img.naturalHeight; const bob = Math.sin(t / 620 + i * 1.71) * 4; ctx.drawImage(img, c.x + c.w / 2 - W / 2, wy + wh - H - 4 + bob, W, H); }
+  if (img.complete && img.naturalWidth) { const q = 0.25 * MON_STAGE_SCALE[1]; const W = img.naturalWidth * q, H = img.naturalHeight * q; const bob = Math.sin(t / 620 + i * 1.71) * 4; ctx.drawImage(img, c.x + c.w / 2 - W / 2, wy + wh - H - 4 + bob, W, H); }
   ctx.restore();
   /* the glass over everything: a soft sheen and one diagonal shine */
   const gg = ctx.createLinearGradient(c.x, c.y, c.x + c.w, c.y + c.h);
@@ -5672,7 +5731,8 @@ function drawMonCase(c, i, t) {
   ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
   ctx.fillText(monName(c.line), c.x + c.w / 2, py + 20);
   ctx.font = "700 13.5px 'Segoe UI',sans-serif";
-  if (myMons[c.line]) { ctx.fillStyle = "#4ade80"; ctx.fillText("✓ OWNED — Stage " + myMons[c.line], c.x + c.w / 2, py + 38); }
+  const ownC = monEffStage(c.line);
+  if (ownC) { ctx.fillStyle = "#4ade80"; ctx.fillText("✓ OWNED — Stage " + ownC, c.x + c.w / 2, py + 38); }
   else { ctx.fillStyle = "#ffd76a"; ctx.fillText("🪙 " + MON_BASE_PRICE.toLocaleString("en-US"), c.x + c.w / 2, py + 38); }
 }
 function drawMonsterShop(t) {
@@ -5701,14 +5761,14 @@ function drawMonsterShop(t) {
     ctx.fillStyle = "#ff8fb5"; ctx.beginPath(); ctx.arc(px2 + 36, py2 + 16, 3.5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(px2 + 62, py2 + 8, 3.5, 0, 7); ctx.fill();
   }
   monPlanter(90, 90); monPlanter(4218, 90); monPlanter(90, 2661); monPlanter(4218, 2661); /* the four corners — NW, NE, SW, SE — and no fifth bush anywhere. The bottom pair sits FURTHER DOWN than first placed (the owner's word, 2026-11-02): a planter's drawing spans py − 11 (canopy top) to py + 60 (box bottom), so at y 2661 the bottom pair's box bottom (2721) is exactly 79 from the south wall — the same 79 the top pair's canopy leaves from the north wall; the side spacing already mirrored (90 in from each side wall) */
-  /* benches: exactly FOUR, at the owner's word (2026-11-02) — one to the LEFT of the training pen and one to its RIGHT, and one to the LEFT of the entrance door inside and one to its RIGHT; none along the aisles or the walls any more (the six that stood in the aisle walkways and the entrance hall were relocated to these four spots, clear of the pen fence's prompt range, the case walkways and the door) */
+  /* benches: exactly TWO, at the owner's word (2026-11-02) — one to the LEFT of the training pen and one to its RIGHT, clear of the pen fence's prompt range and the case walkways; the pair that flanked the entrance door inside was removed at his word later the same day, and none stand along the aisles or the walls */
   function monBench(bx, by) {
     ctx.fillStyle = "#5b4632";
     for (let s = 0; s < 3; s++) ctx.fillRect(bx, by + s * 13, 190, 8);
     ctx.fillRect(bx + 14, by + 40, 10, 20); ctx.fillRect(bx + 166, by + 40, 10, 20);
     ctx.fillStyle = "rgba(255,215,106,0.35)"; ctx.fillRect(bx, by, 190, 3);
   }
-  monBench(1400, 260); monBench(2810, 260); monBench(1902, 2732); monBench(2308, 2732); /* the pen pair first (bx 1400 left of the fence, 2810 right of it, both centred on the pen's own latitude y 290), then the entrance pair (1902 left of the exit door plate, 2308 right of it, against the south wall) */
+  monBench(1400, 260); monBench(2810, 260); /* the pen pair ONLY (bx 1400 left of the fence, 2810 right of it, both centred on the pen's own latitude y 290) — the entrance pair that flanked the exit door plate (1902 / 2308, against the south wall) was removed at the owner's word (2026-11-02): exactly two benches stand in the room now, both at the pen */
   /* hanging aisle signs at each aisle's west end */
   function monHangSign(sx, sy, sw, txt, fs) {
     ctx.strokeStyle = "rgba(200,220,255,0.5)"; ctx.lineWidth = 2;
@@ -10682,9 +10742,9 @@ function drawPlaza(t) {
   lamp(1448, 1900); lamp(1752, 1900); lamp(1448, 2160); lamp(1752, 2160); /* flanking the portal spur and its circle */
   lamp(2745, 1790); lamp(2945, 1790); lamp(2745, 2030); lamp(2945, 2030); lamp(2745, 2240); lamp(2945, 2240); /* flanking Quantum Bowling's spur (2026-11-01): pairs just outside its widened edges (2765/2925), from below the casino walkway down to the turn */
   lamp(3150, 2240); lamp(3150, 2440); lamp(3500, 2440); lamp(4000, 2440); lamp(4250, 2240); lamp(4250, 2440); /* flanking the run below the bowling building (2026-11-01): pairs where the ground allows — the building's own wall crowds the band's top edge along its frontage, so there the lamps ride the bottom edge only — clear of the door landing (3720, 2320), running with the path to the plaza's east edge */
-  /* the Monster Shop's own path (owner's word, 2026-11-02): a purple run in the plaza's path paint coming in from the RIGHT — it leaves the HQ portal's circle and runs west along the shop's door-front latitude straight to the door pad of the moved shop (door centre 420, landing y 2160). Ground decor like every path here: players walk over it and draw over it, and the lamps along it are the plaza's own lamp() scenery — no obstacles, and the door tile and pad stay clear */
-  pathRect(360, 2130, 1140, 60);
-  lamp(560, 2218); lamp(800, 2102); lamp(800, 2218); lamp(1040, 2102); lamp(1040, 2218); lamp(1280, 2102); lamp(1280, 2218); /* flanking pairs at the bottom walkway's own 240 pitch and 28px edge offset; at the west end the building crowds the north edge, so there the lamp rides the south edge only — the bowling spur's treatment */
+  /* the Monster Shop's own path (owner's word, 2026-11-02): a purple run in the plaza's path paint along the shop's door-front latitude (landing y 2160) straight to the door pad of the moved shop (door centre 420). Re-laid at his word the same day: AS WIDE as the path to Quantum Bowling (160 — the bowling spur's width, where the old run was 60), centred on the door latitude (2080..2240), and it STARTS halfway between Club Quantum and the atom symbol — the club's centre x is 350 (CLUB x 140 + w 420 / 2), the roundabout atom / HQ portal axis sits at x 1600, so the start (the path's east end) is the midpoint x 975 and the run measures 360..975. Ground decor like every path here: players walk over it and draw over it, and the lamps along it are the plaza's own lamp() scenery — no obstacles, and the door tile and pad stay clear */
+  pathRect(360, 2080, 615, 160);
+  lamp(560, 2268); lamp(800, 2052); lamp(800, 2268); /* flanking lamps at the bottom walkway's own 240 pitch and 28px edge offset, re-spaced along the shorter, wider run; at the west end the building (its south wall at y 2100, x to 700) crowds the north edge, so there the lamp rides the south edge only — the bowling spur's treatment */
   /* crystals scattered as decor */
   function crystal(x, y, s, col) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
@@ -12264,7 +12324,7 @@ function frame(now) {
       monFol.y += (me.y - monFol.y) * Math.min(1, dt * 5);
       fx = monFol.x; fy = monFol.y;
     } else { fx = a.x + (a.flip ? -95 : 95); fy = a.y; } /* a remote's follower is a pure offset off its owner's smoothed spot — no travel state of its own, so a presence mon appearing, vanishing or changing stage lands it beside its owner on that very frame (the presence handler already bursts its smoke there) */
-    actors.push({ isMon: true, id: "monfol-" + (a === me ? "me" : a.id), x: fx, y: fy, line: pr.line, stage: pr.stage, flip: !!a.flip, bob: a === me ? 0 : (a.bob || 0), gbob });
+    actors.push({ isMon: true, id: "monfol-" + (a === me ? "me" : a.id), x: fx, y: fy, line: pr.line, stage: pr.stage, oHero, oG: isMechHero(oHero) ? "m" : (a === me ? me.g : a.g), flip: !!a.flip, bob: a === me ? 0 : (a.bob || 0), gbob }); /* oHero/oG ride along so drawMonFollower can anchor the monster's visible feet to its owner's (the measured feet fix) — the gender mirrors drawPlayer's own pick, mech forms included */
   }
   if (me.scene === "boxing" && boxState && boxState.mode === "pc" && (boxState.phase === "fight" || boxState.phase === "done")) { /* the boxing CPU (Jonathan 2026-11-01): a synthetic actor like the guards — the dread dog tinted to its corner (seat 0 red, seat 1 blue), drawn through this same pass so he sorts and renders like a fighter. The HOST pushes its own simulation (no lag); every other screen eases boxCpuVis toward the record's cpu node at the peers' own rate. No presence record, never a person online */
     const cs = boxCpuSeatOf(boxState), tgt = boxState.cpu;
@@ -12334,7 +12394,7 @@ function frame(now) {
   else if (me.scene === "speedway") { promptBtn.style.display = "none"; promptAction = null; }
   else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (me.scene === "monstershop" && monNearQBot()) { promptBtn.style.display = "block"; promptBtn.textContent = "🏋️ Train with Q-Bot — Evolve"; promptAction = openMonPen; } /* the TRAINING PEN (PREVIEW): Q-Bot works the evolutions from his post inside the pen — the prompt exists only while standing at the fence by his post, the DJ pattern */
-  else if (me.scene === "monstershop" && monNearCase() >= 0) { const mc = MONCASES[monNearCase()]; promptBtn.style.display = "block"; if (myMons[mc.line]) { promptBtn.textContent = "✓ " + monName(mc.line) + " — Owned"; promptAction = () => sfxClick(); } else { promptBtn.textContent = "🐾 Buy " + monName(mc.line) + " — 🪙 " + MON_BASE_PRICE.toLocaleString("en-US"); promptAction = () => monBuyBase(mc.line); } } /* walk-up buying (PREVIEW): stand at a case's front and the prompt offers that case's base form; an owned case just says so */
+  else if (me.scene === "monstershop" && monNearCase() >= 0) { const mc = MONCASES[monNearCase()]; promptBtn.style.display = "block"; if (monEffStage(mc.line)) { promptBtn.textContent = "✓ " + monName(mc.line) + " — Owned"; promptAction = () => sfxClick(); } else { promptBtn.textContent = "🐾 Buy " + monName(mc.line) + " — 🪙 " + MON_BASE_PRICE.toLocaleString("en-US"); promptAction = () => monBuyBase(mc.line); } } /* walk-up buying (PREVIEW): stand at a case's front and the prompt offers that case's base form; an owned case just says so — owned reads the effective collection, so the owner's unlocked cases say so too */
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
