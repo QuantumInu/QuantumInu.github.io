@@ -764,7 +764,7 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : (v.hero === ROBO_MECH_HERO || p.hero === ROBO_MECH_HERO) ? "red" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech, GOLD when it involves Dj Ken's gentleman mech, RED again when it involves the owner's dome mech */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
+      if (p) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : (v.hero === ROBO_MECH_HERO || p.hero === ROBO_MECH_HERO) ? "red" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech, GOLD when it involves Dj Ken's gentleman mech, RED again when it involves the owner's dome mech */ if ((v.mon || "") !== (p.mon || "") && v.scene === me.scene) { const mp = monParse(v.mon || p.mon); if (mp) spawnMonSmoke(px, v.y, v.scene, mp.line); } /* a peer's monster just came out, went back in, or changed stage on my screen (PREVIEW): the same summon burst at their spot, in that monster's own colour — cosmetic only, derived from the presence change exactly like the transform smoke above */ Object.assign(p, { name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; }
       else peers.set(ch.key, { id: ch.key, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
@@ -2103,6 +2103,7 @@ const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
   if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct() || isTonicAcct() || isKenAcct())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero, and Dj Ken's gentleman mech under his; toggleMech routes by account */
+  if ((e.key === "m" || e.key === "M") && entered && myMonSel && !e.repeat && !evoLock) { const tg = e.target; if (!(tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable))) { toggleMonOut(); return; } } /* the M key (the owner's fix, 2026-11-02): the M button on a keyboard — it toggles the picked monster out/in exactly like tapping the button, at any pointer type, but never while typing in a field (chat above all — the chat field already returns at this handler's top; this guard covers every other input), never off a held key's auto-repeat, and never during the evolution show */
   /* boxing on PC: NO keyboard punches (Jonathan 2026-10-31, final word) — the mouse is the ONLY way to punch on desktop: Left Mouse = left punch, Right Mouse = right punch (the canvas pointerdown below). Q/E/J/K do nothing in a bout. Phones keep their L / R punch buttons */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
   keys.add(e.key.toLowerCase());
@@ -3491,6 +3492,8 @@ function fxText(x, y, txt, col, sc) { fxTexts.push({ x, y, txt, col, life: 0, sc
 let genParts = [], genTexts = [];
 let smokeParts = []; /* cyan transform smoke (Jonathan 2026-10-31): world-space puffs with a scene tag, painted by drawGenFx with the other player fx */
 function spawnSmoke(x, y, sc, col) { for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, red: col === true || col === "red", blue: col === "blue", gold: col === "gold" }); } } /* the burst is cyan by default (the owner's DreadMech); col=true paints OnlineMoney's king mech burst red, col="blue" paints 7daytonic's galaxy mech burst a normal blue, col="gold" paints Dj Ken's gentleman mech burst gold, col="red" paints the owner's dome mech burst red — same count, size, timing and motion either way (Jonathan 2026-10-31) */
+const MON_SMOKE = { ember: ["255,122,41", "255,216,178"], sprout: ["74,190,90", "205,245,205"], bubble: ["80,180,255", "205,238,255"], pebble: ["168,152,138", "232,224,214"], wisp: ["150,235,255", "230,252,255"], bat: ["168,110,255", "232,210,255"], shroom: ["255,80,80", "255,205,195"], shard: ["140,230,255", "225,250,255"], volt: ["255,215,40", "255,246,190"], frost: ["175,225,250", "240,252,255"], magma: ["255,100,25", "255,200,150"], crab: ["255,140,50", "255,220,185"], owl: ["180,135,90", "238,220,195"], frog: ["85,205,100", "210,250,215"], turtle: ["70,195,105", "205,245,215"], octo: ["255,130,185", "255,215,235"], pony: ["255,165,215", "255,230,245"], panda: ["225,228,235", "250,250,252"], hedge: ["175,130,90", "240,222,198"], drake: ["80,200,95", "210,248,218"], phoenix: ["255,95,45", "255,205,165"], shark: ["95,150,210", "205,230,250"], jelly: ["255,130,205", "255,215,242"], robot: ["45,205,195", "195,248,245"], dino: ["95,200,85", "218,248,208"], axo: ["255,150,190", "255,222,238"], raven: ["150,100,235", "228,210,252"], stag: ["205,165,115", "245,230,205"], boar: ["215,150,140", "248,222,215"], cham: ["90,205,110", "215,250,220"] }; /* each monster's summon smoke (PREVIEW): [saturated base, pale lite] RGB triplets in the monster's own dominant colour — the mech bursts' two-tone shape */
+function spawnMonSmoke(x, y, sc, line) { const mc = MON_SMOKE[line] || ["170,200,220", "230,240,248"]; for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 30; smokeParts.push({ x: x + Math.cos(a) * d, y: y - 8 - Math.random() * 26, vx: Math.cos(a) * (14 + Math.random() * 26), vy: -18 - Math.random() * 34, r: 6 + Math.random() * 8, life: 0, max: 0.55 + Math.random() * 0.3, sc, lite: i % 3 === 0, mon: mc }); } } /* a monster's summon burst (the owner's rule, 2026-11-02): spawnSmoke's exact count, size, timing and motion — the mech transform treatment — only the palette is the monster's own colour. Purely cosmetic: fired locally on the M toggle and on every screen that sees a presence mon appear, vanish or change */
 function genBurst(x, y, big) { const n = big ? 46 : 26; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * (big ? 340 : 240); genParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 130, life: 0, max: 0.9 + Math.random() * 0.7, coin: Math.random() < 0.62, r: 4 + Math.random() * 5, rot: Math.random() * 7, sc: me.scene }); } }
 function genText(x, y, txt, col) { genTexts.push({ x, y, txt, col, life: 0, sc: me.scene }); }
 /* ============ seat bet displays, painted OVER the sprites (Jonathan 2026-10-31) ============
@@ -3571,7 +3574,7 @@ function drawGenFx(dt) {
   smokeParts.forEach(p => {
     if (p.sc !== me.scene) return;
     const a = Math.max(0, 1 - p.life / p.max) * 0.5;
-    ctx.fillStyle = p.gold ? (p.lite ? "rgba(255,236,190," + a + ")" : "rgba(255,190,40," + a + ")") : p.blue ? (p.lite ? "rgba(188,206,255," + a + ")" : "rgba(56,110,255," + a + ")") : p.red ? (p.lite ? "rgba(255,206,188," + a + ")" : "rgba(255,56,56," + a + ")") : (p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")"); /* gold smoke for Dj Ken's gentleman mech flips, red smoke for OnlineMoney's king mech flips, a normal blue for 7daytonic's galaxy mech flips, cyan for the owner's — the four palettes mirror each other (a pale lite tone over a saturated base) */
+    ctx.fillStyle = p.mon ? (p.lite ? "rgba(" + p.mon[1] + "," + a + ")" : "rgba(" + p.mon[0] + "," + a + ")") : p.gold ? (p.lite ? "rgba(255,236,190," + a + ")" : "rgba(255,190,40," + a + ")") : p.blue ? (p.lite ? "rgba(188,206,255," + a + ")" : "rgba(56,110,255," + a + ")") : p.red ? (p.lite ? "rgba(255,206,188," + a + ")" : "rgba(255,56,56," + a + ")") : (p.lite ? "rgba(190,245,255," + a + ")" : "rgba(56,225,255," + a + ")"); /* gold smoke for Dj Ken's gentleman mech flips, red smoke for OnlineMoney's king mech flips, a normal blue for 7daytonic's galaxy mech flips, cyan for the owner's — the four palettes mirror each other (a pale lite tone over a saturated base) */
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
   });
 }
@@ -5490,15 +5493,25 @@ function endEvoAnim() {
 /* ---- the M button: above the move stick, aligned left, the run button's size — it exists only while a follower pick is set, and toggles the monster out/in (the T button's sync pattern) ---- */
 const monBtnEl = $("monbtn");
 function syncMonBtn() { const show = entered && !!myMonSel && window.matchMedia("(pointer: coarse)").matches; const want = show ? "flex" : "none"; if (monBtnEl.style.display !== want) monBtnEl.style.display = want; monBtnEl.classList.toggle("on", show && monOut); }
-monBtnEl.addEventListener("pointerdown", e => { e.preventDefault(); if (!myMonSel) return; monOut = !monOut; sfxMonSummon(monOut); publish(true); syncMonBtn(); });
+function toggleMonOut() { /* the M toggle itself (the owner's fix, 2026-11-02) — ONE function behind the on-screen button AND the M key, so the two can never drift: the pick must exist, my own evolution show locks it like every other input, and the monster comes out / goes back in with a burst of smoke in ITS OWN colour (spawnMonSmoke — the mech transforms' treatment) at the follower's spot: its eased position while it is out on this screen, my own side otherwise */
+  if (!myMonSel || evoLock) return;
+  const pr = monParse(myMonSel); if (!pr) return;
+  const atFol = monFol && monFol.key === myMonSel + "|" + me.scene;
+  const sx = atFol ? monFol.x : me.x, sy = atFol ? monFol.y : me.y;
+  monOut = !monOut;
+  sfxMonSummon(monOut);
+  spawnMonSmoke(sx, sy, me.scene, pr.line);
+  publish(true); syncMonBtn();
+}
+monBtnEl.addEventListener("pointerdown", e => { e.preventDefault(); toggleMonOut(); });
 setInterval(syncMonBtn, 300);
 $("moncollbtn").onclick = () => openMonColl();
 $("moncollclose").onclick = () => closeMonColl();
 $("monpenclose").onclick = () => closeMonPen();
-function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as drawn faces LEFT; it flips when the owner faces right — the hero sprites' own flip rule. ~122 tall, a gentle bob, a soft shadow. No name plate, no chat: it is not a person */
+function drawMonFollower(a, t) { /* a monster trailing its owner: the sprite as drawn faces LEFT; it flips when the owner faces right — the hero sprites' own flip rule. Drawn at 1/4 of the sprite's NATURAL pixel size, every stage alike (the owner's rule, 2026-11-02): no stage gets any size beyond what its own art gives at that quarter. A gentle bob, a soft shadow. No name plate, no chat: it is not a person */
   const img = monImg(a.line, a.stage);
   if (!img || !img.complete || !img.naturalWidth) return;
-  const H = 122, W = H * (img.naturalWidth / img.naturalHeight || 1);
+  const W = img.naturalWidth * 0.25, H = img.naturalHeight * 0.25;
   const bob = Math.sin(t / 340 + (a.bob || 0) * 7) * 3.2;
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(a.x, a.y - 3, W * 0.34, 8, 0, 0, 7); ctx.fill();
   ctx.save(); ctx.translate(a.x, a.y - H / 2 + bob);
@@ -5666,19 +5679,13 @@ function drawMonCase(c, i, t) {
 }
 function drawMonsterShop(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
-  /* the floor: polished mall tiles — big pale slabs in a checker of light, a fine grout grid, and skylight strips pouring soft light down the hall's length */
+  /* the floor: polished mall tiles — big pale slabs in a checker of light and a fine grout grid, nothing laid over them (the vertical blue skylight strips that ran the hall's length were removed at the owner's word, 2026-11-02) */
   ctx.fillStyle = "#131a2e"; ctx.fillRect(0, 0, MSROOM.w, MSROOM.h);
   ctx.fillStyle = "rgba(255,255,255,0.025)";
   for (let gx = 0; gx < MSROOM.w; gx += 220) for (let gy = 0; gy < MSROOM.h; gy += 220) if (((gx + gy) / 220) % 2 === 0) ctx.fillRect(gx, gy, 220, 220);
   ctx.strokeStyle = "rgba(140,180,255,0.10)"; ctx.lineWidth = 2;
   for (let gx = 0; gx <= MSROOM.w; gx += 110) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, MSROOM.h); ctx.stroke(); }
   for (let gy = 0; gy <= MSROOM.h; gy += 110) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(MSROOM.w, gy); ctx.stroke(); }
-  for (const sx of [720, 2120, 3520]) {
-    ctx.fillStyle = "rgba(170,225,255,0.07)"; ctx.fillRect(sx, 60, 560, MSROOM.h - 120);
-    ctx.strokeStyle = "rgba(190,240,255,0.20)"; ctx.lineWidth = 3; ctx.strokeRect(sx, 60, 560, MSROOM.h - 120);
-    ctx.strokeStyle = "rgba(190,240,255,0.10)"; ctx.lineWidth = 2;
-    for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(sx + k * 140, 60); ctx.lineTo(sx + k * 140, MSROOM.h - 60); ctx.stroke(); }
-  }
   /* the border: a gold double frame, the mall's colours */
   ctx.strokeStyle = "#c9a227"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, MSROOM.w - 8, MSROOM.h - 8);
   ctx.strokeStyle = "rgba(74,222,128,0.30)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, MSROOM.w - 36, MSROOM.h - 36);
