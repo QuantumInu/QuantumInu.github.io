@@ -575,7 +575,7 @@ function startMusic() {
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
   let tick = 0;
   setInterval(() => {
-    if (muted || audioHeld || !entered || ((me.scene === "club" || me.scene === "vip") && clubSongActive()) || (me.scene === "highrollers" && hrcSongActive()) || (me.scene === "boxing" && boxSongActive()) || (me.scene === "rooftop" && roofSongActive())) return; /* the VIP lounge runs on the club's jukebox, not the room theme — and the High Rollers room runs on its own service-counter song when one is picked, not the casino jazz; the Boxing Arena likewise runs on its boom box's song when one is picked, not the gym theme (the gym itself is untouched); the Rooftop likewise runs on its DJ booth's song when one is picked */
+    if (muted || audioHeld || !entered || ((me.scene === "club" || me.scene === "vip") && clubSongActive()) || (me.scene === "highrollers" && hrcSongActive()) || (me.scene === "boxing" && boxSongActive()) || (me.scene === "rooftop" && clubSongActive())) return; /* the VIP lounge runs on the club's jukebox, not the room theme — and the High Rollers room runs on its own service-counter song when one is picked, not the casino jazz; the Boxing Arena likewise runs on its boom box's song when one is picked, not the gym theme (the gym itself is untouched); the Rooftop likewise runs on the shared club jukebox song when one is picked (Jonathan 2026-11-02: the rooftop DJ booth controls the club music too) */
     const sc = me.scene;
     if (sc === "rooftop") { tick++; return; } /* with no song picked at its booth the Rooftop stays quiet (Jonathan 2026-11-01): open sky and quiet — it must never fall through to the default melody */
     if (sc === "arcade" || sc === "poolhall") { arcadeAmb(); tick++; return; } /* the Pool Hall plays the Arcade's music (PREVIEW round 2) — the two rooms are one space now, doors, floor, border and tunes alike */
@@ -1054,12 +1054,11 @@ let hrcState = null, jukeTarget = "club"; /* the High Rollers room's OWN song (J
 function hrcSongActive() { return !!(hrcState && hrcState.idx >= 0 && SONGS[hrcState.idx]); }
 let boxMusState = null; /* the Boxing Arena's OWN song (Jonathan 2026-10-31), from its boom box, kept at hub/tables/boxmusic — hrcmusic's exact shape and home: the rules write hub/tables wholesale, so the new child is admitted the same way (verified against rtdb-rules-merged.json); a brand-new top-level hub/boxmusic would be refused */
 function boxSongActive() { return !!(boxMusState && boxMusState.idx >= 0 && SONGS[boxMusState.idx]); }
-let roofMusState = null; /* the ROOFTOP's OWN song (Jonathan 2026-11-01), picked at its DJ booth, kept at hub/tables/roofmusic — boxmusic's exact shape and home, for the same rules reason */
-function roofSongActive() { return !!(roofMusState && roofMusState.idx >= 0 && SONGS[roofMusState.idx]); }
+/* the ROOFTOP has no song of its own (Jonathan 2026-11-02): its DJ booth works the SHARED club/VIP music (hub/club, clubState) exactly like the VIP jukebox does — a pick at the rooftop booth sets the club's song, and the rooftop hears whatever the club booth, the VIP jukebox, or the rooftop booth last picked. The old hub/tables/roofmusic node is left in Firebase untouched but no longer read or written here */
 const vipArt = {}; /* the VIP lounge TV's cover cache (PREVIEW round 7): one Image per song slug, loaded lazily the first time that song is on — the covers live beside the mp3s the jukebox itself plays (assets/music/<slug>.jpg, the site music section's own cover files) */
 function vipArtImg(slug) { let im = vipArt[slug]; if (!im) { im = new Image(); im.src = "assets/music/" + slug + ".jpg"; vipArt[slug] = im; } return im; }
 function syncJuke() {
-  const st = me.scene === "highrollers" ? hrcState : me.scene === "boxing" ? boxMusState : me.scene === "rooftop" ? roofMusState : clubState; /* each room family hears its OWN picked song: club + VIP share hub/club, the High Rollers room has hub/tables/hrcmusic, the Boxing Arena has hub/tables/boxmusic, the Rooftop has hub/tables/roofmusic */
+  const st = me.scene === "highrollers" ? hrcState : me.scene === "boxing" ? boxMusState : clubState; /* each room family hears its picked song: club + VIP + Rooftop share hub/club, the High Rollers room has hub/tables/hrcmusic, the Boxing Arena has hub/tables/boxmusic */
   if (!(st && st.idx >= 0 && SONGS[st.idx])) { if (!jukeAudio.paused) jukeAudio.pause(); return; }
   const key = st.idx + "@" + st.ts;
   if (jukeAudio.dataset.k !== key) {
@@ -1086,15 +1085,14 @@ function pickSong(i) {
   const rec = { idx: i, title: i >= 0 ? SONGS[i][1] : "", by: me.name || "", ts: firebase.database.ServerValue.TIMESTAMP };
   if (jukeTarget === "hrc") db.ref("hub/tables/hrcmusic").set(rec).catch(() => {}); /* the service counter's pick is the High Rollers room's alone */
   else if (jukeTarget === "box") db.ref("hub/tables/boxmusic").set(rec).catch(() => {}); /* the boom box's pick is the Boxing Arena's alone */
-  else if (jukeTarget === "roof") db.ref("hub/tables/roofmusic").set(rec).catch(() => {}); /* the rooftop DJ booth's pick is the Rooftop's alone */
-  else db.ref("hub/club").set(rec).catch(() => {});
+  else db.ref("hub/club").set(rec).catch(() => {}); /* the club booth, the VIP jukebox AND the rooftop DJ booth (jukeTarget "roof") all write this one shared record */
 }
 function fmtDur(s) { return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
 function updateJukePanel() {
   const now = $("jukenow"); if (!now) return;
   const jp = $("jukepanel"); if (jp) { jp.classList.toggle("casino", jukeTarget === "hrc"); jp.classList.toggle("boxing", jukeTarget === "box"); } /* opened from the service counter, the panel is the Casino Jukebox — gold, not neon; opened from the arena's boom box it is the Boxing Arena Jukebox — arena blue (Jonathan 2026-10-31) */
   const jt = $("juketitle"); if (jt) jt.textContent = jukeTarget === "hrc" ? "🎰 Casino Jukebox" : jukeTarget === "box" ? "Boxing Arena Jukebox" : jukeTarget === "roof" ? "🌌 Rooftop Jukebox" : "🎵 Club Quantum Jukebox";
-  const jst = jukeTarget === "hrc" ? hrcState : jukeTarget === "box" ? boxMusState : jukeTarget === "roof" ? roofMusState : clubState, jact = !!(jst && jst.idx >= 0 && SONGS[jst.idx]); /* the panel speaks for the room it was opened for */
+  const jst = jukeTarget === "hrc" ? hrcState : jukeTarget === "box" ? boxMusState : clubState, jact = !!(jst && jst.idx >= 0 && SONGS[jst.idx]); /* the panel speaks for the room it was opened for — the rooftop booth ("roof") speaks for the shared club music, like the VIP jukebox */
   if (jact) now.textContent = "▶ Now playing: " + SONGS[jst.idx][1] + (jst.by ? " — picked by " + jst.by : "");
   else now.textContent = jukeTarget === "hrc" ? "Nothing playing — pick a song for the High Rollers Club!" : jukeTarget === "box" ? "Nothing playing — pick a song for the Boxing Arena!" : jukeTarget === "roof" ? "Nothing playing — pick a song for the Rooftop!" : "Nothing playing — pick a song for the whole club!";
   fitJukeNow();
@@ -1124,7 +1122,6 @@ $("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
 if (db) db.ref("hub/club").on("value", s => { clubState = s.val(); syncJuke(); updateJukePanel(); });
 if (db) db.ref("hub/tables/hrcmusic").on("value", s => { hrcState = s.val(); syncJuke(); updateJukePanel(); });
 if (db) db.ref("hub/tables/boxmusic").on("value", s => { boxMusState = s.val(); syncJuke(); updateJukePanel(); }); /* the Boxing Arena's boom-box song — hrcmusic's listener, mirrored */
-if (db) db.ref("hub/tables/roofmusic").on("value", s => { roofMusState = s.val(); syncJuke(); updateJukePanel(); }); /* the Rooftop's DJ-booth song — boxmusic's listener, mirrored */
 /* ============ player / world ============ */
 const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south. PREVIEW (2026-10-30): the plaza grows RIGHT by 1140 for the Quantum Horse Track building east of the Sports Complex and the swimming pool east of the casino — again, nothing existing moved, the ground just extends east */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
@@ -5218,7 +5215,7 @@ function toHQ() { stopAllTones(); portalArmed = false; me.scene = "hq"; voiceRes
 function toPlazaFromHQ() { stopAllTones(); portalArmed = false; me.scene = "plaza"; voiceReset(); me.x = PORTAL.x; me.y = PORTAL.y + 130; sfxChime(); publish(true); pauseHqVideos(); }
 function nearJuke() { return me.scene === "vip" && Math.hypot(me.x - (JUKE.x + JUKE.w / 2), me.y - (JUKE.y + JUKE.h)) < 150; } /* the jukebox stands in the VIP lounge now (PREVIEW round 3) — the proximity test moved rooms with it, nothing else about it changed */
 function atDJBooth(x, y) { return me.scene === "club" && x > DJBOOTH.x - 16 && x < DJBOOTH.x + DJBOOTH.w + 16 && y >= DJBOOTH.y - 6 && y <= DJBOOTH.y + 26; }
-function atRoofDJBooth(x, y) { return me.scene === "rooftop" && x > ROOFDJBOOTH.x - 16 && x < ROOFDJBOOTH.x + ROOFDJBOOTH.w + 16 && y >= ROOFDJBOOTH.y - 6 && y <= ROOFDJBOOTH.y + 26; } /* the rooftop DJ's spot: atDJBooth's own strip test against the rooftop's booth — a player standing there works the rooftop's own song picker (jukeTarget "roof", hub/tables/roofmusic) and frame() repaints the booth over their lower body, exactly as the club's DJ is treated */
+function atRoofDJBooth(x, y) { return me.scene === "rooftop" && x > ROOFDJBOOTH.x - 16 && x < ROOFDJBOOTH.x + ROOFDJBOOTH.w + 16 && y >= ROOFDJBOOTH.y - 6 && y <= ROOFDJBOOTH.y + 26; } /* the rooftop DJ's spot: atDJBooth's own strip test against the rooftop's booth — a player standing there works the song picker (jukeTarget "roof") for the SHARED club music (hub/club), exactly as the VIP jukebox does, and frame() repaints the booth over their lower body, exactly as the club's DJ is treated */
 function atHRCounter(x, y) { return me.scene === "highrollers" && x > HRCTR.x + HRCTR.w - 6 && y >= HRCTR.y - 6 && y <= HRCTR.y + HRCTR.h + 6; } /* standing in the strip BEHIND the service counter — between the counter and the right wall, the RIGHT SIDE only (Jonathan 2026-10-31): the front of the counter, the tables side, never offers the music. The strip is entered by walking around the counter's top or bottom end along the wall */ /* standing in the DJ strip directly behind the booth counter: feet between the counter's top edge and the furthest point its solid front (DJFRONT) lets anyone reach from behind. One test for both jobs — frame() repaints the booth over a player standing here (their head pokes up behind the counter), and the local player standing here gets the song-picker prompt. Reachable only by walking around either end of the booth: the counter itself blocks through-passage both ways */
 function nearPedestal() { return me.scene === "theatre" && Math.hypot(me.x - (PEDESTAL.x + PEDESTAL.w / 2), me.y - (PEDESTAL.y + PEDESTAL.h)) < 138; }
 function nearestCabinet() {
@@ -10865,11 +10862,11 @@ function drawRooftop(t) {
       ctx.fillStyle = "rgba(255,215,106,0.8)"; ctx.fillRect(sx - 2, bar.y + bar.h + 12, 4, 8);
     }
   }
-  /* the DJ booth at the top, centred — the club's own booth painter fed the rooftop's booth; frame() repaints it over a DJ standing in its strip, and standing there works the rooftop's own song (atRoofDJBooth) */
+  /* the DJ booth at the top, centred — the club's own booth painter fed the rooftop's booth; frame() repaints it over a DJ standing in its strip, and standing there works the shared club song picker (atRoofDJBooth) */
   drawDJBooth(t, ROOFDJBOOTH);
-  if (roofSongActive()) { /* the now-playing line under the booth, the club wall line's own voice */
+  if (clubSongActive()) { /* the now-playing line under the booth shows the SHARED club song (Jonathan 2026-11-02), the club wall line's own voice */
     ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("♪ " + SONGS[roofMusState.idx][1] + " ♪", ROOFROOM.w / 2, ROOFDJBOOTH.y + ROOFDJBOOTH.h + 36);
+    ctx.fillText("♪ " + SONGS[clubState.idx][1] + " ♪", ROOFROOM.w / 2, ROOFDJBOOTH.y + ROOFDJBOOTH.h + 36);
   }
   /* THE BALCONY — the VIP lounge's overlook rail carried to the roof (Jonathan 2026-11-01), HARD against the north edge: the old floating header band (a name plate at y 0..58 with its rails stranded at 96/122 underneath) is gone — the rail itself now rides the room's very edge in paintVipRail's own idiom: dark posts with gold caps, a glowing gold top rail pulsing on the club beat, and the shaded lip where the floor drops away. Walk up to it and the ordinary camera pans to the room's top clamp, the galaxy beyond the rail (frame's rooftop block). NOTE: there is deliberately NO mid rail — the thin gold line it drew at y 38 ran the full width of the room straight through both bars' bottle shelves and across the open middle above the DJ booth, and Jonathan ordered that line gone; the railing is the top rail, the posts and the lip */
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(0, 66, ROOFROOM.w, 7); /* the floor's shaded lip where it drops away */
@@ -11784,7 +11781,7 @@ function frame(now) {
   else if (nearPedestal()) { promptBtn.style.display = "block"; promptBtn.textContent = "📺 Change Channel"; promptAction = changeChannel; }
   else if (nearJuke()) { promptBtn.style.display = "block"; promptBtn.textContent = "🎵 Jukebox — Pick a Song"; promptAction = openJuke; }
   else if (atDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = openJuke; } /* the DJ works the same jukebox as everyone else — same panel, same pickSong write to hub/club; the prompt exists only while standing in the spot, so walking away takes it away */
-  else if (atRoofDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = () => { jukeTarget = "roof"; openJuke(); }; } /* the rooftop's DJ (Jonathan 2026-11-01): the same booth, the same picker — but the pick is the Rooftop's OWN song (hub/tables/roofmusic), worked only from the strip behind the rooftop's booth, exactly as the boom box works the arena's */
+  else if (atRoofDJBooth(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🎧 DJ Booth — Pick a Song"; promptAction = () => { jukeTarget = "roof"; openJuke(); }; } /* the rooftop's DJ (Jonathan 2026-11-01; shared music 2026-11-02): the same booth, the same picker — the pick sets the SHARED club/VIP song (hub/club), worked only from the strip behind the rooftop's booth, exactly as the VIP jukebox works the club's music */
   else if (me.scene === "casino" && mySeat) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = standUpAll; }
   else if (me.scene === "track" && hrSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUp; }
   else if (atHRStoreDesk(me.x, me.y)) { promptBtn.style.display = "block"; promptBtn.textContent = "🛍️ Service Desk — Store"; promptAction = openStore; } /* the STORE (Jonathan 2026-11-01): worked from the LEFT side of the service desk, the room side — the DJ pattern again: the prompt exists only while standing in the spot, and pressing it opens the store panel. The counter's own song prompt is the desk's other side (atHRCounter, behind it on the right) and never overlaps this spot */
