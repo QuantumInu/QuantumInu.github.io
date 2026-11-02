@@ -43,6 +43,12 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
 #micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 #micbtn.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
+#emojibtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
+#emojibtn.on{border-color:var(--cyan);background:rgba(56,225,255,.2)}
+#emojipop{position:absolute;right:0;bottom:calc(100% + 8px);width:min(328px,94vw);background:rgba(5,10,24,.96);border:1.5px solid rgba(56,225,255,.5);border-radius:16px;padding:9px;display:none;grid-template-columns:repeat(8,1fr);gap:3px;box-shadow:0 10px 34px rgba(0,0,0,.55)}
+#emojipop.open{display:grid}
+#emojipop button{background:transparent;border:none;font-size:22px;line-height:1.3;padding:3px 0;cursor:pointer;border-radius:9px;font-family:inherit}
+#emojipop button:active{background:rgba(56,225,255,.22);transform:scale(.94)}
 #chatlog{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #chatblock{position:absolute;top:60px;left:50%;transform:translateX(-50%) translateY(-8px);background:rgba(40,6,16,.92);border:1.5px solid #ff5470;color:#ffd9de;font-weight:700;font-size:15px;padding:9px 18px;border-radius:999px;z-index:60;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;white-space:nowrap}
 #chatblock.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -248,7 +254,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <button id="micbtn" title="Tap to talk — tap again to mute">🎤</button>
     <button id="logbtn" title="Chat log">💬</button>
     <input id="chatin" maxlength="300" placeholder="Say something…" autocomplete="off">
+    <button id="emojibtn" title="Emoji">🙂</button>
     <button id="sendbtn">Send</button>
+    <div id="emojipop"></div>
   </div>
 </div>
 <div id="gate">
@@ -4881,6 +4889,7 @@ function showChatBlock() {
 }
 /* ============ chat ============ */
 function sendChat() {
+  closeEmojiPop();
   const t = chatIn.value.trim(); if (!t || !entered) return;
   if (chatBlocked(t)) { showChatBlock(); chatIn.value = ""; sfxBad(); return; }
   me.chat = t.slice(0, 300); me.chatId = Date.now(); me.chatAt = performance.now();
@@ -4890,6 +4899,24 @@ function sendChat() {
 }
 $("sendbtn").onclick = sendChat;
 chatIn.addEventListener("keydown", e => { if (e.key === "Enter") { if (chatIn.value.trim()) sendChat(); else chatIn.blur(); } e.stopPropagation(); });
+/* ============ emoji picker (Jonathan 2026-11-01): a 🙂 circle between the chat box and Send; the box shrank on its own (flex:1) to make room. Tap the circle for a grid above the bar; a pick lands in the input at the cursor, the 300 cap counted the way sendChat counts (.length) ============ */
+const EMOJIS = ["🙂","😀","😄","😁","😂","🤣","😊","😍","😎","🤩","😜","🤪","😴","🤔","😮","😲","😢","😭","😡","🥳","❤️","💛","💙","💜","👍","👎","👏","🙏","👋","👀","🔥","⭐","🎉","✨","💯","🎵","🎮","🏆","⚡","🌈","⚛️","🪙","🎳","🐶","🐾","🚀","🌙","🎲"];
+function closeEmojiPop() { const p = $("emojipop"); if (p) p.classList.remove("open"); const b = $("emojibtn"); if (b) b.classList.remove("on"); }
+function toggleEmojiPop() { const p = $("emojipop"); if (!p) return; const open = p.classList.toggle("open"); $("emojibtn").classList.toggle("on", open); }
+function pickEmoji(em) {
+  const s = chatIn.selectionStart, e = chatIn.selectionEnd;
+  const start = (s == null ? chatIn.value.length : s), end = (e == null ? chatIn.value.length : e);
+  if (chatIn.value.length - (end - start) + em.length > 300) return; /* would pass the cap — not inserted, picker stays open for another pick */
+  chatIn.setRangeText(em, start, end, "end");
+  chatIn.focus();
+  closeEmojiPop();
+}
+(function buildEmojiPop() {
+  const pop = $("emojipop"); if (!pop) return;
+  for (const em of EMOJIS) { const b = document.createElement("button"); b.textContent = em; b.title = em; b.onclick = () => pickEmoji(em); pop.appendChild(b); }
+  $("emojibtn").onclick = toggleEmojiPop;
+  document.addEventListener("pointerdown", ev => { if (!pop.classList.contains("open")) return; if (ev.target === $("emojibtn") || pop.contains(ev.target)) return; closeEmojiPop(); }); /* tapping anywhere else closes it; sending closes it too (sendChat calls closeEmojiPop) */
+})();
 /* ============ scenes ============ */
 function toArcade() { stopAllTones(); me.scene = "arcade"; voiceReset(); me.x = ROOM.w / 2; me.y = ROOM.h - 150; sfxChime(); publish(true); }
 function toPlaza() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 1600; me.y = 566; sfxChime(); publish(true); }
