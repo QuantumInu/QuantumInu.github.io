@@ -2935,7 +2935,7 @@ function drawSwCar(i, t) {
      anchored above the whole stack: the box bottom sits at v.y - 86, so its tail
      tip (9px below the box) ends 8px clear of the boost bar's top (v.y - 69) */
   const dc = swDriverChat(v);
-  if (dc && dc.age < 5000) drawChatBubble(v.x, v.y - 86, dc.text);
+  if (dc && dc.age < 5000) { const em = emoteOf(dc.text); if (em) drawEmote(v.x, v.y - 92, em, dc.age); else drawChatBubble(v.x, v.y - 86, dc.text); } /* a driver's emote floats bare over the car, same as on foot */
 }
 function drawSwBench(x, y, rot) {
   /* silver spectator bench: light-grey slats on a darker metal frame, backrest on the side AWAY from the track (the sitter faces +y in local space). Pure scenery \u2014 benches are never obstacles (see obstacles(): speedway's only solids are the infield monitors and the corner concession stands), so they are walked right over, never collided with. Cars can't reach them either: the driving clamp keeps them inside the ring. */
@@ -4844,6 +4844,7 @@ function saveChatMessage(scene, id, chatId, name, text) {
   } catch (e) {}
 }
 function logPeerChat(id, name, chatId, text, scene) {
+  if (emoteOf(text)) return; /* an EMOTE is not a message: it never lands in the chat log (Jonathan 2026-11-01) */
   saveChatMessage(scene, id, chatId, name, text);
 }
 function logChat(name, text) {
@@ -4918,17 +4919,17 @@ function sendChat() {
 }
 $("sendbtn").onclick = sendChat;
 chatIn.addEventListener("keydown", e => { if (e.key === "Enter") { if (chatIn.value.trim()) sendChat(); else chatIn.blur(); } e.stopPropagation(); });
-/* ============ emoji picker (Jonathan 2026-11-01): a 🙂 circle between the chat box and Send; the box shrank on its own (flex:1) to make room. Tap the circle for a grid above the bar; a pick lands in the input at the cursor, the 300 cap counted the way sendChat counts (.length) ============ */
+/* ============ emoji picker (Jonathan 2026-11-01): a 🙂 circle between the chat box and Send; the box shrank on its own (flex:1) to make room. Tap the circle for a grid above the bar; a pick is an EMOTE (see pickEmoji) — it floats bare over your head and is never typed into the input or sent as a message ============ */
 const EMOJIS = ["🙂","😀","😄","😁","😂","🤣","😊","😍","😎","🤩","😜","🤪","😴","🤔","😮","😲","😢","😭","😡","🥳","❤️","💛","💙","💜","👍","👎","👏","🙏","👋","👀","🔥","⭐","🎉","✨","💯","🎵","🎮","🏆","⚡","🌈","⚛️","🪙","🎳","🐶","🐾","🚀","🌙","🎲"];
 function closeEmojiPop() { const p = $("emojipop"); if (p) p.classList.remove("open"); const b = $("emojibtn"); if (b) b.classList.remove("on"); }
 function toggleEmojiPop() { const p = $("emojipop"); if (!p) return; const open = p.classList.toggle("open"); $("emojibtn").classList.toggle("on", open); }
 function pickEmoji(em) {
-  const s = chatIn.selectionStart, e = chatIn.selectionEnd;
-  const start = (s == null ? chatIn.value.length : s), end = (e == null ? chatIn.value.length : e);
-  if (chatIn.value.length - (end - start) + em.length > 300) return; /* would pass the cap — not inserted, picker stays open for another pick */
-  chatIn.setRangeText(em, start, end, "end");
-  chatIn.focus();
+  /* a pick is an EMOTE now (Jonathan 2026-11-01): it never touches the input and never sends a chat message — the emoji goes out on the presence chat field wearing EMOTE_MARK, so the whole room sees it float bare over my head for the usual bubble lifetime, and no log anywhere records it. Typing an emoji inside a real message is untouched: that still goes through sendChat as text + bubble */
   closeEmojiPop();
+  if (!entered) return;
+  me.chat = EMOTE_MARK + em; me.chatId = Date.now(); me.chatAt = performance.now();
+  sfxPop(); publish(true);
+  setTimeout(() => { if (me.chatId && performance.now() - me.chatAt > 4900) publish(true); }, 5100); /* sendChat's own tail: the emote ages out on the same 5s clock */
 }
 (function buildEmojiPop() {
   const pop = $("emojipop"); if (!pop) return;
@@ -5143,6 +5144,16 @@ function drawChatBubble(cx, boxBottom, chat) {
   ctx.beginPath(); ctx.moveTo(cx - 7, by + bh); ctx.lineTo(cx + 7, by + bh); ctx.lineTo(cx, by + bh + 9); ctx.closePath(); ctx.fill();
   ctx.fillStyle = "#12233f"; lines.forEach((l, i) => ctx.fillText(l, cx, by + 26 + i * 26));
 }
+const EMOTE_MARK = "\u0001E\u0001"; /* an emoji PICK rides the presence chat field as an EMOTE (Jonathan 2026-11-01): the marker prefix — control characters no keyboard or emoji panel can type — tells every renderer "bare emote, not a message". The presence record is field-locked, so the marker travels inside the existing chat field; the chat-log path (logPeerChat) and the sender both skip the marker, so a pick never appears in the log or the session history */
+function emoteOf(chat) { return chat && chat.indexOf(EMOTE_MARK) === 0 ? chat.slice(EMOTE_MARK.length) : null; }
+function drawEmote(cx, y, emoji, age) {
+  /* the emote itself, floating bare over the head: NO bubble, NO box — one glyph at 34px (chat text is 21px), holding for the usual 5s bubble life and fading out over its last second */
+  ctx.save();
+  if (age > 4000) ctx.globalAlpha = Math.max(0, (5000 - age) / 1000);
+  ctx.font = "34px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffffff"; /* colour-emoji glyphs ignore fillStyle; the fallback outline glyphs get white rather than whatever colour was live */
+  ctx.fillText(emoji, cx, y);
+  ctx.restore();
+}
 function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, moving, gender, tint) {
   if (isMe && mechForm) hero = MECH_HERO; /* my own screen draws me from me.hero, not from my presence record — the transform has to land here too, or I would stay a dog on my own screen while the room sees the mech */
   if (isMe && kingMechForm) hero = KING_MECH_HERO; /* the same landing for OnlineMoney's king mech on his own screen */
@@ -5172,7 +5183,7 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
   ctx.strokeText(name, wx, ny); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, ny);
   ctx.restore();
-  if (chat && chatAge < 5000) drawChatBubble(wx, ny - 26, chat);
+  if (chat && chatAge < 5000) { const em = emoteOf(chat); if (em) drawEmote(wx, ny - 30, em, chatAge); else drawChatBubble(wx, ny - 26, chat); } /* an emote-marked chat draws as the bare emoji over the head; a typed message keeps its bubble exactly as before */
 }
 let camX = 0, camY = 0, SCALE = 0.6;
 let vipCamOx = 0; /* the VIP overlook camera lean (PREVIEW, Jonathan 2026-10-31): eased extra camX while up against the balcony, so the club below comes into frame — a phone's view is narrower than the room, so without the lean the overlook never reaches its screen */
@@ -6088,20 +6099,7 @@ function drawPhTable(tt, t) {
     });
   }
 }
-function drawPhPanel(t) {
-  /* the strip along the hall's south wall: the welcome line, always — no turn/status data here during games (Jonathan 2026-11-01: "dont show turn data here during games keep it as is"). My BETTING controls are NOT here: they OVERLAY the table itself (PREVIEW round 4 — see drawPhTable) — so while I'm seated in the bet phase this strip stays out of the way entirely */
-  const P = { x: PHROOM.w / 2 - 750, y: PHROOM.h - 254, w: 1500, h: 158 }; /* the panel follows the room: centred, riding 254px above the floor's bottom edge, exactly where it sat in the smaller hall */
-  const st0 = phSeatT >= 0 ? phStates[phSeatT] : null;
-  if (phSeatT >= 0 && myPhSeatRec() && st0 && st0.phase === "bet") return; /* seated and betting: the table's own overlay carries everything (PREVIEW round 4) */
-  ctx.fillStyle = "rgba(10,16,28,0.92)"; rr(P.x, P.y, P.w, P.h, 18); ctx.fill();
-  ctx.strokeStyle = "rgba(255,215,106,0.6)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 18); ctx.stroke();
-  const cx = P.x + P.w / 2;
-  ctx.textAlign = "center";
-  ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("🎱 QUANTUM POOL HALL 🎱", cx, P.y + 62);
-  ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-  ctx.fillText("Sit at a table to play — sink your set, then the 8. Winner takes the pot.", cx, P.y + 104);
-}
+/* the Pool Hall's floor message panel is GONE (Jonathan 2026-11-01): the welcome box ("🎱 QUANTUM POOL HALL 🎱 / Sit at a table to play…") and drawPhPanel with it were deleted outright — nothing replaces the box; the hall's gold header, floor emblem, tables and labels are untouched. Betting controls were never on the panel (they overlay the table — see drawPhTable), so play is unaffected */
 function drawPoolHall(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* floor and border: the ARCADE's own, copied line for line (PREVIEW round 2) — the same deep blue floor, the same purple grid, the same purple-and-cyan double border — so the hall reads as the Arcade's back room, one connected space. Only the tables keep their green felt */
@@ -6123,7 +6121,6 @@ function drawPoolHall(t) {
   ctx.restore();
   uiZones = [];
   for (let tt = 0; tt < 4; tt++) drawPhTable(tt, t);
-  drawPhPanel(t);
   drawTableFx(t, "poolhall");
   /* the note line, the casino note's twin */
   if (phNote && performance.now() - phNoteAt < 4200) {
