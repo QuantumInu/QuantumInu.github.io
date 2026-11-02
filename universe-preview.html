@@ -1309,7 +1309,7 @@ const BOWLROOM = { w: 2560, h: 2000 };
 const BOWLCX = t => BOWLROOM.w / 2 + (t - 1.5) * 600; /* lane centre lines: 380, 980, 1580, 2180 (spread from a 300 pitch to 600 at Jonathan's word, 2026-11-01 — the lanes now run basically edge to edge of the room) */
 const BOWLLANES = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 160, y: 330, w: 320, h: 1240 })); /* the lane field including both gutters (260 of boards + 30 of gutter a side) — solid in its room, like the pool tables. Widened from 202 with the spread */
 const BOWLSEATS = [0, 1, 2, 3].map(t => [-141, -47, 47, 141].map(dx => ({ x: BOWLCX(t) + dx, y: 1740 }))); /* four chairs per lane at its south end, evenly spaced across the widened lane on its own centre line */
-const BOWLSCREENS = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 200, y: 132, w: 400, h: 176 })); /* the scoring screen hung over each lane's pins end — widened from 260 to suit the wider lanes */
+const BOWLSCREENS = [0, 1, 2, 3].map(t => ({ x: BOWLCX(t) - 250, y: 132, w: 500, h: 176 })); /* the scoring screen hung over each lane's pins end, centred on its centre line — widened 260 -> 400 with the lanes, then 400 -> 500 (Jonathan 2026-11-01, "just make score cards wider and font bigger"): the fonts inside grew into the extra room, and a clear 100 of dark floor still stands between neighbouring boards on the 600 pitch */
 const BOWLEXIT = { x: BOWLROOM.w / 2 - 62, y: BOWLROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — the gym's GEXIT shape */
 const BOWL_FOUL_Y = 1470; /* the ball leaves from here, at the lane's south end */
 function bowlPinPos(cx, i) { let r = 0, j = i; while (j > r) { j -= r + 1; r++; } return { x: cx + (j - r / 2) * 56, y: 512 - r * 52 }; } /* pin i of the rack: head pin (0) nearest the player at y 512, rows running north — 1-2-3-4 */
@@ -6267,6 +6267,7 @@ function drawPoolHall(t) {
    reset to 0 and READY clears, like every other room. */
 let bowlStates = [null, null, null, null], bowlSeatT = -1, bowlSeatI = -1, bowlSeatPos = null, bowlLeft = null, bowlHooked = false;
 let bowlSim = null, bowlAim = null;
+let bowlSitClaimAt = 0; /* a chair claim in flight (the transaction in bowlSitAt): while one is fresh, no second claim starts and the seat beat's reload-reclaim does not adopt, so a second chair can never stack under a claim already being judged */
 let bowlNote = "", bowlNoteAt = 0;
 function noteBowl(txt) { bowlNote = txt; bowlNoteAt = performance.now(); }
 function bowlKey(t) { return "bowl" + (t + 1); }
@@ -6347,23 +6348,45 @@ function bowlFxCheck(t) { /* a decided game bursts coins at the winner's chair, 
 }
 /* ---- chairs ---- */
 function bowlNearLane() { for (let t = 0; t < 4; t++) if (nearSeatOf(BOWLSEATS[t])) return t; return -1; }
-function bowlTrySit(t) {
-  const st = bowlStates[t];
-  for (let i = 0; i < 4; i++) { const s = st && st.seats ? st.seats[i] : null; if (!bowlFresh(s)) { bowlSitAt(t, i); return; } }
-  noteBowl("All four chairs at that lane are taken.");
+function bowlFreeChairNear(t, x, y) { /* the free chair (no fresh record on it) CLOSEST to a point — where a sitter lands when their chosen chair is taken: the nearest chair at the lane, never an occupied one (Jonathan 2026-11-01) */
+  const seats = (bowlStates[t] && bowlStates[t].seats) || {}; let best = -1, bd = Infinity;
+  for (let i = 0; i < 4; i++) { if (bowlFresh(seats[i])) continue; const s = BOWLSEATS[t][i], d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y); if (d < bd) { bd = d; best = i; } }
+  return best;
 }
-function bowlSitAt(t, i) {
+function bowlTrySit(t) {
+  const i = bowlFreeChairNear(t, me.x, me.y); /* the Sit prompt seats me at the free chair closest to where I stand (was: the first free chair by index, which funnelled everyone onto the same low chairs) */
+  if (i < 0) { noteBowl("All four chairs at that lane are taken."); return; }
+  bowlSitAt(t, i);
+}
+function bowlSitAt(t, i, retried) {
   if (!acctUser) { noteBowl("🔒 Sitting down takes an account — guests can watch."); return; }
+  if (bowlSitClaimAt && Date.now() - bowlSitClaimAt < 3000) return; /* a claim is already in flight: a second tap must not open a second chair while the first is being judged */
   pullChips();
   const st = bowlStates[t], ex = bowlSeatRec(t, i);
   if (ex && ex.pid === myId) { bowlSeatT = t; bowlSeatI = i; bowlSeatPos = BOWLSEATS[t][i]; mySeatPos = bowlSeatPos; seatOD(bowlKey(t), i, true); return; }
-  if (bowlFresh(ex)) { noteBowl("That chair is taken."); bowlTrySit(t); return; }
+  if (bowlSeatT >= 0) { noteBowl("Stand up from your lane first."); return; } /* one player, one chair (the pool hall rule): already seated anywhere, a tap never stacks a second chair under me */
+  if (bowlFresh(ex)) { noteBowl("That chair is taken."); if (!retried) { const j = bowlFreeChairNear(t, BOWLSEATS[t][i].x, BOWLSEATS[t][i].y); if (j >= 0) bowlSitAt(t, j, true); } return; } /* taken on my snapshot: off to the closest free chair at this lane instead */
   bowlLeft = null;
-  if (ex && ex.bet > 0) writeClaim(claimUid(ex), rfKeyFor(bowlKey(t), st, i), ex.bet, "↩️ Bet returned"); /* a stale chair's stake goes back through the claims rail before the chair changes hands (the pool hall rule) */
-  bowlSeatT = t; bowlSeatI = i; bowlSeatPos = BOWLSEATS[t][i]; mySeatPos = bowlSeatPos;
-  tblSet(bowlKey(t) + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, chips: profile ? (profile.chips || 0) : 0 });
-  seatOD(bowlKey(t), i, true);
-  sfxClick();
+  const key = bowlKey(t), rec = { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, chips: profile ? (profile.chips || 0) : 0 };
+  const claim = () => { bowlSitClaimAt = 0; bowlSeatT = t; bowlSeatI = i; bowlSeatPos = BOWLSEATS[t][i]; mySeatPos = bowlSeatPos; seatOD(key, i, true); sfxClick(); };
+  const lose = () => { bowlSitClaimAt = 0; noteBowl("That chair is taken."); if (!retried) { const j = bowlFreeChairNear(t, BOWLSEATS[t][i].x, BOWLSEATS[t][i].y); if (j >= 0) bowlSitAt(t, j, true); } }; /* beaten to the chair: the closest free one instead, never a double-up */
+  const ref = db ? db.ref("hub/tables/" + key + "/seats/" + i) : null;
+  if (ref && typeof ref.transaction === "function") { /* the claim is judged against the chair's record as it stands on the server AT CLAIM TIME, not my possibly-stale snapshot (the session claim's discipline): the chair is mine only if it stands empty, a pid-less husk, stale past the casino rule's 25s, or already mine. Two players tapping the same chair in the same moment cannot both win it — the loser's transaction aborts and lose() redirects them to the closest free chair */
+    bowlSitClaimAt = Date.now();
+    let displaced = null;
+    ref.transaction(cur => {
+      if (cur && cur.pid && cur.pid !== myId && Date.now() - (cur.ts || 0) <= 25000) return undefined; /* a fresh sitter holds it — abort */
+      displaced = cur;
+      return rec;
+    }, (err, committed) => {
+      if (!err && committed) { if (displaced && displaced.bet > 0 && displaced.pid && displaced.pid !== myId) writeClaim(claimUid(displaced), rfKeyFor(key, bowlStates[t], i), displaced.bet, "↩️ Bet returned"); /* the stale chair I took over: its stake goes back through the claims rail as it changes hands (the pool hall rule) */ claim(); return; }
+      lose();
+    });
+    return;
+  }
+  if (ex && ex.bet > 0) writeClaim(claimUid(ex), rfKeyFor(key, st, i), ex.bet, "↩️ Bet returned"); /* no transaction on this connection: the plain claim, the same stale-chair refund first */
+  tblSet(key + "/seats/" + i, rec);
+  claim();
 }
 function bowlStandUp() {
   if (bowlSeatT < 0) return;
@@ -6381,6 +6404,7 @@ function bowlStandUp() {
 }
 function bowlSeatBeat() {
   if (!db || !entered || me.scene !== "bowling") return;
+  if (bowlSeatT < 0 && bowlSitClaimAt && Date.now() - bowlSitClaimAt < 3000) return; /* a claim is in flight: adopting a record mid-claim could stack a second chair under me — the claim's own callback does the seating */
   if (bowlSeatT < 0) { /* reload reclaim: adopt my own fresh seat record back — same lane, same chair, bet untouched (the pool hall rule, mirrored) */
     if (bowlLeft) { const ls = bowlStates[bowlLeft.t] && bowlStates[bowlLeft.t].seats && bowlStates[bowlLeft.t].seats[bowlLeft.i]; if (!ls || ls.pid !== myId) bowlLeft = null; }
     for (let t = 0; t < 4; t++) { const seats = (bowlStates[t] && bowlStates[t].seats) || {}; for (let i = 0; i < 4; i++) { const s = seats[i]; if (s && s.pid === myId && !(bowlLeft && bowlLeft.t === t && bowlLeft.i === i) && Date.now() - (s.ts || 0) <= 25000) { bowlSeatT = t; bowlSeatI = i; bowlSeatPos = BOWLSEATS[t][i]; mySeatPos = bowlSeatPos; seatOD(bowlKey(t), i, true); return; } } }
@@ -6454,6 +6478,22 @@ function bowlFinishGame(t, st, forcedWinner) {
   tblUpd(key, { phase: "done", results, totals, doneTs: Date.now(), rolling: false, shotBy: null, shotTs: null, live: null });
   writeClaims(st.seats, results, i => key + "m" + st.matchId + "-" + i, "🎳 Bowling winnings");
 }
+/* ---- the idle lane reset (Jonathan 2026-11-01): a lane nobody is seated at resets to a fresh open lane after 3 UNOCCUPIED seconds. The shared tableIdleClear is left exactly as it is for the other games — this is its discipline at bowling's own delay: "unoccupied" means no FRESH seat record at the table (pid-bearing, inside the 25s casino window — the CPU's record counts while its host keeps it fresh and stales out on its own once the host has gone; pid-less husks never counted). The clock rides the shared node as emptyTs, the helper's own stamp. At fire time the lane is read as it stands NOW: anyone who sat back down inside the 3 seconds holds a fresh record, the fresh check above stands the clear down and wipes the stamp — so a returning player keeps their game. The wipe hands any stake still riding on a leftover record back through the rf rail first (never-lose net), then writes the same fresh node the host tick's own resets write. It runs in the host tick BEFORE the host election, on every bowling visitor's client, so an abandoned lane clears even with no host seated at it ---- */
+const BOWL_IDLE_MS = 3000; /* his number for bowling: 3 unoccupied seconds, then the board resets */
+function bowlIdleClear(t) {
+  const key = bowlKey(t), st = bowlStates[t];
+  if (!st) return;
+  const now = Date.now(), seats = st.seats || {};
+  const keys = Object.keys(seats).filter(k => seats[k]);
+  const fresh = keys.filter(k => seats[k].pid && now - (seats[k].ts || 0) < 25000);
+  if (fresh.length) { if (st.emptyTs) tblUpd(key, { emptyTs: null }); return; } /* someone is seated: no clock, and any stamp from a quieter moment dies */
+  const dirty = st.phase !== "bet" || keys.some(k => seats[k].bet > 0) || !!st.firstBetTs;
+  if (!dirty) { if (st.emptyTs) tblUpd(key, { emptyTs: null }); return; } /* already a fresh open lane: nothing to reset */
+  if (!st.emptyTs) { tblUpd(key, { emptyTs: now }); return; } /* the clock starts — the fire itself is the re-check above, 3 seconds from now */
+  if (now - st.emptyTs < BOWL_IDLE_MS) return;
+  Object.keys(seats).forEach(k => { const s = seats[k]; if (s && s.bet > 0) writeClaim(claimUid(s), rfKeyFor(key, st, k), s.bet, "↩️ Bet returned"); });
+  tblSet(key, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() });
+}
 /* ---- the host tick: node care, the start gate, forfeits, the rematch recycle ---- */
 function bowlHostTick(t) {
   const key = bowlKey(t);
@@ -6461,7 +6501,7 @@ function bowlHostTick(t) {
   if (!db) return;
   if (!st) { tblSet(key, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() }); return; }
   if (["bet", "play", "done"].indexOf(st.phase) < 0) { tblSet(key, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() }); return; } /* a foreign-shaped node soft-locks the lane forever — any visitor resets it (the casino rule) */
-  tableIdleClear(key, st, { phase: "bet", seats: {}, matchId: newRoundId(), ts: Date.now() });
+  bowlIdleClear(t); /* the lane resets after 3 unoccupied seconds (Jonathan 2026-11-01) — bowling's own idle clear above, at bowling's own delay; the shared tableIdleClear still serves the other games untouched */
   st = bowlStates[t]; if (!st) return;
   const seats = st.seats || {};
   const freshIdx = [0, 1, 2, 3].filter(i => bowlFresh(seats[i]) && !seats[i].cpu); /* fresh HUMANS only: the CPU's record is fresh too while it is hosted, but it is never a host, never a start-gate vote (Jonathan 2026-11-01) */
@@ -6552,6 +6592,7 @@ const BOWL_PIN_M = 1, BOWL_BALL_M = 6; /* a bowling ball outweighs a pin several
 const BOWL_TOPPLE_V = 135, BOWL_TOPPLE_D = 17; /* a pin moving faster than this (px/s), or shoved this far off the spot it started the ball on (px), cannot stay on its feet */
 const BOWL_WALL_OFF = 166, BOWL_PIT_Y = 330; /* the kickbacks stand this far either side of the lane's centre; a pin whose centre crosses the pit line (behind the back row) is gone */
 const BOWL_FALL_T = 0.30; /* seconds a toppling pin takes to finish falling — the tip-over the room sees, its direction taken from the pin's motion at the topple */
+const BOWL_RESULT_DWELL_MS = 1500; /* the RESULT DWELL (Jonathan 2026-11-01): once a throw's physics has settled, the deck holds — fallen pins lying where they fell, standing pins where the physics left them, still streaming on the live snapshot — for this long before the throw is written, the dead pins swept and the next ball armed, so the player can actually see what they hit. One named constant so the pause tunes in one place; both frame steps (the player's and the CPU's) read it */
 function bowlSeedLay(st) { /* the resting layout a throw starts from: the record's pinLay when it agrees with the record's rack (the standing pins exactly where the last ball left them), else null — plain rack spots */
   const rack = st && st.rack, lay = st && st.pinLay;
   if (!rack || !lay) return null;
@@ -6638,9 +6679,19 @@ function bowlFrameStep(dt) {
   if (!bowlSim) return;
   const sim = bowlSim, st = bowlStates[sim.t];
   if (!st || st.phase !== "play" || st.turnSeat !== bowlSeatI) { bowlSim = null; return; } /* my turn ended another way (a host skip, a reset) — the local ball goes away */
-  const done = bowlStepThrow(sim, dt); /* the shared throw step: the ball's flight and the pin deck's real physics */
-  if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; } /* the clatter of however many pins the physics just put down */
-  if (done) { bowlFinishThrow(); return; }
+  if (!sim.dwellUntil) { /* the throw itself: step the shared physics until it settles — then the dwell starts instead of the finish firing on the spot */
+    const done = bowlStepThrow(sim, dt); /* the shared throw step: the ball's flight and the pin deck's real physics */
+    if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; } /* the clatter of however many pins the physics just put down */
+    if (done) { for (const p of sim.pins) if (p.down) p.fall = 1; sim.dwellUntil = performance.now() + BOWL_RESULT_DWELL_MS; } /* the falls settle onto the exact resting layout the finish is about to write (bowlPinsLayout writes full falls anyway), so the deck the room stares at through the dwell is the deck that gets scored */
+  }
+  if (sim.dwellUntil) { /* the RESULT DWELL: the settled scene holds, still streaming on the same cadence so every screen holds the same result, until the clock runs out — only then is the throw written and the next ball armed. bowlMyTurn stays shut the whole while (it needs bowlSim null and the record not rolling), so the thrower cannot start the next throw inside the dwell */
+    const now = performance.now();
+    if (now < sim.dwellUntil) {
+      if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack, pins: bowlPinsSnap(sim) } }); }
+      return;
+    }
+    bowlFinishThrow(); return;
+  }
   const now = performance.now();
   if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack, pins: bowlPinsSnap(sim) } }); } /* followers watch the ball and the pins off the live snapshot, the pool hall's streaming pattern — the pins' live positions and falls ride along now, so the room watches the same pins fly */
 }
@@ -6706,9 +6757,19 @@ function bowlCpuFrameStep(dt) {
   }
   const sim = bowlCpuSim;
   if (sim.t !== t || st.turnSeat !== sim.seat) { bowlCpuSim = null; return; } /* its turn ended another way (a host skip, a reset) — the local ball goes away, exactly as a human's does */
-  const done = bowlStepThrow(sim, dt); /* the shared step, literally the player's own: the same ball flight, the same pin physics — only the aim was a decision (the fairness rule) */
-  if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; }
-  if (done) { bowlCpuFinishThrow(); return; }
+  if (!sim.dwellUntil) { /* the CPU's throw itself, stepped and settled exactly like a human's — then the same dwell, so a CPU game breathes the same way (Jonathan 2026-11-01) */
+    const done = bowlStepThrow(sim, dt); /* the shared step, literally the player's own: the same ball flight, the same pin physics — only the aim was a decision (the fairness rule) */
+    if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; }
+    if (done) { for (const p of sim.pins) if (p.down) p.fall = 1; sim.dwellUntil = performance.now() + BOWL_RESULT_DWELL_MS; }
+  }
+  if (sim.dwellUntil) { /* the RESULT DWELL, the player's own treatment: the settled deck holds and streams until the clock runs out, then the shared finish writes the throw */
+    const now = performance.now();
+    if (now < sim.dwellUntil) {
+      if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack, pins: bowlPinsSnap(sim) } }); }
+      return;
+    }
+    bowlCpuFinishThrow(); return;
+  }
   const now = performance.now();
   if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack, pins: bowlPinsSnap(sim) } }); } /* the room watches the CPU's ball and pins off the same live snapshot as a human's */
 }
@@ -6753,46 +6814,46 @@ function drawBowlScreen(tt, st) {
   const S = BOWLSCREENS[tt];
   ctx.fillStyle = "rgba(6,8,20,0.95)"; rr(S.x, S.y, S.w, S.h, 14); ctx.fill();
   ctx.strokeStyle = "rgba(168,85,247,0.75)"; ctx.lineWidth = 2.5; rr(S.x, S.y, S.w, S.h, 14); ctx.stroke();
-  ctx.textAlign = "left"; ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-  ctx.fillText("LANE " + (tt + 1), S.x + 14, S.y + 29);
-  ctx.textAlign = "right"; ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7ee7ff";
+  ctx.textAlign = "left"; ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+  ctx.fillText("LANE " + (tt + 1), S.x + 16, S.y + 34);
+  ctx.textAlign = "right"; ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7ee7ff";
   const status = !st ? "OPEN" : st.phase === "bet" ? "PLACE BETS" : st.phase === "play" ? "FRAME " + (st.frame || 1) + " / 10" : "GAME OVER";
-  ctx.fillText(status, S.x + S.w - 14, S.y + 29);
-  ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 12, S.y + 40); ctx.lineTo(S.x + S.w - 12, S.y + 40); ctx.stroke();
+  ctx.fillText(status, S.x + S.w - 16, S.y + 34);
+  ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 14, S.y + 44); ctx.lineTo(S.x + S.w - 14, S.y + 44); ctx.stroke();
   const seats = (st && st.seats) || {};
   const rows = !st ? [] : st.phase === "bet" ? [0, 1, 2, 3].filter(i => bowlFresh(seats[i])) : (st.players || []);
   if (!rows.length) {
-    ctx.textAlign = "center"; ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(210,220,240,0.55)";
-    ctx.fillText("— open lane —", S.x + S.w / 2, S.y + 108);
+    ctx.textAlign = "center"; ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(210,220,240,0.55)";
+    ctx.fillText("— open lane —", S.x + S.w / 2, S.y + 110);
   }
   rows.forEach((i, r) => {
-    const s = seats[i] || {}, y = S.y + 66 + r * 27, mine = s.pid === myId;
+    const s = seats[i] || {}, y = S.y + 70 + r * 25, mine = s.pid === myId;
     const gone = st && st.phase !== "bet" && !bowlFresh(s);
-    ctx.textAlign = "left"; ctx.font = "700 13px 'Segoe UI',sans-serif";
+    ctx.textAlign = "left"; ctx.font = "700 16px 'Segoe UI',sans-serif";
     ctx.fillStyle = gone ? "rgba(160,165,180,0.6)" : (st && st.phase === "play" && st.turnSeat === i ? "#ffd76a" : "#eaf6ff");
     let nm = String(s.name || "—"); if (nm.length > 10) nm = nm.slice(0, 10);
-    ctx.fillText((st && st.phase === "play" && st.turnSeat === i ? "▸ " : "") + nm, S.x + 10, y);
+    ctx.fillText((st && st.phase === "play" && st.turnSeat === i ? "▸ " : "") + nm, S.x + 12, y);
     if (!st || st.phase === "bet") {
-      ctx.textAlign = "right"; ctx.font = "700 13px 'Segoe UI',sans-serif";
+      ctx.textAlign = "right"; ctx.font = "700 16px 'Segoe UI',sans-serif";
       ctx.fillStyle = s.rdy ? "#7dffb0" : "#ffe9a8";
-      ctx.fillText(s.bet > 0 ? "🪙 " + Number(s.bet).toLocaleString("en-US") + (s.rdy ? " · READY ✓" : " · …") : "no bet", S.x + S.w - 12, y);
+      ctx.fillText(s.bet > 0 ? "🪙 " + Number(s.bet).toLocaleString("en-US") + (s.rdy ? " · READY ✓" : " · …") : "no bet", S.x + S.w - 14, y);
     } else {
       const rolls = (st.rolls && st.rolls[i]) || [], card = bowlScorecard(rolls), done = bowlFramesComplete(rolls);
       for (let f = 0; f < 10; f++) {
-        const bx = S.x + 118 + f * 24; /* the frame boxes spread across the widened screen (260 -> 400 with the lanes, Jonathan 2026-11-01) */
-        ctx.fillStyle = "rgba(20,16,44,0.9)"; ctx.fillRect(bx, y - 12, 22, 16);
-        ctx.strokeStyle = st.frame === f + 1 && st.phase === "play" ? "rgba(56,225,255,0.8)" : "rgba(140,120,200,0.4)"; ctx.lineWidth = 1; ctx.strokeRect(bx, y - 12, 22, 16);
-        ctx.textAlign = "center"; ctx.font = "700 11px 'Segoe UI',sans-serif"; ctx.fillStyle = f < done ? "#eaf6ff" : "rgba(200,205,225,0.45)";
-        ctx.fillText(f < done ? bowlFrameMarks(rolls, f + 1) : "·", bx + 11, y);
+        const bx = S.x + 150 + f * 30; /* the frame boxes spread across the widened screen (400 -> 500 at Jonathan's word, 2026-11-01 — the marks grew into the extra room) */
+        ctx.fillStyle = "rgba(20,16,44,0.9)"; ctx.fillRect(bx, y - 14, 27, 19);
+        ctx.strokeStyle = st.frame === f + 1 && st.phase === "play" ? "rgba(56,225,255,0.8)" : "rgba(140,120,200,0.4)"; ctx.lineWidth = 1; ctx.strokeRect(bx, y - 14, 27, 19);
+        ctx.textAlign = "center"; ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.fillStyle = f < done ? "#eaf6ff" : "rgba(200,205,225,0.45)";
+        ctx.fillText(f < done ? bowlFrameMarks(rolls, f + 1) : "·", bx + 14, y);
       }
-      ctx.textAlign = "right"; ctx.font = "800 14px 'Segoe UI',sans-serif"; ctx.fillStyle = mine ? "#ffd76a" : "#eaf6ff";
-      ctx.fillText(String(st.phase === "done" && st.totals && typeof st.totals[i] === "number" ? st.totals[i] : card.total), S.x + S.w - 10, y);
+      ctx.textAlign = "right"; ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = mine ? "#ffd76a" : "#eaf6ff";
+      ctx.fillText(String(st.phase === "done" && st.totals && typeof st.totals[i] === "number" ? st.totals[i] : card.total), S.x + S.w - 12, y);
     }
   });
-  ctx.textAlign = "center"; ctx.font = "700 12.5px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.75)";
-  if (st && st.phase === "play") ctx.fillText("POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), S.x + S.w / 2, S.y + S.h - 12);
-  else if (st && st.phase === "done" && st.results) { const w = Object.keys(st.results).filter(k => st.results[k].amt > 0); ctx.fillText(w.length ? "🏆 " + w.map(k => (st.seats && st.seats[k] && st.seats[k].name) || "—").join(" · ") : "", S.x + S.w / 2, S.y + S.h - 12); }
-  else if (st && st.phase === "bet") ctx.fillText("matched bets · 2+ READY to start", S.x + S.w / 2, S.y + S.h - 12);
+  ctx.textAlign = "center"; ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.75)";
+  if (st && st.phase === "play") ctx.fillText("POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), S.x + S.w / 2, S.y + S.h - 8);
+  else if (st && st.phase === "done" && st.results) { const w = Object.keys(st.results).filter(k => st.results[k].amt > 0); ctx.fillText(w.length ? "🏆 " + w.map(k => (st.seats && st.seats[k] && st.seats[k].name) || "—").join(" · ") : "", S.x + S.w / 2, S.y + S.h - 8); }
+  else if (st && st.phase === "bet") ctx.fillText("matched bets · 2+ READY to start", S.x + S.w / 2, S.y + S.h - 8);
 }
 function drawBowlLane(tt, t) {
   const st = bowlStates[tt], L = BOWLLANES[tt], cx = BOWLCX(tt);
@@ -6837,13 +6898,13 @@ function drawBowlLane(tt, t) {
   }
   /* the chairs, the pool hall's own chair drawing at this lane's south end */
   BOWLSEATS[tt].forEach((s, i) => {
-    const occ = bowlFresh(st && st.seats ? st.seats[i] : null);
+    const rec = st && st.seats ? st.seats[i] : null, occ = bowlFresh(rec), sat = occ && !rec.cpu; /* yellow means a PERSON is sitting in this exact chair (Jonathan 2026-11-01): the paint reads this chair's own fresh record and nothing else. The CPU's chair is the one that broke it: the CPU holds a real seat record (the host heartbeats it fresh), so its chair painted occupied-yellow with nobody sitting in it — a record is not a sitter, so the CPU's chair now keeps the empty colour. The record still BLOCKS the chair: occ, not sat, gates the sit zone below */
     if (!occ && bowlSeatT < 0 && me.scene === "bowling" && bowlNearLane() === tt) uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => bowlSitAt(tt, i) });
-    ctx.fillStyle = occ ? "#ffd76a" : "#2a1052";
+    ctx.fillStyle = sat ? "#ffd76a" : "#2a1052";
     ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
-    ctx.strokeStyle = occ ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = sat ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
     ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", s.x, s.y + 7);
-    if (occ && st.seats[i].chips !== undefined) {
+    if (sat && st.seats[i].chips !== undefined) {
       const txt = "🪙 " + Number(st.seats[i].chips || 0).toLocaleString("en-US");
       ctx.font = "700 19px 'Segoe UI',sans-serif";
       const w = ctx.measureText(txt).width + 22;
@@ -6857,59 +6918,68 @@ function drawBowlPanel(t) {
   if (bowlSeatT < 0) return;
   const st = bowlStates[bowlSeatT], mine = myBowlSeatRec();
   if (!st || !mine) return;
-  /* the panel is anchored to the VIEW, not to a fixed world spot (Jonathan 2026-11-01): parked under the chairs it slid under the HTML Stand up button, which hid the last bet amount and the end of the READY line. Each frame its world position is computed from the camera (camX/camY/VW/VH/SCALE) so that ON SCREEN it sits at the bottom of the visible view — centred, but shifted left far enough to clear the prompt button's column on the right, and lifted ~110 screen px off the bottom edge so it clears the chat strip too. The uiZones below are pushed in the same world coordinates the pointer handler hit-tests with, so the taps land exactly on the paint */
+  /* the panel is anchored to the VIEW, not to a fixed world spot (Jonathan 2026-11-01): parked under the chairs it slid under the HTML Stand up button, which hid the last bet amount and the end of the READY line. Each frame its world position is computed from the camera (camX/camY/VW/VH/SCALE) so that ON SCREEN it sits at the bottom of the visible view — centred, but shifted left far enough to clear the prompt button's column on the right, and lifted ~110 screen px off the bottom edge so it clears the chat strip too. The uiZones below are pushed in the same world coordinates the pointer handler hit-tests with, so the taps land exactly on the paint. On a PHONE that anchoring changes (see the PS block below): centred outright, scaled up, lifted higher */
   const cpuI = bowlCpuSeatIdx(st);
   const showCpu = st.phase === "bet" && (cpuI >= 0 || bowlCpuOffered(st)); /* the CPU row only exists in the bet phase, and only while I am the lane's only human (or it is already armed) */
-  const P = { x: 0, y: 0, w: 560, h: showCpu ? 196 : 156 };
-  const scrW = P.w * SCALE, reserve = VW >= 700 ? 280 : 190; /* the prompt button's column: a wide pill on desktop, a narrower one on a phone */
-  P.x = camX + Math.max(8, Math.min((VW - scrW) / 2, VW - reserve - scrW)) / SCALE;
-  P.y = camY + (VH - 110) / SCALE - P.h;
+  /* on a phone (the page's own coarse-pointer test, the one the joystick and run button answer to) the panel is CENTRED, BIGGER and HIGHER (Jonathan 2026-11-01): centred — the desktop shift-left that dodges the Stand up pill is dropped, because on a phone the pill sits bottom-centre BELOW the panel's new height; bigger — PS scales the panel to 644 wide, and every offset, button, row and font in the body below is written in unscaled panel units multiplied by PS (uiZones included), so at PS = 1 the desktop panel is exactly the one it always was; higher — a 180 screen-px bottom margin instead of 110, lifting the panel clear of the joystick and the Stand up row */
+  const bowlMob = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  const PS = bowlMob ? 1.15 : 1;
+  const P = { x: 0, y: 0, w: 560 * PS, h: (showCpu ? 196 : 156) * PS };
+  const scrW = P.w * SCALE;
+  if (bowlMob) {
+    P.x = camX + Math.max(8, (VW - scrW) / 2) / SCALE;
+    P.y = camY + (VH - 180) / SCALE - P.h;
+  } else {
+    const reserve = VW >= 700 ? 280 : 190; /* the prompt button's column: a wide pill on desktop, a narrower one on a phone-width window */
+    P.x = camX + Math.max(8, Math.min((VW - scrW) / 2, VW - reserve - scrW)) / SCALE;
+    P.y = camY + (VH - 110) / SCALE - P.h;
+  }
   const cx = P.x + P.w / 2; /* the panel's own centre — every line below centres on the panel */
-  ctx.fillStyle = "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16); ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16); ctx.stroke();
+  ctx.fillStyle = "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.fill();
+  ctx.strokeStyle = "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.stroke();
   ctx.textAlign = "center";
   if (st.phase === "bet") {
-    ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("LANE " + (bowlSeatT + 1) + " — YOUR BET: " + (mine.bet > 0 ? "🪙 " + Number(mine.bet).toLocaleString("en-US") : "none yet"), cx, P.y + 30);
+    ctx.font = "800 " + Math.round(20 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("LANE " + (bowlSeatT + 1) + " — YOUR BET: " + (mine.bet > 0 ? "🪙 " + Number(mine.bet).toLocaleString("en-US") : "none yet"), cx, P.y + 30 * PS);
     CH_BETS.forEach((amt, k) => {
-      const bx = P.x + 13 + (k % 6) * 90, by = P.y + 44 + Math.floor(k / 6) * 36, sel = mine.bet === amt;
-      ctx.fillStyle = sel ? "#ffd76a" : "rgba(42,16,82,0.95)"; rr(bx, by, 84, 30, 9); ctx.fill();
-      ctx.strokeStyle = sel ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 1.5; rr(bx, by, 84, 30, 9); ctx.stroke();
-      ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = sel ? "#241a08" : "#e9d5ff";
-      ctx.fillText(amt >= 1000 ? (amt / 1000) + "k" : String(amt), bx + 42, by + 20);
-      uiZones.push({ x: bx, y: by, w: 84, h: 30, fn: () => bowlBet(amt) });
+      const bx = P.x + 13 * PS + (k % 6) * 90 * PS, by = P.y + 44 * PS + Math.floor(k / 6) * 36 * PS, sel = mine.bet === amt;
+      ctx.fillStyle = sel ? "#ffd76a" : "rgba(42,16,82,0.95)"; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.fill();
+      ctx.strokeStyle = sel ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 1.5; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.stroke();
+      ctx.font = "800 " + Math.round(15 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = sel ? "#241a08" : "#e9d5ff";
+      ctx.fillText(amt >= 1000 ? (amt / 1000) + "k" : String(amt), bx + 42 * PS, by + 20 * PS);
+      uiZones.push({ x: bx, y: by, w: 84 * PS, h: 30 * PS, fn: () => bowlBet(amt) });
     });
-    const ry = P.y + 116;
-    ctx.fillStyle = mine.bet > 0 ? (mine.rdy ? "#1d5c33" : "#3b1470") : "rgba(40,40,55,0.9)"; rr(P.x + 13, ry, P.w - 26, 32, 9); ctx.fill();
-    ctx.strokeStyle = mine.rdy ? "#7dffb0" : "rgba(192,132,252,0.6)"; ctx.lineWidth = 1.5; rr(P.x + 13, ry, P.w - 26, 32, 9); ctx.stroke();
-    ctx.font = "800 16px 'Segoe UI',sans-serif"; ctx.fillStyle = mine.bet > 0 ? "#eaf6ff" : "rgba(220,220,230,0.5)";
-    ctx.fillText(mine.bet > 0 ? (mine.rdy ? "✓ READY — tap to unready" : cpuI >= 0 ? "✔ READY — start your 1v1 vs the CPU" : "✔ READY — start when 2+ match bets and ready up") : "place a bet first", cx, ry + 21);
-    uiZones.push({ x: P.x + 13, y: ry, w: P.w - 26, h: 32, fn: () => bowlReady() });
+    const ry = P.y + 116 * PS;
+    ctx.fillStyle = mine.bet > 0 ? (mine.rdy ? "#1d5c33" : "#3b1470") : "rgba(40,40,55,0.9)"; rr(P.x + 13 * PS, ry, P.w - 26 * PS, 32 * PS, 9 * PS); ctx.fill();
+    ctx.strokeStyle = mine.rdy ? "#7dffb0" : "rgba(192,132,252,0.6)"; ctx.lineWidth = 1.5; rr(P.x + 13 * PS, ry, P.w - 26 * PS, 32 * PS, 9 * PS); ctx.stroke();
+    ctx.font = "800 " + Math.round(16 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = mine.bet > 0 ? "#eaf6ff" : "rgba(220,220,230,0.5)";
+    ctx.fillText(mine.bet > 0 ? (mine.rdy ? "✓ READY — tap to unready" : cpuI >= 0 ? "✔ READY — start your 1v1 vs the CPU" : "✔ READY — start when 2+ match bets and ready up") : "place a bet first", cx, ry + 21 * PS);
+    uiZones.push({ x: P.x + 13 * PS, y: ry, w: P.w - 26 * PS, h: 32 * PS, fn: () => bowlReady() });
     if (showCpu) { /* the CPU row (Jonathan 2026-11-01): arm the house for a 1v1 while I am alone at the lane, or stand it down */
-      const ty = P.y + 156, armed = cpuI >= 0;
-      ctx.fillStyle = armed ? "#1d5c33" : "#3b1470"; rr(P.x + 13, ty, P.w - 26, 32, 9); ctx.fill();
-      ctx.strokeStyle = armed ? "#7dffb0" : "rgba(192,132,252,0.6)"; ctx.lineWidth = 1.5; rr(P.x + 13, ty, P.w - 26, 32, 9); ctx.stroke();
-      ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-      ctx.fillText(armed ? "🤖 CPU ARMED — it matches your bet · tap to stand it down" : "🤖 PLAY vs CPU — the house matches your bet", cx, ty + 21);
-      uiZones.push({ x: P.x + 13, y: ty, w: P.w - 26, h: 32, fn: () => bowlCpuToggle() });
+      const ty = P.y + 156 * PS, armed = cpuI >= 0;
+      ctx.fillStyle = armed ? "#1d5c33" : "#3b1470"; rr(P.x + 13 * PS, ty, P.w - 26 * PS, 32 * PS, 9 * PS); ctx.fill();
+      ctx.strokeStyle = armed ? "#7dffb0" : "rgba(192,132,252,0.6)"; ctx.lineWidth = 1.5; rr(P.x + 13 * PS, ty, P.w - 26 * PS, 32 * PS, 9 * PS); ctx.stroke();
+      ctx.font = "800 " + Math.round(15 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+      ctx.fillText(armed ? "🤖 CPU ARMED — it matches your bet · tap to stand it down" : "🤖 PLAY vs CPU — the house matches your bet", cx, ty + 21 * PS);
+      uiZones.push({ x: P.x + 13 * PS, y: ty, w: P.w - 26 * PS, h: 32 * PS, fn: () => bowlCpuToggle() });
     }
   } else if (st.phase === "play") {
     const card = bowlScorecard((st.rolls && st.rolls[bowlSeatI]) || []);
     const turnSeat = st.seats && st.seats[st.turnSeat];
-    ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("FRAME " + (st.frame || 1) + " / 10 · POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), cx, P.y + 34);
-    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-    ctx.fillText(st.turnSeat === bowlSeatI ? "🎳 YOUR THROW — pull back on the lane, release to roll" : "🎳 " + ((turnSeat && turnSeat.name) || "…") + " to throw", cx, P.y + 72);
-    ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
-    ctx.fillText("Your score so far: " + card.total, cx, P.y + 106);
+    ctx.font = "800 " + Math.round(20 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("FRAME " + (st.frame || 1) + " / 10 · POT 🪙 " + Number(st.pot || 0).toLocaleString("en-US"), cx, P.y + 34 * PS);
+    ctx.font = "700 " + Math.round(19 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+    ctx.fillText(st.turnSeat === bowlSeatI ? "🎳 YOUR THROW — pull back on the lane, release to roll" : "🎳 " + ((turnSeat && turnSeat.name) || "…") + " to throw", cx, P.y + 72 * PS);
+    ctx.font = "700 " + Math.round(17 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
+    ctx.fillText("Your score so far: " + card.total, cx, P.y + 106 * PS);
   } else if (st.phase === "done") {
     const myRes = st.results && st.results[bowlSeatI];
-    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
-    ctx.fillText("🎳 GAME OVER 🎳", cx, P.y + 40);
-    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
-    ctx.fillText(myRes ? (myRes.amt > (mine.bet || 0) ? "You won 🪙 " + Number(myRes.amt).toLocaleString("en-US") + "!" : myRes.amt > 0 ? "A tie — your bet came back." : "Your final score: " + ((st.totals && st.totals[bowlSeatI]) || 0)) : "Final scores are on the lane screens.", cx, P.y + 78);
-    ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
-    ctx.fillText("Bets reset — stake again for a rematch.", cx, P.y + 112);
+    ctx.font = "800 " + Math.round(22 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
+    ctx.fillText("🎳 GAME OVER 🎳", cx, P.y + 40 * PS);
+    ctx.font = "700 " + Math.round(19 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff";
+    ctx.fillText(myRes ? (myRes.amt > (mine.bet || 0) ? "You won 🪙 " + Number(myRes.amt).toLocaleString("en-US") + "!" : myRes.amt > 0 ? "A tie — your bet came back." : "Your final score: " + ((st.totals && st.totals[bowlSeatI]) || 0)) : "Final scores are on the lane screens.", cx, P.y + 78 * PS);
+    ctx.font = "700 " + Math.round(16 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(220,200,255,0.85)";
+    ctx.fillText("Bets reset — stake again for a rematch.", cx, P.y + 112 * PS);
   }
 }
 function drawBowling(t) {
