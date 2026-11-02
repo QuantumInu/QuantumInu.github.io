@@ -9955,56 +9955,49 @@ function drawBuysBoard(t) {
   });
 }
 function drawPlazaBoards(t) { drawStatsBoard(t); drawBuysBoard(t); }
-/* ============ HALLOWEEN DECOR — PLAZA ONLY (temporary, Jonathan 2026-10-30; revert on Nov 1 by restoring hub-preview-build.html-pre-halloween) ============
-   Pumpkins clustered at the base edges of every plaza building and flanking the two holder boards, spiderwebs tucked into the top corners of the buildings and boards, and scarecrows standing among the plaza trees. Pure canvas scenery drawn at the end of drawPlaza, in the same ground/decor layer treatment as the trees and boards: no image assets, no audio, no collision, hitbox, interaction, spawn, path, door or layout changes — obstacles() is untouched, every door tile and the spawn circle stay clear, and players draw over the decor in the frame pass exactly like they draw over the trees. Nothing outside the plaza scene calls any of this. */
-const HW_PUMPKIN_SPOTS = [ /* [centreX, groundY, scale, jack-o'-lantern?] — spread along each base, clear of every door + awning (door spans noted per building) */
+/* ============ FALL DECOR — PLAZA ONLY (Thanksgiving, Jonathan 2026-11-02, PREVIEW; replaces the Halloween block at his word — webs, carved faces and scarecrows off, fall on) ============
+   Plain uncarved pumpkins clustered at the base edges of every plaza building and flanking the two holder boards (the Halloween block's own spots), drifts of autumn leaves scattered on the ground where the scarecrows stood and along the paths and building bases, golden hay bales at the tree spots, and a simple turkey by each ground-level bale, each roaming gently around its home spot. Pure canvas scenery drawn at the end of drawPlaza, in the same ground/decor layer treatment as the trees and boards: no image assets, no audio, no collision, hitbox, interaction, spawn, path, door or layout changes — obstacles() is untouched, every door tile and the spawn circle stay clear, and players draw over the decor in the frame pass exactly like they draw over the trees. Nothing outside the plaza scene calls any of this. */
+const FALL_PUMPKIN_SPOTS = [ /* [centreX, groundY, scale] — spread along each base, clear of every door + awning (door spans noted per building) */
   /* the arcade (BUILDING, base y510; door 1560..1640, awning 1512..1683) */
-  [1308, 524, 0.95, 0], [1352, 530, 0.66, 1], [1396, 522, 0.80, 0],
-  [1804, 522, 0.80, 1], [1848, 530, 0.62, 0], [1892, 524, 0.98, 0],
+  [1308, 524, 0.95], [1352, 530, 0.66], [1396, 522, 0.80],
+  [1804, 522, 0.80], [1848, 530, 0.62], [1892, 524, 0.98],
   /* the Speedway building (SPD_B, base y510; door 525..615, awning 477..648) */
-  [118, 524, 0.90, 1], [162, 530, 0.60, 0], [206, 522, 0.78, 0],
-  [934, 522, 0.78, 0], [978, 530, 0.60, 1], [1022, 524, 0.92, 0],
+  [118, 524, 0.90], [162, 530, 0.60], [206, 522, 0.78],
+  [934, 522, 0.78], [978, 530, 0.60], [1022, 524, 0.92],
   /* the Sports Complex (GYM_B, base y510; door 2585..2675, awning 2537..2708) */
-  [2172, 524, 0.92, 0], [2216, 530, 0.62, 1], [2260, 522, 0.80, 0],
-  [2940, 522, 0.80, 0], [2984, 530, 0.62, 0], [3028, 524, 0.95, 1],
+  [2172, 524, 0.92], [2216, 530, 0.62], [2260, 522, 0.80],
+  [2940, 522, 0.80], [2984, 530, 0.62], [3028, 524, 0.95],
   /* Club Quantum (CLUB, base y1480; door 310..390, awning 262..433) */
-  [176, 1494, 0.90, 1], [218, 1500, 0.60, 0],
-  [486, 1500, 0.62, 0], [528, 1494, 0.88, 0],
+  [176, 1494, 0.90], [218, 1500, 0.60],
+  [486, 1500, 0.62], [528, 1494, 0.88],
   /* the casino building (SIL_R, base y1480; door 2805..2885, glow 2797..2901) */
-  [2606, 1494, 0.88, 0], [2648, 1500, 0.60, 1],
-  [3036, 1500, 0.60, 0], [3078, 1494, 0.90, 1],
+  [2606, 1494, 0.88], [2648, 1500, 0.60],
+  [3036, 1500, 0.60], [3078, 1494, 0.90],
   /* the two holder boards under the fountains (bases y1386; panels x 980..1320 and 1880..2220) — flanking each panel and at its posts' feet */
-  [946, 1400, 0.85, 1], [1354, 1400, 0.80, 0], [996, 1406, 0.55, 0], [1304, 1406, 0.55, 1],
-  [1846, 1400, 0.80, 0], [2254, 1400, 0.85, 1], [1904, 1406, 0.55, 1], [2196, 1406, 0.55, 0],
-  /* the Watchtower HQ portal clearing (portal centre 1600,2080, r120) — one jack-o'-lantern each side, clear of the portal circle and the spawn roundabout far above */
-  [1440, 2152, 1.00, 1], [1760, 2152, 1.00, 1],
-  /* the Horse Track building (HR_B, base y510; door 3725..3815) — the same treatment as every other plaza building (PREVIEW round 2, Jonathan 2026-10-30): clusters flanking the door, clear of it and of the apron lamps below */
-  [3312, 524, 0.92, 0], [3356, 530, 0.62, 1], [3400, 522, 0.80, 0],
-  [4080, 522, 0.80, 0], [4124, 530, 0.62, 0], [4168, 524, 0.95, 1]
+  [946, 1400, 0.85], [1354, 1400, 0.80], [996, 1406, 0.55], [1304, 1406, 0.55],
+  [1846, 1400, 0.80], [2254, 1400, 0.85], [1904, 1406, 0.55], [2196, 1406, 0.55],
+  /* the Watchtower HQ portal clearing (portal centre 1600,2080, r120) — one plain pumpkin each side, clear of the portal circle and the spawn roundabout far above */
+  [1440, 2152, 1.00], [1760, 2152, 1.00],
+  /* the Horse Track building (HR_B, base y510; door 3725..3815) — clusters flanking the door, clear of it and of the apron lamps below */
+  [3312, 524, 0.92], [3356, 530, 0.62], [3400, 522, 0.80],
+  [4080, 522, 0.80], [4124, 530, 0.62], [4168, 524, 0.95]
 ];
-const HW_WEBS = [ /* [cornerX, cornerY, radius, sx, sy] — quarter webs tucked into top corners (sx/sy point the web into the surface) */
-  [1286, 136, 76, 1, 1], [1914, 136, 76, -1, 1], /* arcade */
-  [76, 176, 70, 1, 1], [1064, 176, 70, -1, 1], /* Speedway building */
-  [2136, 176, 70, 1, 1], [3124, 176, 70, -1, 1], /* Sports Complex */
-  [146, 1186, 60, 1, 1], [554, 1186, 60, -1, 1], /* Club Quantum */
-  [2576, 1186, 60, 1, 1], [3124, 1186, 60, -1, 1], /* casino building */
-  [986, 1142, 52, 1, 1], [1314, 1142, 52, -1, 1], /* stats (holders) board */
-  [1886, 1142, 52, 1, 1], [2214, 1142, 52, -1, 1], /* buys board */
-  [3276, 176, 70, 1, 1], [4264, 176, 70, -1, 1] /* Horse Track building — its top corners, the Sports Complex's own web spots one building east */
+const FALL_LEAF_SPOTS = [ /* [centreX, groundY, radius, seed] — drifts of fallen leaves: the four tree-side grounds the scarecrows held and the Horse Track corner, plus scatter along the walkway edges and building bases drawn from the pumpkin rows */
+  [512, 1168, 64, 1], [2688, 1168, 64, 2], [618, 1918, 68, 3], [2582, 1918, 68, 4], [3224, 556, 56, 5],
+  [1470, 545, 48, 6], [2820, 545, 48, 7], [3800, 545, 48, 8],
+  [900, 1420, 52, 9], [2300, 1420, 52, 10],
+  [1000, 884, 44, 11], [2200, 884, 44, 12],
+  [700, 1704, 48, 13], [2900, 1704, 48, 14]
 ];
-const HW_SCARECROWS = [ /* [x, groundY, scale, shirt] — each stands beside a plaza quantumTree: (430,1150), (2770,1150), (700,1900), (2500,1900) */
-  [512, 1168, 1.02, "#b8412f"], [2688, 1168, 1.02, "#3f6fb5"], [618, 1918, 1.06, "#7a4fa3"], [2582, 1918, 1.06, "#4d8a4f"],
-  [3224, 556, 1.02, "#a31630"] /* the fifth stands at the Horse Track building's west corner in racing burgundy (PREVIEW round 2) — same decor system, comes off with everything else when the Halloween cleanup is called */
+const FALL_HAY_SPOTS = [ /* [x, groundY, scale] — golden bales: the west bale stands roadside south of the west walkway (moved off Club Quantum's roofline, Jonathan 2026-11-02), plus one tree spot and the Horse Track building's west corner */
+  [760, 905, 1.00], [2582, 1918, 1.05], [3224, 556, 1.00]
 ];
-function hwPumpkin(x, gy, s, jack, seed, t) {
+const FALL_TURKEY_SPOTS = [ /* [homeX, homeGroundY, scale] — one turkey beside each ground-level bale, clear of the paths and the trees; each roams gently around its home (see fallTurkey) and never strays far from it */
+  [854, 909, 1.00], [2488, 1922, 1.00]
+];
+function fallPumpkin(x, gy, s, seed) { /* the Halloween pumpkin with the carving left off: same body, ribs and stem, no face, no candle glow */
   const w = 27 * s, h = 21 * s, cy = gy - h + 2;
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, gy + 2, w * 0.95, 5.5 * s, 0, 0, 7); ctx.fill();
-  if (jack) { /* the candle inside throws a soft warm pool of light, breathing a little */
-    const fl = 0.30 + 0.07 * Math.sin(t / 170 + seed * 2.3);
-    const gg = ctx.createRadialGradient(x, cy, 4, x, cy, 52 * s);
-    gg.addColorStop(0, "rgba(255,176,66," + fl + ")"); gg.addColorStop(1, "rgba(255,176,66,0)");
-    ctx.fillStyle = gg; ctx.beginPath(); ctx.ellipse(x, cy, 52 * s, 40 * s, 0, 0, 7); ctx.fill();
-  }
   const og = ctx.createRadialGradient(x - w * 0.3, cy - h * 0.4, 3, x, cy, w * 1.15);
   og.addColorStop(0, "#ffa53a"); og.addColorStop(0.65, "#ef7d12"); og.addColorStop(1, "#d86408");
   ctx.fillStyle = og; ctx.beginPath(); ctx.ellipse(x, cy, w, h, 0, 0, 7); ctx.fill();
@@ -10012,75 +10005,79 @@ function hwPumpkin(x, gy, s, jack, seed, t) {
   [0.36, 0.68].forEach(fr => { ctx.beginPath(); ctx.ellipse(x, cy, w * fr, h * 0.95, 0, 0, 7); ctx.stroke(); });
   ctx.save(); ctx.translate(x, cy - h + 3); ctx.rotate(-0.18 + (seed % 5) * 0.09);
   ctx.fillStyle = "#5d7a2a"; ctx.fillRect(-3 * s, -10 * s, 6 * s, 11 * s); ctx.restore();
-  if (jack) { /* carved face lit from inside: two triangle eyes, a nose, a jagged grin */
-    ctx.save(); ctx.shadowColor = "#ffb03a"; ctx.shadowBlur = 12; ctx.fillStyle = "#ffd76a";
-    const ey = cy - 5 * s;
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(x + side * 11 * s - 5.5 * s, ey + 4.5 * s); ctx.lineTo(x + side * 11 * s, ey - 6 * s); ctx.lineTo(x + side * 11 * s + 5.5 * s, ey + 4.5 * s);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.beginPath(); ctx.moveTo(x - 3 * s, ey + 7 * s); ctx.lineTo(x + 3 * s, ey + 7 * s); ctx.lineTo(x, ey + 2.5 * s); ctx.closePath(); ctx.fill();
-    const my = cy + 7 * s;
-    ctx.beginPath(); ctx.moveTo(x - 13 * s, my);
-    [[-8, 5.5], [-4, 1], [0, 6], [4, 1], [8, 5.5], [13, 0.5]].forEach(p => ctx.lineTo(x + p[0] * s, my + p[1] * s));
-    ctx.lineTo(x + 13 * s, my + 8 * s); ctx.lineTo(x - 13 * s, my + 8 * s); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  }
 }
-function hwWeb(x, y, r, sx, sy) {
-  ctx.save();
-  const dirs = [];
-  for (let k = 0; k <= 4; k++) { const a = k * Math.PI / 8; dirs.push([Math.cos(a) * sx, Math.sin(a) * sy]); }
-  ctx.strokeStyle = "rgba(235,245,255,0.50)"; ctx.lineWidth = 1.5;
-  for (const d of dirs) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + d[0] * r, y + d[1] * r); ctx.stroke(); }
-  ctx.strokeStyle = "rgba(235,245,255,0.42)";
-  [0.34, 0.58, 0.82].forEach(f => { /* concentric arcs, each sagging toward the corner between spokes — the classic web curve */
-    ctx.beginPath();
-    dirs.forEach((d, k) => {
-      const px = x + d[0] * r * f, py = y + d[1] * r * f;
-      if (k === 0) ctx.moveTo(px, py);
-      else { const pd = dirs[k - 1]; ctx.quadraticCurveTo(x + (pd[0] + d[0]) / 2 * r * f * 0.86, y + (pd[1] + d[1]) / 2 * r * f * 0.86, px, py); }
-    });
-    ctx.stroke();
-  });
+function fallLeaf(x, y, s, rot, col) { /* one fallen leaf: a pointed oval with a centre vein */
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.moveTo(0, -7 * s); ctx.quadraticCurveTo(5.5 * s, -2 * s, 0, 7 * s); ctx.quadraticCurveTo(-5.5 * s, -2 * s, 0, -7 * s); ctx.fill();
+  ctx.strokeStyle = "rgba(90,40,10,0.45)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, -6 * s); ctx.lineTo(0, 8 * s); ctx.stroke();
   ctx.restore();
 }
-function hwScarecrow(x, gy, s, shirt) {
-  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, gy + 3, 30 * s, 7 * s, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = "#6b4a2a"; /* the post and the arm crossbar */
-  ctx.fillRect(x - 3.5 * s, gy - 118 * s, 7 * s, 118 * s);
-  ctx.fillRect(x - 54 * s, gy - 96 * s, 108 * s, 6 * s);
-  ctx.strokeStyle = shirt; ctx.lineWidth = 13 * s; ctx.lineCap = "round"; /* sleeves along the outstretched arms */
-  ctx.beginPath(); ctx.moveTo(x - 52 * s, gy - 93 * s); ctx.lineTo(x + 52 * s, gy - 93 * s); ctx.stroke();
-  ctx.strokeStyle = "#e8c85a"; ctx.lineWidth = 2.2; /* straw poking out of both cuffs */
-  for (const e of [-1, 1]) for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(x + e * 54 * s, gy - 93 * s); ctx.lineTo(x + e * (62 + Math.abs(i)) * s, gy - 93 * s + i * 3.4 * s); ctx.stroke(); }
-  ctx.fillStyle = shirt; /* the shirt torso */
-  ctx.beginPath(); ctx.moveTo(x - 15 * s, gy - 104 * s); ctx.lineTo(x + 15 * s, gy - 104 * s); ctx.lineTo(x + 21 * s, gy - 52 * s); ctx.lineTo(x - 21 * s, gy - 52 * s); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = "#31497f"; /* trousers: two legs with a notch, hanging to the ground */
-  ctx.beginPath(); ctx.moveTo(x - 21 * s, gy - 52 * s); ctx.lineTo(x + 21 * s, gy - 52 * s); ctx.lineTo(x + 17 * s, gy - 4 * s); ctx.lineTo(x + 4 * s, gy - 4 * s); ctx.lineTo(x, gy - 30 * s); ctx.lineTo(x - 4 * s, gy - 4 * s); ctx.lineTo(x - 17 * s, gy - 4 * s); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = "#e8c85a"; ctx.lineWidth = 2.2; /* straw spilling at the waist */
-  for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(x + i * 8 * s, gy - 52 * s); ctx.lineTo(x + i * 10 * s, gy - 42 * s); ctx.stroke(); }
-  const hy = gy - 122 * s; /* the burlap head with a stitched smile */
-  ctx.fillStyle = "#d8b98a"; ctx.beginPath(); ctx.arc(x, hy, 16.5 * s, 0, 7); ctx.fill();
-  ctx.strokeStyle = "rgba(120,86,40,0.6)"; ctx.lineWidth = 1.4; ctx.stroke();
-  ctx.fillStyle = "#2a1c10";
-  ctx.beginPath(); ctx.arc(x - 6 * s, hy - 2 * s, 1.9 * s, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + 6 * s, hy - 2 * s, 1.9 * s, 0, 7); ctx.fill();
-  ctx.strokeStyle = "#2a1c10"; ctx.lineWidth = 1.6;
-  ctx.beginPath(); ctx.arc(x, hy + 3.5 * s, 6.5 * s, 0.25, Math.PI - 0.25); ctx.stroke();
-  ctx.fillStyle = "#d9a441"; /* the straw hat: wide brim + crown with a red band */
-  ctx.beginPath(); ctx.ellipse(x, hy - 12 * s, 27 * s, 7 * s, 0, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(x - 13 * s, hy - 13 * s); ctx.lineTo(x - 8 * s, hy - 27 * s); ctx.lineTo(x + 8 * s, hy - 27 * s); ctx.lineTo(x + 13 * s, hy - 13 * s); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = "#8a3324"; ctx.fillRect(x - 12.5 * s, hy - 16.5 * s, 25 * s, 4.5 * s);
+function fallLeafPile(x, gy, r, seed) { /* a drift of leaves on the ground: a soft russet shadow pool, then deterministic scattered leaves in orange, rust, gold and brown (the drawPlaza ground sparkle's own sin-hash trick, so the drift never shimmers between frames) */
+  ctx.fillStyle = "rgba(70,32,8,0.35)"; ctx.beginPath(); ctx.ellipse(x, gy, r, r * 0.30, 0, 0, 7); ctx.fill();
+  const cols = ["#e07b26", "#c33d1e", "#e8a91c", "#8a5a1d", "#b3541e", "#d94f1e"];
+  for (let i = 0; i < 26; i++) {
+    const ha = Math.sin(seed * 91.7 + i * 127.1) * 43758.5453, hb = Math.sin(seed * 57.3 + i * 311.7) * 12543.123;
+    const fx = ha - Math.floor(ha), fy = hb - Math.floor(hb);
+    fallLeaf(x + (fx * 2 - 1) * r * 0.92, gy + (fy * 2 - 1) * r * 0.26, 0.8 + ((i * 37) % 5) * 0.12, fx * 6.28, cols[(i + seed) % cols.length]);
+  }
 }
-function drawHalloweenPlaza(t) {
-  HW_PUMPKIN_SPOTS.forEach((p, i) => hwPumpkin(p[0], p[1], p[2], p[3], i, t));
-  HW_SCARECROWS.forEach(c => hwScarecrow(c[0], c[1], c[2], c[3]));
-  HW_WEBS.forEach(w => hwWeb(w[0], w[1], w[2], w[3], w[4]));
+function fallHayBale(x, gy, s) { /* a golden rectangular bale: banded straw, two twine straps, loose straw poking off the top */
+  const w = 74 * s, h = 44 * s, top = gy - h;
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, gy + 3, w * 0.55, 6 * s, 0, 0, 7); ctx.fill();
+  const hg = ctx.createLinearGradient(0, top, 0, gy);
+  hg.addColorStop(0, "#e8bd55"); hg.addColorStop(0.6, "#d9a83c"); hg.addColorStop(1, "#b9822a");
+  ctx.fillStyle = hg; rr(x - w / 2, top, w, h, 7 * s); ctx.fill();
+  ctx.strokeStyle = "rgba(146,104,20,0.55)"; ctx.lineWidth = 1.6;
+  [0.3, 0.55, 0.8].forEach(fr => { ctx.beginPath(); ctx.moveTo(x - w / 2 + 3, top + h * fr); ctx.lineTo(x + w / 2 - 3, top + h * fr); ctx.stroke(); });
+  ctx.strokeStyle = "rgba(110,72,14,0.8)"; ctx.lineWidth = 3 * s;
+  [-0.28, 0.28].forEach(fr => { ctx.beginPath(); ctx.moveTo(x + fr * w, top + 2); ctx.lineTo(x + fr * w, gy - 2); ctx.stroke(); });
+  ctx.strokeStyle = "rgba(240,205,110,0.8)"; ctx.lineWidth = 1.6;
+  for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(x + i * 9 * s, top + 1); ctx.lineTo(x + i * 11 * s, top - 6 * s); ctx.stroke(); }
+}
+function fallTurkey(hx, hy, s, seed, t) { /* a simple Thanksgiving turkey: banded tail fan, plump body, red wattle — and it ROAMS (Jonathan 2026-11-02): a slow deterministic wander on the stepped decor clock, two sine waves per axis so it meanders, slows and pauses at the turns, and stays within ~50px of home — never near a door, path edge or building. Purely local decor like everything in this block: no collision, no obstacle entry, nothing synced, and every client computes the same spot from the same clock. Now and then it stops and pecks at the ground. */
+  const wx = (Math.sin(t / 6100 + seed * 2.39) * 34 + Math.sin(t / 2740 + seed * 1.13) * 16) * s;
+  const wy = (Math.sin(t / 4700 + seed * 3.71) * 13 + Math.sin(t / 1930 + seed * 0.77) * 7) * s;
+  const x = hx + wx, gy = hy + wy;
+  const face = (Math.cos(t / 6100 + seed * 2.39) * 34 / 6100 + Math.cos(t / 2740 + seed * 1.13) * 16 / 2740) < 0 ? -1 : 1; /* it faces the way it is drifting */
+  const peck = Math.sin(t / 8300 + seed * 4.3) > 0.55 ? Math.abs(Math.sin(t / 260)) * 5 * s : 0; /* pecking bouts: the head dips to the ground in quick little bobs */
+  const bobY = Math.sin(t / 520 + seed * 2.1) * 1.5 * s;
+  const by = gy - 30 * s + bobY;
+  ctx.save(); ctx.translate(x, 0); if (face < 0) ctx.scale(-1, 1); ctx.translate(-x, 0);
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, gy + 2, 27 * s, 5.5 * s, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#d9a441"; ctx.lineWidth = 2.4 * s;
+  ctx.beginPath(); ctx.moveTo(x - 6 * s, gy - 16 * s + bobY); ctx.lineTo(x - 7 * s, gy); ctx.moveTo(x + 6 * s, gy - 16 * s + bobY); ctx.lineTo(x + 7 * s, gy); ctx.stroke();
+  const fanCols = ["#6e4520", "#a06a28", "#c33d1e", "#b3541e"];
+  for (let i = 0; i < 7; i++) {
+    ctx.save(); ctx.translate(x - 6 * s, by + 4 * s); ctx.rotate(-Math.PI / 2 + (i - 3) * 0.30);
+    ctx.fillStyle = fanCols[i % fanCols.length];
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(6 * s, -16 * s, 0, -34 * s); ctx.quadraticCurveTo(-6 * s, -16 * s, 0, 0); ctx.fill();
+    ctx.fillStyle = "#e8c85a"; ctx.beginPath(); ctx.ellipse(0, -31 * s, 3.4 * s, 5 * s, 0, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  const bg = ctx.createRadialGradient(x - 6 * s, by - 8 * s, 3, x, by, 30 * s);
+  bg.addColorStop(0, "#8a5a30"); bg.addColorStop(1, "#5d3a1a");
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.ellipse(x, by, 21 * s, 16 * s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#6e4520"; ctx.beginPath(); ctx.ellipse(x + 8 * s, by + 1 * s, 12 * s, 9 * s, -0.5, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(240,205,110,0.5)"; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.ellipse(x + 8 * s, by + 1 * s, 8 * s, 5.5 * s, -0.5, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "#7a4a22"; ctx.lineWidth = 6 * s; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x + 16 * s, by - 6 * s); ctx.lineTo(x + 21 * s, by - 18 * s + peck); ctx.stroke();
+  ctx.fillStyle = "#8a5a30"; ctx.beginPath(); ctx.arc(x + 22 * s, by - 21 * s + peck, 6.5 * s, 0, 7); ctx.fill();
+  ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.ellipse(x + 24 * s, by - 14 * s + peck, 2.6 * s, 5 * s, 0.2, 0, 7); ctx.fill();
+  ctx.fillStyle = "#e8a91c"; ctx.beginPath(); ctx.moveTo(x + 27 * s, by - 22 * s + peck); ctx.lineTo(x + 33 * s, by - 20 * s + peck); ctx.lineTo(x + 27 * s, by - 18.5 * s + peck); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#1a1008"; ctx.beginPath(); ctx.arc(x + 23.5 * s, by - 22.5 * s + peck, 1.4 * s, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawFallPlaza(t) {
+  FALL_LEAF_SPOTS.forEach(p => fallLeafPile(p[0], p[1], p[2], p[3]));
+  FALL_PUMPKIN_SPOTS.forEach((p, i) => fallPumpkin(p[0], p[1], p[2], i));
+  FALL_HAY_SPOTS.forEach(hp => fallHayBale(hp[0], hp[1], hp[2]));
+  FALL_TURKEY_SPOTS.forEach((tp, i) => fallTurkey(tp[0], tp[1], tp[2], i, t));
 }
 function drawPlaza(t) {
-  t = decorT(t); /* decorT: at graphics 1/4 the plaza's ambient decor (fountains, chasing bulbs, building glows, tree sparkle, spawn atom, Halloween flicker) steps at ~15fps — players and sync are drawn elsewhere with real time */
+  t = decorT(t); /* decorT: at graphics 1/4 the plaza's ambient decor (fountains, chasing bulbs, building glows, tree sparkle, spawn atom, fall leaves) steps at ~15fps — players and sync are drawn elsewhere with real time */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   const CX = 1600, CY = 1010;
   const g = ctx.createRadialGradient(CX, CY, 140, CX, CY, 1020);
@@ -10316,7 +10313,7 @@ function drawPlaza(t) {
   ctx.fillStyle = "#38e1ff"; rr(DOOR.x, DOOR.y, DOOR.w, 10, 5); ctx.fill();
   ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#bffcff";
   ctx.fillText("▼ ENTER ▼", DOOR.x + DOOR.w / 2, DOOR.y + DOOR.h + 52);
-  drawHalloweenPlaza(t); /* HALLOWEEN DECOR (temporary, plaza only — see the block above drawPlaza): painted last in the plaza's ground/decor layer, over the buildings' bases and top corners, under the players */
+  drawFallPlaza(t); /* FALL DECOR (Thanksgiving, plaza only — see the block above drawPlaza): painted last in the plaza's ground/decor layer, over the buildings' bases, under the players */
   ctx.restore();
 }
 function drawClubBuilding(t) {
