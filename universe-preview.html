@@ -6481,7 +6481,7 @@ function bowlHostTick(t) {
       const betAmt = seats[ready[0]].bet, players = ready.slice().sort((a, b) => a - b);
       freshIdx.forEach(i => { if (players.indexOf(i) < 0 && (seats[i].bet || 0) > 0) { writeClaim(claimUid(seats[i]), rfKeyFor(key, st, i), seats[i].bet, "↩️ Bet returned"); tblUpd(key + "/seats/" + i, { bet: 0, rdy: false }); } }); /* a staked chair that is not part of this game never consented to it — its bet comes back through the rail and its stake clears */
       const rolls = {}; players.forEach(i => { rolls[i] = []; });
-      tblUpd(key, { phase: "play", mode: null, players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
+      tblUpd(key, { phase: "play", mode: null, players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
       return;
     }
     /* the 1v1 gate (Jonathan 2026-11-01): the CPU is armed, I am the lane's only fresh human, my bet is down and I am READY, and the CPU's record matches my bet — the game starts on MY ready, pot = twice my stake (the house covers the CPU's side, the pool/chess model) */
@@ -6490,7 +6490,7 @@ function bowlHostTick(t) {
       if ((seats[h].bet || 0) > 0 && seats[h].rdy && (seats[cpuSeatI].bet || 0) === seats[h].bet) {
         const betAmt = seats[h].bet, players = [h, cpuSeatI].sort((a, b) => a - b);
         const rolls = {}; players.forEach(i => { rolls[i] = []; });
-        tblUpd(key, { phase: "play", mode: "pc", players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
+        tblUpd(key, { phase: "play", mode: "pc", players, pot: betAmt * players.length, frame: 1, turnSeat: players[0], ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null, rolls, rolling: false, shotBy: null, shotTs: null, live: null, results: null, totals: null, playTs: Date.now() });
       }
     }
     return;
@@ -6504,7 +6504,7 @@ function bowlHostTick(t) {
       if (!st.rolling && active.indexOf(st.turnSeat) < 0) { /* the player to throw has left: their frame is skipped, scoring 0 for its balls */
         const nx = bowlAfterFrame(st);
         if (nx.over) bowlFinishGame(t, st, -1);
-        else tblUpd(key, { frame: nx.frame, turnSeat: nx.turnSeat, ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] });
+        else tblUpd(key, { frame: nx.frame, turnSeat: nx.turnSeat, ball: 0, rack: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], pinLay: null });
       }
     }
     return;
@@ -6542,45 +6542,107 @@ function bowlAimRelease() {
 function bowlShoot(a) {
   const t = bowlSeatT, st = bowlStates[t], cx = BOWLCX(t);
   const startX = cx + Math.max(-108, Math.min(108, a.dx * 156)); /* the pull's sideways lean sets the ball's line — the lean scaled to the widened boards (was ±62 of 75; now ±108 of 130) */
-  bowlSim = { t, x: startX, y: BOWL_FOUL_Y, vx: a.dx * 340, vy: -(640 + a.pow * 1020), rack: (st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]).slice(), lastPub: 0, gutter: false };
-  tblUpd(bowlKey(t), { rolling: true, shotBy: bowlSeatI, shotTs: Date.now(), live: { x: Math.round(startX * 10) / 10, y: BOWL_FOUL_Y, rack: bowlSim.rack } });
+  bowlSim = bowlNewSim(t, cx, startX, a.dx * 340, -(640 + a.pow * 1020), st);
+  tblUpd(bowlKey(t), { rolling: true, shotBy: bowlSeatI, shotTs: Date.now(), live: { x: Math.round(startX * 10) / 10, y: BOWL_FOUL_Y, rack: bowlSim.rack, pins: bowlPinsSnap(bowlSim) } });
   sfxBowlRoll();
 }
-function bowlKnockPins(sim, first) { /* the simple believable pin model: the struck pin falls, and every standing pin within a pin's reach of a falling one falls in a chain, likelier the faster the ball is travelling */
-  const cx = BOWLCX(sim.t), speedF = Math.max(0.45, Math.min(1, Math.abs(sim.vy) / 1100));
-  const seen = {}; seen[first] = true; const queue = [first]; let fell = 0;
-  while (queue.length) {
-    const i = queue.shift(); if (!sim.rack[i]) continue;
-    sim.rack[i] = 0; fell++;
-    const p = bowlPinPos(cx, i);
-    for (let j = 0; j < 10; j++) { if (!sim.rack[j] || seen[j]) continue; const q = bowlPinPos(cx, j); if (Math.hypot(p.x - q.x, p.y - q.y) <= 64 && Math.random() < 0.18 + 0.78 * speedF) { seen[j] = true; queue.push(j); } }
+/* ---- the pin deck's real physics (Jonathan 2026-11-01): the pins are BODIES now, not dice. Every standing pin is a circle of its drawn size with a position and a velocity; the ball arrives at six times a pin's mass carrying its real velocity, and they trade momentum in honest circle collisions — ball↔pin (the ball deflects and plows, paying speed and line for every pin it takes), pin↔pin (a struck pin flies or slides into its neighbours and can take them down), pin↔kickback (the deck's side walls bounce pins back into the rack). A pin TOPPLES when physics says so — knocked past BOWL_TOPPLE_V, shoved BOWL_TOPPLE_D off its spot, or driven into the pit — and a toppling pin keeps its momentum while it falls, so it can still take a neighbour down on the way over. No probability anywhere in the knockdown path: the same throw always knocks the same pins. The step is pure (nothing of the page inside it) and shared word for word by a player's throw and the CPU's; the thrower's client runs it at a fixed 240Hz and streams the pins' live positions in the snapshots, exactly as it has always streamed the ball ---- */
+const BOWL_PIN_R = 13, BOWL_BALL_R = 15; /* the drawn sizes: the pin glyph's circle and the ball's — the contact distance is their sum, the 28 the old model touched at */
+const BOWL_PIN_M = 1, BOWL_BALL_M = 6; /* a bowling ball outweighs a pin several times over: it plows through the rack, but every pin it takes costs it speed and line */
+const BOWL_TOPPLE_V = 135, BOWL_TOPPLE_D = 17; /* a pin moving faster than this (px/s), or shoved this far off the spot it started the ball on (px), cannot stay on its feet */
+const BOWL_WALL_OFF = 166, BOWL_PIT_Y = 330; /* the kickbacks stand this far either side of the lane's centre; a pin whose centre crosses the pit line (behind the back row) is gone */
+const BOWL_FALL_T = 0.30; /* seconds a toppling pin takes to finish falling — the tip-over the room sees, its direction taken from the pin's motion at the topple */
+function bowlSeedLay(st) { /* the resting layout a throw starts from: the record's pinLay when it agrees with the record's rack (the standing pins exactly where the last ball left them), else null — plain rack spots */
+  const rack = st && st.rack, lay = st && st.pinLay;
+  if (!rack || !lay) return null;
+  for (let i = 0; i < 10; i++) { if (!lay[i] || (lay[i][2] === 0) !== !!rack[i]) return null; }
+  return lay;
+}
+function bowlNewSim(t, cx, x, vx, vy, st) { /* a throw, ready to step: the ball at the foul line and the deck's bodies — the pins still standing (the fallen were swept between balls) at their resting layout, which the sim also keeps as prevLay so a swept pin's fall is still drawn where it fell */
+  const rack = (st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]).slice(), lay = bowlSeedLay(st);
+  const prevLay = [];
+  for (let i = 0; i < 10; i++) { const s = bowlPinPos(cx, i); prevLay.push(lay ? lay[i].slice() : [s.x, s.y, rack[i] ? 0 : 77, 0]); }
+  const pins = [];
+  for (let i = 0; i < 10; i++) { if (prevLay[i][2] !== 0) continue; pins.push({ i, x: prevLay[i][0], y: prevLay[i][1], sx: prevLay[i][0], sy: prevLay[i][1], vx: 0, vy: 0, down: false, fall: 0, fdx: 0, fdy: -1, fsign: 1, pit: false }); }
+  return { t, cx, x, y: BOWL_FOUL_Y, vx, vy, pins, rack, prevLay, lastPub: 0, gutter: false, ballDone: false, settleT: 0, fellFx: 0 };
+}
+function bowlTopple(sim, p, dx, dy) { /* the pin goes over: the fall's direction is the way it was moving (or being shoved) at this instant, and its momentum is untouched — it falls AS it flies, which is what lets it take a neighbour down during the fall */
+  p.down = true; if (!p.fall) p.fall = 0.0001;
+  const d = Math.hypot(dx, dy) || 1; p.fdx = dx / d; p.fdy = dy / d; p.fsign = p.fdx !== 0 ? Math.sign(p.fdx) : (p.fdy > 0 ? 1 : -1);
+  sim.rack[p.i] = 0; sim.fellFx++;
+}
+function bowlHit(a, b, ma, mb, e, rs) { /* one circle collision: part the pair along the line of centres (the heavier body gives less ground) and trade the impulse along it, with e of bounce. The ball is just body a — the sim object carries x/y/vx/vy like any pin */
+  const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+  if (d2 >= rs * rs || d2 === 0) return;
+  const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, ov = rs - d, tot = ma + mb;
+  a.x -= nx * ov * (mb / tot); a.y -= ny * ov * (mb / tot);
+  b.x += nx * ov * (ma / tot); b.y += ny * ov * (ma / tot);
+  const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+  if (rv < 0) { const j = -(1 + e) * rv / (1 / ma + 1 / mb); a.vx -= j * nx / ma; a.vy -= j * ny / ma; b.vx += j * nx / mb; b.vy += j * ny / mb; }
+}
+function bowlSubStep(sim, h) { /* one 1/240s tick of a throw: the ball's flight down the lane (the old sim's, untouched — same drag, same gutter), then the deck */
+  const cx = sim.cx;
+  if (!sim.ballDone) {
+    sim.x += sim.vx * h; sim.y += sim.vy * h;
+    sim.vy *= (1 - 0.10 * h); sim.vx *= (1 - 0.35 * h); /* rolling resistance */
+    if (!sim.gutter && Math.abs(sim.x - cx) > 131 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true; /* past the lane's edge the ball drops into the gutter and runs straight to the pit, touching nothing — the edge is the widened boards' own edge (131 = 130 + the ball's skin; the channel centre 145 is the gutter band's middle, 130..160) */
+    if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 145; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
   }
-  if (fell > 0) sfxBowlPins(fell);
+  const pins = sim.pins;
+  for (const p of pins) {
+    if (p.down && p.fall < 1) p.fall = Math.min(1, p.fall + h / BOWL_FALL_T); /* a toppling pin finishes its fall on its own clock, wherever it has got to */
+    if (p.pit) continue;
+    p.x += p.vx * h; p.y += p.vy * h;
+    const damp = 1 - Math.min(0.9, (p.down ? 2.6 : 2.0) * h); p.vx *= damp; p.vy *= damp; /* deck friction: a fallen, tumbling pin drags harder than a sliding standing one */
+    const wl = cx - (BOWL_WALL_OFF - BOWL_PIN_R), wr = cx + (BOWL_WALL_OFF - BOWL_PIN_R);
+    if (p.x < wl) { p.x = wl; p.vx = Math.abs(p.vx) * 0.45; } else if (p.x > wr) { p.x = wr; p.vx = -Math.abs(p.vx) * 0.45; } /* the kickbacks: pins bounce off the deck's side walls back into the rack */
+    if (p.y < BOWL_PIT_Y) { if (!p.down) bowlTopple(sim, p, p.vx, p.vy - 1); p.pit = true; p.y = BOWL_PIT_Y; p.vx = 0; p.vy = 0; if (p.fall < 0.6) p.fall = 0.6; } /* over the pit line the pin is down and out of the action */
+  }
+  if (!sim.gutter && !sim.ballDone && sim.y < 580) for (const p of pins) { if (!p.pit) bowlHit(sim, p, BOWL_BALL_M, BOWL_PIN_M, 0.25, BOWL_BALL_R + BOWL_PIN_R); } /* the ball meets the deck — every pin it reaches pushes back on it */
+  for (let a = 0; a < pins.length; a++) for (let b = a + 1; b < pins.length; b++) { if (!pins[a].pit && !pins[b].pit) bowlHit(pins[a], pins[b], BOWL_PIN_M, BOWL_PIN_M, 0.35, BOWL_PIN_R * 2); } /* pin action: a struck pin flies into its neighbours at full weight */
+  for (const p of pins) { /* what stays standing is only what the physics leaves near its spot and near still — no dice anywhere in it */
+    if (p.down || p.pit) continue;
+    const sp = Math.hypot(p.vx, p.vy);
+    if (sp > BOWL_TOPPLE_V) bowlTopple(sim, p, p.vx, p.vy);
+    else if (Math.hypot(p.x - p.sx, p.y - p.sy) > BOWL_TOPPLE_D) bowlTopple(sim, p, sp > 25 ? p.vx : p.x - p.sx, sp > 25 ? p.vy : p.y - p.sy);
+  }
+  if (!sim.ballDone && (sim.y < 306 || Math.abs(sim.vy) < 30)) sim.ballDone = true; /* the ball is in the pit or dead on the lane: the throw's ball is spent (the pins may still be settling) */
+}
+function bowlStepThrow(sim, dt) { /* advance a throw by a frame; returns true when the throw is completely over — ball spent AND every pin settled, so the count the caller scores is the pins' final word */
+  let rem = Math.min(dt, 0.05);
+  const sub = 1 / 240;
+  while (rem > 0) { const h = Math.min(sub, rem); rem -= h; bowlSubStep(sim, h); if (sim.ballDone) break; }
+  if (!sim.ballDone) return false;
+  while (sim.settleT < 1.6) { /* the pin action finishes on its own time: a pin still flying as the ball reaches the pit can still take a neighbour down */
+    bowlSubStep(sim, sub); sim.settleT += sub;
+    let mx = 0; for (const p of sim.pins) if (!p.pit) mx = Math.max(mx, Math.hypot(p.vx, p.vy));
+    if (mx < 30) break;
+  }
+  return true;
+}
+function bowlPinsSnap(sim) { /* the pins for a live snapshot: every pin's centre and fall (signed tip degrees, and the fall's direction), so the room watches the same pins fly — the pins swept in earlier balls ride their resting layout */
+  const out = [];
+  for (let i = 0; i < 10; i++) {
+    const p = sim.pins.find(q => q.i === i);
+    if (p) out.push([Math.round(p.x), Math.round(p.y), Math.round(p.fsign * p.fall * 77), p.down ? Math.round(Math.atan2(p.fdy, p.fdx) * 57.3) : 0]);
+    else out.push(sim.prevLay[i].slice());
+  }
+  return out;
+}
+function bowlPinsLayout(sim) { /* the resting layout a finished throw leaves on the record: fallen pins lying where they fell (angle and direction kept), standing pins standing where they ended up */
+  const out = sim.prevLay.map(e => e.slice());
+  for (const p of sim.pins) out[p.i] = [Math.round(p.x), Math.round(p.y), p.down ? Math.round(p.fsign * 77) : 0, p.down ? Math.round(Math.atan2(p.fdy, p.fdx) * 57.3) : 0];
+  return out;
 }
 function bowlFrameStep(dt) {
   if (!bowlSim) return;
   const sim = bowlSim, st = bowlStates[sim.t];
   if (!st || st.phase !== "play" || st.turnSeat !== bowlSeatI) { bowlSim = null; return; } /* my turn ended another way (a host skip, a reset) — the local ball goes away */
-  const cx = BOWLCX(sim.t);
-  let rem = Math.min(dt, 0.05);
-  const sub = 1 / 240;
-  while (rem > 0) {
-    const h = Math.min(sub, rem); rem -= h;
-    sim.x += sim.vx * h; sim.y += sim.vy * h;
-    sim.vy *= (1 - 0.10 * h); sim.vx *= (1 - 0.35 * h); /* rolling resistance */
-    if (!sim.gutter && Math.abs(sim.x - cx) > 131 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true; /* past the lane's edge the ball drops into the gutter and runs straight to the pit, touching nothing — the edge is the widened boards' own edge (131 = 130 + the ball's skin; the channel centre 145 is the gutter band's middle, 130..160) */
-    if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 145; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
-    else if (sim.y < 580) {
-      for (let i = 0; i < 10; i++) {
-        if (!sim.rack[i]) continue;
-        const p = bowlPinPos(cx, i);
-        if (Math.hypot(sim.x - p.x, sim.y - p.y) < 28) { bowlKnockPins(sim, i); sim.vx += (p.x - sim.x) * 1.4; sim.vy *= 0.88; }
-      }
-    }
-    if (sim.y < 306 || Math.abs(sim.vy) < 30) { bowlFinishThrow(); return; }
-  }
+  const done = bowlStepThrow(sim, dt); /* the shared throw step: the ball's flight and the pin deck's real physics */
+  if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; } /* the clatter of however many pins the physics just put down */
+  if (done) { bowlFinishThrow(); return; }
   const now = performance.now();
-  if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack } }); } /* followers watch the ball and the pins off the live snapshot, the pool hall's streaming pattern */
+  if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack, pins: bowlPinsSnap(sim) } }); } /* followers watch the ball and the pins off the live snapshot, the pool hall's streaming pattern — the pins' live positions and falls ride along now, so the room watches the same pins fly */
 }
 function bowlFinishThrow() {
   const sim = bowlSim; bowlSim = null;
@@ -6591,7 +6653,7 @@ function bowlFinishThrow() {
   const rolls = {}; Object.keys(st.rolls || {}).forEach(k => { rolls[k] = (st.rolls[k] || []).slice(); });
   rolls[bowlSeatI] = (rolls[bowlSeatI] || []).concat([knocked]);
   const adv = bowlAdvance(Object.assign({}, st, { rolls }), standingAfter);
-  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack };
+  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, pinLay: adv.rack === "fresh" ? null : bowlPinsLayout(sim) }; /* a fresh rack clears the layout with it; a kept rack leaves the pins lying and standing where the physics put them */
   tblUpd(bowlKey(t), upd);
   if (adv.over) bowlFinishGame(t, Object.assign({}, st, upd), -1); /* the last ball of the game: the thrower writes the decision and the claims, the pool hall rule */
 }
@@ -6601,27 +6663,31 @@ function bowlCpuGauss() { return (Math.random() + Math.random() + Math.random() 
 function bowlCpuAim(t, st, cpuI) { /* where the CPU tries to cross the pin deck (an offset from the lane's centre) and how hard it throws */
   const cx = BOWLCX(t), rack = st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
   const standing = []; for (let i = 0; i < 10; i++) if (rack[i]) standing.push(i);
-  /* a gentle roll, always: in this pin model a firm ball that touches the rack cascades (the chain chance rides ball speed), so a beatable CPU plays soft — headless tuning against this exact model put a hot pocket game near 300 and this soft line in the 120-170 band (mean ~160) */
-  const pow = Math.random() * 0.06;
+  /* a real roll now, at honest league pace: under the deck's real physics even a soft ball plows, so the CPU's beatability lives in its LINE, not its arm — it plays the pocket most balls with a wide honest spread around it, works the thick edge of the rack the rest of the time, and still strays into the gutter now and then. Tuned headlessly over hundreds of full games against this physics (the harness plays the page's own step): the game lands in the 130-165 band */
+  const pow = 0.5 + Math.random() * 0.35;
   if (!standing.length || standing.length === 10) {
-    if (Math.random() < 0.26) return { entry: 10 + bowlCpuGauss() * 30, pow }; /* its groove ball: at the pocket with a wide honest spread — strikes sometimes */
-    const side = Math.random() < 0.5 ? -1 : 1;
-    return { entry: side * (84 + Math.abs(bowlCpuGauss()) * 14), pow }; /* its bread-and-butter outside line: clips the corner of the rack for 6-9, strays into the gutter now and then */
+    const r = Math.random(), side = Math.random() < 0.5 ? -1 : 1;
+    if (r < 0.90) return { entry: 14 + bowlCpuGauss() * 11, pow }; /* its pocket ball: aimed at the 1-3 pocket, spread wide enough to miss it both ways — strikes sometimes, splits and washes others */
+    if (r < 0.96) return { entry: side * (56 + Math.abs(bowlCpuGauss()) * 10), pow }; /* its outside line: across the rack's thick edge for a handful — the corner-clip line the old cascade flattered is worth only a pin or two under real physics */
+    return { entry: side * (118 + Math.abs(bowlCpuGauss()) * 14), pow }; /* the lost one: pushed wide off its hand a few times a game — most of these find the gutter, the odd one clips the corner pin on the way past */
   }
-  const xs = standing.map(i => bowlPinPos(cx, i).x).sort((a, b) => a - b);
-  const clusters = [[xs[0]]]; for (let k = 1; k < xs.length; k++) { if (xs[k] - xs[k - 1] > 70) clusters.push([]); clusters[clusters.length - 1].push(xs[k]); } /* pins more than a chain's reach apart are separate targets — a split is picked off one side at a time, like real bowling */
+  const xs = standing.map(i => (st.pinLay && st.pinLay[i] ? st.pinLay[i][0] : bowlPinPos(cx, i).x)).sort((a, b) => a - b); /* the pins as they actually stand — the last ball may have nudged them off their spots, and the CPU aims at the truth */
+  const clusters = [[xs[0]]]; for (let k = 1; k < xs.length; k++) { if (xs[k] - xs[k - 1] > 70) clusters.push([]); clusters[clusters.length - 1].push(xs[k]); } /* pins too far apart to reach each other are separate targets — a split is picked off one side at a time, like real bowling */
   clusters.sort((a, b) => b.length - a.length || Math.abs(a.reduce((s, x) => s + x, 0) / a.length - cx) - Math.abs(b.reduce((s, x) => s + x, 0) / b.length - cx));
   const target = clusters[0].reduce((s, x) => s + x, 0) / clusters[0].length - cx;
-  return { entry: target + bowlCpuGauss() * 22, pow }; /* at what's left: the biggest cluster's middle — a decent spare conversion (~55%), not a lock */
+  return { entry: target + bowlCpuGauss() * 13, pow }; /* at what's left: the biggest cluster's middle — a decent spare conversion, not a lock */
 }
-function bowlCpuShoot(t, cpuI) {
-  const st = bowlStates[t], cx = BOWLCX(t), a = bowlCpuAim(t, st, cpuI);
+function bowlCpuBall(a, cx) { /* the throw an aim decision becomes: the ball leaves the foul line leaning toward its line, with the drift that lands it on the chosen entry as it crosses the head pin — the sim's own drag, solved (the same landing a player's pull-back finds by hand) */
   const vy = -(640 + a.pow * 1020);
-  const T = -Math.log(1 - 95.8 / Math.abs(vy)) / 0.10; /* the sim's own drag, solved for the flight time to the pin deck — so the drift below lands the ball on its chosen line */
+  const T = -Math.log(1 - 95.8 / Math.abs(vy)) / 0.10; /* the flight time to the pin deck under the sim's drag */
   const lean = a.entry * 0.35, startX = cx + lean;
   const vx = (a.entry - lean) / ((1 - Math.exp(-0.35 * T)) / 0.35);
-  bowlCpuSim = { t, seat: cpuI, x: startX, y: BOWL_FOUL_Y, vx, vy, rack: (st.rack || [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]).slice(), lastPub: 0, gutter: false };
-  tblUpd(bowlKey(t), { rolling: true, shotBy: cpuI, shotTs: Date.now(), live: { x: Math.round(startX * 10) / 10, y: BOWL_FOUL_Y, rack: bowlCpuSim.rack } });
+  return { x: startX, vx, vy };
+}
+function bowlCpuShoot(t, cpuI) {
+  const st = bowlStates[t], cx = BOWLCX(t), a = bowlCpuAim(t, st, cpuI), b = bowlCpuBall(a, cx);
+  bowlCpuSim = Object.assign(bowlNewSim(t, cx, b.x, b.vx, b.vy, st), { seat: cpuI });
+  tblUpd(bowlKey(t), { rolling: true, shotBy: cpuI, shotTs: Date.now(), live: { x: Math.round(b.x * 10) / 10, y: BOWL_FOUL_Y, rack: bowlCpuSim.rack, pins: bowlPinsSnap(bowlCpuSim) } });
   sfxBowlRoll();
 }
 function bowlCpuFrameStep(dt) {
@@ -6640,26 +6706,11 @@ function bowlCpuFrameStep(dt) {
   }
   const sim = bowlCpuSim;
   if (sim.t !== t || st.turnSeat !== sim.seat) { bowlCpuSim = null; return; } /* its turn ended another way (a host skip, a reset) — the local ball goes away, exactly as a human's does */
-  const cx = BOWLCX(sim.t);
-  let rem = Math.min(dt, 0.05);
-  const sub = 1 / 240;
-  while (rem > 0) { /* bowlFrameStep's ball, word for word — the same drag, the same gutter, the same pin model */
-    const h = Math.min(sub, rem); rem -= h;
-    sim.x += sim.vx * h; sim.y += sim.vy * h;
-    sim.vy *= (1 - 0.10 * h); sim.vx *= (1 - 0.35 * h);
-    if (!sim.gutter && Math.abs(sim.x - cx) > 131 && sim.y < BOWL_FOUL_Y - 60) sim.gutter = true;
-    if (sim.gutter) { const gx = cx + Math.sign(sim.x - cx) * 145; sim.x += (gx - sim.x) * Math.min(1, h * 14); sim.vx = 0; }
-    else if (sim.y < 580) {
-      for (let i = 0; i < 10; i++) {
-        if (!sim.rack[i]) continue;
-        const p = bowlPinPos(cx, i);
-        if (Math.hypot(sim.x - p.x, sim.y - p.y) < 28) { bowlKnockPins(sim, i); sim.vx += (p.x - sim.x) * 1.4; sim.vy *= 0.88; }
-      }
-    }
-    if (sim.y < 306 || Math.abs(sim.vy) < 30) { bowlCpuFinishThrow(); return; }
-  }
+  const done = bowlStepThrow(sim, dt); /* the shared step, literally the player's own: the same ball flight, the same pin physics — only the aim was a decision (the fairness rule) */
+  if (sim.fellFx) { sfxBowlPins(sim.fellFx); sim.fellFx = 0; }
+  if (done) { bowlCpuFinishThrow(); return; }
   const now = performance.now();
-  if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack } }); } /* the room watches the CPU's ball off the same live snapshot as a human's */
+  if (now - sim.lastPub > 100) { sim.lastPub = now; tblUpd(bowlKey(sim.t), { live: { x: Math.round(sim.x * 10) / 10, y: Math.round(sim.y * 10) / 10, rack: sim.rack, pins: bowlPinsSnap(sim) } }); } /* the room watches the CPU's ball and pins off the same live snapshot as a human's */
 }
 function bowlCpuFinishThrow() { /* bowlFinishThrow with the CPU's seat in place of mine — the result lands in the same rolls, the finish (and the claims rail) is the shared one */
   const sim = bowlCpuSim; bowlCpuSim = null;
@@ -6670,7 +6721,7 @@ function bowlCpuFinishThrow() { /* bowlFinishThrow with the CPU's seat in place 
   const rolls = {}; Object.keys(st.rolls || {}).forEach(k => { rolls[k] = (st.rolls[k] || []).slice(); });
   rolls[sim.seat] = (rolls[sim.seat] || []).concat([knocked]);
   const adv = bowlAdvance(Object.assign({}, st, { rolls }), standingAfter);
-  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack };
+  const upd = { rolls, rolling: false, shotBy: null, shotTs: null, live: null, ball: adv.ball, frame: adv.frame, turnSeat: adv.turnSeat, rack: adv.rack === "fresh" ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] : sim.rack, pinLay: adv.rack === "fresh" ? null : bowlPinsLayout(sim) }; /* a fresh rack clears the layout with it; a kept rack leaves the pins lying and standing where the physics put them */
   tblUpd(bowlKey(t), upd);
   if (adv.over) bowlFinishGame(t, Object.assign({}, st, upd), -1);
 }
@@ -6685,14 +6736,15 @@ function drawBowlBall(x, y) {
   ctx.beginPath(); ctx.arc(x + 4, y - 5, 2.6, 0, 7); ctx.fill();
   ctx.beginPath(); ctx.arc(x + 1, y + 2, 2.6, 0, 7); ctx.fill();
 }
-function drawBowlPin(x, y, standing) {
-  if (standing) {
+function drawBowlPin(x, y, fallDeg, fallDirDeg) { /* fallDeg 0 stands the pin up; otherwise it is tipped by that many degrees, leaning the way it fell (fallDirDeg) — both written by the physics: live off the snapshot, at rest off the record's layout, so the tip-over on screen IS the fall the sim had */
+  if (!fallDeg) {
     ctx.fillStyle = "#f4f6ff"; ctx.beginPath(); ctx.arc(x, y, 13, 0, 7); ctx.fill();
     ctx.strokeStyle = "rgba(120,40,160,0.55)"; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.fillStyle = "#e23744"; ctx.fillRect(x - 8, y - 6, 16, 3); ctx.fillRect(x - 8.5, y - 1, 17, 3); /* the red neck stripes */
     ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.beginPath(); ctx.arc(x - 4, y - 5, 3, 0, 7); ctx.fill();
-  } else { /* a fallen pin lies tipped at the back of the deck, faint — pins that fall stay down for the frame's second ball */
-    ctx.save(); ctx.translate(x, y + 8); ctx.rotate(1.35); ctx.globalAlpha = 0.30;
+  } else { /* a falling or fallen pin: rotated as it goes over, sliding a body's length along its fall, fading to the faint swept look (alpha 0.30) once it is fully down for the frame's second ball */
+    const p = Math.min(1, Math.abs(fallDeg) / 77), dr = (fallDirDeg || 0) / 57.3;
+    ctx.save(); ctx.translate(x + Math.cos(dr) * p * 9, y + 8 + Math.sin(dr) * p * 5); ctx.rotate((fallDeg < 0 ? -1 : 1) * p * 1.35); ctx.globalAlpha = 1 - 0.7 * p;
     ctx.fillStyle = "#c9cede"; rr(-5, -13, 10, 26, 5); ctx.fill();
     ctx.restore(); ctx.globalAlpha = 1;
   }
@@ -6757,14 +6809,14 @@ function drawBowlLane(tt, t) {
   ctx.fillStyle = "rgba(255,240,210,0.5)"; /* the lane arrows, pointing at the pins */
   [-84, -42, 0, 42, 84].forEach(dx => { const ay = 1130 + Math.abs(dx) * 1.6; ctx.beginPath(); ctx.moveTo(cx + dx, ay - 16); ctx.lineTo(cx + dx + 6, ay + 8); ctx.lineTo(cx + dx - 6, ay + 8); ctx.closePath(); ctx.fill(); });
   ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx - 130, BOWL_FOUL_Y + 30); ctx.lineTo(cx + 130, BOWL_FOUL_Y + 30); ctx.stroke(); /* the foul line */
-  /* pins: the live snapshot while a ball is rolling on someone else's screen, my own simulation on mine, the record's rack at rest */
-  let rack;
-  if (bowlSim && bowlSim.t === tt) rack = bowlSim.rack;
-  else if (bowlCpuSim && bowlCpuSim.t === tt) rack = bowlCpuSim.rack; /* the host of a CPU 1v1 draws its own simulation of the CPU's ball too — no lag (the boxing CPU's rule) */
-  else if (st && st.rolling && st.live && st.live.rack) rack = st.live.rack;
-  else if (st && st.phase !== "bet" && st.rack) rack = st.rack;
-  else rack = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-  for (let i = 9; i >= 0; i--) { const p = bowlPinPos(cx, i); drawBowlPin(p.x, p.y, !!rack[i]); }
+  /* pins: my own simulation's bodies while my ball (or my hosted CPU's) is rolling, the live snapshot's pins while someone else's is, the record's resting layout between balls — positions and falls all come from the physics now, so a standing pin sits where the last ball left it and a fallen one lies the way it fell */
+  let lay = null;
+  if (bowlSim && bowlSim.t === tt) lay = bowlPinsSnap(bowlSim);
+  else if (bowlCpuSim && bowlCpuSim.t === tt) lay = bowlPinsSnap(bowlCpuSim); /* the host of a CPU 1v1 draws its own simulation of the CPU's pins too — no lag (the boxing CPU's rule) */
+  else if (st && st.rolling && st.live && st.live.pins) lay = st.live.pins;
+  else if (st && st.phase !== "bet") lay = bowlSeedLay(st);
+  if (lay) { for (let i = 9; i >= 0; i--) { const P = lay[i]; if (P) drawBowlPin(P[0], P[1], P[2], P[3]); } }
+  else { const rack = st && st.phase !== "bet" && st.rack ? st.rack : [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]; for (let i = 9; i >= 0; i--) { const p = bowlPinPos(cx, i); drawBowlPin(p.x, p.y, rack[i] ? 0 : 77, 0); } } /* no layout on the record (a game from before they were kept): the rack spots, the fallen tipped as they always were */
   /* the ball: my simulation, a follower's live snapshot, or resting at the foul line on the next throw */
   if (bowlSim && bowlSim.t === tt) drawBowlBall(bowlSim.x, bowlSim.y);
   else if (bowlCpuSim && bowlCpuSim.t === tt) drawBowlBall(bowlCpuSim.x, bowlCpuSim.y);
