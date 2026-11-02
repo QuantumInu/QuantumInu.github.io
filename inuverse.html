@@ -7660,20 +7660,20 @@ function boxCpuFrame(dt) {
   if (!S.nextAt) { S.nextAt = now + 500 + Math.random() * 500; return; }
   if (now < S.nextAt) return;
   if (dist > 150) { S.combo = null; S.nextAt = now + 220; return; } /* out of reach it holds its swing — it does not punch air, and a half-thrown combination dies with the range */
-  /* the combination (Jonathan 2026-11-01): a combination OPENS on the reaction beat with either rested arm; the OTHER arm is then queued and follows after a 100ms combo gap — the CPU's recovery set to 100ms at his word (2026-11-01), following the same-day steps 200 → 150 → 100 (the 300ms spacing itself followed a 170ms mid-throw version that read as a double punch that never let the first hand reset). Each arm writes its own punch record, and the beat still governs how often a NEW combination starts */
+  /* the combination (Jonathan 2026-11-01): a combination OPENS on the reaction beat with either rested arm; the OTHER arm is then queued and follows after a 50ms combo gap — the CPU's recovery set to 50ms at his word (2026-11-01), following the same-day steps 200 → 150 → 100 → 50 (the 300ms spacing itself followed a 170ms mid-throw version that read as a double punch that never let the first hand reset). Each arm writes its own punch record, and the beat still governs how often a NEW combination starts */
   let side;
-  if (S.combo) { /* the follow-up: only the queued arm, and only once that arm has rested its own 100ms recovery */
-    if (now - (S.combo === "L" ? S.lastL : S.lastR) < 100) { S.nextAt = now + 40; return; }
+  if (S.combo) { /* the follow-up: only the queued arm, and only once that arm has rested its own 50ms recovery */
+    if (now - (S.combo === "L" ? S.lastL : S.lastR) < 50) { S.nextAt = now + 40; return; }
     side = S.combo; S.combo = null;
     S.nextAt = now + 240 + Math.random() * 200; /* the combination is spent — the next one waits for the beat (240-440ms, as the opener always did) */
   } else {
     const arms = [];
-    if (now - S.lastL >= 100) arms.push("L"); /* each glove on its own 100ms clock (Jonathan 2026-11-01: recovery set to 100ms at his word, following the same-day steps 200 → 150 → 100; 160ms before all that, 250ms at the harder-CPU tuning, the human at 380ms; an arm not yet rested simply isn't offered, and the beat retries shortly, as before */
-    if (now - S.lastR >= 100) arms.push("R");
+    if (now - S.lastL >= 50) arms.push("L"); /* each glove on its own 50ms clock (Jonathan 2026-11-01: recovery set to 50ms at his word, following the same-day steps 200 → 150 → 100 → 50; 160ms before all that, 250ms at the harder-CPU tuning, the human at 380ms; an arm not yet rested simply isn't offered, and the beat retries shortly, as before */
+    if (now - S.lastR >= 50) arms.push("R");
     if (!arms.length) { S.nextAt = now + 60; return; }
     side = arms[Math.floor(Math.random() * arms.length)];
     S.combo = side === "L" ? "R" : "L"; /* the other hand is queued behind this one */
-    S.nextAt = now + 100; /* the combo gap: the follow-up comes 100ms after the opener (Jonathan 2026-11-01: recovery set to 100ms at his word, following the same-day steps 200 → 150 → 100; 170ms before that) */
+    S.nextAt = now + 50; /* the combo gap: the follow-up comes 50ms after the opener (Jonathan 2026-11-01: recovery set to 50ms at his word, following the same-day steps 200 → 150 → 100 → 50; 170ms before that) */
   }
   if (side === "L") S.lastL = now; else S.lastR = now;
   const dmg = 6 + Math.floor(Math.random() * 5);
@@ -8530,7 +8530,7 @@ function drawBoxingFx(t) {
       if (gL) ageL = srvNow() - gL;
       if (gR) ageR = srvNow() - gR;
       if (!isCpuFx && sd.pid === myId) { const np = performance.now(); ageL = Math.min(ageL, np - myPunchAtL); ageR = Math.min(ageR, np - myPunchAtR); } /* my own glove answers to my local throw first, and to my punch record when it echoes back — whichever is fresher */
-      if (isCpuFx) { ageL *= 3; ageR *= 3; } /* the CPU's glove MOTION runs faster too (Jonathan 2026-11-01): its throw ages are scaled by 3 before the curve lookup, so the whole 300ms cycle (170ms snap out, 130ms recoil home) completes in 100ms of real time — the visual half of the CPU's recovery, matching its 100ms cooldowns (earlier the same day it ran 1.5x / 200ms, then 2x / 150ms, at his word each time). Human gloves — mine and any PvP opponent's — keep the normal 300ms motion exactly */
+      if (isCpuFx) { ageL *= 6; ageR *= 6; } /* the CPU's glove MOTION runs faster too (Jonathan 2026-11-01): its throw ages are scaled by 6 before the curve lookup, so the whole 300ms cycle (170ms snap out, 130ms recoil home) completes in 50ms of real time — the visual half of the CPU's recovery, matching its 50ms cooldowns (earlier the same day it ran 1.5x / 200ms, then 2x / 150ms, then 3x / 100ms, at his word each time). Human gloves — mine and any PvP opponent's — keep the normal 300ms motion exactly */
       drawGloves(fx, fy, flip, ageL, ageR, i);
       if (myHitAge < 260) { /* the impact star on the fighter just hit: lands at 62px with a scale-pop, settles to 46px (was a flat 34px for 220ms) — driven by the freshest hit, so a follow-up hit pops a fresh star instead of the first hit's star being cut off */
         const pop = 46 + 16 * Math.max(0, 1 - myHitAge / 150);
