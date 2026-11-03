@@ -186,7 +186,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #jukeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #monbtn{position:absolute;left:18px;bottom:202px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none} /* the M button (PREVIEW): above the move stick, aligned LEFT, the run button's exact size — it exists only while a follower pick is set */
 #monbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
-#moncoll,#monpen,#actpanel{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like every other menu (Jonathan 2026-11-01); z 45 puts the collection over the gate it opens from */
+#moncoll,#monpen,#actpanel,#balpanel{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like every other menu (Jonathan 2026-11-01); z 45 puts the collection over the gate it opens from */
 .monpanel{background:var(--panel);border:2px solid rgba(74,222,128,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(74,222,128,.28)}
 .monpanel h2{margin:0 0 2px;font-size:21px;color:#4ade80;text-align:center}
 .monbal{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
@@ -204,6 +204,18 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #moncoll .monpanel{height:100%} /* the collection panel fills its overlay (Jonathan 2026-11-03): the list takes the whole middle and the buttons sit at the bottom — no dead band of empty panel above Close */
 #moncoll .monpanel h2,#moncoll .monbal,#moncoll .monmsg,#moncoll .monclose,#moncoll .monallbtn{flex:none} /* the panel's fixed rows never compress: the balance line wraps to two lines on a phone and its box must grow with the text — squeezed to one line, the second line painted over the first monster row */
 #moncoll .monlist{flex:1 1 auto;min-height:0} /* the list is the panel's only flexible part: it absorbs every spare pixel and scrolls what does not fit */
+#balpanel .monpanel{height:100%} /* the balances panel fills its overlay the same way as the collection: list in the middle, Close at the bottom, no dead band */
+#balpanel .monpanel h2,#balpanel .monclose{flex:none}
+#balpanel #balmain{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#balpanel #balmain .monbal{flex:none}
+#balpanel .monlist{flex:1 1 auto;min-height:0}
+.baldot{flex:none;font-size:11px}
+.balbal{flex:none;color:var(--gold);font-weight:700;font-size:14px}
+.balsend{flex:none;background:linear-gradient(135deg,#4ade80,#16a34a);border:none;color:#06280f;font-weight:800;border-radius:999px;padding:8px 14px;font-size:13.5px;cursor:pointer;font-family:inherit}
+.balsend:active{transform:scale(.96)}
+.balamt{width:100%;box-sizing:border-box;background:rgba(5,10,24,.7);border:2px solid rgba(74,222,128,.4);border-radius:12px;color:#fff;font-size:17px;padding:11px 12px;font-family:inherit;text-align:center}
+.balgo{margin-top:8px;background:linear-gradient(135deg,#4ade80,#16a34a);border:none;color:#06280f;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit;width:100%}
+.balback{margin-top:8px;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.25);color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit;width:100%}
 .monevo{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);border:1px solid rgba(74,222,128,.25);border-radius:12px;padding:8px 10px}
 .monevo img{width:56px;height:56px;object-fit:contain;flex:none}
 .monevo img.sil{filter:brightness(0);opacity:.8} /* the evolution's next stage: silhouette ONLY until the evolution is bought */
@@ -335,6 +347,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
         <div class="acctrow" id="actrow" style="margin-top:8px;display:none">
           <button id="actbtn" type="button">📊 Activity Report</button>
         </div>
+        <div class="acctrow" id="balrow" style="margin-top:8px;display:none">
+          <button id="balbtn" type="button">🪙 Player Balances</button>
+        </div>
         <div class="acctrow" id="qkctlrow" style="margin-top:8px;display:none">
           <button id="qkctlbtn" type="button">⚡ Enable one-tap sign-in on this device</button>
         </div>
@@ -361,6 +376,21 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <p class="monbal" id="actstatus">Loading…</p>
   <div class="monlist" id="actlist"></div>
   <button class="monclose" id="actclose" type="button">Close</button>
+</div></div>
+<div id="balpanel"><div class="monpanel">
+  <h2>🪙 Player Balances</h2>
+  <div id="balmain">
+    <p class="monbal" id="balstatus">Loading…</p>
+    <div class="monlist" id="ballist"></div>
+  </div>
+  <div id="balsendview" style="display:none">
+    <p class="monbal" id="balsendto"></p>
+    <input class="balamt" id="balamt" type="text" inputmode="numeric" autocomplete="off" placeholder="Amount">
+    <p class="monmsg" id="balmsg"></p>
+    <button class="balgo" id="balsendgo" type="button">Send</button>
+    <button class="balback" id="balsendback" type="button">← Back to the list</button>
+  </div>
+  <button class="monclose" id="balclose" type="button">Close</button>
 </div></div>
 <div id="monpen"><div class="monpanel">
   <h2>🏋️ Training Pen — Q-Bot</h2>
@@ -1989,6 +2019,7 @@ function acctUi() {
     out.style.display = "none"; inn.style.display = "block";
     $("acctwho").textContent = "✅ Signed in as " + (acctUser.email || "") + " — your name, hero and chips save to your account.";
     const ar = $("actrow"); if (ar) ar.style.display = isOwnerAcct() ? "flex" : "none"; /* the Activity Report row under Monster Collection: the owner's account ONLY — every other account (and every guest) never sees it */
+    const br = $("balrow"); if (br) br.style.display = isOwnerAcct() ? "flex" : "none"; /* the Player Balances row directly under Activity Report: the same owner-only gate */
     const qr = $("qkctlrow"); if (qr) qr.style.display = isOwnerAcct() ? "flex" : "none"; /* the one-tap sign-in controls under the Activity Report row: the same owner-only gate */
     if (isOwnerAcct()) qkRefreshCtl(); /* and their state (off / on, on this device / on, on another device) is read fresh each time this menu renders */
   } else { out.style.display = "block"; inn.style.display = "none"; qkSyncRow(); } /* signed out: the one-tap button on the form shows only on a device that holds a key */
@@ -5477,7 +5508,7 @@ function renderMonColl() {
     list.appendChild(row);
   }
 }
-function openMonColl() { closeChatLog(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
+function openMonColl() { closeChatLog(); closeBalPanel(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
 function closeMonColl() { $("moncoll").style.display = "none"; sfxClick(); }
 /* ---- ACTIVITY REPORT (owner-only, 2026-11-03): the droplet watcher (qi-hub-activity.service) turns account presence into login sessions and writes them to the Firestore `activity` collection; the database rules let ONLY the owner's account read that collection, and the button that opens this panel — under Monster Collection in the account menu — is only ever shown to the owner's account (see acctUi). Per-person totals up top, recent sessions below; every time is America/New_York. ---- */
 function actFmtDur(mins) { const m = Math.round(mins || 0); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? (h + " h " + r + " min") : (h + " h"); }
@@ -5518,8 +5549,77 @@ async function actLoad() {
     renderActReport(sessions);
   } catch (e) { status.textContent = "⚠️ Couldn't load the activity report — try again in a bit."; }
 }
-function openActPanel() { if (!isOwnerAcct()) return; closeChatLog(); closeMonColl(); $("actpanel").style.display = "flex"; sfxClick(); actLoad(); }
+function openActPanel() { if (!isOwnerAcct()) return; closeChatLog(); closeMonColl(); closeBalPanel(); $("actpanel").style.display = "flex"; sfxClick(); actLoad(); }
 function closeActPanel() { $("actpanel").style.display = "none"; sfxClick(); }
+/* ---- PLAYER BALANCES (owner-only, 2026-11-03): a button under Activity Report in the account menu (owner's account ONLY, same isOwnerAcct gate) opens a panel listing EVERY account in hub/users with its live balance and who's online right now — an account counts as online when a live presence record carries its uid (the same peers feed the world runs on), and his own row always counts as online. The RTDB rules carry one extra read grant so the owner's account, and only his, can read the whole hub/users node; every other account still reads only its own record. The Send button sits on every row (his choice: anyone, online or not) and opens an amount box; confirming writes the SAME gift note a normal player send writes under hub/transfers/<their uid> ({amt, from: his name, ts}) and debits NOTHING — the tokens are created, not taken out of his balance. The recipient's own client does everything else exactly like a player send (watchTransfers): the credit, the coin sound, the burst, the "+🪙" text and the chat line — online players get it on the spot, offline players collect it with the same show the next time they sign in. One note can carry at most the transfer rules' amt cap. ---- */
+const BAL_CAP = 10000000000; /* the hub/transfers amt validate cap: a single gift note can carry at most this much — send again for more */
+let balRef = null, balData = null, balTick = null, balSendUid = "", balSendName = "";
+function balOnlineSet() { const s = new Set(); for (const p of peers.values()) if (p && p.acct) s.add(p.acct); if (acctUser) s.add(acctUser.uid); return s; }
+function balShowList() { $("balsendview").style.display = "none"; $("balmain").style.display = "flex"; balSendUid = ""; balSendName = ""; }
+function renderBalPanel() {
+  const list = $("ballist"), status = $("balstatus"); if (!list || !status) return;
+  if (!balData) { status.textContent = "Loading…"; return; }
+  const online = balOnlineSet();
+  const rows = [];
+  for (const uid of Object.keys(balData)) { const r = balData[uid] || {}; rows.push({ uid: uid, name: String(r.name || "").trim() || (r.email ? String(r.email).split("@")[0] : "") || "Unknown player", chips: typeof r.chips === "number" && isFinite(r.chips) ? r.chips : 0, on: online.has(uid) }); }
+  rows.sort((a, b) => (b.on - a.on) || (b.chips - a.chips));
+  const onCount = rows.filter(r => r.on).length;
+  status.textContent = rows.length + (rows.length === 1 ? " account · " : " accounts · ") + onCount + " online";
+  list.innerHTML = "";
+  for (const r of rows) {
+    const row = document.createElement("div"); row.className = "monrow";
+    const dot = document.createElement("span"); dot.className = "baldot"; dot.textContent = r.on ? "🟢" : "⚪"; row.appendChild(dot);
+    const nm = document.createElement("div"); nm.className = "monnm"; nm.textContent = r.name + (acctUser && r.uid === acctUser.uid ? " (you)" : ""); row.appendChild(nm);
+    const bal = document.createElement("span"); bal.className = "balbal"; bal.textContent = "🪙 " + r.chips.toLocaleString(); row.appendChild(bal);
+    if (!acctUser || r.uid !== acctUser.uid) { const b = document.createElement("button"); b.type = "button"; b.className = "balsend"; b.textContent = "Send"; b.onclick = () => openBalSend(r.uid, r.name); row.appendChild(b); }
+    list.appendChild(row);
+  }
+  if (!rows.length) status.textContent = "No accounts yet.";
+}
+function openBalPanel() {
+  if (!isOwnerAcct() || !acctUser || !db) return;
+  closeChatLog(); closeMonColl(); closeActPanel();
+  balShowList();
+  $("balpanel").style.display = "flex"; sfxClick();
+  $("balstatus").textContent = "Loading…"; $("ballist").innerHTML = "";
+  if (balRef) { try { balRef.off(); } catch (e) {} balRef = null; }
+  balRef = db.ref("hub/users");
+  balRef.on("value", snap => { balData = snap.val() || {}; renderBalPanel(); }, err => { const st = $("balstatus"); if (st) st.textContent = "⚠️ Couldn't load the balances — try again in a bit."; });
+  if (balTick) clearInterval(balTick);
+  balTick = setInterval(() => { if (balData) renderBalPanel(); }, 5000); /* the online dots follow the live presence feed */
+}
+function closeBalPanel() {
+  if (balRef) { try { balRef.off(); } catch (e) {} balRef = null; }
+  if (balTick) { clearInterval(balTick); balTick = null; }
+  balData = null;
+  const el = $("balpanel"); if (el) el.style.display = "none";
+}
+function openBalSend(uid, name) {
+  balSendUid = uid; balSendName = name;
+  $("balmain").style.display = "none"; $("balsendview").style.display = "block";
+  $("balsendto").textContent = "Send tokens to " + name;
+  const inp = $("balamt"); inp.value = "";
+  $("balmsg").textContent = "Created out of thin air — nothing leaves your balance.";
+  $("balsendgo").disabled = false;
+  sfxClick();
+  try { inp.focus(); } catch (e) {}
+}
+async function balSendConfirm() {
+  const uid = balSendUid, name = balSendName;
+  if (!uid || !acctUser || !db) return;
+  const msg = $("balmsg"), go = $("balsendgo");
+  const t = String($("balamt").value == null ? "" : $("balamt").value).trim();
+  const n = /^\d+$/.test(t) ? parseInt(t, 10) : 0;
+  if (!n || !Number.isSafeInteger(n) || n < 1) { msg.textContent = "Enter a whole number of tokens, at least 1."; sfxLose(); return; }
+  if (n > BAL_CAP) { msg.textContent = "One send can carry at most 🪙 " + BAL_CAP.toLocaleString() + " — send again for more."; sfxLose(); return; }
+  go.disabled = true; msg.textContent = "Sending…";
+  try { await db.ref("hub/transfers/" + uid).push().set({ amt: n, from: String((me && me.name) || (profile && profile.name) || "DreadMark18").slice(0, 24), ts: firebase.database.ServerValue.TIMESTAMP }); }
+  catch (e) { msg.textContent = "Couldn't send — nothing was created. Try again."; go.disabled = false; return; }
+  /* NO debit on purpose: the gift is created, not paid out of the owner's balance (his order 2026-11-03) */
+  msg.textContent = "✅ Sent 🪙 " + n.toLocaleString() + " to " + name + "!";
+  sfxCoin();
+  setTimeout(() => { if (balSendUid === uid) balShowList(); }, 1200);
+}
 /* ---- ONE-TAP SIGN-IN (owner-only, 2026-11-03): Firebase Auth persistence stays NONE — closing the phone still signs him out, and everyone else's sign-in is the completely normal form. On ONE device of his choosing, the sign-in form gains a single ⚡ button: the page generates a random 32-byte key, keeps the RAW key only in that browser's localStorage ("qi_quickkey"), and stores just its SHA-256 hash in the Firestore doc quickkeys/<owner uid> {hash, created} under his own sign-in (the rules let ONLY his account write/delete it, and let the droplet service's worker account read it). Pressing the button POSTs the raw key to the droplet (qi-hub-quickkey.service, behind Caddy at voice.quantuminuofficial.com/quickkey/signin); the service compares hashes and mints a Firebase custom token for the owner uid — the only uid it can ever mint — signed with a service-account key that lives only on the droplet. The page marks the sign-in fresh (the exact discipline the password button follows) and calls signInWithCustomToken, so the session claim, profile load and everything downstream are THE SAME post-auth flow as a password sign-in. Enabling on a second device overwrites the doc and kills the first device's key; a 401 from the endpoint means the key is dead (revoked or superseded) and the page forgets it on the spot. ---- */
 const QK_UID = "NWh4MUfgLXeGlfKQJ8N7HFoOBv23"; /* the owner's account uid: the only account one-tap exists for — the endpoint hardcodes the same uid, and every control here sits behind isOwnerAcct() besides */
 const QK_LS_KEY = "qi_quickkey";
@@ -5746,6 +5846,11 @@ $("actbtn").onclick = () => openActPanel();
 $("qkbtn").onclick = () => qkSignIn();
 qkSyncRow(); /* first paint: the one-tap button appears at once on a device that holds a key, before auth has even resolved (persistence is NONE, so this visit starts signed out regardless) */
 $("actclose").onclick = () => closeActPanel();
+$("balbtn").onclick = () => openBalPanel();
+$("balclose").onclick = () => { closeBalPanel(); sfxClick(); };
+$("balsendgo").onclick = () => balSendConfirm();
+$("balsendback").onclick = () => { balShowList(); sfxClick(); };
+$("balamt").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); balSendConfirm(); } });
 $("monallbtn").onclick = () => toggleMonAll();
 $("monpenclose").onclick = () => closeMonPen();
 /* ---- visible-feet measurement (2026-11-02): an image's lowest SOLID row (alpha ≥ 200, at least 2px in the row) can sit above its bottom edge, leaving a clear run under the feet that the eye reads as the sprite floating or sinking. These helpers measure that run's fraction of the image height, once per image ---- */
