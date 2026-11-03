@@ -9726,11 +9726,13 @@ function drawBacTable() {
     else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
   });
   if (st && (st.phase === "deal" || st.phase === "done") && st.pHand && st.bHand) {
-    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    ctx.fillStyle = "#9fd0ff"; ctx.fillText("PLAYER — " + bacVal(st.pHand), T.x + 130, T.y + 108);
-    ctx.fillStyle = "#ffb3b3"; ctx.fillText("BANKER — " + bacVal(st.bHand), T.x + 330, T.y + 108);
     /* the deal plays out on the shared clock (dealTs): cards turn over one at a time, player then banker, each landing with a soft swish — every screen sees the same reveal (Jonathan 2026-10-31) */
     const el = srvNow() - (st.dealTs || 0), rev = st.phase === "done" ? 99 : Math.max(0, Math.floor((el - 300) / 550) + 1);
+    /* the hand TOTALS stay hidden until every card is dealt (Jonathan 2026-11-02): during the reveal the labels read bare PLAYER / BANKER, and the number appears next to each word only once the last card has turned over (rev covers both hands) or the hand is done */
+    const bacAllDealt = st.phase === "done" || rev >= st.pHand.length + st.bHand.length;
+    ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    ctx.fillStyle = "#9fd0ff"; ctx.fillText(bacAllDealt ? "PLAYER — " + bacVal(st.pHand) : "PLAYER", T.x + 130, T.y + 108);
+    ctx.fillStyle = "#ffb3b3"; ctx.fillText(bacAllDealt ? "BANKER — " + bacVal(st.bHand) : "BANKER", T.x + 330, T.y + 108);
     if (bacFxSnd < 0) bacFxSnd = Math.min(rev, 6);
     else if (rev > bacFxSnd) { if (me.scene === "highrollers") sfxCard(); bacFxSnd = Math.min(rev, 6); }
     st.pHand.forEach((c, i) => drawCard(T.x + 56 + i * 66, T.y + 128, 58, 84, c, 2 * i >= rev));
@@ -11054,7 +11056,7 @@ function drawRoofBoom(t, B) {
     ctx.fillStyle = "#38e1ff"; ctx.beginPath(); ctx.arc(sx, B.y + 66, 4, 0, 7); ctx.fill();
   }
   ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ff8fb5";
-  ctx.fillText("BOOM BOX", B.x + B.w / 2, B.y + B.h - 7); /* the label in the band under the speakers (Jonathan 2026-11-02), nudged down at his word until his eye called it centred — h-7 */ /* the label centred in the band under the speaker circles, then 1px up (Jonathan 2026-11-02: centred, "a bit more up", "like 1 PX" — the removal he asked for between was cancelled by his own "no") */
+  ctx.fillText("BOOM BOX", B.x + B.w / 2, B.y + B.h - 7); /* the label in the band under the speakers (Jonathan 2026-11-02): h-7 is the LIVE position and he ordered it kept as-is ("keep boom box text how it is in the live version") — an edge-aligned variant was tried in preview screenshots only and dropped */ /* the label centred in the band under the speaker circles, then 1px up (Jonathan 2026-11-02: centred, "a bit more up", "like 1 PX" — the removal he asked for between was cancelled by his own "no") */
 }
 function paintClubBelow(t, dt) {
   /* the club below the lounge (PREVIEW, Jonathan 2026-10-30 — see VIPBELOW): painted by frame() ONLY while
