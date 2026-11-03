@@ -186,7 +186,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #jukeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #monbtn{position:absolute;left:18px;bottom:202px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none} /* the M button (PREVIEW): above the move stick, aligned LEFT, the run button's exact size — it exists only while a follower pick is set */
 #monbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
-#moncoll,#monpen{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like every other menu (Jonathan 2026-11-01); z 45 puts the collection over the gate it opens from */
+#moncoll,#monpen,#actpanel{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like every other menu (Jonathan 2026-11-01); z 45 puts the collection over the gate it opens from */
 .monpanel{background:var(--panel);border:2px solid rgba(74,222,128,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(74,222,128,.28)}
 .monpanel h2{margin:0 0 2px;font-size:21px;color:#4ade80;text-align:center}
 .monbal{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
@@ -326,6 +326,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
         <div class="acctrow" style="margin-top:8px">
           <button id="moncollbtn" type="button">🐾 Monster Collection</button>
         </div>
+        <div class="acctrow" id="actrow" style="margin-top:8px;display:none">
+          <button id="actbtn" type="button">📊 Activity Report</button>
+        </div>
       </div>
       <div id="acctmsg"></div>
     </div>
@@ -342,6 +345,12 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <p class="monmsg" id="moncollmsg"></p>
   <button class="monclose" id="moncollclose" type="button">Close</button>
   <button class="monallbtn" id="monallbtn" type="button" style="display:none">🔓 All Unlocked — tap to lock</button>
+</div></div>
+<div id="actpanel"><div class="monpanel">
+  <h2>📊 Activity Report</h2>
+  <p class="monbal" id="actstatus">Loading…</p>
+  <div class="monlist" id="actlist"></div>
+  <button class="monclose" id="actclose" type="button">Close</button>
 </div></div>
 <div id="monpen"><div class="monpanel">
   <h2>🏋️ Training Pen — Q-Bot</h2>
@@ -1945,6 +1954,7 @@ function acctUi() {
   if (acctUser) {
     out.style.display = "none"; inn.style.display = "block";
     $("acctwho").textContent = "✅ Signed in as " + (acctUser.email || "") + " — your name, hero and chips save to your account.";
+    const ar = $("actrow"); if (ar) ar.style.display = isOwnerAcct() ? "flex" : "none"; /* the Activity Report row under Monster Collection: the owner's account ONLY — every other account (and every guest) never sees it */
   } else { out.style.display = "block"; inn.style.display = "none"; }
 }
 function friendlyAuthErr(e) {
@@ -5433,6 +5443,47 @@ function renderMonColl() {
 }
 function openMonColl() { closeChatLog(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
 function closeMonColl() { $("moncoll").style.display = "none"; sfxClick(); }
+/* ---- ACTIVITY REPORT (owner-only, 2026-11-03): the droplet watcher (qi-hub-activity.service) turns account presence into login sessions and writes them to the Firestore `activity` collection; the database rules let ONLY the owner's account read that collection, and the button that opens this panel — under Monster Collection in the account menu — is only ever shown to the owner's account (see acctUi). Per-person totals up top, recent sessions below; every time is America/New_York. ---- */
+function actFmtDur(mins) { const m = Math.round(mins || 0); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? (h + " h " + r + " min") : (h + " h"); }
+function actFmtTime(ms) { return new Date(ms).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }); }
+function actFmtDay(ms) { return new Date(ms).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric" }); }
+function actDayKey(ms) { return new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" }); } /* YYYY-MM-DD on the New York calendar: the bucket every "today" total is counted in */
+function actWeekStartKey() { const now = Date.now(); for (let k = 0; k < 7; k++) { const t = now - k * 86400000; if (new Date(t).toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "short" }) === "Sun") return actDayKey(t); } return actDayKey(now); } /* the Sunday that starts this week, New York time */
+function actRow(name, detail) { const row = document.createElement("div"); row.className = "monrow"; const nm = document.createElement("div"); nm.className = "monnm"; nm.textContent = name; row.appendChild(nm); if (detail) { const det = document.createElement("div"); det.style.cssText = "text-align:right;font-size:12.5px;color:#9fd8ea;line-height:1.5;white-space:pre-line"; det.textContent = detail; row.appendChild(det); } return row; }
+function renderActReport(sessions) {
+  const list = $("actlist"); if (!list) return; list.innerHTML = "";
+  const todayKey = actDayKey(Date.now()), weekKey = actWeekStartKey();
+  const people = new Map();
+  for (const s of sessions) {
+    const key = s.uid || s.name; let p = people.get(key);
+    if (!p) { p = { name: s.name, today: 0, week: 0, count: 0, last: 0 }; people.set(key, p); }
+    p.count++; if (s.end > p.last) p.last = s.end; if (s.name) p.name = s.name;
+    const dk = actDayKey(s.start); if (dk === todayKey) p.today += s.mins; if (dk >= weekKey) p.week += s.mins;
+  }
+  list.appendChild(actRow("👥 Who's been in", ""));
+  for (const p of [...people.values()].sort((a, b) => b.last - a.last)) list.appendChild(actRow(p.name, "Today " + actFmtDur(p.today) + " · Week " + actFmtDur(p.week) + "\n" + p.count + (p.count === 1 ? " session" : " sessions") + " · last seen " + actFmtDay(p.last) + " " + actFmtTime(p.last)));
+  list.appendChild(actRow("🕒 Recent sessions", ""));
+  for (const s of sessions.slice(0, 100)) list.appendChild(actRow(s.name, actFmtDay(s.start) + " · in " + actFmtTime(s.start) + " – out " + (actDayKey(s.end) !== actDayKey(s.start) ? actFmtDay(s.end) + " " : "") + actFmtTime(s.end) + " · " + actFmtDur(s.mins))); /* every session shows BOTH clock times, in and out, Eastern — not just the duration */
+}
+async function actLoad() {
+  const status = $("actstatus"), list = $("actlist"); if (!status || !list) return;
+  status.textContent = "Loading…"; list.innerHTML = "";
+  if (!isOwnerAcct() || !acctUser) { status.textContent = "🔒 The activity report lives on the owner's account — sign in to view it."; return; }
+  try {
+    const tok = await acctUser.getIdToken();
+    const q = { structuredQuery: { from: [{ collectionId: "activity" }], orderBy: [{ field: { fieldPath: "start" }, direction: "DESCENDING" }], limit: 400 } };
+    const resp = await fetch("https://firestore.googleapis.com/v1/projects/quantum-inu-games/databases/(default)/documents:runQuery", { method: "POST", headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify(q) });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const rows = await resp.json();
+    const sessions = [];
+    for (const r of rows || []) { const f = r && r.document && r.document.fields; if (!f) continue; sessions.push({ uid: (f.uid && f.uid.stringValue) || "", name: (f.name && f.name.stringValue) || "Unknown", start: +((f.start && f.start.integerValue) || 0), end: +((f.end && f.end.integerValue) || 0), mins: +((f.mins && (f.mins.doubleValue != null ? f.mins.doubleValue : f.mins.integerValue)) || 0) }); }
+    if (!sessions.length) { status.textContent = "No sessions recorded yet."; return; }
+    status.textContent = "";
+    renderActReport(sessions);
+  } catch (e) { status.textContent = "⚠️ Couldn't load the activity report — try again in a bit."; }
+}
+function openActPanel() { if (!isOwnerAcct()) return; closeChatLog(); closeMonColl(); $("actpanel").style.display = "flex"; sfxClick(); actLoad(); }
+function closeActPanel() { $("actpanel").style.display = "none"; sfxClick(); }
 function toggleMonAll() { /* the owner's unlock-all switch (his order, 2026-11-02): flips his EFFECTIVE collection between everything at stage 3 and his real saved mons, saved through acctMonSave like mons/monsel. LOCKING also erases his real purchase progress (his order, later the same day): the real mons map and the follower pick are wiped in the same tap, so a locked owner owns nothing until he buys again; unlocking again restores everything through the toggle alone. A follower pick the new state doesn't own can't stand, so locking back down clears it (and puts the monster away) */
   if (!isOwnerAcct()) return;
   monAll = !monAll;
@@ -5567,6 +5618,8 @@ monBtnEl.addEventListener("pointerdown", e => { e.preventDefault(); toggleMonOut
 setInterval(syncMonBtn, 300);
 $("moncollbtn").onclick = () => openMonColl();
 $("moncollclose").onclick = () => closeMonColl();
+$("actbtn").onclick = () => openActPanel();
+$("actclose").onclick = () => closeActPanel();
 $("monallbtn").onclick = () => toggleMonAll();
 $("monpenclose").onclick = () => closeMonPen();
 /* ---- visible-feet measurement (2026-11-02): an image's lowest SOLID row (alpha ≥ 200, at least 2px in the row) can sit above its bottom edge, leaving a clear run under the feet that the eye reads as the sprite floating or sinking. These helpers measure that run's fraction of the image height, once per image ---- */
