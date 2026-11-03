@@ -317,6 +317,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
           <button id="acctsignin" type="submit">Sign in</button>
         </div>
         </form>
+        <div class="acctrow" id="qkrow" style="margin-top:8px;display:none">
+          <button id="qkbtn" type="button">⚡ One-tap sign in</button>
+        </div>
       </div>
       <div id="acctin" style="display:none">
         <p id="acctwho" style="margin-bottom:8px"></p>
@@ -329,6 +332,10 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
         <div class="acctrow" id="actrow" style="margin-top:8px;display:none">
           <button id="actbtn" type="button">📊 Activity Report</button>
         </div>
+        <div class="acctrow" id="qkctlrow" style="margin-top:8px;display:none">
+          <button id="qkctlbtn" type="button">⚡ Enable one-tap sign-in on this device</button>
+        </div>
+        <p id="qkstat" style="display:none;margin:6px 0 0;color:#9db8d9;font-size:13px"></p>
       </div>
       <div id="acctmsg"></div>
     </div>
@@ -1955,7 +1962,9 @@ function acctUi() {
     out.style.display = "none"; inn.style.display = "block";
     $("acctwho").textContent = "✅ Signed in as " + (acctUser.email || "") + " — your name, hero and chips save to your account.";
     const ar = $("actrow"); if (ar) ar.style.display = isOwnerAcct() ? "flex" : "none"; /* the Activity Report row under Monster Collection: the owner's account ONLY — every other account (and every guest) never sees it */
-  } else { out.style.display = "block"; inn.style.display = "none"; }
+    const qr = $("qkctlrow"); if (qr) qr.style.display = isOwnerAcct() ? "flex" : "none"; /* the one-tap sign-in controls under the Activity Report row: the same owner-only gate */
+    if (isOwnerAcct()) qkRefreshCtl(); /* and their state (off / on, on this device / on, on another device) is read fresh each time this menu renders */
+  } else { out.style.display = "block"; inn.style.display = "none"; qkSyncRow(); } /* signed out: the one-tap button on the form shows only on a device that holds a key */
 }
 function friendlyAuthErr(e) {
   const c = (e && e.code) || "";
@@ -5484,6 +5493,95 @@ async function actLoad() {
 }
 function openActPanel() { if (!isOwnerAcct()) return; closeChatLog(); closeMonColl(); $("actpanel").style.display = "flex"; sfxClick(); actLoad(); }
 function closeActPanel() { $("actpanel").style.display = "none"; sfxClick(); }
+/* ---- ONE-TAP SIGN-IN (owner-only, 2026-11-03): Firebase Auth persistence stays NONE — closing the phone still signs him out, and everyone else's sign-in is the completely normal form. On ONE device of his choosing, the sign-in form gains a single ⚡ button: the page generates a random 32-byte key, keeps the RAW key only in that browser's localStorage ("qi_quickkey"), and stores just its SHA-256 hash in the Firestore doc quickkeys/<owner uid> {hash, created} under his own sign-in (the rules let ONLY his account write/delete it, and let the droplet service's worker account read it). Pressing the button POSTs the raw key to the droplet (qi-hub-quickkey.service, behind Caddy at voice.quantuminuofficial.com/quickkey/signin); the service compares hashes and mints a Firebase custom token for the owner uid — the only uid it can ever mint — signed with a service-account key that lives only on the droplet. The page marks the sign-in fresh (the exact discipline the password button follows) and calls signInWithCustomToken, so the session claim, profile load and everything downstream are THE SAME post-auth flow as a password sign-in. Enabling on a second device overwrites the doc and kills the first device's key; a 401 from the endpoint means the key is dead (revoked or superseded) and the page forgets it on the spot. ---- */
+const QK_UID = "NWh4MUfgLXeGlfKQJ8N7HFoOBv23"; /* the owner's account uid: the only account one-tap exists for — the endpoint hardcodes the same uid, and every control here sits behind isOwnerAcct() besides */
+const QK_LS_KEY = "qi_quickkey";
+const QK_ENDPOINT = "https://voice.quantuminuofficial.com/quickkey/signin";
+function qkLocalKey() { try { return localStorage.getItem(QK_LS_KEY) || ""; } catch (e) { return ""; } }
+function qkStoreLocalKey(k) { try { if (k) localStorage.setItem(QK_LS_KEY, k); else localStorage.removeItem(QK_LS_KEY); } catch (e) {} }
+function qkSyncRow() { const r = $("qkrow"); if (r) r.style.display = qkLocalKey() ? "flex" : "none"; } /* the ⚡ button on the sign-in form: shown ONLY on a device holding a key — every other browser and device never sees it */
+async function qkSha256Hex(str) { const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join(""); }
+function qkDocUrl() { return "https://firestore.googleapis.com/v1/projects/quantum-inu-games/databases/(default)/documents/quickkeys/" + QK_UID; }
+async function qkReadDoc() { /* the stored {hash, created}, or null when one-tap is off everywhere (no doc); throws on a real read failure */
+  const tok = await acctUser.getIdToken();
+  const resp = await fetch(qkDocUrl(), { headers: { "Authorization": "Bearer " + tok } });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  const d = await resp.json(); const f = (d && d.fields) || {};
+  return { hash: (f.hash && f.hash.stringValue) || "", created: +((f.created && f.created.integerValue) || 0) };
+}
+async function qkWriteDoc(hash) {
+  const tok = await acctUser.getIdToken();
+  const resp = await fetch(qkDocUrl(), { method: "PATCH", headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" }, body: JSON.stringify({ fields: { hash: { stringValue: hash }, created: { integerValue: String(Date.now()) } } }) });
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+}
+async function qkDeleteDoc() {
+  const tok = await acctUser.getIdToken();
+  const resp = await fetch(qkDocUrl(), { method: "DELETE", headers: { "Authorization": "Bearer " + tok } });
+  if (!resp.ok && resp.status !== 404) throw new Error("HTTP " + resp.status);
+}
+let qkBusy = false;
+async function qkRefreshCtl() { /* the account-menu control's three states: (a) no doc — Enable; (b) doc + THIS device holds the matching key — ON here, with Turn off; (c) doc + this device holds no matching key — ON on another device, with Turn off everywhere */
+  const row = $("qkctlrow"), btn = $("qkctlbtn"), stat = $("qkstat"); if (!row || !btn || !stat) return;
+  if (!isOwnerAcct() || !acctUser) { row.style.display = "none"; stat.style.display = "none"; return; }
+  row.style.display = "flex";
+  try {
+    const doc = await qkReadDoc();
+    const local = qkLocalKey();
+    const localHash = local ? await qkSha256Hex(local) : "";
+    if (doc && local && localHash === doc.hash) {
+      stat.textContent = "⚡ One-tap sign-in is ON on this device"; stat.style.display = "block";
+      btn.textContent = "Turn off"; btn.onclick = () => qkDisable();
+    } else if (doc) {
+      stat.textContent = "⚡ One-tap sign-in is ON on another device"; stat.style.display = "block";
+      btn.textContent = "Turn off everywhere"; btn.onclick = () => qkDisable();
+    } else {
+      stat.textContent = ""; stat.style.display = "none";
+      btn.textContent = "⚡ Enable one-tap sign-in on this device"; btn.onclick = () => qkEnable();
+    }
+  } catch (e) { stat.textContent = "⚡ One-tap sign-in state couldn't load — try again in a bit."; stat.style.display = "block"; btn.textContent = "⚡ Enable one-tap sign-in on this device"; btn.onclick = () => qkEnable(); }
+}
+async function qkEnable() {
+  if (!isOwnerAcct() || !acctUser || qkBusy) return;
+  qkBusy = true;
+  try {
+    const bytes = new Uint8Array(32); crypto.getRandomValues(bytes);
+    let bin = ""; for (const b of bytes) bin += String.fromCharCode(b);
+    const key = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); /* the raw key: base64url, no padding */
+    const hash = await qkSha256Hex(key);
+    await qkWriteDoc(hash); /* the hash lands FIRST: only then does this device keep the raw key, so a failed write never leaves a key pointing at nothing */
+    qkStoreLocalKey(key);
+    acctMsg("⚡ One-tap sign-in is on for this device.");
+  } catch (e) { acctMsg("⚠️ One-tap sign-in couldn't be set up — try again in a bit."); }
+  qkBusy = false; qkRefreshCtl();
+}
+async function qkDisable() { /* Turn off / Turn off everywhere: the doc goes (the endpoint refuses every key from that moment, within its short cache) and this device forgets any key it holds */
+  if (!isOwnerAcct() || !acctUser || qkBusy) return;
+  qkBusy = true;
+  let ok = true;
+  try { await qkDeleteDoc(); } catch (e) { ok = false; }
+  qkStoreLocalKey("");
+  qkBusy = false; qkRefreshCtl(); qkSyncRow();
+  acctMsg(ok ? "⚡ One-tap sign-in is off." : "⚠️ One-tap sign-in couldn't be turned off — try again in a bit.");
+}
+async function qkSignIn() {
+  const key = qkLocalKey(); if (!key || !auth) { qkSyncRow(); return; }
+  acctMsg("Signing you in…");
+  try {
+    const resp = await fetch(QK_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) });
+    if (resp.status === 401) { /* revoked or superseded: this device's key is dead — forget it on the spot and say so plainly */
+      qkStoreLocalKey(""); qkSyncRow();
+      acctMsg("One-tap sign-in was turned off — sign in normally.");
+      return;
+    }
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    if (!data || !data.token) throw new Error("no token");
+    markFreshAuth(); /* this instance's own sign-in, marked exactly like the password button marks its own: the auth callback must not mistake it for a resurrected ghost */
+    await auth.signInWithCustomToken(data.token);
+    acctMsg("");
+  } catch (e) { acctMsg("One-tap sign-in didn't work — sign in normally."); }
+}
 function toggleMonAll() { /* the owner's unlock-all switch (his order, 2026-11-02): flips his EFFECTIVE collection between everything at stage 3 and his real saved mons, saved through acctMonSave like mons/monsel. LOCKING also erases his real purchase progress (his order, later the same day): the real mons map and the follower pick are wiped in the same tap, so a locked owner owns nothing until he buys again; unlocking again restores everything through the toggle alone. A follower pick the new state doesn't own can't stand, so locking back down clears it (and puts the monster away) */
   if (!isOwnerAcct()) return;
   monAll = !monAll;
@@ -5619,6 +5717,8 @@ setInterval(syncMonBtn, 300);
 $("moncollbtn").onclick = () => openMonColl();
 $("moncollclose").onclick = () => closeMonColl();
 $("actbtn").onclick = () => openActPanel();
+$("qkbtn").onclick = () => qkSignIn();
+qkSyncRow(); /* first paint: the one-tap button appears at once on a device that holds a key, before auth has even resolved (persistence is NONE, so this visit starts signed out regardless) */
 $("actclose").onclick = () => closeActPanel();
 $("monallbtn").onclick = () => toggleMonAll();
 $("monpenclose").onclick = () => closeMonPen();
