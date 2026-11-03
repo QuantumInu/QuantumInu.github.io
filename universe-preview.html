@@ -40,6 +40,10 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #punchr{bottom:76px} /* R takes RUN's exact spot while boxing */
 #punchl{bottom:174px} /* L sits on top of R — where T would be, but there is no T while boxing: entering a bout untransforms you (Jonathan 2026-10-31) */
 #punchl.on,#punchr.on{background:rgba(212,42,42,.5);border-color:var(--gold)}
+#trfire,#trgun{position:absolute;right:18px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.5);background:rgba(8,20,34,.42);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#bfefff;touch-action:none;-webkit-user-select:none;user-select:none}
+#trfire{bottom:76px} /* FIRE takes RUN's exact spot while fighting in the Trenches — the punch buttons' arrangement, word for word */
+#trgun{bottom:174px} /* GUN sits on top of FIRE, where L sits over R */
+#trfire.on{background:rgba(255,45,85,.45);border-color:var(--gold)}
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
 #micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 #micbtn.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
@@ -249,6 +253,8 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <div id="monbtn">M</div>
   <div id="punchl">L</div>
   <div id="punchr">R</div>
+  <div id="trfire">🔫</div>
+  <div id="trgun">🔫</div>
   <button id="prompt"></button>
   <div id="jukebox"><div id="jukepanel">
     <h2 id="juketitle">🎵 Club Quantum Jukebox</h2>
@@ -1447,6 +1453,8 @@ const GEXIT = { x: GYMROOM.w / 2 - 62, y: GYMROOM.h - 58, w: 124, h: 44 };
 /* the building mirrors the Sports Complex to the plaza's other side: same 1000x340, bottom edge on the arcade's bottom line (y=510); orange theme, green light becomes orange */
 const SPD_B = { x: 70, y: 170, w: 1000, h: 340 };
 const SPDDOOR = { x: 525, y: 470, w: 90, h: 34 };
+const TR_B = { x: 30, y: 560, w: 420, h: 320 }; /* 🔫 QUANTUM TRENCHES (PREVIEW build, Jonathan 2026-11-03): the paintball arena's building — at the plaza's far WEST edge in the Speedway's own column, directly below the Speedway's west end. The Speedway already starts at x 70, so there is no ground west of it to take; this west-edge plot in its column, with open lawn on every side, is the closest spot on its left. The Club's width (420), the Monster Shop's height (320) — a standard plaza building's measure. */
+const TRDOOR = { x: 195, y: 840, w: 90, h: 34 }; /* its door, on the building's BOTTOM face (faces DOWN / south — the standing building rule), centred on x 240: the gym door's own measurements, placed by the gym door's own formula (y = B.y + B.h − 40) */
 const SWROOM = { w: 3600, h: 2400 };
 const SWEXIT = { x: SWROOM.w / 2 - 62, y: SWROOM.h - 58, w: 124, h: 44 };
 /* infield video monitors (Jonathan 2026-10-29): the lounge TVs' twin — one centred in each half of the infield grass, symmetric about the centre medallion, playing the Daily Life Racing feeds; same screen size as the lounge TVs (336x189, 16:9 for the landscape videos). Solid, like the lounge TVs — see obstacles() */
@@ -1637,15 +1645,16 @@ const STAGE_WALLS = [
 ];
 const booths = [];
 [600, 880, 1160, 1440].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); }); /* the booth columns ride DOWN the walls as one arrangement (Jonathan 2026-11-01): both side columns shifted 80 lower together (rows were 520/800/1080), and the pair that used to sit inset by the entrance (420,1470) and (CLUBROOM.w-630,1470) now form each column's FOURTH row — aligned with its column at x 56 / CLUBROOM.w-266, one row-pitch (280) below the last row, so the whole pattern keeps the rows' own spacing (190 booth + 90 gap) all the way down, the last gap landing 90 above the floor edge. Nothing else in the club moved */
-function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : me.scene === "rooftop" ? ROOFROOM : me.scene === "monstershop" ? MSROOM : me.scene === "comics" ? COMROOM : TH; }
+function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : me.scene === "rooftop" ? ROOFROOM : me.scene === "monstershop" ? MSROOM : me.scene === "comics" ? COMROOM : me.scene === "trenches" ? TRROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B, MON_B, COM_B]; /* COM_B: Quantum Comics, on the lawn south of the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* MON_B: the Monster Shop, below the club across the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
+  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B, MON_B, COM_B, TR_B]; /* COM_B: Quantum Comics, on the lawn south of the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* MON_B: the Monster Shop, below the club across the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
   if (me.scene === "bowling") return [...BOWLLANES]; /* the four lanes are solid in their room, exactly as the pool tables are in theirs */
   if (me.scene === "monstershop") return [...MONCASES, ...MONPEN]; /* the thirty glass cases and the training pen's fence loop are solid in their hall */
   if (me.scene === "comics") return [...COMSTANDS]; /* the eighteen glass stands are solid in their shop, exactly as the monster cases are in theirs */
+  if (me.scene === "trenches") return trFighter ? [...TRCOVER] : [TRFIELD, ...TRCOVER]; /* QUANTUM TRENCHES: the arena rule (the boxing ring's own) — only the fighters in a live match may be on the field; to everyone else the whole field is a wall and they walk the apron around it, and the trenches/crates inside are solid for the fighters playing through them */
   if (me.scene === "rooftop") return [ROOFBAR_L, ROOFBAR_R, ROOFDJFRONT, ROOFBOOMFRONT_L, ROOFBOOMFRONT_R]; /* the rooftop's solids are the club's own recipe (Jonathan 2026-11-01): the two bar counters and the DJ booth's front slab — the pool stays open water walked through (the plaza pool's rule), and the booths and the railing are walk-over decor, exactly as the club's booths are */
   if (me.scene === "arcade") return cabinets.map(c => ({ x: c.x + 8, y: c.y + 30, w: c.w - 16, h: 76 }));
   if (me.scene === "club") return [...STAGE_WALLS, BAR_L, BAR_R, DJFRONT]; /* the DJ booth's front slab is back on the stage (PREVIEW round 3); the jukebox left this list for the VIP lounge */
@@ -1670,6 +1679,7 @@ function collide(nx, ny) {
     if (nx > BOWLDOOR.x - 6 && nx < BOWLDOOR.x + BOWLDOOR.w + 6 && ny > BOWL_B.y + BOWL_B.h - 14 && ny < BOWL_B.y + BOWL_B.h + 46) return { x: nx, y: ny, bowldoor: true }; /* Quantum Bowling's door, on its BOTTOM face like every other plaza building's (moved there at Jonathan's word, 2026-11-01) — the gym door's check, word for word */
     if (nx > MONDOOR.x - 6 && nx < MONDOOR.x + MONDOOR.w + 6 && ny > MON_B.y + MON_B.h - 14 && ny < MON_B.y + MON_B.h + 46) return { x: nx, y: ny, mondoor: true }; /* the Monster Shop's door, on its BOTTOM face below the club — the gym door's check, word for word */
     if (nx > COMDOOR.x - 6 && nx < COMDOOR.x + COMDOOR.w + 6 && ny > COM_B.y + COM_B.h - 14 && ny < COM_B.y + COM_B.h + 46) return { x: nx, y: ny, comdoor: true }; /* Quantum Comics' door, on its BOTTOM face on the lawn south of the bottom walkway — the gym door's check, word for word */
+    if (nx > TRDOOR.x - 6 && nx < TRDOOR.x + TRDOOR.w + 6 && ny > TR_B.y + TR_B.h - 14 && ny < TR_B.y + TR_B.h + 46) return { x: nx, y: ny, trdoor: true }; /* Quantum Trenches' door, on its BOTTOM face at the plaza's west edge below the Speedway — the gym door's check, word for word */
     nx = Math.max(50, Math.min(WORLD.w - 50, nx)); ny = Math.max(60, Math.min(WORLD.h - 40, ny));
   } else if (me.scene === "arcade") {
     if (nx > ROOM.w - 66 && Math.abs(ny - TDOOR.y) < TDOOR.half) return { x: nx, y: ny, theatre: true };
@@ -1699,6 +1709,10 @@ function collide(nx, ny) {
   } else if (me.scene === "comics") {
     if (nx > COMEXIT.x - 4 && nx < COMEXIT.x + COMEXIT.w + 4 && ny > COMROOM.h - 76) return { x: nx, y: ny, comicsexit: true }; /* the exit plate at the south wall — the bowling exit's check, word for word */
     nx = Math.max(56, Math.min(COMROOM.w - 56, nx)); ny = Math.max(70, Math.min(COMROOM.h - 46, ny));
+  } else if (me.scene === "trenches") {
+    if (trFighter) { nx = Math.max(TRFIELD.x + 42, Math.min(TRFIELD.x + TRFIELD.w - 42, nx)); ny = Math.max(TRFIELD.y + 64, Math.min(TRFIELD.y + TRFIELD.h - 30, ny)); } /* a fighter stays on the field for the whole match — the boxing ropes' clamp, in the same shape — and the cover resolution below still runs, so the trenches and crates stay solid */
+    else { if (nx > TR_EXIT.x - 4 && nx < TR_EXIT.x + TR_EXIT.w + 4 && ny > TRROOM.h - 76) return { x: nx, y: ny, trexit: true }; /* the exit plate at the south wall — the bowling exit's check, word for word */
+      nx = Math.max(56, Math.min(TRROOM.w - 56, nx)); ny = Math.max(70, Math.min(TRROOM.h - 46, ny)); }
   } else if (me.scene === "rooftop") {
     if (nx < 66 && Math.abs(ny - ROOFDOOR.y) < ROOFDOOR.half) return { x: nx, y: ny, roofback: true }; /* the return door in the west wall, at the club door's own height — the theatre door's check, mirrored */
     nx = Math.max(56, Math.min(ROOFROOM.w - 56, nx)); ny = Math.max(70, Math.min(ROOFROOM.h - 46, ny));
@@ -2297,7 +2311,7 @@ function syncBoxBtns() {
   const want = show ? "flex" : "none";
   if (punchLEl.style.display !== want) punchLEl.style.display = want;
   if (punchREl.style.display !== want) punchREl.style.display = want;
-  if (coarse) { const rw = show ? "none" : "flex"; if (runEl.style.display !== rw) runEl.style.display = rw; } /* RUN is replaced while boxing, and comes back when the bout ends */
+  if (coarse) { const rw = (show || (entered && trFighter && me.scene === "trenches")) ? "none" : "flex"; if (runEl.style.display !== rw) runEl.style.display = rw; } /* RUN is replaced while boxing, and comes back when the bout ends — and the Trenches FIRE/GUN buttons take its spot the same way while a paintball fight is on (syncTrBtns shows them) */
 }
 setInterval(syncBoxBtns, 200);
 punchLEl.addEventListener("pointerdown", e => { e.preventDefault(); punchLEl.classList.add("on"); boxPunch("L"); setTimeout(() => punchLEl.classList.remove("on"), 130); });
@@ -4923,7 +4937,7 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 /* ============ online list ============ */
 /* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot is excluded (Jonathan: "Exclude the bots") — neither of his presence records (plaza or Watchtower HQ) is listed or counted, so the roster and the Online button count people only and always agree. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
 const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "vip", "hq", "casino", "gym", "speedway", "track"];
-const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena", bowling: "Quantum Bowling", rooftop: "The Rooftop", monstershop: "Monster Shop", comics: "Quantum Comics" };
+const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena", bowling: "Quantum Bowling", rooftop: "The Rooftop", monstershop: "Monster Shop", comics: "Quantum Comics", trenches: "Quantum Trenches" };
 let onlineSig = "";
 function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
@@ -5483,6 +5497,422 @@ function comNearStand() { if (me.scene !== "comics") return -1; let best = -1, b
 function openComic(n) { sfxChime(); window.open("https://quantuminuofficial.com/comics/quantum-inu-" + n + ".html", "_blank"); } /* QUANTUM COMICS (PREVIEW): a filled stand opens its issue's page in a new tab — playCabinet's own pattern */
 const comImgs = {}; /* the lazy cover cache — monImg's pattern */
 function comImg(n) { let im = comImgs[n]; if (!im) { im = new Image(); im.src = "assets/comics/issue-" + n + "/card.jpg"; comImgs[n] = im; } return im; }
+/* ================================================================
+   🔫 QUANTUM TRENCHES (PREVIEW build, Jonathan 2026-11-03) — the paintball arena through the door
+   at the plaza's west edge, below the Speedway. Five chairs west (🔴 RED) and five east (🔵 BLUE);
+   sitting joins that team. The match plays out on the field between the chairs: run, take cover
+   behind the trench lines and crate stacks, and shoot the other team. The lowest seated player
+   referees (the boxing host's pattern): at the bell every empty seat is filled by a CPU fighter, so
+   a solo player gets a full 5v5. Three guns (UZI / SHOTGUN / ROCKET), all drawn in the owner's TEAM
+   NEON. Health and armor pickups sit on the field. First team to 15 knockouts wins.
+   ALL match state lives on hub/tables/trenches, the boxing record's shape — seats, hp, armor,
+   score, the CPU bodies, and one shot-event node per seat (boxing's per-arm punch records, for
+   paint). The presence record gains NO new field; the camera is the normal hub zoom throughout.
+   ================================================================ */
+const TRROOM = { w: 3600, h: 2400 }; /* the Sports Complex's exact footprint (GYMROOM) — the field is about as wide as the gym, at Jonathan's word */
+const TRFIELD = { x: 350, y: 330, w: 2900, h: 1620 }; /* the battlefield: x 350..3250, y 330..1950 — everything outside it is the spectators' apron */
+const TR_EXIT = { x: 1755, y: TRROOM.h - 40, w: 90, h: 34 }; /* the exit plate on the SOUTH wall — you enter, and leave, at the bottom middle (TR_EXIT, not TREXIT — that name is the horse track's) */
+const TRSEAT_Y = [540, 840, 1140, 1440, 1740];
+const TRSEATS = TRSEAT_Y.map(y => ({ x: 258, y })).concat(TRSEAT_Y.map(y => ({ x: 3342, y }))); /* seats 0–4 RED on the west apron, 5–9 BLUE on the east — each chair stands 92 clear of the field line, the boxing seats' own offset from the ring */
+const TRSPAWN_X = [480, 3120]; /* a fighter's spawn, just inside their own end of the field */
+const TRCOVER = [
+  { x: 760, y: 660, w: 560, h: 44 }, { x: 2280, y: 660, w: 560, h: 44 },   /* the trench lines: two west, */
+  { x: 760, y: 1576, w: 560, h: 44 }, { x: 2280, y: 1576, w: 560, h: 44 }, /* two east — the whole set is 180°-symmetric about the field's centre, so neither team owns a better map */
+  { x: 1080, y: 1020, w: 44, h: 240 }, { x: 2476, y: 1020, w: 44, h: 240 }, /* the standing sandbag walls */
+  { x: 1330, y: 480, w: 120, h: 120 }, { x: 2150, y: 1680, w: 120, h: 120 }, /* the crate stacks */
+  { x: 1330, y: 1680, w: 120, h: 120 }, { x: 2150, y: 480, w: 120, h: 120 },
+  { x: 1740, y: 1080, w: 120, h: 120 } /* the centre block */
+];
+const TRPICKS = [{ x: 1800, y: 700, kind: "hp" }, { x: 1800, y: 1580, kind: "hp" }, { x: 1000, y: 1140, kind: "arm" }, { x: 2600, y: 1140, kind: "arm" }]; /* ✚ health on the centre line, 🛡 armor on each flank */
+const TRGUNS = [
+  { name: "UZI", icon: "🔫", rate: 130, dmg: 6, spd: 1180, spread: 0.055, pellets: 1, range: 1000, len: 30 },
+  { name: "SHOTGUN", icon: "💥", rate: 780, dmg: 7, spd: 1020, spread: 0.17, pellets: 6, range: 640, len: 42 },
+  { name: "ROCKET", icon: "🚀", rate: 1150, dmg: 30, spd: 780, spread: 0, pellets: 1, range: 1250, len: 50, aoe: 115 }
+];
+const TRNEON = ["#ff2d55", "#38b6ff"]; /* the team neons — red west, blue east; every gun, tracer and ring wears its owner's */
+const TRWIN = 15; /* first team to 15 knockouts takes the match */
+const trTeamOf = i => i < 5 ? 0 : 1;
+let trState = null, trSeat = -1, trFighter = false, trHooked = false, trWasPhase = "", trDeadUntil = 0;
+let trMyGun = 0, trLastShot = 0, trShotN = 0, trAimA = 0, trNote = "", trNoteAt = 0, trBtnFire = false, trHostAm = false;
+let trProjs = [], trFxProjs = [], trSplats = [], trBooms = [], trMuz = [];
+let trShotSeen = {}, trCpuSims = {}, trCpuVis = {}, trCpuPubAt = {};
+let trMouse = { x: 0, y: 0, down: false };
+/* ---- the room's sounds, all built from the page's tone/noiseBurst primitives like every other room's ---- */
+function sfxTrUzi(v) { v = v || 1; tone(210, 80, 0.05, "square", 0.05 * v); noiseBurst(0.05, "highpass", 1700, 800, 0.09 * v); }
+function sfxTrShot(v) { v = v || 1; noiseBurst(0.22, "lowpass", 950, 180, 0.20 * v); tone(120, 42, 0.18, "triangle", 0.15 * v); }
+function sfxTrRocket(v) { v = v || 1; noiseBurst(0.42, "bandpass", 380, 2300, 0.13 * v); tone(280, 55, 0.42, "sawtooth", 0.06 * v); }
+function sfxTrBoom() { noiseBurst(0.5, "lowpass", 520, 70, 0.28); tone(88, 28, 0.42, "sine", 0.24); }
+function sfxTrHit() { noiseBurst(0.09, "bandpass", 760, 260, 0.13); tone(300, 140, 0.07, "sine", 0.05); }
+function sfxTrSplat() { noiseBurst(0.06, "bandpass", 500, 240, 0.07); }
+function sfxTrKO() { tone(660, 660, 0.09, "square", 0.055); tone(520, 520, 0.09, "square", 0.055, 0.09); tone(392, 392, 0.17, "square", 0.055, 0.18); }
+function sfxTrPickup() { tone(740, 740, 0.07, "sine", 0.055); tone(1180, 1180, 0.13, "sine", 0.055, 0.065); }
+function sfxTrBell() { [523, 659, 784].forEach((f, i) => tone(f, f, 0.09, "triangle", 0.05, i * 0.055)); }
+function trGunSfx(g, v) { if (g === 0) sfxTrUzi(v); else if (g === 1) sfxTrShot(v); else sfxTrRocket(v); }
+function trSplatAt(x, y, col, r) { trSplats.push({ x, y, col, r: r || 15, life: 1 }); if (trSplats.length > 130) trSplats.splice(0, trSplats.length - 130); }
+/* ---- entry / exit (the comics functions' shape, word for word) ---- */
+function toTrenches() { stopAllTones(); me.scene = "trenches"; voiceReset(); me.x = TRROOM.w / 2; me.y = TRROOM.h - 170; sfxChime(); publish(true); trenchesListen(); } /* in through the bottom-face door, landing inside by the exit plate at the south wall — the bowling entry's pattern */
+function toPlazaFromTrenches() { stopAllTones(); trStandUp(); me.scene = "plaza"; voiceReset(); me.x = TR_B.x + TR_B.w / 2; me.y = TR_B.y + TR_B.h + 60; sfxChime(); publish(true); } /* back out below the door, on the building's centre line (240) — bottom + 60, every other building's exit landing, clear of the door trigger's south edge */
+/* ---- the chairs: the hub's seat pattern (the pool hall's, by way of boxing) — a record at hub/tables/trenches/seats/<i>, a 25-second freshness window, a pid-less husk never counts ---- */
+function trSeatRec(i) { const s = trState && trState.seats ? trState.seats[i] : null; return (s && s.pid && Date.now() - (s.ts || 0) < 25000) ? s : null; }
+function trFreshSeats() { const out = []; for (let i = 0; i < 10; i++) if (trSeatRec(i)) out.push(i); return out; }
+function trNearChair() { if (me.scene !== "trenches") return -1; let best = -1, bd = 1e9; for (let i = 0; i < 10; i++) { const s = trSeatRec(i); if (s && s.pid !== myId) continue; const c = TRSEATS[i], d = Math.hypot(me.x - c.x, me.y - c.y); if (d < bd) { bd = d; best = i; } } return bd <= 130 ? best : -1; }
+function trTrySit(i) {
+  if (trSeat >= 0 || i < 0) return;
+  const s = trSeatRec(i); if (s && s.pid !== myId) { trNote = "That chair is taken."; trNoteAt = Date.now(); return; }
+  trSeat = i; mySeatPos = { x: TRSEATS[i].x, y: TRSEATS[i].y }; me.x = TRSEATS[i].x; me.y = TRSEATS[i].y;
+  tblSet("trenches/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now() });
+  seatOD("trenches", i, true); sfxClick(); publish(true);
+  trNote = i < 5 ? "🔴 You're RED — get ready!" : "🔵 You're BLUE — get ready!"; trNoteAt = Date.now();
+}
+function trStandUp() {
+  if (trSeat < 0) return; const was = trSeat, wasFighter = trFighter;
+  tblSet("trenches/seats/" + was, null); seatOD("trenches", was, false);
+  trSeat = -1; mySeatPos = null; trFighter = false; trDeadUntil = 0;
+  if (wasFighter) { me.x = TRSEATS[was].x; me.y = TRSEATS[was].y + 140; } /* a forfeit steps off the field onto the apron by their chair — no chips here, nothing to hand back */
+  publish(true);
+}
+function trSeatBeat() { /* the claim heartbeat (boxing's, in shape): re-stamps my chair every 4s, which is also the reclaim after a reload — unless the chair is genuinely someone else's now */
+  if (me.scene !== "trenches" || !entered || trSeat < 0) return;
+  const cur = trState && trState.seats ? trState.seats[trSeat] : null;
+  if (cur && cur.pid && cur.pid !== myId && Date.now() - (cur.ts || 0) < 25000) { trSeat = -1; if (!trFighter) mySeatPos = null; return; }
+  tblSet("trenches/seats/" + trSeat, { pid: myId, name: me.name, hero: me.hero, ts: Date.now() });
+}
+/* ---- the record + the referee (boxing's boxingListen/boxHostTick, in shape): any client in the room clears a leftover record; the LOWEST fresh seat hosts the match and runs the CPUs ---- */
+function trenchesListen() {
+  if (trHooked) return; trHooked = true;
+  tablesRef.child("trenches").on("value", s => { trState = s.val(); trShotsWatch(); trPhaseWatch(); });
+  setInterval(trHostTick, 900); setInterval(trSeatBeat, 4000); setInterval(syncTrBtns, 200);
+}
+function trHostTick() {
+  if (me.scene !== "trenches" || !entered) return;
+  const st = trState;
+  if (!st || !st.phase) { tblSet("trenches", { phase: "sit", seats: {}, roundId: newRoundId(), score: { r: 0, b: 0 }, win: -1, ts: srvNow() }); return; }
+  const fresh = trFreshSeats();
+  if (!fresh.length) { if (st.phase !== "sit" || st.hp || st.cpu || st.shots) tblSet("trenches", { phase: "sit", seats: {}, roundId: newRoundId(), score: { r: 0, b: 0 }, win: -1, ts: srvNow() }); return; } /* the last chair emptying ends the match on the spot — the hub's table-reset rule */
+  if (fresh[0] !== trSeat) { trHostAm = false; return; } /* the lowest seated player referees; if they leave, the next seat down adopts the match from the record */
+  trHostAm = true;
+  if (st.phase === "sit") tblUpd("trenches", { phase: "count", fightTs: srvNow() + 3200, roundId: newRoundId(), score: { r: 0, b: 0 }, win: -1 });
+  else if (st.phase === "count" && srvNow() >= (st.fightTs || 0)) {
+    const hp = {}, arm = {}, cpu = {};
+    for (let i = 0; i < 10; i++) { hp[i] = 100; arm[i] = 0; if (!trSeatRec(i)) cpu[i] = { x: TRSPAWN_X[trTeamOf(i)], y: TRSEATS[i].y, flip: trTeamOf(i) === 1, hero: 3 + (i % 6), ts: srvNow() }; } /* every empty seat gets its CPU at its own spawn */
+    tblUpd("trenches", { phase: "fight", hp, arm, cpu, pick: { 0: 0, 1: 0, 2: 0, 3: 0 }, shots: null });
+    trCpuSims = {};
+  }
+  else if (st.phase === "fight") { const sc = st.score || { r: 0, b: 0 }; if ((sc.r || 0) >= TRWIN || (sc.b || 0) >= TRWIN) tblUpd("trenches", { phase: "done", win: (sc.r || 0) >= TRWIN ? 0 : 1, doneTs: srvNow() }); }
+  else if (st.phase === "done" && srvNow() - (st.doneTs || 0) > 5500) tblUpd("trenches", { phase: "sit", hp: null, arm: null, cpu: null, shots: null, score: { r: 0, b: 0 }, win: -1 });
+}
+/* ---- the phase watch (boxing's, in shape): the bell carries a seated player onto the field; the result carries them back to their chair ---- */
+function trPhaseWatch() {
+  const st = trState; if (!st || !st.phase) return; const ph = st.phase;
+  if (ph !== trWasPhase) {
+    const was = trWasPhase; trWasPhase = ph;
+    if (ph === "fight" && trSeat >= 0 && st.hp && typeof st.hp[trSeat] === "number" && trSeatRec(trSeat) && trSeatRec(trSeat).pid === myId) {
+      trFighter = true; mySeatPos = null; trDeadUntil = 0;
+      me.x = TRSPAWN_X[trTeamOf(trSeat)]; me.y = TRSEATS[trSeat].y; trAimA = trTeamOf(trSeat) === 0 ? 0 : Math.PI;
+      sfxTrBell(); trNote = "🔫 FIGHT! First team to " + TRWIN + " knockouts wins!"; trNoteAt = Date.now(); publish(true);
+    }
+    if ((ph === "done" || ph === "sit") && was === "fight" && trFighter) {
+      trFighter = false; trDeadUntil = 0; trProjs = [];
+      if (trSeat >= 0) { me.x = TRSEATS[trSeat].x; me.y = TRSEATS[trSeat].y; mySeatPos = { x: TRSEATS[trSeat].x, y: TRSEATS[trSeat].y }; }
+      if (ph === "done") { trNote = st.win === 0 ? "🔴 RED TEAM WINS!" : "🔵 BLUE TEAM WINS!"; trNoteAt = Date.now(); if (trSeat >= 0 && st.win === trTeamOf(trSeat)) sfxWin(); }
+      publish(true);
+    }
+  }
+  trKoWatch();
+}
+function trKoWatch() { /* my own knockout, called on my own screen the moment my hp leaf lands at 0 (boxing's KO call, in shape) */
+  const st = trState; if (!st || !trFighter || trSeat < 0 || st.phase !== "fight") return;
+  const hp = st.hp ? st.hp[trSeat] : undefined;
+  if (typeof hp === "number" && hp <= 0 && !trDeadUntil) { trDeadUntil = Date.now() + 3000; sfxTrKO(); trSplatAt(me.x, me.y - 40, TRNEON[trTeamOf(trSeat)], 42); trNote = "💫 KNOCKED OUT! Back in 3…"; trNoteAt = Date.now(); }
+}
+/* ---- my controls: desktop aims and fires with the mouse (hold to fire); a phone gets the FIRE / GUN buttons, FIRE auto-aiming the nearest living enemy; 1/2/3 switch guns on a keyboard ---- */
+const trFireEl = $("trfire"), trGunEl = $("trgun");
+trFireEl.addEventListener("pointerdown", e => { e.preventDefault(); trBtnFire = true; trFireEl.classList.add("on"); });
+const trFireEnd = () => { trBtnFire = false; trFireEl.classList.remove("on"); };
+trFireEl.addEventListener("pointerup", trFireEnd); trFireEl.addEventListener("pointercancel", trFireEnd);
+trGunEl.addEventListener("pointerdown", e => { e.preventDefault(); if (trFighter) { trMyGun = (trMyGun + 1) % 3; sfxClick(); } });
+function syncTrBtns() { /* syncBoxBtns' shape: FIRE/GUN exist only on a coarse pointer, only while I'm a fighter in this room */
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const show = !!(entered && trFighter && me.scene === "trenches" && coarse);
+  const d = show ? "flex" : "none";
+  if (trFireEl.style.display !== d) trFireEl.style.display = d;
+  if (trGunEl.style.display !== d) trGunEl.style.display = d;
+  if (show) trGunEl.textContent = TRGUNS[trMyGun].icon;
+}
+cv.addEventListener("pointerdown", e => { if (e.pointerType === "touch") return; trMouse.x = e.clientX; trMouse.y = e.clientY; if (e.button === 0) trMouse.down = true; });
+cv.addEventListener("pointermove", e => { if (e.pointerType === "touch") return; trMouse.x = e.clientX; trMouse.y = e.clientY; });
+window.addEventListener("pointerup", e => { if (e.button === 0) trMouse.down = false; });
+window.addEventListener("keydown", e => {
+  if (document.activeElement === chatIn || document.activeElement === nameIn) return;
+  if (me.scene === "trenches" && trFighter && (e.key === "1" || e.key === "2" || e.key === "3")) { trMyGun = +e.key - 1; sfxClick(); }
+});
+/* ---- combat. The boxing rule, for paintball: the SHOOTER is authoritative. My client simulates my
+   projectiles (and, if I referee, the CPUs') against the positions on my screen, and writes damage
+   straight onto the record's hp/arm leaves. Every shot ALSO lands on trenches/shots/<seat> — a pure
+   event node the other screens turn into cosmetic tracers, flashes and sound; they never deal damage. ---- */
+function trFighterPos(i) { /* where fighter i stands on THIS screen, or null when they're not in this match here */
+  const st = trState; if (!st || (st.phase !== "fight" && st.phase !== "done") || !st.hp || typeof st.hp[i] !== "number") return null;
+  const rec = trSeatRec(i);
+  if (rec) {
+    if (rec.pid === myId) return trFighter ? { x: me.x, y: me.y, flip: me.flip } : null;
+    const p = peers[rec.pid]; if (!p || p.scene !== "trenches") return null;
+    return { x: p.dx, y: p.dy, flip: p.flip };
+  }
+  if (trHostAm && trCpuSims[i]) return trCpuSims[i];
+  if (trCpuVis[i]) return trCpuVis[i];
+  const c = st.cpu ? st.cpu[i] : null; return c ? { x: c.x, y: c.y, flip: c.flip } : null;
+}
+function trShotsWatch() { /* remote fire, seen and heard — boxing's punch-record FX, for guns */
+  const st = trState; if (!st || !st.shots) return;
+  for (let i = 0; i < 10; i++) {
+    const sh = st.shots[i]; if (!sh || typeof sh.n !== "number") continue;
+    if (trShotSeen[i] === sh.n) continue; trShotSeen[i] = sh.n;
+    if (i === trSeat) continue; /* my own fire is already simulated on my screen */
+    if (trHostAm && !trSeatRec(i)) continue; /* the CPUs I referee fire real projectiles here — no doubles */
+    const g = TRGUNS[sh.g || 0]; if (!g) continue;
+    for (let p = 0; p < g.pellets; p++) { const a = sh.a + (Math.random() - 0.5) * 2 * g.spread; trFxProjs.push({ x: sh.x, y: sh.y, vx: Math.cos(a) * g.spd, vy: Math.sin(a) * g.spd, gun: sh.g || 0, team: trTeamOf(i), life: g.range / g.spd }); }
+    trMuz.push({ x: sh.x, y: sh.y, a: sh.a, col: TRNEON[trTeamOf(i)], life: 1 });
+    const d = Math.hypot(me.x - sh.x, me.y - sh.y); trGunSfx(sh.g || 0, Math.max(0.12, 1 - d / 1500));
+  }
+}
+function trDamage(seat, dmg, bySeat) { /* armor drinks first, then health; the killing blow credits the shooter's team */
+  const st = trState; if (!st || st.phase !== "fight" || !st.hp || typeof st.hp[seat] !== "number") return;
+  const hp = st.hp[seat]; if (hp <= 0) return;
+  const arm = st.arm && typeof st.arm[seat] === "number" ? st.arm[seat] : 0;
+  const absorbed = Math.min(arm, dmg);
+  if (absorbed) tblSet("trenches/arm/" + seat, arm - absorbed);
+  const nh = Math.max(0, hp - (dmg - absorbed));
+  tblSet("trenches/hp/" + seat, nh);
+  if (nh <= 0) {
+    const sc = st.score || { r: 0, b: 0 }, ns = { r: sc.r || 0, b: sc.b || 0 };
+    if (trTeamOf(bySeat) === 0) ns.r++; else ns.b++;
+    tblUpd("trenches", { score: ns });
+    if (bySeat === trSeat) { trNote = "🎯 KNOCKOUT!"; trNoteAt = Date.now(); }
+  }
+}
+function trExplode(x, y, ownerSeat) { /* a rocket going off: the visual lands on every screen that steps the shot; the damage lands here, on the shooter's screen */
+  trBooms.push({ x, y, life: 1 }); sfxTrBoom(); trSplatAt(x, y, TRNEON[trTeamOf(ownerSeat)], 30);
+  const st = trState; if (!st || !st.hp) return;
+  for (let i = 0; i < 10; i++) {
+    if (trTeamOf(i) === trTeamOf(ownerSeat)) continue;
+    const hp = st.hp[i]; if (typeof hp !== "number" || hp <= 0) continue;
+    const p = trFighterPos(i); if (!p) continue;
+    const d = Math.hypot(p.x - x, (p.y - 48) - y);
+    if (d < TRGUNS[2].aoe + 30) trDamage(i, Math.max(6, Math.round(TRGUNS[2].dmg * (1 - 0.55 * d / (TRGUNS[2].aoe + 30)))), ownerSeat);
+  }
+}
+function trStepProjs(dt, list, real) {
+  for (let k = list.length - 1; k >= 0; k--) {
+    const pr = list[k]; pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.life -= dt;
+    let dead = pr.life <= 0, boom = false;
+    if (!dead && (pr.x < TRFIELD.x || pr.x > TRFIELD.x + TRFIELD.w || pr.y < TRFIELD.y || pr.y > TRFIELD.y + TRFIELD.h)) dead = true;
+    if (!dead) for (const c of TRCOVER) if (pr.x > c.x && pr.x < c.x + c.w && pr.y > c.y && pr.y < c.y + c.h) { dead = true; boom = pr.gun === 2; trSplatAt(pr.x, pr.y, TRNEON[pr.team], 13); if (pr.gun !== 2 && Math.hypot(me.x - pr.x, me.y - pr.y) < 900) sfxTrSplat(); break; }
+    if (!dead && real) {
+      for (let i = 0; i < 10; i++) {
+        if (trTeamOf(i) === pr.team) continue;
+        const hp = trState.hp ? trState.hp[i] : undefined; if (typeof hp !== "number" || hp <= 0) continue;
+        const p = trFighterPos(i); if (!p) continue;
+        if (Math.hypot(p.x - pr.x, (p.y - 48) - pr.y) < 36) { dead = true; boom = pr.gun === 2; if (pr.gun !== 2) { trDamage(i, TRGUNS[pr.gun].dmg, pr.owner); trSplatAt(pr.x, pr.y, TRNEON[pr.team], 15); sfxTrHit(); } break; }
+      }
+    }
+    if (dead) { if (pr.gun === 2) { if (real) trExplode(pr.x, pr.y, pr.owner); else trBooms.push({ x: pr.x, y: pr.y, life: 1 }); } list.splice(k, 1); }
+  }
+}
+function trFireAt(a) { /* my own shot: real projectiles here, the event node for everyone else */
+  const st = trState; if (!trFighter || !st || st.phase !== "fight" || trDeadUntil > Date.now()) return;
+  const now = Date.now(), g = TRGUNS[trMyGun];
+  if (now - trLastShot < g.rate) return; trLastShot = now; trAimA = a;
+  const tx = me.x + Math.cos(a) * 30, ty = (me.y - 50) + Math.sin(a) * 30;
+  for (let p = 0; p < g.pellets; p++) { const pa = a + (Math.random() - 0.5) * 2 * g.spread; trProjs.push({ x: tx, y: ty, vx: Math.cos(pa) * g.spd, vy: Math.sin(pa) * g.spd, gun: trMyGun, team: trTeamOf(trSeat), owner: trSeat, life: g.range / g.spd }); }
+  trMuz.push({ x: tx, y: ty, a, col: TRNEON[trTeamOf(trSeat)], life: 1 });
+  trGunSfx(trMyGun, 1);
+  tblSet("trenches/shots/" + trSeat, { n: ++trShotN, g: trMyGun, x: Math.round(tx), y: Math.round(ty), a: Math.round(a * 1000) / 1000, ts: srvNow() });
+}
+function trAimAngle() { /* desktop: the mouse. A coarse pointer (or no shot lined up): the nearest living enemy */
+  if (!window.matchMedia("(pointer: coarse)").matches) { const r = cv.getBoundingClientRect(); const wx = (trMouse.x - r.left) / SCALE + camX, wy = (trMouse.y - r.top) / SCALE + camY; return Math.atan2(wy - (me.y - 50), wx - me.x); }
+  let best = null, bd = 1e9;
+  for (let i = 0; i < 10; i++) { if (trTeamOf(i) === trTeamOf(trSeat)) continue; const hp = trState.hp[i]; if (typeof hp !== "number" || hp <= 0) continue; const p = trFighterPos(i); if (!p) continue; const d = Math.hypot(p.x - me.x, p.y - me.y); if (d < bd) { bd = d; best = p; } }
+  return best ? Math.atan2((best.y - 48) - (me.y - 50), best.x - me.x) : trAimA;
+}
+/* ---- the CPU fighters, simulated ONLY on the referee's screen (boxing's boxCpuFrame, for a team):
+   each empty seat's fighter hunts the nearest living enemy, holds its gun's range, strafes, takes the
+   cover as solid as a player does, and fires only on a clear line — slower than a held trigger, the
+   boxing fairness rule. Its body rides the record's cpu node at a 240ms cadence. ---- */
+function trLosClear(x1, y1, x2, y2) { for (const c of TRCOVER) if (trSegRect(x1, y1, x2, y2, c)) return false; return true; }
+function trSegRect(x1, y1, x2, y2, r) { const dx = x2 - x1, dy = y2 - y1; let t0 = 0, t1 = 1; const p = [-dx, dx, -dy, dy], q = [x1 - r.x, (r.x + r.w) - x1, y1 - r.y, (r.y + r.h) - y1]; for (let k = 0; k < 4; k++) { if (Math.abs(p[k]) < 1e-9) { if (q[k] < 0) return false; } else { const tt = q[k] / p[k]; if (p[k] < 0) { if (tt > t1) return false; if (tt > t0) t0 = tt; } else { if (tt < t0) return false; if (tt < t1) t1 = tt; } } } return true; }
+function trCpuPublish(i, sim, force) {
+  const now = Date.now(); if (!force && now - (trCpuPubAt[i] || 0) < 240) return; trCpuPubAt[i] = now;
+  tblUpd("trenches/cpu/" + i, { x: Math.round(sim.x), y: Math.round(sim.y), flip: !!sim.flip, ts: srvNow() });
+}
+function trPickupCheck(px, py, seat) { /* walking over a live pad claims it — for me, and for the CPUs on the referee's screen */
+  const st = trState; if (!st || st.phase !== "fight") return;
+  for (let k = 0; k < TRPICKS.length; k++) {
+    const pk = TRPICKS[k], availAt = st.pick && typeof st.pick[k] === "number" ? st.pick[k] : 0;
+    if (srvNow() < availAt || Math.hypot(px - pk.x, py - pk.y) > 48) continue;
+    tblSet("trenches/pick/" + k, srvNow() + 20000); /* 20 seconds to respawn */
+    if (pk.kind === "hp") { const hp = st.hp[seat] || 0; if (hp > 0 && hp < 100) tblSet("trenches/hp/" + seat, Math.min(100, hp + 50)); }
+    else tblSet("trenches/arm/" + seat, 50);
+    if (seat === trSeat) { sfxTrPickup(); trSplatAt(pk.x, pk.y, "#7CFC9A", 20); }
+  }
+}
+function trCpuStep(dt) {
+  const st = trState; if (!st || st.phase !== "fight") return;
+  for (let i = 0; i < 10; i++) {
+    if (trSeatRec(i)) { delete trCpuSims[i]; continue; } /* a human holds this seat — no computer under them */
+    if (!st.hp || typeof st.hp[i] !== "number") continue;
+    let sim = trCpuSims[i];
+    if (!sim) { const c = st.cpu ? st.cpu[i] : null; sim = trCpuSims[i] = { x: c ? c.x : TRSPAWN_X[trTeamOf(i)], y: c ? c.y : TRSEATS[i].y, flip: trTeamOf(i) === 1, gun: i % 3, fireAt: 0, strafeAt: 0, strafe: 1, respAt: 0, shotN: 0 }; }
+    if (st.hp[i] <= 0) { if (!sim.respAt) sim.respAt = Date.now() + 3000; if (Date.now() >= sim.respAt) { sim.respAt = 0; sim.x = TRSPAWN_X[trTeamOf(i)]; sim.y = TRSEATS[i].y; tblSet("trenches/hp/" + i, 100); tblSet("trenches/arm/" + i, 0); trCpuPublish(i, sim, true); } continue; }
+    let tp = null, td = 1e9;
+    for (let j = 0; j < 10; j++) { if (trTeamOf(j) === trTeamOf(i)) continue; const ehp = st.hp[j]; if (typeof ehp !== "number" || ehp <= 0) continue; const p = trFighterPos(j); if (!p) continue; const d = Math.hypot(p.x - sim.x, p.y - sim.y); if (d < td) { td = d; tp = p; } }
+    if (tp) {
+      const g = TRGUNS[sim.gun], want = sim.gun === 0 ? 430 : sim.gun === 1 ? 270 : 570;
+      let mx = 0, my = 0; const dx = tp.x - sim.x, dy = (tp.y - 20) - sim.y;
+      if (td > want + 50) { mx = dx / td; my = dy / td; } else if (td < want - 60) { mx = -dx / td; my = -dy / td; }
+      if (Date.now() > sim.strafeAt) { sim.strafeAt = Date.now() + 1400 + Math.random() * 1600; sim.strafe = Math.random() < 0.5 ? -1 : 1; }
+      mx += (-dy / (td || 1)) * 0.55 * sim.strafe; my += (dx / (td || 1)) * 0.55 * sim.strafe;
+      const ml = Math.hypot(mx, my) || 1;
+      sim.x += (mx / ml) * 268 * dt; sim.y += (my / ml) * 268 * dt; /* a touch under a player's walk — the computer is company, not a wall */
+      for (const c of TRCOVER) { const cx = Math.max(c.x, Math.min(sim.x, c.x + c.w)), cy = Math.max(c.y, Math.min(sim.y - 48, c.y + c.h)); const ddx = sim.x - cx, ddy = (sim.y - 48) - cy, dd = Math.hypot(ddx, ddy); if (dd < 30) { if (dd < 0.01) sim.y = c.y - 18; else { sim.x = cx + ddx / dd * 30; sim.y = cy + ddy / dd * 30 + 48; } } }
+      sim.x = Math.max(TRFIELD.x + 42, Math.min(TRFIELD.x + TRFIELD.w - 42, sim.x)); sim.y = Math.max(TRFIELD.y + 64, Math.min(TRFIELD.y + TRFIELD.h - 30, sim.y));
+      sim.flip = tp.x < sim.x;
+      const aim = Math.atan2((tp.y - 48) - (sim.y - 50), tp.x - sim.x);
+      if (td < g.range * 0.95 && Date.now() >= sim.fireAt && trLosClear(sim.x, sim.y - 50, tp.x, tp.y - 48)) {
+        sim.fireAt = Date.now() + g.rate * (1.6 + Math.random() * 0.9);
+        const aa = aim + (Math.random() - 0.5) * 0.07;
+        const tx = sim.x + Math.cos(aa) * 30, ty = (sim.y - 50) + Math.sin(aa) * 30;
+        for (let p = 0; p < g.pellets; p++) { const pa = aa + (Math.random() - 0.5) * 2 * g.spread; trProjs.push({ x: tx, y: ty, vx: Math.cos(pa) * g.spd, vy: Math.sin(pa) * g.spd, gun: sim.gun, team: trTeamOf(i), owner: i, life: g.range / g.spd }); }
+        trMuz.push({ x: tx, y: ty, a: aa, col: TRNEON[trTeamOf(i)], life: 1 });
+        trGunSfx(sim.gun, Math.max(0.12, 1 - Math.hypot(me.x - sim.x, me.y - sim.y) / 1500));
+        tblSet("trenches/shots/" + i, { n: ++sim.shotN, g: sim.gun, x: Math.round(tx), y: Math.round(ty), a: Math.round(aa * 1000) / 1000, ts: srvNow() });
+      }
+      trPickupCheck(sim.x, sim.y, i);
+    }
+    trCpuPublish(i, sim, false);
+  }
+}
+function trFrameStep(dt) { /* called from the step loop while I'm in the room — the boxing CPU frame's own slot */
+  const st = trState;
+  if (trHostAm && st && st.phase === "fight") trCpuStep(dt);
+  if (trFighter && st && st.phase === "fight" && !(trDeadUntil > Date.now())) {
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    if (coarse ? trBtnFire : trMouse.down) trFireAt(trAimAngle());
+    else if (!coarse) trAimA = trAimAngle(); /* the gun tracks the mouse between shots too */
+    trPickupCheck(me.x, me.y, trSeat);
+  }
+  if (trDeadUntil && Date.now() >= trDeadUntil && trFighter && st && st.phase === "fight") { trDeadUntil = 0; me.x = TRSPAWN_X[trTeamOf(trSeat)]; me.y = TRSEATS[trSeat].y; tblSet("trenches/hp/" + trSeat, 100); tblSet("trenches/arm/" + trSeat, 0); trNote = "🔫 BACK IN!"; trNoteAt = Date.now(); publish(true); }
+  trStepProjs(dt, trProjs, true);
+  trStepProjs(dt, trFxProjs, false);
+  for (let k = trSplats.length - 1; k >= 0; k--) { trSplats[k].life -= dt * 0.25; if (trSplats[k].life <= 0) trSplats.splice(k, 1); }
+  for (let k = trBooms.length - 1; k >= 0; k--) { trBooms[k].life -= dt * 2.4; if (trBooms[k].life <= 0) trBooms.splice(k, 1); }
+  for (let k = trMuz.length - 1; k >= 0; k--) { trMuz[k].life -= dt * 7; if (trMuz[k].life <= 0) trMuz.splice(k, 1); }
+}
+/* ---- the room's painting: battlefield first (under the actors), then the fighter overlay pass ---- */
+function drawTrCover(c) {
+  ctx.fillStyle = "rgba(0,0,0,0.35)"; rr(c.x + 5, c.y + 7, c.w, c.h, 8); ctx.fill();
+  if (c.w >= 100 && c.h >= 100) { /* a crate stack */
+    ctx.fillStyle = "#8a6a38"; rr(c.x, c.y, c.w, c.h, 6); ctx.fill();
+    ctx.strokeStyle = "#5e451f"; ctx.lineWidth = 4; rr(c.x, c.y, c.w, c.h, 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(c.x + 6, c.y + 6); ctx.lineTo(c.x + c.w - 6, c.y + c.h - 6); ctx.moveTo(c.x + c.w - 6, c.y + 6); ctx.lineTo(c.x + 6, c.y + c.h - 6); ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(c.x + c.w / 2, c.y); ctx.lineTo(c.x + c.w / 2, c.y + c.h); ctx.stroke();
+  } else { /* a sandbag line: stacked bags with their seams */
+    ctx.fillStyle = "#a68d54"; rr(c.x, c.y, c.w, c.h, 10); ctx.fill();
+    ctx.strokeStyle = "#6f5a2e"; ctx.lineWidth = 3; rr(c.x, c.y, c.w, c.h, 10); ctx.stroke();
+    ctx.strokeStyle = "rgba(90,70,30,0.55)"; ctx.lineWidth = 2; ctx.beginPath();
+    if (c.w > c.h) { for (let x = c.x + 34; x < c.x + c.w - 8; x += 34) { ctx.moveTo(x, c.y + 4); ctx.lineTo(x, c.y + c.h - 4); } ctx.moveTo(c.x + 4, c.y + c.h / 2); ctx.lineTo(c.x + c.w - 4, c.y + c.h / 2); }
+    else { for (let y = c.y + 34; y < c.y + c.h - 8; y += 34) { ctx.moveTo(c.x + 4, y); ctx.lineTo(c.x + c.w - 4, y); } ctx.moveTo(c.x + c.w / 2, c.y + 4); ctx.lineTo(c.x + c.w / 2, c.y + c.h - 4); }
+    ctx.stroke();
+  }
+}
+function drawTrenches(t) {
+  const st = trState;
+  const g0 = ctx.createLinearGradient(0, 0, 0, TRROOM.h); g0.addColorStop(0, "#171c12"); g0.addColorStop(1, "#0d100a");
+  ctx.fillStyle = g0; ctx.fillRect(0, 0, TRROOM.w, TRROOM.h);
+  ctx.fillStyle = "rgba(255,45,85,0.06)"; ctx.fillRect(0, 0, TRFIELD.x, TRROOM.h); /* a red wash behind the west chairs */
+  ctx.fillStyle = "rgba(56,150,255,0.06)"; ctx.fillRect(TRFIELD.x + TRFIELD.w, 0, TRROOM.w - TRFIELD.x - TRFIELD.w, TRROOM.h); /* blue behind the east */
+  const fg = ctx.createLinearGradient(0, TRFIELD.y, 0, TRFIELD.y + TRFIELD.h); fg.addColorStop(0, "#2e3a1e"); fg.addColorStop(1, "#232d16");
+  ctx.fillStyle = fg; ctx.fillRect(TRFIELD.x, TRFIELD.y, TRFIELD.w, TRFIELD.h);
+  ctx.fillStyle = "rgba(255,255,255,0.025)"; for (let i = 0; i < 8; i += 2) ctx.fillRect(TRFIELD.x + i * TRFIELD.w / 8, TRFIELD.y, TRFIELD.w / 8, TRFIELD.h); /* the mow stripes */
+  ctx.fillStyle = "rgba(255,45,85,0.05)"; ctx.fillRect(TRFIELD.x, TRFIELD.y, TRFIELD.w / 2, TRFIELD.h);
+  ctx.fillStyle = "rgba(56,150,255,0.05)"; ctx.fillRect(TRFIELD.x + TRFIELD.w / 2, TRFIELD.y, TRFIELD.w / 2, TRFIELD.h);
+  ctx.fillStyle = "rgba(0,0,0,0.30)"; /* dug pits — scenery only; the solid cover is the sandbags and crates */
+  for (const px of [560, 3040]) for (const py of [900, 1380]) { ctx.beginPath(); ctx.ellipse(px, py, 130, 34, 0, 0, 7); ctx.fill(); }
+  ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 3; ctx.setLineDash([18, 14]);
+  ctx.beginPath(); ctx.moveTo(1800, TRFIELD.y); ctx.lineTo(1800, TRFIELD.y + TRFIELD.h); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = TRNEON[0]; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(TRFIELD.x, TRFIELD.y + TRFIELD.h); ctx.lineTo(TRFIELD.x, TRFIELD.y); ctx.lineTo(1800, TRFIELD.y); ctx.stroke();
+  ctx.strokeStyle = TRNEON[1]; ctx.beginPath(); ctx.moveTo(1800, TRFIELD.y); ctx.lineTo(TRFIELD.x + TRFIELD.w, TRFIELD.y); ctx.lineTo(TRFIELD.x + TRFIELD.w, TRFIELD.y + TRFIELD.h); ctx.lineTo(TRFIELD.x, TRFIELD.y + TRFIELD.h); ctx.stroke();
+  for (const c of TRCOVER) drawTrCover(c);
+  for (const s of trSplats) { ctx.globalAlpha = Math.max(0, s.life) * 0.8; ctx.fillStyle = s.col; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (0.6 + 0.4 * s.life), 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(s.x + s.r * 0.7, s.y + s.r * 0.4, s.r * 0.35, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  for (let k = 0; k < TRPICKS.length; k++) { /* the pickup pads: pulsing while live, greyed while they respawn */
+    const pk = TRPICKS[k], availAt = st && st.pick && typeof st.pick[k] === "number" ? st.pick[k] : 0, avail = srvNow() >= availAt;
+    ctx.strokeStyle = avail ? (pk.kind === "hp" ? "rgba(124,252,154,0.8)" : "rgba(56,225,255,0.8)") : "rgba(120,120,120,0.35)"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(pk.x, pk.y, 30 + (avail ? Math.sin(t / 240) * 3 : 0), 0, 7); ctx.stroke();
+    ctx.font = "30px serif"; ctx.textAlign = "center"; ctx.globalAlpha = avail ? 1 : 0.3; ctx.fillStyle = pk.kind === "hp" ? "#7CFC9A" : "#56e1ff";
+    ctx.fillText(pk.kind === "hp" ? "✚" : "🛡️", pk.x, pk.y + 11); ctx.globalAlpha = 1;
+  }
+  for (let i = 0; i < 10; i++) { /* the chairs, in their team neon, backs to the apron — they face the field */
+    const s = TRSEATS[i], col = TRNEON[trTeamOf(i)];
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(s.x, s.y + 10, 40, 12, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = col; rr(s.x - 26, s.y - 12, 52, 16, 6); ctx.fill();
+    rr(s.x + (trTeamOf(i) === 0 ? -34 : 18), s.y - 38, 16, 42, 6); ctx.fill();
+    ctx.font = "15px serif"; ctx.textAlign = "center"; ctx.fillText(trTeamOf(i) === 0 ? "🔴" : "🔵", s.x, s.y + 34);
+  }
+  for (const list of [trFxProjs, trProjs]) for (const pr of list) { /* the paint in flight: a neon tracer per shot, a bright head on a rocket */
+    ctx.strokeStyle = TRNEON[pr.team]; ctx.lineWidth = pr.gun === 2 ? 6 : 3; ctx.shadowColor = TRNEON[pr.team]; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.moveTo(pr.x - pr.vx * 0.018, pr.y - pr.vy * 0.018); ctx.lineTo(pr.x, pr.y); ctx.stroke();
+    if (pr.gun === 2) { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(pr.x, pr.y, 4, 0, 7); ctx.fill(); }
+  }
+  ctx.shadowBlur = 0;
+  /* the entrance mat + exit plate at the bottom middle (the bowling exit plate's shape) */
+  ctx.fillStyle = "#0a1428"; rr(1690, TRROOM.h - 130, 220, 84, 8); ctx.fill();
+  ctx.strokeStyle = "#e8b64c"; ctx.lineWidth = 2; rr(1690, TRROOM.h - 130, 220, 84, 8); ctx.stroke();
+  ctx.fillStyle = "#ffd76a"; ctx.font = "700 17px system-ui"; ctx.textAlign = "center"; ctx.fillText("▼ EXIT ▼", 1800, TRROOM.h - 78);
+  /* the header + scoreboard */
+  ctx.font = "800 44px system-ui"; ctx.textAlign = "center"; ctx.fillStyle = "#eaffb0"; ctx.shadowColor = "rgba(190,242,100,0.7)"; ctx.shadowBlur = 16;
+  ctx.fillText("🔫 QUANTUM TRENCHES 🔫", 1800, 120); ctx.shadowBlur = 0;
+  const sc = st && st.score ? st.score : { r: 0, b: 0 };
+  ctx.font = "800 40px system-ui"; ctx.fillStyle = TRNEON[0]; ctx.fillText("🔴 " + (sc.r || 0), 1540, 196);
+  ctx.fillStyle = "#fff"; ctx.font = "800 28px system-ui"; ctx.fillText("— FIRST TO " + TRWIN + " —", 1800, 194);
+  ctx.fillStyle = TRNEON[1]; ctx.font = "800 40px system-ui"; ctx.fillText((sc.b || 0) + " 🔵", 2060, 196);
+  ctx.font = "700 22px system-ui"; ctx.fillStyle = "#d8e6c8";
+  if (!st || st.phase === "sit") ctx.fillText("Sit in a chair to join a team — 🔴 RED west, 🔵 BLUE east. Empty seats are filled by the computer.", 1800, 244);
+  else if (st.phase === "count") ctx.fillText("Match starting…", 1800, 244);
+  else if (st.phase === "fight") ctx.fillText("💥 MATCH LIVE 💥", 1800, 244);
+  else if (st.phase === "done") ctx.fillText(st.win === 0 ? "🔴 RED TEAM TAKES IT!" : "🔵 BLUE TEAM TAKES IT!", 1800, 244);
+}
+function drawTrNote() { if (trNote && Date.now() - trNoteAt < 3400) { ctx.font = "800 34px system-ui"; ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 10; ctx.fillText(trNote, 1800, 1050); ctx.shadowBlur = 0; } }
+function drawTrenchesOver(t) { /* over the fighters: team rings, the guns in team neon, health + armor, flashes, explosions, the countdown */
+  const st = trState;
+  if (st) for (let i = 0; i < 10; i++) {
+    const hp = st.hp ? st.hp[i] : undefined; if (typeof hp !== "number") continue;
+    const p = trFighterPos(i); if (!p) continue;
+    const team = trTeamOf(i), col = TRNEON[team];
+    ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(p.x, p.y + 24, 34, 10, 0, 0, 7); ctx.stroke(); /* the gym's court ring, in team neon */
+    if (hp <= 0) { ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.fillText("💫", p.x, p.y - 108); continue; }
+    const sh = st.shots ? st.shots[i] : null;
+    const a = i === trSeat ? trAimA : (sh && srvNow() - (sh.ts || 0) < 1500 ? sh.a : (p.flip ? Math.PI : 0)); /* mine tracks my aim; a peer's follows their last shot, then their facing */
+    const gun = i === trSeat ? trMyGun : (sh && typeof sh.g === "number" ? sh.g : 0);
+    const gx = p.x + Math.cos(a) * 20, gy = (p.y - 50) + Math.sin(a) * 20, gl = TRGUNS[gun].len;
+    ctx.save(); ctx.translate(gx, gy); ctx.rotate(a); ctx.shadowColor = col; ctx.shadowBlur = 12;
+    ctx.fillStyle = col; rr(-6, -4, gl, 8, 3); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.75)"; rr(gl - 12, -2, 8, 4, 2); ctx.fill();
+    if (gun === 1) { ctx.fillStyle = col; rr(2, 5, 10, 8, 2); ctx.fill(); } /* the shotgun's pump */
+    if (gun === 2) { ctx.fillStyle = col; rr(-12, -7, 16, 14, 4); ctx.fill(); } /* the rocket's tube */
+    ctx.restore(); ctx.shadowBlur = 0;
+    const arm = st.arm && typeof st.arm[i] === "number" ? st.arm[i] : 0;
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; rr(p.x - 36, p.y - 122, 72, 9, 4); ctx.fill();
+    if (hp > 0) { ctx.fillStyle = hp > 50 ? "#51e07a" : hp > 25 ? "#ffc44d" : "#ff5252"; rr(p.x - 36, p.y - 122, 72 * hp / 100, 9, 4); ctx.fill(); }
+    if (arm > 0) { ctx.fillStyle = "#56e1ff"; rr(p.x - 36, p.y - 130, 72 * arm / 50, 5, 2); ctx.fill(); }
+    if (i === trSeat) { ctx.font = "700 13px system-ui"; ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.fillText(TRGUNS[trMyGun].icon + " " + TRGUNS[trMyGun].name + (window.matchMedia("(pointer: coarse)").matches ? " — tap GUN to switch" : " — 1/2/3 to switch"), p.x, p.y - 142); }
+  }
+  for (const m of trMuz) { ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.a); ctx.globalAlpha = Math.max(0, m.life); ctx.fillStyle = "#fff6c8"; ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(20, 0); ctx.lineTo(0, 5); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  ctx.globalAlpha = 1;
+  for (const b of trBooms) { const r = (1 - b.life) * 120 + 16; ctx.globalAlpha = Math.max(0, b.life); const bg = ctx.createRadialGradient(b.x, b.y, 2, b.x, b.y, r); bg.addColorStop(0, "rgba(255,240,190,0.95)"); bg.addColorStop(0.45, "rgba(255,140,40,0.75)"); bg.addColorStop(1, "rgba(255,60,30,0)"); ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  if (st && st.phase === "count") { const n = Math.ceil(((st.fightTs || 0) - srvNow()) / 1000); if (n > 0) { ctx.font = "800 120px system-ui"; ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(190,242,100,0.8)"; ctx.shadowBlur = 26; ctx.fillText(n, 1800, 1200); ctx.shadowBlur = 0; } }
+  drawTrNote();
+}
 /* ---- the COLLECTION panel: 30 rows in the fixed line order, three stage slots a row — owned stages in colour, unowned stages BLACK SILHOUETTES; tapping an owned slot makes it the follower pick (tapping the pick again clears it) ---- */
 function monCollMsg(t) { const m = $("moncollmsg"); if (m) m.textContent = t || ""; }
 function renderMonColl() {
@@ -6604,6 +7034,71 @@ function drawSpeedwayBuilding(t) {
   ctx.fillText("▼ ENTER ▼", SPDDOOR.x + SPDDOOR.w / 2, SPD_B.y + SPD_B.h + 62);
 }
 /* ============ the Quantum Horse Track building (plaza, east side — the Sports Complex's neighbour, PREVIEW) ============ */
+function drawTrenchesBuilding(t) {
+  const b = TR_B; /* 🔫 QUANTUM TRENCHES (PREVIEW): military olive under a camo roof band — the gym/speedway construction, word for word in shape: facade gradient with a neon stroke, roof band and finial, bulb trim, a marquee, aligned windows, three icon badges over the door, and the door's light spill. Its colours are the battlefield's: olive and khaki, with the trim bulbs alternating the two team neons, red and blue */
+  const fg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+  fg.addColorStop(0, "#4a5230"); fg.addColorStop(0.55, "#39431f"); fg.addColorStop(1, "#232a12");
+  ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(190,242,100,0.5)"; ctx.lineWidth = 3; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  /* the flat roof band with gold trim (the gym's band) and the finial spike */
+  ctx.fillStyle = "#2c3319"; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.fill();
+  ctx.strokeStyle = "#e8b64c"; ctx.lineWidth = 3; rr(b.x - 18, b.y - 34, b.w + 36, 44, 10); ctx.stroke();
+  const fin = ctx.createLinearGradient(0, b.y - 86, 0, b.y - 34);
+  fin.addColorStop(0, "#bef264"); fin.addColorStop(1, "#65a30d");
+  ctx.fillStyle = fin; ctx.beginPath(); ctx.moveTo(b.x + b.w / 2, b.y - 88); ctx.lineTo(b.x + b.w / 2 + 20, b.y - 34); ctx.lineTo(b.x + b.w / 2 - 20, b.y - 34); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(232,182,76,0.8)"; ctx.lineWidth = 2; ctx.stroke();
+  /* chasing bulbs along the roof edge, alternating the RED and BLUE team neons */
+  for (let i = 0; i <= 16; i++) {
+    const bx = b.x - 6 + i * (b.w + 12) / 16, lit = (i + Math.floor(t / 280)) % 2 === 0;
+    ctx.fillStyle = lit ? (i % 2 === 0 ? "#ff8f9e" : "#7cc4ff") : "rgba(150,150,140,0.45)";
+    if (lit) { ctx.shadowColor = i % 2 === 0 ? "#ff2d55" : "#38b6ff"; ctx.shadowBlur = 9; }
+    ctx.beginPath(); ctx.arc(bx, b.y - 12, 4.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  }
+  /* two windows, one per flank — on the gym's own window band (y +172, 92×104), aligned */
+  for (const side of [0, 1]) {
+    const wx = side === 0 ? b.x + 38 : b.x + b.w - 38 - 92, wy = b.y + 172;
+    const wg = ctx.createLinearGradient(0, wy, 0, wy + 104);
+    wg.addColorStop(0, "#20301a"); wg.addColorStop(0.5, "#3f6212"); wg.addColorStop(1, "#1a2a10");
+    ctx.fillStyle = wg; rr(wx, wy, 92, 104, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(190,242,100,0.45)"; ctx.lineWidth = 2; rr(wx, wy, 92, 104, 8); ctx.stroke();
+    ctx.strokeStyle = "rgba(220,255,190,0.30)"; ctx.beginPath(); ctx.moveTo(wx + 46, wy + 4); ctx.lineTo(wx + 46, wy + 100); ctx.moveTo(wx + 4, wy + 52); ctx.lineTo(wx + 88, wy + 52); ctx.stroke();
+    /* a paint splat on each window — red on the west, blue on the east */
+    ctx.fillStyle = side === 0 ? "rgba(255,45,85,0.8)" : "rgba(56,150,255,0.8)";
+    ctx.beginPath(); ctx.arc(wx + (side === 0 ? 30 : 62), wy + 38, 9, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(wx + (side === 0 ? 45 : 47), wy + 57, 5, 0, 7); ctx.fill();
+  }
+  /* the marquee, sized to the narrower building: the name at 23px, the under-line beneath it */
+  ctx.fillStyle = "#101408"; rr(b.x + 40, b.y + 40, b.w - 80, 92, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(190,242,100,0.65)"; ctx.lineWidth = 2.5; rr(b.x + 40, b.y + 40, b.w - 80, 92, 12); ctx.stroke();
+  for (let i = 0; i <= 10; i++) for (const my of [b.y + 48, b.y + 124]) {
+    const bx = b.x + 52 + i * (b.w - 104) / 10, lit = (i + Math.floor(t / 300)) % 2 === 0;
+    ctx.fillStyle = lit ? (i % 2 === 0 ? "#ff8f9e" : "#7cc4ff") : "rgba(150,150,140,0.4)";
+    if (lit) { ctx.shadowColor = i % 2 === 0 ? "#ff2d55" : "#38b6ff"; ctx.shadowBlur = 8; }
+    ctx.beginPath(); ctx.arc(bx, my, 3.6, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  }
+  ctx.fillStyle = "#eaffb0"; ctx.font = "800 23px system-ui"; ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(190,242,100,0.75)"; ctx.shadowBlur = 12;
+  ctx.fillText("🔫 QUANTUM TRENCHES 🔫", b.x + b.w / 2, b.y + 84); ctx.shadowBlur = 0;
+  ctx.fillStyle = "#bef264"; ctx.font = "700 13px system-ui";
+  ctx.fillText("PAINTBALL ARENA — RED vs BLUE", b.x + b.w / 2, b.y + 108);
+  /* three icon badges over the door (the speedway's row): target, gun, blast */
+  for (const [dx, ic] of [[-88, "🎯"], [0, "🔫"], [88, "💥"]]) {
+    ctx.fillStyle = "rgba(10,16,6,0.85)"; ctx.beginPath(); ctx.arc(b.x + b.w / 2 + dx, b.y + 154, 16, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(190,242,100,0.6)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.x + b.w / 2 + dx, b.y + 154, 16, 0, 7); ctx.stroke();
+    ctx.font = "17px serif"; ctx.textAlign = "center"; ctx.fillText(ic, b.x + b.w / 2 + dx, b.y + 160);
+  }
+  /* the door, on the bottom face: a dark plate whose two halves glow in the team neons — red door west, blue door east, one doorway */
+  const gdy = b.y + b.h - 90;
+  const spill = ctx.createLinearGradient(0, gdy - 6, 0, gdy + 98);
+  spill.addColorStop(0, "rgba(168,85,247,0.20)"); spill.addColorStop(1, "rgba(168,85,247,0)");
+  ctx.fillStyle = spill; ctx.fillRect(TRDOOR.x - 8, gdy - 6, TRDOOR.w + 16, 104);
+  ctx.fillStyle = "#0a1410"; rr(TRDOOR.x, gdy, TRDOOR.w, 90, 6); ctx.fill();
+  ctx.fillStyle = "rgba(255,45,85,0.20)"; rr(TRDOOR.x, gdy, TRDOOR.w / 2, 90, 6); ctx.fill();
+  ctx.fillStyle = "rgba(56,150,255,0.20)"; rr(TRDOOR.x + TRDOOR.w / 2, gdy, TRDOOR.w / 2, 90, 6); ctx.fill();
+  ctx.strokeStyle = "#bef264"; ctx.lineWidth = 2.5; rr(TRDOOR.x, gdy, TRDOOR.w, 90, 6); ctx.stroke();
+  ctx.fillStyle = "#ffd76a"; ctx.font = "700 19px system-ui"; ctx.textAlign = "center";
+  ctx.fillText("▼ ENTER ▼", b.x + b.w / 2, b.y + b.h + 62); /* below the facade, on the path — the other doors' caption */
+}
 function drawTrackBuilding(t) {
   const b = HR_B, cx = b.x + b.w / 2;
   /* burgundy facade with gold trim (Jonathan 2026-10-30 restyle) — the casino carpet's burgundy family, lightened a step so it reads as a building */
@@ -11228,6 +11723,8 @@ function drawPlaza(t) {
   ctx.lineTo(1520, 510); ctx.closePath();
   /* the Comics island's own boundary, drawn as a SEPARATE subpath wound against the main outline, so the one fill leaves it lawn and no bridge segment is ever stroked across the path (Jonathan 2026-11-02 — see the note at the band's south edge above): down the leg's east edge to a SQUARE corner on the band's north edge — the quarter-circle arc that used to round this turn (centre 1900, 2140, r 120) is GONE at his word the same night ("it has a circle curve on the path next to the building when it turns on the left"; "the path is not smooth on left side of the building") — the leg now turns into the band with the plaza's own normal square turn, the Monster Shop leg's landing exactly — then east along the band's north edge to Quantum Bowling's spur, up the spur's west edge, and west along the walkway's south edge to close */
   ctx.moveTo(2020, 1640); ctx.lineTo(2020, 2260); ctx.lineTo(2765, 2260); ctx.lineTo(2765, 1640); ctx.closePath();
+  /* QUANTUM TRENCHES (PREVIEW): its own path, a separate subpath of this same union — a door band across the building's front running east to its leg, and a 160-wide leg (the plaza paths' own width, the standing rule) running south to the bottom walkway's north edge, tying the building into the network. The band stands in open lawn south of the Speedway's apron; the leg threads the lawn west of the Club, clear of the west holder board. The building paints over the band's top 20px, exactly as the Monster Shop's band tucks under its own building */
+  ctx.moveTo(0, 860); ctx.lineTo(780, 860); ctx.lineTo(780, 1480); ctx.lineTo(620, 1480); ctx.lineTo(620, 1020); ctx.lineTo(0, 1020); ctx.closePath();
   ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
@@ -11267,6 +11764,8 @@ function drawPlaza(t) {
   lamp(80, 2232); lamp(800, 2232); /* the band's north edge at the plaza's 28px edge offset — only where the building (x 140..700, its south wall at y 2280) leaves the edge room: west of it and east of it */
   lamp(80, 2448); lamp(320, 2448); lamp(560, 2448); lamp(800, 2448); /* the band's south edge at the bottom walkway's own 240 pitch, running the band's full length to the plaza's edge */
   lamp(1152, 1900); lamp(1368, 1900); lamp(1152, 2140); lamp(1368, 2140); /* flanking the up-leg at the same 240 pitch and 28px offset, spread along the climb — slid east with the leg (2026-11-03): 1152 = 1180 − 28, 1368 = 1340 + 28 */
+  lamp(500, 888); lamp(80, 1048); lamp(320, 1048); lamp(560, 1048); /* QUANTUM TRENCHES (PREVIEW): its own path's lamps — one where the Speedway's apron meets the trenches band, three along the band's south edge at the house 240 pitch */
+  lamp(592, 1200); lamp(808, 1200); lamp(592, 1440); lamp(808, 1440); /* flanking the trenches leg at the same 240 pitch and 28px offset: 592 = 620 − 28, 808 = 780 + 28 */
   /* Quantum Comics' own lamps (PREVIEW, Jonathan 2026-11-02): BOTH of the leg's flanks at the Monster Shop leg's own pitch and offset (edge ± 28) — when the leg stood at 1740 its west flank was lit by the HQ portal spur's lamps at 1752, which stood on its west rim; when the building and leg were scooted east the leg got its own west pair, the Monster Shop leg's arrangement. The band's south edge at the bottom walkway's 240 pitch and 28 offset, continuing the Monster Shop band's row west of it; and one lamp on the island lawn fronting the band east of the building, centred on the lawn that remains there (2672 — midway between the building's east wall, 2580, and the bowling spur's west edge, 2765) — the bowling band's north lamps' own arrangement. (That island lamp came out at the 2026-11-03 centring — see the note at its line below.) */
   lamp(1832, 1900); lamp(1832, 2140); lamp(2048, 1900); lamp(2048, 2140);
   lamp(1940, 2448); lamp(2180, 2448); lamp(2420, 2448); lamp(2660, 2448);
@@ -11383,7 +11882,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawBowlingBuilding(t); drawMonsterShopBuilding(t); drawComicsBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawBowlingBuilding(t); drawMonsterShopBuilding(t); drawComicsBuilding(t); drawTrenchesBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -12637,6 +13136,7 @@ function frame(now) {
   if (myCar >= 0) { vx = 0; vy = 0; me.moving = false; } /* driving: stepSpeedway owns my position (the car) — the walk block must not move me */
   if (boxingBout && boxState && boxState.phase === "fight" && srvNow() < (boxState.fightTs || 0) + 1200) { vx = 0; vy = 0; me.moving = false; } /* GET READY freeze (Jonathan 2026-11-01): while the bell's window runs — the draw's own test, phase "fight" and srvNow() < fightTs + 1200 — a seated fighter's input is simply discarded at this same application point: no teleport, no position rewrite, they stay on the corner spot the bout placed them on, and the frame the window ends movement is exactly as normal. Punches and the CPU already wait out this window; walking the room outside a bout (boxingBout null) never reaches this line's condition */
   if (evoLock) { vx = 0; vy = 0; me.moving = false; } /* the EVOLUTION animation (PREVIEW): while my monster evolves on its overlay, my feet stay planted — the overlay owns the screen until endEvoAnim lets go */
+  if (trFighter && trDeadUntil > Date.now()) { vx = 0; vy = 0; me.moving = false; } /* QUANTUM TRENCHES: a knocked-out fighter stays down until the respawn — the freeze lines above, for paintball */
   const sprinting = me.moving && !boxingBout && (runBtnHeld || keys.has(" ")); /* no sprinting during MY boxing bout (Jonathan 2026-10-31): on a phone the RUN button is replaced by the punch buttons, and on PC the space bar now does the same — nothing */
   me.run = sprinting;
   const wading = (me.scene === "plaza" && inPoolWater(me.x, me.y)) || (me.scene === "rooftop" && inPoolWater(me.x, me.y, ROOFPOOLW)); /* in the pool (PREVIEW): no dust here, splashes instead, and the water drags at your pace — the rooftop pool's water counts exactly the same way, against its own rect */
@@ -12685,6 +13185,8 @@ function frame(now) {
     if (res.monshopexit) toPlazaFromMonsterShop();
     if (res.comdoor) toComics();
     if (res.comicsexit) toPlazaFromComics();
+    if (res.trdoor) toTrenches();
+    if (res.trexit) toPlazaFromTrenches();
     if (res.spddoor) toSpeedway();
     if (res.swexit) toPlazaFromSpeedway();
     if (res.clubexit) toPlazaFromClub();
@@ -12704,6 +13206,7 @@ function frame(now) {
   if (me.scene === "poolhall") phFrameStep(dt); /* the shooter's physics + every follower's ball tracking run here */
   if (me.scene === "bowling") { bowlFrameStep(dt); bowlCpuFrameStep(dt); bowlSfxWatch(); } /* the thrower's ball-and-pins physics runs here, on the thrower's client only (bowlFrameStep itself refuses everywhere else) — and beside it the CPU's throws in a 1v1, on the seated host's client only (bowlCpuFrameStep itself refuses everywhere else). bowlSfxWatch gives the room its ears for the throws it is NOT simulating, off the live snapshots */
   if (me.scene === "boxing") boxCpuFrame(dt); /* the CPU fighter's simulation runs here — on the HOST's screen only (boxCpuFrame itself refuses everywhere else): it moves, faces and punches the CPU, and publishes its body to the record for the room */
+  if (me.scene === "trenches") trFrameStep(dt); /* QUANTUM TRENCHES: my projectiles, the referee's CPU fighters, pickups and respawns — the boxing step's own arrangement */
   boxMousePunchDriver(); /* the instant-glove driver runs every frame alongside the CPU sim — it self-gates to an active fight on a non-coarse pointer, so outside a desktop bout it costs nothing */
   if (boxingBout && boxState && boxState.phase === "fight" && boxSeat >= 0) { /* a fighter's body faces the OPPONENT, never the way they happen to be walking (Jonathan 2026-10-31): the movement facing is stomped every frame of the bout, so my sprite — on this screen and in the presence I am about to publish — turns to whoever I am fighting, and turns again the moment we cross */
     const os = boxState.seats && boxState.seats[1 - boxSeat];
@@ -12834,7 +13337,7 @@ function frame(now) {
   if (fxPrevScene !== null && me.scene !== fxPrevScene) clearRoomFx(); /* a room change wipes every pending room effect — nothing earned in one room replays in the next */
   fxPrevScene = me.scene;
   ctx.save();
-  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else if (me.scene === "highrollers") drawHighRollers(now); else if (me.scene === "chess") drawChess(now); else if (me.scene === "boxing") drawBoxing(now); else if (me.scene === "bowling") drawBowling(now); else if (me.scene === "monstershop") drawMonsterShop(now); else if (me.scene === "comics") drawComics(now); else if (me.scene === "rooftop") drawRooftop(now); else drawTheatre(now);
+  if (me.scene === "plaza") drawPlaza(now); else if (me.scene === "arcade") drawArcade(now); else if (me.scene === "club") drawClub(now); else if (me.scene === "vip") { paintClubBelow(now, dt); drawVip(now); paintVipRail(now); } else if (me.scene === "track") drawTrack(now); else if (me.scene === "poolhall") drawPoolHall(now); else if (me.scene === "hq") drawHQ(now); else if (me.scene === "casino") drawCasino(now); else if (me.scene === "gym") drawGym(now); else if (me.scene === "speedway") drawSpeedway(now); else if (me.scene === "highrollers") drawHighRollers(now); else if (me.scene === "chess") drawChess(now); else if (me.scene === "boxing") drawBoxing(now); else if (me.scene === "bowling") drawBowling(now); else if (me.scene === "monstershop") drawMonsterShop(now); else if (me.scene === "comics") drawComics(now); else if (me.scene === "rooftop") drawRooftop(now); else if (me.scene === "trenches") drawTrenches(now); else drawTheatre(now);
   /* the channel preloads and keeps playing (muted, hidden) in every room, so the theatre screen is always ready when you walk in — no tuning wait */
   if (vid.dataset.cur && vid.paused) vid.play().catch(() => {});
   if (me.scene !== "hq") pauseHqVideos();
@@ -12890,6 +13393,22 @@ function frame(now) {
       actors.push({ id: "box-cpu", x: vx, y: vy, tx: vx, ty: vy, hero: BOXCPU_HERO, name: BOXCPU_NAME, flip: vflip, bob: 0, run: false, chat: "", chatId: 0, tint: cs === 0 ? "#d42a2a" : "#2a4fd4" }); /* the tint is the corner's own colour — the same red/blue the gloves and health bars wear */
     }
   }
+  if (me.scene === "trenches" && trState && (trState.phase === "fight" || trState.phase === "done")) { /* the Trenches CPUs (Jonathan 2026-11-03): one synthetic actor per computer-filled seat, the boxing CPU's own arrangement — the match referee's screen pushes its own simulation (no lag); every other screen eases trCpuVis toward the record's cpu node at the peers' own rate. No presence record, never a person online. A knocked-out CPU leaves the field until its respawn, like a paintball player walking off */
+    for (let i = 0; i < 10; i++) {
+      if (trSeatRec(i)) continue; /* a human holds this seat — drawn from their own presence like everyone else */
+      if (!trState.hp || typeof trState.hp[i] !== "number" || trState.hp[i] <= 0) continue;
+      const tgt = trState.cpu ? trState.cpu[i] : null; if (!tgt || typeof tgt.x !== "number") continue;
+      let vx, vy, vflip;
+      if (trHostAm && trCpuSims[i]) { vx = trCpuSims[i].x; vy = trCpuSims[i].y; vflip = trCpuSims[i].flip; }
+      else {
+        let v = trCpuVis[i];
+        if (!v || v.round !== (trState.roundId || "")) { v = trCpuVis[i] = { x: tgt.x, y: tgt.y, flip: !!tgt.flip, round: trState.roundId || "" }; }
+        v.x += (tgt.x - v.x) * Math.min(1, dt * 9); v.y += (tgt.y - v.y) * Math.min(1, dt * 9); v.flip = !!tgt.flip;
+        vx = v.x; vy = v.y; vflip = v.flip;
+      }
+      actors.push({ id: "tr-cpu-" + i, x: vx, y: vy, tx: vx, ty: vy, hero: tgt.hero || 5, name: "CPU", flip: vflip, bob: 0, run: false, chat: "", chatId: 0, tint: i < 5 ? "#ff5a4e" : "#4ea8ff" }); /* the tint is the team's own colour — the corner tints' shape, for paintball */
+    }
+  }
   actors.sort((a, b) => a.y - b.y);
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   /* sprint dust puffs, kicked up at my feet, drawn under the sprites */
@@ -12939,6 +13458,7 @@ function frame(now) {
     }
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
+  if (me.scene === "trenches") drawTrenchesOver(now); /* QUANTUM TRENCHES: the guns in team neon, health/armor bars, muzzle flashes, explosions and the countdown paint over the fighters, inside this same camera pass */
   drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
   drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
   ctx.restore();
@@ -12962,6 +13482,9 @@ function frame(now) {
   else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0 || hbjSeat >= 0 || hrrSeat >= 0 || hrSlotSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
   else if (me.scene === "chess" && chSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = chessStandUp; }
   else if (me.scene === "boxing" && boxSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = boxingBout ? "🏳️ Give up" : "🚪 Stand up"; promptAction = boxingStandUp; }
+  else if (me.scene === "trenches" && trFighter) { promptBtn.style.display = "block"; promptBtn.textContent = "🏳️ Forfeit — leave the match"; promptAction = trStandUp; }
+  else if (me.scene === "trenches" && trSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = trStandUp; }
+  else if (me.scene === "trenches" && trNearChair() >= 0) { const ci = trNearChair(); promptBtn.style.display = "block"; promptBtn.textContent = ci < 5 ? "🔴 Sit — join the RED team" : "🔵 Sit — join the BLUE team"; promptAction = () => trTrySit(ci); }
   else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
   else if (me.scene === "poolhall" && phSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = phStandUp; }
   else if (me.scene === "poolhall" && phNearTable() >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Pool Table"; promptAction = () => phTrySit(phNearTable()); }
