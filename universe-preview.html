@@ -10675,27 +10675,30 @@ function drawFallPlaza(t) {
   FALL_HAY_SPOTS.forEach(hp => fallHayBale(hp[0], hp[1], hp[2]));
   FALL_TURKEY_SPOTS.forEach((tp, i) => fallTurkey(tp[0], tp[1], tp[2], i, t));
 }
-function drawMonShopDino(t) { /* the Monster Shop's own Dino at stage 3, just walking around the building's RIGHT edge (the owner's word, 2026-11-02): pure plaza decor like the turkeys — local, unsynced, no collision, no interaction; every client computes the same stroll from the same clock. The stroll (his route, refined the same evening): a there-and-back along the shop's purple path — from up the leg, his FEET never higher than the ROOFLINE (1960, where the dome starts), down the leg to the bottom of the front path (2420), west along that bottom to a stop JUST RIGHT OF THE DOOR (his centre never passes x 580, so his nose stays clear of the door plate), then back the same way — at the stage-3 follower's own size, feet on the ground, flipping to face his way along the front path and facing the shop on the leg */
+function drawMonShopDino(t) { /* the Monster Shop's own Dino at stage 3 (the owner's word, 2026-11-02): pure plaza decor like the turkeys — local, unsynced, no collision, no interaction; every client computes the same stroll from the same clock. THE STROLL (his refinement the same evening — "walk, pause, walk, pause... same as Q-Bot, not just on rails"): he walks his purple path stop to stop and PAUSES at each stop, Q-Bot fashion — ONLY THREE stops (his correction): the top of the leg, the corner where the leg meets the front path, and the west end JUST RIGHT OF THE DOOR (his centre never passes x 580, so his nose stays clear of the door plate) — then back the same way, pausing at every stop again. And the top stop is set by his head, not his feet: the top of his head never rises above the top of the dome roof (1848). The bounce is the PLAYERS' own walk cycle (drawPlayer's formula: -|sin(t/105)| while moving, a slow idle sway while standing) at the MECHS' bigger amplitude (20, the DreadMech's own number) since he stands mech-tall; at the stage-3 follower's own size, feet on the ground, flipping to face his way along the front path and facing the shop on the leg */
   const img = monImg("dino", 3);
   if (!img || !img.complete || !img.naturalWidth) return;
   const q = 0.25 * MON_STAGE_SCALE[3];
   const W = img.naturalWidth * q, H = img.naturalHeight * q;
-  const PTS = [[975, 1960], [975, 2420], [580, 2420]]; /* the leg's centre line down, then the front path's bottom line west to just right of the door */
-  const seg = [[PTS[0], PTS[1]], [PTS[1], PTS[2]]];
-  const lens = seg.map(sg => Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]));
-  const L = lens[0] + lens[1];
-  function ddAt(tt) { const tri = (tt / 1000 * 52) % (2 * L); return tri <= L ? tri : 2 * L - tri; } /* the there-and-back wave: path distance at a given clock time */
-  function posAt(dist) {
-    if (dist <= lens[0]) { const f = lens[0] ? dist / lens[0] : 0; return [PTS[0][0] + (PTS[1][0] - PTS[0][0]) * f, PTS[0][1] + (PTS[1][1] - PTS[0][1]) * f]; }
-    const f = lens[1] ? (dist - lens[0]) / lens[1] : 0; return [PTS[1][0] + (PTS[2][0] - PTS[1][0]) * f, PTS[1][1] + (PTS[2][1] - PTS[1][1]) * f];
+  const STOPS = [[975, 2090], [975, 2420], [580, 2420]]; /* ONLY THREE stops (his word): the top of the leg, the corner, just right of the door. The top stop sits at 2090, not the roofline: his head (216 tall, plus the 20px bounce at its peak) must never rise above the TOP OF THE DOME ROOF (1848) — 2090 keeps the top of his head at 1854 or lower everywhere on the stroll */
+  const ORDER = [0, 1, 2, 1]; /* top -> corner -> door -> corner -> top..., pausing at every stop */
+  const SPEED = 52, PAUSE = 2500; /* his stroll speed, and the Q-Bot-style pause at every stop (ms) */
+  const legs = []; let T = 0;
+  for (let i = 0; i < ORDER.length; i++) {
+    const a = STOPS[ORDER[i]], b = STOPS[ORDER[(i + 1) % ORDER.length]];
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]), walk = d / SPEED * 1000;
+    legs.push({ a, b, d, walk, start: T }); T += walk + PAUSE;
   }
-  const pNow = posAt(ddAt(t)), pPrev = posAt(ddAt(t - 150));
-  const x = pNow[0], y = pNow[1];
-  const flip = pNow[0] > pPrev[0] + 0.01; /* travelling east = face right; west or on the leg = face the shop (the sprite's own left) */
-  const bob = Math.abs(Math.sin(t / 130)) * 3; /* the walking bob */
+  let tt = t % T, leg = legs[legs.length - 1], ft = 0;
+  for (const lg of legs) { if (tt >= lg.start && tt < lg.start + lg.walk + PAUSE) { leg = lg; ft = tt - lg.start; break; } }
+  const moving = ft < leg.walk;
+  const f = moving ? (leg.d ? (ft / 1000 * SPEED) / leg.d : 0) : 1;
+  const x = leg.a[0] + (leg.b[0] - leg.a[0]) * f, y = leg.a[1] + (leg.b[1] - leg.a[1]) * f;
+  const flip = leg.b[0] > leg.a[0]; /* travelling east = face right; west or on the leg = face the shop (the sprite's own left); a pause keeps the facing of the leg that brought him there */
+  const bob = moving ? -Math.abs(Math.sin(t / 105)) * 20 : Math.sin(t / 620) * 1.4; /* drawPlayer's own cycle: the walking bounce while moving (mech amplitude), the idle sway while paused */
   const pad = scanFeetFrac(img) * H; /* the trimmed art's own under-feet clear run, so the visible feet ride the ground line */
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, y - 3, W * 0.34, 8, 0, 0, 7); ctx.fill();
-  ctx.save(); ctx.translate(x, y - bob);
+  ctx.save(); ctx.translate(x, y + bob);
   if (flip) ctx.scale(-1, 1);
   ctx.drawImage(img, -W / 2, -H + pad, W, H);
   ctx.restore();
