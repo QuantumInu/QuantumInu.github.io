@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>QI Quantum Rally</title>
+<style>
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; touch-action:manipulation; }
+  body {
+    margin:0;
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:#e8f4ff;
+    background: radial-gradient(1100px 750px at 50% -12%, #0a1e3a 0%, #050d1f 46%, #010208 100%);
+    height:100vh; height:100dvh; overflow:hidden; padding:52px 12px calc(10px + env(safe-area-inset-bottom));
+    text-align:center; position:relative; display:flex; flex-direction:column;
+    -webkit-user-select:none; user-select:none;
+  }
+  #spaceBg { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  .wrap { position:relative; z-index:1; max-width:540px; width:100%; margin:0 auto; flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+          overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  body.playing .wrap { overflow-y:hidden; }
+  h1 { margin:0; font-size:clamp(22px,5.8vw,34px); letter-spacing:2px; font-weight:900; color:#7fdcff;
+       text-shadow:0 0 14px rgba(34,211,238,.75), 0 0 42px rgba(34,211,238,.35); }
+  h1 .q { color:#ffd964; text-shadow:0 0 14px rgba(245,197,66,.8), 0 0 42px rgba(245,197,66,.4); }
+  .sub { margin:0; opacity:.85; margin-top:2px; font-size:13.5px; }
+  .stats { display:flex; gap:8px; justify-content:center; margin:8px 0; flex-wrap:wrap; }
+  .stat { background:rgba(120,200,255,.06); border:1px solid rgba(120,200,255,.18); border-radius:12px; padding:4px 10px; min-width:64px; }
+  .stat b { display:block; font-size:17px; color:#7fdcff; }
+  .stat b.gold { color:#ffd964; }
+  .stat b.combo { color:#c084fc; }
+  .stat span { font-size:11px; text-transform:uppercase; letter-spacing:1px; opacity:.75; }
+  .stat b.hearts { color:#ff5d7a; letter-spacing:2px; font-size:15px; line-height:21px; }
+  .stat b.hearts .lost { color:rgba(255,93,122,.22); }
+  #stage { position:relative; flex:1 1 auto; min-height:0; width:100%; margin:0 auto;
+           display:flex; align-items:center; justify-content:center; }
+  canvas#game { display:block; touch-action:none; background:#04060f; border-radius:14px;
+           box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 0 1px rgba(34,211,238,.35), 0 0 26px rgba(34,211,238,.15); }
+  body.playing h1, body.playing .sub, body.playing .howto { display:none; }
+  .card-overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:flex-start;
+                  gap:7px; background:rgba(2,6,16,.88); padding:12px 14px; overflow-y:auto; z-index:5; border-radius:14px; }
+  .card-overlay > * { flex:none; }
+  .card-overlay > *:first-child { margin-top:auto; }
+  .card-overlay > *:last-child { margin-bottom:auto; }
+  .card-overlay.show { display:flex; }
+  .card-overlay .big { font-size:clamp(20px,5.6vw,29px); font-weight:900; letter-spacing:1px; color:#7fdcff;
+                       text-shadow:0 0 16px rgba(34,211,238,.6); }
+  .card-overlay .big.gold { color:#ffd964; text-shadow:0 0 16px rgba(245,197,66,.65); }
+  .card-overlay .detail { font-size:14px; line-height:1.55; }
+  .card-overlay .detail b { color:#ffd964; }
+  .newbest { font-size:13px; font-weight:800; letter-spacing:1.5px; color:#7dfcd4; text-transform:uppercase; }
+  .controls { margin-top:9px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; align-items:stretch; }
+  button.ctl { font:inherit; font-weight:700; color:#03101f; background:linear-gradient(180deg,#9be7ff,#22d3ee);
+    border:none; border-radius:999px; padding:11px 22px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+  button.ctl.ghost { background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25); box-shadow:none; }
+  button.ctl:active { transform:scale(.96); }
+  button.ctl:disabled { opacity:.55; cursor:default; }
+  .like-btn { font:inherit; font-weight:700; background:rgba(255,255,255,.08); color:#e8f4ff; border:1px solid rgba(255,255,255,.25);
+    border-radius:999px; padding:11px 18px; cursor:pointer; }
+  .like-btn:active { transform:scale(.96); }
+  .like-btn .like-count { margin-left:5px; color:#ffd964; }
+  .howto { margin:9px auto 0; max-width:480px; font-size:12.5px; line-height:1.45; opacity:.78; }
+  @media (max-height:880px) { .howto { display:none; } }
+  @media (max-height:520px) { .sub { display:none; } }
+  @media (max-height:760px) {
+    h1 { font-size:24px; }
+    .stats { margin:5px 0; }
+    .stat { padding:3px 8px; min-width:58px; }
+    .stat b { font-size:15px; }
+    button.ctl, .like-btn { padding:9px 16px; }
+    .card-overlay .detail { font-size:13px; line-height:1.45; }
+    .card-overlay .big { font-size:21px; }
+  }
+  .lb-form { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; width:100%; }
+  .lb-form input { font:inherit; font-size:15px; color:#e8f4ff; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.3); border-radius:999px; padding:10px 16px; width:210px; max-width:72vw; text-align:center; }
+  .lb-form input::placeholder { color:rgba(232,244,255,.5); }
+  .lb-form input:focus-visible { outline:2px solid #7fdcff; outline-offset:1px; }
+  .lb-msg { min-height:20px; font-size:14px; color:#ffd964; }
+  .lb-msg.err { color:#ff9db0; } .lb-msg.ok { color:#7dfcd4; }
+  #overBoard, #lbPanelBody { width:100%; }
+  #overBoard { flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+  table.board { width:100%; max-width:340px; margin:4px auto 0; border-collapse:collapse; font-size:14.5px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:12px; }
+  table.board th { text-align:left; font-size:11px; letter-spacing:.12em; text-transform:uppercase; opacity:.7; padding:7px 10px; }
+  table.board th.r, table.board td.r { text-align:right; }
+  table.board td { padding:6px 10px; border-top:1px solid rgba(255,255,255,.09); font-weight:700; text-align:left; }
+  table.board tr.me td { color:#ffd964; background:rgba(245,197,66,.1); }
+  .board-note { text-align:center; font-size:14px; opacity:.85; padding:8px 4px; }
+  #lbPanel { position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(2,4,12,.85); z-index:60; padding:16px; }
+  #lbPanel.show { display:flex; }
+  .lb-card { background:#071426; border:1px solid rgba(127,220,255,.3); border-radius:16px; padding:22px 18px;
+    width:100%; max-width:380px; max-height:88vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; align-items:center;
+    box-shadow:0 12px 40px rgba(0,0,0,.6); }
+  .lb-card .lb-title { font-size:20px; font-weight:800; color:#7fdcff; }
+  .lb-card table.board { max-width:none; }
+</style>
+</head>
+<body>
+ <a href="../index.html" style="position:fixed;top:10px;left:10px;z-index:9999;background:rgba(10,16,28,.82);color:#ffd76a;border:1px solid rgba(255,215,106,.55);border-radius:999px;padding:7px 13px;font:600 13px system-ui,sans-serif;text-decoration:none">&larr; quantuminuofficial.com</a>
+ 
+<canvas id="spaceBg" aria-hidden="true"></canvas>
+<div class="wrap">
+  <h1><span class="q">QI</span> QUANTUM RALLY</h1>
+  <p class="sub">Night highway. One neon lowrider. How long can you ride the fast lane?</p>
+  <div class="stats">
+    <div class="stat"><b id="hudScore">0</b><span>Score</span></div>
+    <div class="stat"><b class="gold" id="hudSpeed">0</b><span>km/h</span></div>
+    <div class="stat"><b class="combo" id="hudCombo">—</b><span>Combo</span></div>
+    <div class="stat"><b class="hearts" id="hudFenders">♥♥♥</b><span>Fenders</span></div>
+    <div class="stat"><b id="hudBest">0</b><span>Best</span></div>
+    <div class="stat"><b id="hudLevel">1</b><span>Level</span></div>
+  </div>
+
+  <div id="stage">
+    <canvas id="game" width="420" height="640"></canvas>
+
+    <div class="card-overlay show" id="startCard">
+      <div class="big">🏁 QI QUANTUM RALLY</div>
+      <div class="detail">Your neon lowrider owns the night highway — traffic doesn't.<br>
+      <b>Drag anywhere</b> to steer (or use <b>← →</b> / <b>A D</b>).<br>
+      Thread past traffic <b>close</b> for near-miss bonuses: <b>+25</b>, chained into <b>x2, x3…</b> combos.<br>
+      Watch for <b>trucks</b> — long, slow, and lane-blocking — and <b>motorcycles</b> that weave between lanes.<br>
+      Grab the <b style="color:#ffd964">golden atoms</b> for <b>+10</b>. Distance scores too.<br>
+      A crash costs a <b style="color:#ff5d7a">fender</b> — you have <b>3</b>.<br>
+      The longer you ride, the faster it gets, the thicker the traffic, and the meaner the mix…</div>
+      <button class="ctl" id="startBtn">▶ Start Engine</button>
+    </div>
+
+    <div class="card-overlay" id="overCard">
+      <div class="big gold" id="overTitle">💥 Wrecked Out</div>
+      <div class="detail">Score <b id="finalScore">0</b> · Top speed <b id="finalSpeed">0</b> km/h · Best <b id="finalBest">0</b></div>
+      <div class="newbest" id="newBest" style="display:none">✦ New Best! ✦</div>
+      <form class="lb-form" id="lbForm">
+        <input id="lbName" type="text" maxlength="16" placeholder="Name for the leaderboard" autocomplete="off">
+        <button class="ctl" id="lbSubmit" type="submit">Submit Score</button>
+      </form>
+      <div class="lb-msg" id="lbMsg"></div>
+      <div id="overBoard"></div>
+      <button class="ctl" id="againBtn" type="button">▶ Ride Again</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl ghost" id="lbBtn" type="button">🏆 Leaderboard</button>
+    <button class="ctl ghost" id="soundBtn" type="button" aria-label="Toggle sound">🔊 Sound On</button>
+    <button class="like-btn" id="likeBtn" type="button" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count" id="likeCount">–</span></button>
+  </div>
+
+  <p class="howto">How to play: drag left or right anywhere on the road and the lowrider follows your finger, leaning into hard steering.
+  Traffic cruises in your direction but slower — overtake it. Skim past with inches to spare for a +25 near-miss, and chain them to build your combo multiplier.
+  Golden atoms on the asphalt are worth +10 each. Every crash bends a fender and scrubs your speed; lose all 3 and the run ends.
+  Trucks are long and slow and swallow a whole lane; motorcycles are quick and drift side to side as they ride, so give them room — or thread them for a near-miss.
+  The longer you survive, the higher your level climbs: top speed keeps rising past the old cap, traffic spawns thicker, and trucks and bikes make up more of the mix.</p>
+</div>
+
+<div id="lbPanel">
+  <div class="lb-card">
+    <div class="lb-title">🏆 QI Quantum Rally Leaderboard</div>
+    <div id="lbPanelBody"><div class="board-note">Loading…</div></div>
+    <button class="ctl" id="lbClose" type="button">Close</button>
+  </div>
+</div>
+
+<script>
+/* stop double-tap zoom + pinch gestures hijacking the game */
+var lastTouchEnd = 0;
+document.addEventListener('touchend', function(e){
+  var now = Date.now();
+  if (now - lastTouchEnd <= 350) { e.preventDefault(); }
+  lastTouchEnd = now;
+}, { passive: false });
+document.addEventListener('touchstart', function(e){
+  if (e.touches.length > 1) { e.preventDefault(); }
+}, { passive: false });
+document.addEventListener('dblclick', function(e){ e.preventDefault(); }, { passive: false });
+document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
+function $(id){ return document.getElementById(id); }
+var REDUCED = false;
+try { REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+
+/* ================= starfield backdrop ================= */
+(function(){
+  var bg = $("spaceBg"), c = bg.getContext("2d"), stars = [], W = 0, H = 0;
+  function size(){
+    W = bg.width = window.innerWidth; H = bg.height = window.innerHeight;
+    stars = [];
+    var n = Math.round(W * H / 9000);
+    for (var i = 0; i < n; i++) stars.push({ x: Math.random()*W, y: Math.random()*H, r: Math.random()*1.4+0.3, p: Math.random()*6.28 });
+  }
+  size(); window.addEventListener("resize", size);
+  (function tick(t){
+    c.clearRect(0, 0, W, H);
+    for (var i = 0; i < stars.length; i++){
+      var s = stars[i];
+      var a = REDUCED ? 0.8 : 0.45 + 0.4 * Math.sin(t/900 + s.p);
+      c.globalAlpha = a; c.fillStyle = "#bfe6ff";
+      c.beginPath(); c.arc(s.x, s.y, s.r, 0, 6.283); c.fill();
+    }
+    c.globalAlpha = 1;
+    requestAnimationFrame(tick);
+  })(0);
+})();
+
+/* ================= sound effects (WebAudio, generated — no files) ================= */
+var AC = null, soundOn = true;
+function audio() {
+  if (!soundOn) return null;
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  }
+  if (AC.state === "suspended") { AC.resume(); }
+  return AC;
+}
+function tone(freq, dur, type, vol, delay, slideTo) {
+  var ac = audio(); if (!ac) return;
+  var t0 = ac.currentTime + (delay || 0);
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || "square";
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+  g.gain.setValueAtTime(vol || 0.06, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function noiseBurst(dur, filterFreq, vol, sweepTo) {
+  var ac = audio(); if (!ac) return;
+  var n = Math.max(1, Math.floor(ac.sampleRate * dur));
+  var buf = ac.createBuffer(1, n, ac.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  var src = ac.createBufferSource(); src.buffer = buf;
+  var f = ac.createBiquadFilter(); f.type = "bandpass"; f.Q.value = 0.9;
+  var t0 = ac.currentTime;
+  f.frequency.setValueAtTime(filterFreq, t0);
+  if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t0 + dur);
+  var g = ac.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start(t0); src.stop(t0 + dur + 0.02);
+}
+function sfxAtom() { tone(880, 0.09, "sine", 0.09); tone(1318, 0.14, "sine", 0.09, 0.07); }
+function sfxNearMiss() { noiseBurst(0.28, 500, 0.16, 2400); }
+function sfxCrash() {
+  noiseBurst(0.4, 300, 0.3, 90);
+  tone(120, 0.35, "sawtooth", 0.16, 0, 40);
+  tone(70, 0.45, "square", 0.12, 0.02, 30);
+}
+function sfxClick() { tone(660, 0.06, "square", 0.05); }
+function sfxGameOver() { tone(392, 0.22, "square", 0.08); tone(311, 0.22, "square", 0.08, 0.2); tone(233, 0.4, "square", 0.09, 0.4); }
+
+/* engine hum: a saw + sub pair through a lowpass, pitch follows speed */
+var engine = null;
+function engineStart() {
+  var ac = audio(); if (!ac || engine) return;
+  var o1 = ac.createOscillator(); o1.type = "sawtooth"; o1.frequency.value = 55;
+  var o2 = ac.createOscillator(); o2.type = "sine"; o2.frequency.value = 28;
+  var f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 320; f.Q.value = 2;
+  var g = ac.createGain(); g.gain.value = 0.0;
+  g.gain.setTargetAtTime(0.045, ac.currentTime, 0.3);
+  o1.connect(f); o2.connect(f); f.connect(g); g.connect(ac.destination);
+  o1.start(); o2.start();
+  engine = { o1: o1, o2: o2, f: f, g: g };
+}
+function engineSet(speedNorm) {
+  if (!engine || !AC) return;
+  var t = AC.currentTime;
+  var hz = 52 + speedNorm * 78;
+  engine.o1.frequency.setTargetAtTime(hz, t, 0.08);
+  engine.o2.frequency.setTargetAtTime(hz / 2, t, 0.08);
+  engine.f.frequency.setTargetAtTime(280 + speedNorm * 620, t, 0.1);
+}
+function engineStop() {
+  if (!engine || !AC) { engine = null; return; }
+  var e = engine; engine = null;
+  try {
+    e.g.gain.setTargetAtTime(0.0001, AC.currentTime, 0.12);
+    setTimeout(function(){ try { e.o1.stop(); e.o2.stop(); } catch (err) {} }, 450);
+  } catch (err) {}
+}
+$("soundBtn").addEventListener("click", function () {
+  soundOn = !soundOn;
+  $("soundBtn").textContent = soundOn ? "🔊 Sound On" : "🔇 Sound Off";
+  if (!soundOn) engineStop();
+  else if (state === "playing") engineStart();
+  if (soundOn) sfxClick();
+});
+</script>
+<script>
+/* ================= QI Quantum Rally — game ================= */
+var cv = $("game"), ctx = cv.getContext("2d");
+var W = 420, H = 640;
+
+/* fit the fixed 420x640 playfield into the stage, keeping its shape */
+function fitCanvas() {
+  var st = $("stage");
+  var aw = st.clientWidth, ah = st.clientHeight;
+  if (!aw || !ah) return;
+  var s = Math.min(aw / W, ah / H);
+  cv.style.width = Math.floor(W * s) + "px";
+  cv.style.height = Math.floor(H * s) + "px";
+}
+window.addEventListener("resize", fitCanvas);
+window.addEventListener("orientationchange", function(){ setTimeout(fitCanvas, 60); });
+
+/* road geometry: 4 lanes across a centered highway */
+var ROAD_X = 30, ROAD_W = W - 60, LANES = 4, LANE_W = ROAD_W / LANES;
+function laneX(i){ return ROAD_X + LANE_W * (i + 0.5); }
+
+var TRAFFIC_COLORS = [
+  { body:"#22d3ee", dark:"#0e7490" },  /* cyan */
+  { body:"#a855f7", dark:"#6d28d9" },  /* purple */
+  { body:"#f5c542", dark:"#b8860b" },  /* gold */
+  { body:"#34d399", dark:"#047857" },  /* QI green */
+  { body:"#ff5da2", dark:"#be185d" },  /* pink */
+  { body:"#60a5fa", dark:"#1d4ed8" }   /* blue */
+];
+
+var state = "ready";           /* ready | playing | over */
+var score = 0, best = 0, submitted = false;
+var fenders = 3;
+var combo = 0, comboTimer = 0;
+var scroll = 0;                /* current road speed px/s (before slow-mo) */
+var speedMul = 1;              /* crash slow-mo recovery */
+var elapsed = 0, topSpeedKmh = 0;
+var roadOff = 0;
+var invuln = 0;                /* seconds of post-crash invulnerability */
+var shake = 0;
+var player = { x: W/2, y: H - 118, w: 46, h: 80, tilt: 0, targetX: W/2 };
+var traffic = [];              /* {x,y,w,h,color,vy,passed,seed} */
+var atoms = [];                /* {x,y,r,spin,taken} */
+var floats = [];               /* {x,y,text,color,life,max} */
+var sparks = [];               /* {x,y,vx,vy,life,color} */
+var spawnT = 0.6, atomT = 1.4;
+var keys = { left:false, right:false };
+var lastTs = 0;
+
+try { best = parseInt(localStorage.getItem("qi-rally-best") || "0", 10) || 0; } catch (e) { best = 0; }
+
+function kmh(){ return Math.round(scroll * speedMul * 0.27); }
+function level(){ return 1 + Math.floor(elapsed / 20); }
+function paintHUD() {
+  $("hudScore").textContent = Math.floor(score);
+  $("hudSpeed").textContent = state === "playing" ? kmh() : 0;
+  $("hudCombo").textContent = combo > 0 ? "x" + combo : "—";
+  $("hudLevel").textContent = level();
+  var h = "";
+  for (var i = 0; i < 3; i++) h += "<span" + (i < fenders ? "" : " class='lost'") + ">♥</span>";
+  $("hudFenders").innerHTML = h;
+  $("hudBest").textContent = best;
+}
+paintHUD();
+
+function resetRun() {
+  score = 0; fenders = 3; combo = 0; comboTimer = 0;
+  scroll = 300; speedMul = 1; elapsed = 0; topSpeedKmh = 0;
+  invuln = 0; shake = 0;
+  player.x = W/2; player.targetX = W/2; player.tilt = 0;
+  traffic = []; atoms = []; floats = []; sparks = [];
+  spawnT = 0.7; atomT = 1.2;
+  submitted = false;
+  paintHUD();
+}
+
+function startRun() {
+  resetRun();
+  state = "playing";
+  document.body.classList.add("playing");
+  $("startCard").classList.remove("show");
+  $("overCard").classList.remove("show");
+  engineStart();
+  setTimeout(fitCanvas, 30);
+}
+
+function endRun() {
+  state = "over";
+  document.body.classList.remove("playing");
+  engineStop();
+  sfxGameOver();
+  var sc = Math.floor(score);
+  var isBest = sc > best;
+  if (isBest) {
+    best = sc;
+    try { localStorage.setItem("qi-rally-best", String(best)); } catch (e) {}
+  }
+  $("finalScore").textContent = sc;
+  $("finalSpeed").textContent = topSpeedKmh;
+  $("finalBest").textContent = best;
+  $("newBest").style.display = isBest ? "" : "none";
+  $("lbMsg").textContent = ""; $("lbMsg").className = "lb-msg";
+  var btn = $("lbSubmit"); btn.disabled = false; btn.textContent = "Submit Score";
+  $("overBoard").innerHTML = "";
+  $("overCard").classList.add("show");
+  paintHUD();
+  setTimeout(fitCanvas, 30);
+}
+
+$("startBtn").addEventListener("click", function () { sfxClick(); startRun(); });
+$("againBtn").addEventListener("click", function () { sfxClick(); startRun(); });
+
+/* ================= steering =================
+   Drag anywhere on the stage: the car eases toward the finger's x.
+   Keyboard arrows / A D nudge the target the same way. */
+function stageX(clientX) {
+  var r = cv.getBoundingClientRect();
+  return (clientX - r.left) / r.width * W;
+}
+var dragging = false;
+function pointerDown(e) {
+  if (state !== "playing") return;
+  dragging = true;
+  player.targetX = stageX(e.clientX);
+}
+function pointerMove(e) {
+  if (state !== "playing" || !dragging) return;
+  player.targetX = stageX(e.clientX);
+}
+function pointerUp() { dragging = false; }
+$("stage").addEventListener("pointerdown", pointerDown);
+window.addEventListener("pointermove", pointerMove);
+window.addEventListener("pointerup", pointerUp);
+window.addEventListener("pointercancel", pointerUp);
+document.addEventListener("keydown", function (e) {
+  if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") { keys.left = true; e.preventDefault(); }
+  if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") { keys.right = true; e.preventDefault(); }
+});
+document.addEventListener("keyup", function (e) {
+  if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") keys.left = false;
+  if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") keys.right = false;
+});
+
+/* ================= spawning ================= */
+function spawnTraffic() {
+  var lane = Math.floor(Math.random() * LANES);
+  var x = laneX(lane) + (Math.random() * 14 - 7);
+  /* the longer the run, the more trucks and bikes join the cars */
+  var truckP = Math.min(0.26, 0.05 + elapsed * 0.0035);
+  var motoP = Math.min(0.30, 0.07 + elapsed * 0.004);
+  var roll = Math.random();
+  var kind = roll < truckP ? "truck" : (roll < truckP + motoP ? "moto" : "car");
+  var w = kind === "truck" ? 54 : (kind === "moto" ? 26 : 46);
+  var h = kind === "truck" ? 142 : (kind === "moto" ? 58 : 80);
+  /* never stack a fresh vehicle on top of one still near the spawn line */
+  for (var i = 0; i < traffic.length; i++) {
+    if (Math.abs(traffic[i].x - x) < (traffic[i].w + w) / 2 + 8 &&
+        traffic[i].y - traffic[i].h / 2 < h) return;
+  }
+  var c = TRAFFIC_COLORS[Math.floor(Math.random() * TRAFFIC_COLORS.length)];
+  traffic.push({
+    kind: kind,
+    x: x, baseX: x, y: -h / 2 - 10, w: w, h: h,
+    color: c, passed: false,
+    vy: kind === "truck" ? 0.34 + Math.random() * 0.14    /* trucks crawl */
+       : kind === "moto" ? 0.55 + Math.random() * 0.20    /* bikes run quick */
+       : 0.42 + Math.random() * 0.22,                     /* fraction of player speed they cruise at */
+    wob: Math.random() * 6.28,
+    weaveAmp: kind === "moto" ? Math.min(30, 12 + elapsed * 0.25) : 0,
+    weaveFreq: 1.6 + Math.random() * 1.2
+  });
+}
+function spawnAtom() {
+  var lane = Math.floor(Math.random() * LANES);
+  atoms.push({ x: laneX(lane) + (Math.random() * 20 - 10), y: -26, r: 13, spin: Math.random() * 6.28 });
+}
+function addFloat(x, y, text, color) {
+  floats.push({ x: x, y: y, text: text, color: color, life: 1.1, max: 1.1 });
+}
+function burst(x, y, color, n) {
+  for (var i = 0; i < n; i++) {
+    var a = Math.random() * 6.283, sp = 40 + Math.random() * 130;
+    sparks.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.5 + Math.random() * 0.3, color: color });
+  }
+}
+
+/* ================= update ================= */
+function crash(car) {
+  fenders--;
+  combo = 0; comboTimer = 0;
+  speedMul = 0.32;
+  invuln = 2.2;
+  shake = REDUCED ? 0 : 14;
+  burst(player.x, player.y - 10, "#ffd964", 22);
+  burst(player.x, player.y, "#ff5d7a", 14);
+  sfxCrash();
+  car.passed = true; /* the wreck you hit never also pays a near-miss */
+  if (fenders <= 0) { endRun(); }
+  paintHUD();
+}
+
+function update(dt) {
+  elapsed += dt;
+  /* difficulty ramp: speed climbs the longer you survive, and the
+     top-speed cap itself keeps rising the deeper the run goes */
+  var cap = 980 + Math.min(340, elapsed * 2.4);
+  scroll = Math.min(300 + elapsed * 9.5, cap);
+  speedMul = Math.min(1, speedMul + dt * 0.55);
+  if (invuln > 0) invuln -= dt;
+  if (shake > 0) shake = Math.max(0, shake - dt * 26);
+  var eff = scroll * speedMul;             /* effective road speed */
+  roadOff = (roadOff + eff * dt) % 64;
+  topSpeedKmh = Math.max(topSpeedKmh, kmh());
+  engineSet(Math.min(1, scroll / 1320) * (0.5 + 0.5 * speedMul));
+
+  /* distance score */
+  score += eff * dt * 0.016;
+
+  /* combo chain window */
+  if (combo > 0) {
+    comboTimer -= dt;
+    if (comboTimer <= 0) { combo = 0; paintHUD(); }
+  }
+
+  /* steering: keyboard nudges the target, the car eases after it */
+  if (keys.left) player.targetX -= 340 * dt;
+  if (keys.right) player.targetX += 340 * dt;
+  player.targetX = Math.max(ROAD_X + player.w/2 + 2, Math.min(ROAD_X + ROAD_W - player.w/2 - 2, player.targetX));
+  var prevX = player.x;
+  player.x += (player.targetX - player.x) * Math.min(1, dt * 9);
+  var vx = dt > 0 ? (player.x - prevX) / dt : 0;
+  var targetTilt = Math.max(-0.17, Math.min(0.17, vx * 0.00045));
+  player.tilt += (targetTilt - player.tilt) * Math.min(1, dt * 10);
+
+  /* traffic spawning — denser as speed climbs, and thicker still
+     the longer the run lasts */
+  spawnT -= dt;
+  if (spawnT <= 0) {
+    spawnTraffic();
+    var base = Math.max(0.36, 1.18 - Math.min(0.62, (scroll - 300) * 0.0009) - Math.min(0.28, elapsed * 0.0035));
+    spawnT = base * (0.65 + Math.random() * 0.7);
+  }
+  atomT -= dt;
+  if (atomT <= 0) { spawnAtom(); atomT = 0.9 + Math.random() * 1.3; }
+
+  /* traffic */
+  for (var i = traffic.length - 1; i >= 0; i--) {
+    var t = traffic[i];
+    t.y += eff * (1 - t.vy) * dt + 26 * dt;
+    /* motorcycles drift side to side as they ride */
+    if (t.kind === "moto") {
+      t.x = t.baseX + Math.sin(elapsed * t.weaveFreq + t.wob) * t.weaveAmp;
+    }
+    /* near-miss: the car has fully passed the player without contact */
+    if (!t.passed && t.y - t.h/2 > player.y + player.h/2) {
+      t.passed = true;
+      var gap = Math.abs(t.x - player.x) - (t.w + player.w) / 2;
+      if (gap >= 0 && gap < 24 && invuln <= 0) {
+        combo++;
+        comboTimer = 4.5;
+        var pts = 25 * combo;
+        score += pts;
+        addFloat(player.x, player.y - 62, "+" + pts + (combo > 1 ? "  x" + combo : ""), "#c084fc");
+        burst(player.x + (t.x > player.x ? player.w/2 : -player.w/2), player.y, "#7fdcff", 7);
+        sfxNearMiss();
+        paintHUD();
+      }
+    }
+    /* collision (slightly forgiving boxes) */
+    if (invuln <= 0 &&
+        Math.abs(t.x - player.x) < (t.w + player.w) / 2 * 0.82 &&
+        Math.abs(t.y - player.y) < (t.h + player.h) / 2 * 0.86) {
+      crash(t);
+      if (state !== "playing") return;
+    }
+    if (t.y - t.h/2 > H + 30) traffic.splice(i, 1);
+  }
+
+  /* atoms ride the road at full scroll speed */
+  for (var j = atoms.length - 1; j >= 0; j--) {
+    var a = atoms[j];
+    a.y += eff * dt;
+    a.spin += dt * 2.6;
+    if (Math.abs(a.x - player.x) < (a.r + player.w/2) * 0.95 &&
+        Math.abs(a.y - player.y) < (a.r + player.h/2) * 0.9) {
+      score += 10;
+      addFloat(a.x, a.y - 16, "+10", "#ffd964");
+      burst(a.x, a.y, "#ffd964", 10);
+      sfxAtom();
+      atoms.splice(j, 1);
+      paintHUD();
+      continue;
+    }
+    if (a.y - a.r > H + 20) atoms.splice(j, 1);
+  }
+
+  /* floats + sparks */
+  for (var k = floats.length - 1; k >= 0; k--) {
+    floats[k].y -= 44 * dt; floats[k].life -= dt;
+    if (floats[k].life <= 0) floats.splice(k, 1);
+  }
+  for (var m = sparks.length - 1; m >= 0; m--) {
+    var s = sparks[m];
+    s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 190 * dt; s.life -= dt;
+    if (s.life <= 0) sparks.splice(m, 1);
+  }
+  paintHUD();
+}
+
+/* ================= drawing ================= */
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawRoad() {
+  /* night surround */
+  ctx.fillStyle = "#04060f";
+  ctx.fillRect(0, 0, W, H);
+  /* road surface */
+  var g = ctx.createLinearGradient(ROAD_X, 0, ROAD_X + ROAD_W, 0);
+  g.addColorStop(0, "#0a1122"); g.addColorStop(0.5, "#101a33"); g.addColorStop(1, "#0a1122");
+  ctx.fillStyle = g;
+  ctx.fillRect(ROAD_X, 0, ROAD_W, H);
+
+  /* neon shoulder posts streaming past */
+  var postGap = 92;
+  var po = roadOff * (92/64);
+  for (var y = -postGap + (po % postGap); y < H + postGap; y += postGap) {
+    ctx.fillStyle = "#a855f7";
+    ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 9;
+    ctx.fillRect(ROAD_X - 13, y, 4, 20);
+    ctx.fillStyle = "#22d3ee";
+    ctx.shadowColor = "#22d3ee";
+    ctx.fillRect(ROAD_X + ROAD_W + 9, y, 4, 20);
+  }
+  ctx.shadowBlur = 0;
+
+  /* glowing edge lines */
+  ctx.strokeStyle = "#22d3ee"; ctx.lineWidth = 3;
+  ctx.shadowColor = "#22d3ee"; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.moveTo(ROAD_X + 2, 0); ctx.lineTo(ROAD_X + 2, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ROAD_X + ROAD_W - 2, 0); ctx.lineTo(ROAD_X + ROAD_W - 2, H); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  /* scrolling dashed lane lines */
+  ctx.strokeStyle = "rgba(191,230,255,.75)"; ctx.lineWidth = 4;
+  ctx.shadowColor = "rgba(127,220,255,.8)"; ctx.shadowBlur = 7;
+  ctx.setLineDash([34, 30]);
+  ctx.lineDashOffset = -roadOff;
+  for (var i = 1; i < LANES; i++) {
+    var x = ROAD_X + LANE_W * i;
+    ctx.beginPath(); ctx.moveTo(x, -10); ctx.lineTo(x, H + 10); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.shadowBlur = 0;
+}
+
+function drawAtom(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.shadowColor = "#ffd964"; ctx.shadowBlur = 16;
+  ctx.fillStyle = "#ffd964";
+  ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, 6.283); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffe98a"; ctx.lineWidth = 2;
+  for (var i = 0; i < 3; i++) {
+    ctx.save();
+    ctx.rotate(a.spin + i * 1.047);
+    ctx.beginPath(); ctx.ellipse(0, 0, a.r, a.r * 0.38, 0, 0, 6.283); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawCar(x, y, w, h, body, dark, isPlayer, tilt) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (tilt) ctx.rotate(tilt);
+  var hw = w/2, hh = h/2;
+
+  /* neon underglow */
+  ctx.save();
+  ctx.globalAlpha = isPlayer ? 0.55 : 0.3;
+  ctx.fillStyle = isPlayer ? "#22d3ee" : body;
+  ctx.shadowColor = isPlayer ? "#22d3ee" : body; ctx.shadowBlur = 22;
+  rr(-hw - 3, -hh + 4, w + 6, h - 4, 14); ctx.fill();
+  ctx.restore();
+
+  /* wheels */
+  ctx.fillStyle = "#05070c";
+  rr(-hw - 3, -hh + 10, 7, 16, 3); ctx.fill();
+  rr(hw - 4, -hh + 10, 7, 16, 3); ctx.fill();
+  rr(-hw - 3, hh - 26, 7, 16, 3); ctx.fill();
+  rr(hw - 4, hh - 26, 7, 16, 3); ctx.fill();
+
+  /* body */
+  var g = ctx.createLinearGradient(0, -hh, 0, hh);
+  g.addColorStop(0, body); g.addColorStop(1, dark);
+  ctx.fillStyle = g;
+  rr(-hw, -hh, w, h, 11); ctx.fill();
+  if (isPlayer) {
+    ctx.strokeStyle = "#ffd964"; ctx.lineWidth = 2;
+    ctx.shadowColor = "#ffd964"; ctx.shadowBlur = 8;
+    rr(-hw + 1, -hh + 1, w - 2, h - 2, 10); ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  /* windshield + rear window */
+  ctx.fillStyle = "rgba(8,18,34,.92)";
+  rr(-hw + 7, -hh + 15, w - 14, 13, 5); ctx.fill();
+  rr(-hw + 8, hh - 27, w - 16, 10, 5); ctx.fill();
+  /* roof */
+  ctx.fillStyle = "rgba(255,255,255,.14)";
+  rr(-hw + 8, -hh + 31, w - 16, h - 62, 6); ctx.fill();
+
+  /* headlights (front, top) + light cones for the player */
+  ctx.fillStyle = "#fff7cc";
+  ctx.shadowColor = "#ffe98a"; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(-hw + 9, -hh + 5, 3.4, 0, 6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(hw - 9, -hh + 5, 3.4, 0, 6.283); ctx.fill();
+  ctx.shadowBlur = 0;
+  /* taillights (rear, bottom — what the player chases) */
+  ctx.fillStyle = "#ff3b57";
+  ctx.shadowColor = "#ff3b57"; ctx.shadowBlur = 10;
+  ctx.fillRect(-hw + 5, hh - 6, 10, 3.6);
+  ctx.fillRect(hw - 15, hh - 6, 10, 3.6);
+  ctx.shadowBlur = 0;
+
+  if (isPlayer) {
+    /* gold atom emblem on the roof */
+    ctx.strokeStyle = "#ffd964"; ctx.lineWidth = 1.6;
+    ctx.shadowColor = "#ffd964"; ctx.shadowBlur = 7;
+    ctx.beginPath(); ctx.arc(0, 2, 3, 0, 6.283); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 2, 8.5, 3.4, 0.5, 0, 6.283); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 2, 8.5, 3.4, -0.5, 0, 6.283); ctx.stroke();
+    ctx.shadowBlur = 0;
+    /* headlight beams */
+    var bg2 = ctx.createLinearGradient(0, -hh, 0, -hh - 92);
+    bg2.addColorStop(0, "rgba(255,240,180,.20)");
+    bg2.addColorStop(1, "rgba(255,240,180,0)");
+    ctx.fillStyle = bg2;
+    ctx.beginPath();
+    ctx.moveTo(-hw + 4, -hh); ctx.lineTo(hw - 4, -hh);
+    ctx.lineTo(hw + 8, -hh - 92); ctx.lineTo(-hw - 8, -hh - 92);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawTruck(x, y, w, h, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  var hw = w/2, hh = h/2;
+
+  /* neon underglow */
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = color.body;
+  ctx.shadowColor = color.body; ctx.shadowBlur = 22;
+  rr(-hw - 3, -hh + 4, w + 6, h - 4, 12); ctx.fill();
+  ctx.restore();
+
+  /* wheels — three axles */
+  ctx.fillStyle = "#05070c";
+  rr(-hw - 3, -hh + 12, 7, 18, 3); ctx.fill();
+  rr(hw - 4, -hh + 12, 7, 18, 3); ctx.fill();
+  rr(-hw - 3, hh - 58, 7, 18, 3); ctx.fill();
+  rr(hw - 4, hh - 58, 7, 18, 3); ctx.fill();
+  rr(-hw - 3, hh - 34, 7, 18, 3); ctx.fill();
+  rr(hw - 4, hh - 34, 7, 18, 3); ctx.fill();
+
+  /* trailer box */
+  var g = ctx.createLinearGradient(0, -hh, 0, hh);
+  g.addColorStop(0, color.body); g.addColorStop(1, color.dark);
+  ctx.fillStyle = g;
+  rr(-hw, -hh + 36, w, h - 36, 6); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.28)"; ctx.lineWidth = 1.5;
+  ctx.strokeRect(-hw + 5, -hh + 44, w - 10, h - 54);
+  ctx.beginPath();
+  ctx.moveTo(-hw + 5, 0); ctx.lineTo(hw - 5, 0);
+  ctx.stroke();
+
+  /* cab */
+  ctx.fillStyle = color.dark;
+  rr(-hw, -hh, w, 38, 9); ctx.fill();
+  ctx.fillStyle = "rgba(8,18,34,.92)";
+  rr(-hw + 7, -hh + 13, w - 14, 11, 4); ctx.fill();
+
+  /* headlights + taillights */
+  ctx.fillStyle = "#fff7cc";
+  ctx.shadowColor = "#ffe98a"; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(-hw + 8, -hh + 4, 3.2, 0, 6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(hw - 8, -hh + 4, 3.2, 0, 6.283); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#ff3b57";
+  ctx.shadowColor = "#ff3b57"; ctx.shadowBlur = 10;
+  ctx.fillRect(-hw + 4, hh - 6, 11, 3.6);
+  ctx.fillRect(hw - 15, hh - 6, 11, 3.6);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawMoto(x, y, w, h, color, tilt) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (tilt) ctx.rotate(tilt);
+  var hw = w/2, hh = h/2;
+
+  /* neon underglow */
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  ctx.fillStyle = color.body;
+  ctx.shadowColor = color.body; ctx.shadowBlur = 16;
+  rr(-hw, -hh + 4, w, h - 6, 10); ctx.fill();
+  ctx.restore();
+
+  /* tires */
+  ctx.fillStyle = "#05070c";
+  rr(-2.5, -hh, 5, 13, 2); ctx.fill();
+  rr(-2.5, hh - 13, 5, 13, 2); ctx.fill();
+
+  /* frame + tank */
+  var g = ctx.createLinearGradient(0, -hh, 0, hh);
+  g.addColorStop(0, color.body); g.addColorStop(1, color.dark);
+  ctx.fillStyle = g;
+  rr(-hw + 3, -hh + 10, w - 6, h - 20, 7); ctx.fill();
+
+  /* rider: dark leathers, helmet in the bike's color */
+  ctx.fillStyle = "#101623";
+  ctx.beginPath(); ctx.ellipse(0, 3, 8, 13, 0, 0, 6.283); ctx.fill();
+  ctx.fillStyle = color.body;
+  ctx.shadowColor = color.body; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(0, -12, 6, 0, 6.283); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(190,230,255,.85)";
+  ctx.fillRect(-5, -14.5, 10, 2.6);
+
+  /* headlight + taillight */
+  ctx.fillStyle = "#fff7cc";
+  ctx.shadowColor = "#ffe98a"; ctx.shadowBlur = 9;
+  ctx.beginPath(); ctx.arc(0, -hh + 5, 2.8, 0, 6.283); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#ff3b57";
+  ctx.shadowColor = "#ff3b57"; ctx.shadowBlur = 8;
+  ctx.fillRect(-3.5, hh - 5, 7, 3);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function draw() {
+  ctx.save();
+  if (shake > 0) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  drawRoad();
+  var i;
+  for (i = 0; i < atoms.length; i++) drawAtom(atoms[i]);
+  for (i = 0; i < traffic.length; i++) {
+    var t = traffic[i];
+    if (t.kind === "truck") drawTruck(t.x, t.y, t.w, t.h, t.color);
+    else if (t.kind === "moto") drawMoto(t.x, t.y, t.w, t.h, t.color, Math.cos(elapsed * t.weaveFreq + t.wob) * 0.14);
+    else drawCar(t.x, t.y, t.w, t.h, t.color.body, t.color.dark, false, 0);
+  }
+  /* player — blink while invulnerable */
+  var blink = invuln > 0 && Math.floor(invuln * 9) % 2 === 0;
+  if (!blink) drawCar(player.x, player.y, player.w, player.h, "#7c3aed", "#312e81", true, player.tilt);
+  else { ctx.globalAlpha = 0.35; drawCar(player.x, player.y, player.w, player.h, "#7c3aed", "#312e81", true, player.tilt); ctx.globalAlpha = 1; }
+
+  /* sparks */
+  for (i = 0; i < sparks.length; i++) {
+    var s = sparks[i];
+    ctx.globalAlpha = Math.max(0, s.life * 2);
+    ctx.fillStyle = s.color;
+    ctx.fillRect(s.x - 2, s.y - 2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+
+  /* floating score text */
+  ctx.textAlign = "center";
+  ctx.font = "900 19px 'Segoe UI', system-ui, sans-serif";
+  for (i = 0; i < floats.length; i++) {
+    var f = floats[i];
+    ctx.globalAlpha = Math.max(0, Math.min(1, f.life / (f.max * 0.6)));
+    ctx.fillStyle = f.color;
+    ctx.shadowColor = f.color; ctx.shadowBlur = 10;
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  /* low-speed crash vignette flash */
+  if (speedMul < 0.6 && state === "playing") {
+    ctx.fillStyle = "rgba(255,40,70," + (0.16 * (0.6 - speedMul) / 0.28) + ")";
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+/* idle attract mode: the road streams slowly behind the start card */
+function idleUpdate(dt) {
+  scroll = 170; speedMul = 1;
+  roadOff = (roadOff + scroll * dt) % 64;
+}
+
+function loop(ts) {
+  var dt = Math.min(0.05, (ts - lastTs) / 1000 || 0.016);
+  lastTs = ts;
+  if (state === "playing") update(dt);
+  else idleUpdate(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+fitCanvas();
+setTimeout(fitCanvas, 120);
+requestAnimationFrame(loop);
+</script>
+<script>
+/* ================= leaderboard + likes (Firebase, lazy) ================= */
+var FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+var fbPromise = null;
+function loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+function loadFirebase() {
+  if (!fbPromise) {
+    fbPromise = loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js")
+      .then(function () { return loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"); })
+      .then(function () {
+        var app = firebase.initializeApp(FB_CONFIG);
+        return firebase.firestore(app);
+      });
+  }
+  return fbPromise;
+}
+var BLOCKED = ["fuck","shit","bitch","cunt","dick","cock","pussy","porn","sex","nude","naked","boob","tits","cum","anal","whore","slut","fag","nigger","nigga","vagina","penis","dildo","horny","hentai","onlyfans","wank","jizz","boner","rape","pedo","incest","blowjob","asshole","twat"];
+var LEET = {"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s","!":"i"};
+function nameBlocked(name) {
+  var n = String(name).toLowerCase().split("").map(function (ch) { return LEET[ch] || ch; }).join("").replace(/[^a-z]/g, "");
+  return BLOCKED.some(function (w) { return n.indexOf(w) !== -1; });
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (ch) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+  });
+}
+function boardHTML(rows, myName, myScore) {
+  if (!rows.length) return "<div class='board-note'>No scores yet — be the first on the board!</div>";
+  var marked = false;
+  var html = "<table class='board'><tr><th>#</th><th>Name</th><th class='r'>Score</th></tr>";
+  rows.forEach(function (r, i) {
+    var me = !marked && myName != null && r.name === myName && r.score === myScore;
+    if (me) marked = true;
+    html += "<tr" + (me ? " class='me'" : "") + "><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td class='r'>" + r.score + "</td></tr>";
+  });
+  return html + "</table>";
+}
+async function fetchBoard() {
+  var db = await loadFirebase();
+  var snap = await db.collection("scores").where("game", "==", "rally").limit(200).get();
+  var rows = [];
+  snap.forEach(function (d) {
+    var v = d.data();
+    if (v && v.game === "rally" && typeof v.score === "number" && typeof v.name === "string" && !nameBlocked(v.name)) {
+      rows.push({ name: v.name, score: v.score });
+    }
+  });
+  rows.sort(function (a, b) { return b.score - a.score; });
+  return rows.slice(0, 10);
+}
+$("lbForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  if (submitted) return;
+  var name = $("lbName").value.trim();
+  var msg = $("lbMsg");
+  if (!name) { msg.textContent = "Type a name first"; msg.className = "lb-msg err"; return; }
+  if (nameBlocked(name)) {
+    msg.textContent = "That name isn't allowed — pick another";
+    msg.className = "lb-msg err"; tone(160, 0.15, "sawtooth", 0.08); return;
+  }
+  var btn = $("lbSubmit"); btn.disabled = true; btn.textContent = "Submitting…";
+  try {
+    var db = await loadFirebase();
+    var sc = Math.floor(score);
+    await db.collection("scores").add({
+      name: name, score: sc, game: "rally", ts: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    submitted = true;
+    msg.textContent = "Score submitted!"; msg.className = "lb-msg ok";
+    btn.textContent = "Submitted ✓";
+    sfxClick();
+    try { $("overBoard").innerHTML = boardHTML(await fetchBoard(), name, sc); }
+    catch (err) { $("overBoard").innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+  } catch (err) {
+    msg.textContent = "Leaderboard unavailable right now"; msg.className = "lb-msg err";
+    btn.disabled = false; btn.textContent = "Submit Score";
+  }
+});
+$("lbBtn").addEventListener("click", async function () {
+  $("lbPanel").classList.add("show");
+  var body = $("lbPanelBody");
+  body.innerHTML = "<div class='board-note'>Loading…</div>";
+  try { body.innerHTML = boardHTML(await fetchBoard(), null, null); }
+  catch (e) { body.innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>"; }
+});
+$("lbClose").addEventListener("click", function () { $("lbPanel").classList.remove("show"); });
+$("lbPanel").addEventListener("click", function (e) { if (e.target === $("lbPanel")) $("lbPanel").classList.remove("show"); });
+
+/* ================= like button ================= */
+/* Same heart as the site game cards: one doc per game in the
+   `likes` collection (likes/rally), count moved in ±1 steps only.
+   The player's own like is remembered in this browser under
+   qi-liked-rally, exactly like the site's game-card hearts. */
+var likeBusy = false;
+var liked = false;
+try { liked = localStorage.getItem("qi-liked-rally") === "1"; } catch (e) { liked = false; }
+function paintLike(count) {
+  $("likeBtn").querySelector(".heart").textContent = liked ? "❤️" : "🤍";
+  if (typeof count === "number") $("likeCount").textContent = count;
+}
+async function loadLike() {
+  paintLike();
+  try {
+    var db = await loadFirebase();
+    var snap = await db.collection("likes").doc("rally").get();
+    paintLike(snap.exists ? (snap.data().count || 0) : 0);
+  } catch (e) { $("likeCount").textContent = "–"; }
+}
+$("likeBtn").addEventListener("click", async function () {
+  if (likeBusy) return;
+  likeBusy = true;
+  var was = liked;
+  var delta = was ? -1 : 1;
+  try {
+    var db = await loadFirebase();
+    var ref = db.collection("likes").doc("rally");
+    try {
+      await ref.update({ count: firebase.firestore.FieldValue.increment(delta) });
+    } catch (e1) {
+      await ref.set({ count: Math.max(0, delta) }, { merge: true });
+    }
+    var snap = await ref.get();
+    var c = snap.exists ? (snap.data().count || 0) : 0;
+    liked = !was;
+    try { localStorage.setItem("qi-liked-rally", liked ? "1" : "0"); } catch (e) {}
+    paintLike(Math.max(0, c));
+  } catch (e) { /* offline: leave the heart as it was */ }
+  likeBusy = false;
+});
+loadLike();
+</script>
+</body>
+</html>
