@@ -7041,7 +7041,7 @@ function drawSpeedwayBuilding(t) {
 }
 /* ============ the Quantum Horse Track building (plaza, east side — the Sports Complex's neighbour, PREVIEW) ============ */
 function drawTrenchesBuilding(t) {
-  const b = TR_B; /* 🔫 QUANTUM TRENCHES (PREVIEW): military olive under a camo roof band — the gym/speedway construction, word for word in shape: facade gradient with a neon stroke, roof band and finial, bulb trim, a marquee, aligned windows, three icon badges over the door, and the door's light spill. Its colours are the battlefield's: olive and khaki, with the trim bulbs alternating the two team neons, red and blue */
+  const b = TR_B; /* 🔫 QUANTUM TRENCHES (PREVIEW): military olive under a camo roof band — the gym/speedway construction, word for word in shape: facade gradient with a neon stroke, roof band and finial, bulb trim, a marquee, aligned windows, and the door's light spill. Its colours are the battlefield's: olive and khaki, with the trim bulbs alternating the two team neons, red and blue */
   const fg = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
   fg.addColorStop(0, "#4a5230"); fg.addColorStop(0.55, "#39431f"); fg.addColorStop(1, "#232a12");
   ctx.fillStyle = fg; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
@@ -7085,15 +7085,10 @@ function drawTrenchesBuilding(t) {
   }
   ctx.fillStyle = "#eaffb0"; ctx.font = "800 23px system-ui"; ctx.textAlign = "center";
   ctx.shadowColor = "rgba(190,242,100,0.75)"; ctx.shadowBlur = 12;
-  ctx.fillText("🔫 QUANTUM TRENCHES 🔫", b.x + b.w / 2, b.y + 84); ctx.shadowBlur = 0;
+  ctx.fillText("QUANTUM TRENCHES", b.x + b.w / 2, b.y + 84); ctx.shadowBlur = 0;
   ctx.fillStyle = "#bef264"; ctx.font = "700 13px system-ui";
   ctx.fillText("PAINTBALL ARENA — RED vs BLUE", b.x + b.w / 2, b.y + 108);
-  /* three icon badges over the door (the speedway's row): target, gun, blast */
-  for (const [dx, ic] of [[-88, "🎯"], [0, "🔫"], [88, "💥"]]) {
-    ctx.fillStyle = "rgba(10,16,6,0.85)"; ctx.beginPath(); ctx.arc(b.x + b.w / 2 + dx, b.y + 154, 16, 0, 7); ctx.fill();
-    ctx.strokeStyle = "rgba(190,242,100,0.6)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.x + b.w / 2 + dx, b.y + 154, 16, 0, 7); ctx.stroke();
-    ctx.font = "17px serif"; ctx.textAlign = "center"; ctx.fillText(ic, b.x + b.w / 2 + dx, b.y + 160);
-  }
+  /* the three icon badges that stood over the door (target, gun, blast circles) and the gun emojis flanking the sign are GONE (Jonathan 2026-11-03 — "remove 3 symbols above the door in the trenches building too, the 3 circles and the emojis outside"): the sign is the plain text now, and nothing paints between the marquee and the window row */
   /* the door, on the bottom face: a dark plate whose two halves glow in the team neons — red door west, blue door east, one doorway */
   const gdy = b.y + b.h - 90;
   const spill = ctx.createLinearGradient(0, gdy - 6, 0, gdy + 98);
@@ -13264,13 +13259,14 @@ function frame(now) {
       camY = (roomH - VH / SCALE) / 2 - roofExt; /* the whole room fits the view (a tall phone): the base camera CENTRES and never follows at all, which is exactly why nothing panned on mobile and — camY sitting at -422 with the sky painted on camY < 0 alone — why the galaxy showed from anywhere. The centring stands, but the sky's paint is gated on roofSkyT (drawRooftop), so mid-room the band above the roof is plain backdrop like any other room's; at the edge the centred view pans UP by the reveal, the railing drops in the frame and the galaxy opens above it */
     }
   } else roofSkyT = 0;
-  if (me.scene === "trenches") {
-    /* QUANTUM TRENCHES takes its own follow camera (fix, Jonathan 2026-11-03 — "I can walk but the room doesnt move"): the room is the Sports Complex's exact size (3600×2400) yet it is the one big room whose camera was left to whatever the shared base frame happened to settle on, and on a wide desktop that view sits clamped against the room's north-west while the player walks the west end. Like the club and the rooftop above, the room now takes its own fit at this point in the camera pass: the base zoom, but never wider than 1700 world units (the club's width-capped fit, in the follow form), centred on the player and clamped to the room's own bounds — the view travels with him across the field, and the entry landing at the centre bottom frames the apron, the exit plate and the field's south half. On any screen where the base zoom already shows less than 1700 across, this changes nothing at all */
-    SCALE = Math.max(SCALE, Math.min(VW / 1700, 1.3));
-    camX = Math.max(0, Math.min(TRROOM.w - VW / SCALE, me.x - VW / (2 * SCALE)));
-    camY = Math.max(0, Math.min(TRROOM.h - VH / SCALE, me.y - VH / (2 * SCALE)));
-    if (TRROOM.w * SCALE < VW) camX = (TRROOM.w - VW / SCALE) / 2;
-    if (TRROOM.h * SCALE < VH) camY = (TRROOM.h - VH / SCALE) / 2;
+  if (me.scene === "trenches" && trSeat >= 0) {
+    /* QUANTUM TRENCHES, SEATED (Jonathan 2026-11-03): walking the room is the NORMAL zoom and the normal follow camera — the base frame above, untouched (an always-on fit for this room was tried and he sent it back the same evening: "The zoom in the trenches has to be normal zoom"). But the moment you SIT in a chair the camera frames the WHOLE ARENA, the casino tables' own arrangement ("when you sit at a chair it shows all the arena similar to how the tables do it"): the identical fit formula as the seated-focus blocks below, over the field plus a margin (seatFocusRect's margin style — the 120 margin also brings both chair rows, x 258 / x 3342, inside the frame), and it holds for the whole sit — the lobby wait and the match alike — because the gate is the chair claim itself (trSeat >= 0), exactly as a table's framing holds while mySeatPos stands; the fight keeps the claim (trFighter rides on it), so the arena stays framed while he plays. Stand up, lose the chair, or walk out, the claim drops, this block stops firing, and the base follow camera takes the room back at normal zoom */
+    const f = { x: TRFIELD.x - 120, y: TRFIELD.y - 120, w: TRFIELD.w + 240, h: TRFIELD.h + 240 };
+    SCALE = Math.min(VW / f.w, VH / f.h, 1.0);
+    camX = Math.max(0, Math.min(roomW - VW / SCALE, f.x + f.w / 2 - VW / (2 * SCALE)));
+    camY = Math.max(0, Math.min(roomH - VH / SCALE, f.y + f.h / 2 - VH / (2 * SCALE)));
+    if (roomW * SCALE < VW) camX = (roomW - VW / SCALE) / 2;
+    if (roomH * SCALE < VH) camY = (roomH - VH / SCALE) / 2;
   }
   if (me.scene === "highrollers" && mySeatPos) {
     const f = hrcFocusRect();
