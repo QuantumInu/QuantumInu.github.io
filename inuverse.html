@@ -1857,7 +1857,7 @@ function watchTransfers() {
   });
 }
 function stopTransfers() { if (xferRef) { try { xferRef.off(); } catch (e) {} xferRef = null; } }
-/* single-session rule (Jonathan 2026-10-28; per-tab claims since 2026-10-29; TAKEOVER since 2026-11-03, his order, superseding the blocked-newcomer rule): one account, one place — and the NEWEST sign-in wins. Signing in claims the account's session slot under this TAB's id (tabId — myId is browser-wide and cannot tell tabs apart) through a transaction that always takes the slot, fresh or not: on iOS a swiped-closed app leaves a fresh ghost claim behind (its pagehide release and the onDisconnect backstop can both land late), and the old rule blocked his own reopen for up to 90s with "already signed in in another tab or device". The heartbeat (15s) renews only this tab's own claim (sessClaimValue: empty / own / stale only — never steals); a holder whose beat finds a FRESH claim under a different id has been taken over and signs itself out (sessionTakenOver). Release is conditional the same way — a tab only ever lets go of its OWN claim. The same-browser tab guard below is unchanged: a second LIVE tab of this same browser is still refused up front. */
+/* single-session rule (Jonathan 2026-10-28; per-tab claims since 2026-10-29; TAKEOVER since 2026-11-03, his order, superseding the blocked-newcomer rule): one account, one place — and the NEWEST sign-in wins. Signing in claims the account's session slot under this TAB's id (tabId — myId is browser-wide and cannot tell tabs apart) through a transaction that always takes the slot, fresh or not: on iOS a swiped-closed app leaves a fresh ghost claim behind (its pagehide release and the onDisconnect backstop can both land late), and the old rule blocked his own reopen for up to 90s with "already signed in in another tab or device". The heartbeat (15s) renews only this tab's own claim (sessClaimValue: empty / own / stale only — never steals); a holder whose beat finds a FRESH claim under a different id has been taken over and signs itself out (sessionTakenOver). The holder also WATCHES the slot live (startSessWatch, same day, his follow-up order): the moment a newer sign-in's claim lands, the displaced tab signs out within about a second instead of waiting for its next beat; the beat stays as the backstop. Release is conditional the same way — a tab only ever lets go of its OWN claim. The same-browser tab guard below is unchanged: a second LIVE tab of this same browser is still refused up front. */
 const SESS_BLOCK_MSG = "⚠️ You're already signed in in another tab or device. Close it there, then sign in here.";
 const SESS_KICKED_MSG = "⚠️ This account signed in somewhere else, so this tab was signed out.";
 let sessHeld = false, sessTimer = 0, sessLiveTimer = 0;
@@ -1884,6 +1884,7 @@ function claimSession() {
       try { ref.onDisconnect().remove(); } catch (e) {}
       if (!sessTimer) sessTimer = setInterval(sessionBeat, 15000);
       startSessLive();
+      startSessWatch();
     });
   } catch (e) {}
 }
@@ -1895,9 +1896,24 @@ function sessionBlocked() {
 }
 function sessionTakenOver() {
   /* this tab was inside and a newer sign-in took the slot (2026-11-03): leave, with the reason on the sign-in form — the conditional release in the sign-out flow cannot touch the new holder's claim */
+  stopSessWatch();
   acctMsg(SESS_KICKED_MSG);
   if (auth) { try { auth.signOut(); } catch (e) {} }
 }
+/* live watch on the slot while this tab holds it: a DIFFERENT sid landing is a takeover — sign out at once (≈1s), never at the next 15s beat. A null slot is NOT a kick (our own onDisconnect/release removes it too; the beat re-claims from empty), and our own sid echoing back is ignored. */
+let sessWatch = null;
+function startSessWatch() {
+  stopSessWatch();
+  if (!acctUser || !db) return;
+  const ref = db.ref("hub/users/" + acctUser.uid + "/session");
+  const cb = snap => {
+    if (!sessHeld) return;
+    const v = snap && snap.val ? snap.val() : null;
+    if (v && v.sid && v.sid !== tabId) { sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; } stopSessLive(); sessionTakenOver(); }
+  };
+  try { ref.on("value", cb); sessWatch = { ref, cb }; } catch (e) {}
+}
+function stopSessWatch() { if (sessWatch) { try { sessWatch.ref.off("value", sessWatch.cb); } catch (e) {} sessWatch = null; } }
 function releaseSessSlot(uid) {
   /* Returns a promise that ALWAYS resolves (true = this tab's claim was actually removed). The onDisconnect backstop is cancelled ONLY after the release has landed: the old code cancelled it first and fired the transaction un-awaited, so when the write then lost its race (sign-out: auth.signOut() ran first and the database denied the unauthenticated write) nothing was left to free the slot — it sat fresh for its full 90s and refused the same account on the other Hub page (2026-10-29). A failed or aborted release leaves the backstop armed, so closing the tab still frees the slot. */
   if (!db || !uid) return Promise.resolve(false);
@@ -1917,6 +1933,7 @@ function releaseSession() {
   sessHeld = false;
   if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; }
   stopSessLive();
+  stopSessWatch();
   return rel; /* the sign-out flow awaits this (with a timeout) BEFORE auth.signOut(); every other caller just lets it run */
 }
 /* clean close (2026-10-29): the tab holding the claim lets go of it on the way out — conditionally, only ever its own — so a reopen is never blocked by its own ghost. A blocked tab holds nothing and clears nothing. The onDisconnect removal stays armed as the crash-proof backstop. */
