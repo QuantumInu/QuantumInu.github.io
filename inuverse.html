@@ -1857,18 +1857,20 @@ function watchTransfers() {
   });
 }
 function stopTransfers() { if (xferRef) { try { xferRef.off(); } catch (e) {} xferRef = null; } }
-/* single-session rule (Jonathan 2026-10-28; per-tab + blocked newcomer since 2026-10-29): one account, one place. Signing in claims the account's session slot under this TAB's id (tabId — myId is browser-wide and cannot tell tabs apart); a sign-in from another tab or device while the claim is fresh (heartbeat 15s, stale at 90s) is BLOCKED: it never enters, writes no presence, touches no chips, and the session already inside is never kicked by a newcomer. The claim lands through a transaction, so it is taken only when the slot is empty, already this tab's, or stale. Release is conditional the same way — a tab only ever lets go of its OWN claim. */
+/* single-session rule (Jonathan 2026-10-28; per-tab claims since 2026-10-29; TAKEOVER since 2026-11-03, his order, superseding the blocked-newcomer rule): one account, one place — and the NEWEST sign-in wins. Signing in claims the account's session slot under this TAB's id (tabId — myId is browser-wide and cannot tell tabs apart) through a transaction that always takes the slot, fresh or not: on iOS a swiped-closed app leaves a fresh ghost claim behind (its pagehide release and the onDisconnect backstop can both land late), and the old rule blocked his own reopen for up to 90s with "already signed in in another tab or device". The heartbeat (15s) renews only this tab's own claim (sessClaimValue: empty / own / stale only — never steals); a holder whose beat finds a FRESH claim under a different id has been taken over and signs itself out (sessionTakenOver). Release is conditional the same way — a tab only ever lets go of its OWN claim. The same-browser tab guard below is unchanged: a second LIVE tab of this same browser is still refused up front. */
 const SESS_BLOCK_MSG = "⚠️ You're already signed in in another tab or device. Close it there, then sign in here.";
+const SESS_KICKED_MSG = "⚠️ This account signed in somewhere else, so this tab was signed out.";
 let sessHeld = false, sessTimer = 0, sessLiveTimer = 0;
 function sessClaimValue(cur) {
   if (!cur || !cur.sid || cur.sid === tabId || Date.now() - (cur.ts || 0) >= 90000) return { sid: tabId, ts: Date.now() };
   return undefined; /* a DIFFERENT tab/device holds a fresh claim: hands off */
 }
+function sessTakeoverValue() { return { sid: tabId, ts: Date.now() }; } /* a fresh sign-in takes the slot outright (2026-11-03): never blocked by a leftover claim */
 function sessionBeat() {
   if (!acctUser || !sessHeld || !db) return;
   try {
     db.ref("hub/users/" + acctUser.uid + "/session").transaction(sessClaimValue, (err, committed) => {
-      if (!err && !committed && sessHeld) { /* this tab's claim went stale and was taken over: stop claiming and never steal it back */ sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; } stopSessLive(); }
+      if (!err && !committed && sessHeld) { /* a newer sign-in holds a fresh claim: stop claiming, never steal it back, and sign this tab out */ sessHeld = false; if (sessTimer) { clearInterval(sessTimer); sessTimer = 0; } stopSessLive(); sessionTakenOver(); }
     });
   } catch (e) {}
 }
@@ -1876,7 +1878,7 @@ function claimSession() {
   if (!acctUser || !db || sessHeld) return;
   const ref = db.ref("hub/users/" + acctUser.uid + "/session");
   try {
-    ref.transaction(sessClaimValue, (err, committed) => {
+    ref.transaction(sessTakeoverValue, (err, committed) => {
       if (err || !committed) { sessionBlocked(); return; }
       sessHeld = true;
       try { ref.onDisconnect().remove(); } catch (e) {}
@@ -1889,6 +1891,11 @@ function sessionBlocked() {
   /* lost the claim race to a fresh session elsewhere: refuse, exactly like the sign-in check — the tab inside is not disturbed in any way */
   sessHeld = false;
   acctMsg(SESS_BLOCK_MSG);
+  if (auth) { try { auth.signOut(); } catch (e) {} }
+}
+function sessionTakenOver() {
+  /* this tab was inside and a newer sign-in took the slot (2026-11-03): leave, with the reason on the sign-in form — the conditional release in the sign-out flow cannot touch the new holder's claim */
+  acctMsg(SESS_KICKED_MSG);
   if (auth) { try { auth.signOut(); } catch (e) {} }
 }
 function releaseSessSlot(uid) {
