@@ -671,6 +671,7 @@ const sfxTick = () => tone(1250, 900, 0.03, "square", 0.014);
 const sfxPunchHit = () => { tone(110, 38, 0.16, "square", 0.26, 0); tone(64, 30, 0.20, "sine", 0.30, 0); noiseBurst(0.07, "lowpass", 900, 300, 0.20, 0); };
 const sfxPunchMiss = () => { noiseBurst(0.09, "bandpass", 1600, 500, 0.055, 0); tone(640, 260, 0.06, "sine", 0.035, 0); };
 const sfxGotHit = () => { tone(320, 170, 0.07, "triangle", 0.16, 0); noiseBurst(0.04, "bandpass", 1300, 700, 0.09, 0); }; /* GETTING hit (Jonathan 2026-11-01): a lighter thock than the puncher's THUD — shorter (0.07s vs 0.16/0.20s), higher (a 320->170Hz triangle vs the 110Hz square / 64Hz sub) and softer (0.16/0.09 vs 0.26/0.30/0.20), with a small bandpass noise tick instead of the lowpassed smack. Played ONLY on the victim's screen, off the punch record's arrival in drawBoxingFx — never by the puncher, never for a miss */
+const sfxFudBoom = () => { tone(130, 30, 0.5, "sine", 0.34, 0); tone(95, 26, 0.4, "square", 0.16, 0); noiseBurst(0.5, "lowpass", 2800, 110, 0.32, 0); noiseBurst(0.16, "highpass", 3200, 5200, 0.10, 0.02); }; /* DESTROY FUD (PREVIEW, Jonathan 2026-11-04): the FUD monster's explosion — a sub drop plus a lowpassed noise crash, built from the punch kit's own pieces (tone/noiseBurst already hush under the hub mute and the focus hold, like every hub sound) */
 const sfxCard = () => tone(280 + Math.random() * 120, 170, 0.05, "triangle", 0.028);
 /* slow swelling pad chord — detuned triangle pairs through long fades, for a cinematic-strings feel */
 function padChord(freqs, dur, vol) {
@@ -12291,6 +12292,75 @@ function drawMonShopDinoAt(st) { /* the Dino himself, painted from a computed st
   ctx.drawImage(img, -W / 2, -H + pad, W, H);
   ctx.restore();
 }
+/* ============ FUD MONSTERS (PREVIEW, Jonathan 2026-11-04 — "do the fud thing... on preview so i can see"): four PLAYER-SIZED FUD enemies patrol the plaza, LOCAL to each visitor like the shop Dino — no presence writes, no server state, the presence record's shape untouched. Two wraiths and two mechs off his own two stickers: wraith 1 on the walkway in front of CLUB QUANTUM, mech 1 on the walkway in front of the CASINO, wraith 2 on the band in front of the MECH SHOP (the west row), mech 2 on the branch path EAST of the SPEEDWAY under the Arcade's west end. They stroll their loops the way Q-Bot walks the plaza — waypoint to waypoint with a pause at each — but SMOOTHER: eased steering with an arrival slowdown, so they glide in and out of every stop instead of stepping, and they walk with the PLAYERS' own cycle (drawPlayer's bob formula at the player's own amplitude, facing flipping with travel). Walk up to one and the prompt offers DESTROY FUD; tapping it blows the monster up (sfxFudBoom + a particle burst) and it RESPAWNS at its loop's start ~30 seconds later, so the test can run again ============ */
+const FUD_IMG_URLS = {
+  wraith: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffud-wraith.webp?alt=media",
+  mech: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffud-mech.webp?alt=media"
+}; /* his two stickers, trimmed to their art and sized 384 tall — the wraith (the big purple hooded FUD wraith) and the mech (the chibi FUD mech), stored under hub-fud/ beside hub-heroes/ */
+const fudImgs = {};
+function fudImg(kind) { let im = fudImgs[kind]; if (!im) { im = new Image(); im.src = FUD_IMG_URLS[kind]; fudImgs[kind] = im; } return im; } /* the monImg pattern: lazy, cached, drawn only once whole */
+const FUD_ROUTES = [
+  { kind: "wraith", route: [[70, 1525], [660, 1525], [660, 1605], [70, 1605]] }, /* wraith 1 — CLUB QUANTUM's front walkway (the club spans x 140..560): a rectangle on the path band, crossing the club's door landing */
+  { kind: "mech", route: [[2460, 1525], [3240, 1525], [3240, 1605], [2460, 1605]] }, /* mech 1 — the CASINO's front walkway (the casino spans x 2570..3130): the same band, stopping shy of the pool deck (x 3260) */
+  { kind: "wraith", route: [[-770, 2305], [-30, 2305], [-30, 2395], [-770, 2395]] }, /* wraith 2 — the MECH SHOP's front band (the shop spans x −700..−60), the plaza's west row: the band the shop Dino's own band continues east */
+  { kind: "mech", route: [[1120, 705], [1500, 705], [1500, 795], [1120, 795]] } /* mech 2 — the branch path EAST of the SPEEDWAY (its east wall is 1070), under the Arcade's west end, short of the roundabout bar (1520) */
+];
+const FUD_SPEED = 60, FUD_REACH = 120, FUD_RESPAWN_MS = 30000; /* cruise pace (the shop Dino strolls at 52), how close a player must stand for the DESTROY FUD prompt, and the respawn beat */
+const FUDS = FUD_ROUTES.map((r, i) => ({ kind: r.kind, route: r.route, x: r.route[0][0], y: r.route[0][1], vx: 0, vy: 0, wp: 1, flip: false, phase: i * 1.73, state: "patrol", pauseUntil: 0, respawnAt: 0, moving: false }));
+const fudFx = [];
+let fudLastT = 0;
+function fudUpdate(now) { /* the patrols' one clock, run once per plaza frame: eased steering — velocity leans toward the waypoint heading, the heading's speed tapering inside the last 80px, so every stop is a glide, never a step. A destroyed monster waits out its respawn here and re-forms at its loop's start */
+  const dt = Math.min(0.05, fudLastT ? (now - fudLastT) / 1000 : 0.016); fudLastT = now;
+  for (const F of FUDS) {
+    if (F.state === "dead") { if (now >= F.respawnAt) { F.state = "patrol"; F.x = F.route[0][0]; F.y = F.route[0][1]; F.vx = 0; F.vy = 0; F.wp = 1 % F.route.length; F.pauseUntil = 0; } else continue; }
+    if (now < F.pauseUntil) { F.vx *= 0.8; F.vy *= 0.8; F.moving = false; continue; } /* Q-Bot's pause at a stop, the glide bleeding off */
+    const tg = F.route[F.wp], dx = tg[0] - F.x, dy = tg[1] - F.y, d = Math.hypot(dx, dy);
+    if (d < 7) { F.wp = (F.wp + 1) % F.route.length; F.pauseUntil = now + 800 + (F.phase * 397) % 900; F.moving = false; continue; }
+    const slow = Math.max(0.22, Math.min(1, d / 80));
+    const k = Math.min(1, dt * 5);
+    F.vx += ((dx / d) * FUD_SPEED * slow - F.vx) * k; F.vy += ((dy / d) * FUD_SPEED * slow - F.vy) * k;
+    F.x += F.vx * dt; F.y += F.vy * dt;
+    F.moving = Math.hypot(F.vx, F.vy) > 7;
+    if (F.vx > 5) F.flip = true; else if (F.vx < -5) F.flip = false; /* a player's facing: flip rides travel, and holds when he slows */
+  }
+}
+function drawFudAt(F, now) { /* a FUD monster, painted from frame()'s actor pass like the shop Dino — y-sorted among the players by his feet, with a player's own sprite treatment: 96 tall (player-sized), drawPlayer's walk bob at the player's amplitude (11) and idle sway, his shadow ellipse under him. No name plate: he is an enemy, not a person */
+  const img = fudImg(F.kind);
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const H = 96, W = H * (img.naturalWidth / img.naturalHeight);
+  const bob = F.moving ? -Math.abs(Math.sin(now / 105 + F.phase)) * 11 : Math.sin(now / 620 + F.phase) * 1.4;
+  ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(F.x, F.y - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(F.x, F.y - H / 2 + bob);
+  if (F.flip) ctx.scale(-1, 1);
+  ctx.drawImage(img, -W / 2, -H / 2, W, H);
+  ctx.restore();
+}
+function fudNear() { /* the nearest living FUD monster within prompt reach of my feet, or −1 — plaza only, and a destroyed one offers nothing */
+  if (me.scene !== "plaza") return -1;
+  let bi = -1, bd = FUD_REACH;
+  for (let i = 0; i < FUDS.length; i++) { const F = FUDS[i]; if (F.state !== "patrol") continue; const d = Math.hypot(me.x - F.x, me.y - F.y); if (d < bd) { bd = d; bi = i; } }
+  return bi;
+}
+function fudDestroy(i) { /* DESTROY FUD: the monster blows up where he stands — a particle burst at his chest, the explosion sound, and his respawn clock starts. Purely local, like everything about him */
+  const F = FUDS[i]; if (!F || F.state !== "patrol") return;
+  F.state = "dead"; F.respawnAt = performance.now() + FUD_RESPAWN_MS;
+  const parts = [];
+  for (let n = 0; n < 26; n++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 260; parts.push({ dx: Math.cos(a) * sp, dy: Math.sin(a) * sp - 60, r: 3 + Math.random() * 7, c: ["#ffd21f", "#ff9a3c", "#ff5e3c", "#e8f6ff"][n % 4] }); }
+  fudFx.push({ x: F.x, y: F.y - 44, t0: performance.now(), parts });
+  sfxFudBoom();
+}
+function drawFudFx(now) { /* the explosion bursts, painted with the player fx over the sprites: a two-tone flash, a shock ring, and the embers thrown off it, all done inside ~0.8s */
+  for (let i = fudFx.length - 1; i >= 0; i--) {
+    const fx = fudFx[i], el = (now - fx.t0) / 780;
+    if (el >= 1) { fudFx.splice(i, 1); continue; }
+    const fade = 1 - el;
+    ctx.save(); ctx.globalAlpha = 0.55 * fade; ctx.fillStyle = "#ff7a1a"; ctx.beginPath(); ctx.arc(fx.x, fx.y, 16 + el * 64, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.9 * fade; ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(fx.x, fx.y, 10 + el * 40, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.8 * fade; ctx.strokeStyle = "#ffd21f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(fx.x, fx.y, 8 + el * 88, 0, 7); ctx.stroke();
+    for (const p of fx.parts) { ctx.globalAlpha = fade; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(fx.x + p.dx * el, fx.y + p.dy * el + 130 * el * el, Math.max(0.4, p.r * (1 - el * 0.6)), 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+}
 function drawPlaza(t) {
   t = decorT(t); /* decorT: at graphics 1/4 the plaza's ambient decor (fountains, chasing bulbs, building glows, tree sparkle, spawn atom, fall leaves) steps at ~15fps — players and sync are drawn elsewhere with real time */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
@@ -13981,6 +14051,7 @@ function frame(now) {
   if (me.scene === "highrollers") actors.push({ id: "hrc-clerk", x: HRCTR.x + HRCTR.w + 34, y: HRCTR.y + HRCTR.h / 2 + 24, tx: HRCTR.x + HRCTR.w + 34, ty: HRCTR.y + HRCTR.h / 2 + 24, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* Q-Bot the CLERK (Jonathan 2026-11-01): the guards' third post — he stands BEHIND the service counter in the strip the DJ works from, centred on the counter BY EYE — anchored 24px BELOW its midpoint (y 1619, not 1595): the sprite anchors at its feet and draws upward, so at the exact midpoint he read as sitting high on the counter; the nudge is Jonathan's word (2026-11-01, "move Q bot down a bit so he looks more centered"). The over-clerk repaint clips from his own y, so its band follows the nudge and the counter front still overlaps his lower body exactly as before. Facing the room (flip true, like his casino twin at the right-wall door). Drawn through this same actor pass at the standard hero height; the pass repaints the counter's front over his lower body (drawHRCounterOverClerk) so he reads as staff behind the desk. Room furniture like his twins: NOT the live NPC, no presence record, never counted online, never speaks or moves */
   if (me.scene === "casino") actors.push({ id: "hrc-guard", x: CASINOROOM.w - 128, y: CASINODOORS_Y + 6, tx: CASINOROOM.w - 128, ty: CASINODOORS_Y + 6, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* the High Rollers door guard (Jonathan 2026-10-31): the club guard's twin at the casino's right-wall door — the same drawn Q-Bot figure (NOT the live NPC, who never moves for this), the same 128px-inset post mirrored beside his door, his carpet and ⭐ VIP lettering painted by drawCasino — with ONE difference: he faces the OTHER WAY (flip true; the club guard's is false). Room furniture like his twin: no presence record, never counted online, no speech bubble of his own */
   if (me.scene === "plaza") { const dst = monShopDinoState(decorT(now)); actors.push({ isDino: true, id: "monshop-dino", x: dst.x, y: dst.y, dst }); } /* the shop Dino joins the sort by his FEET (his state's y), exactly like a monster follower — the pass below paints him in y order among the players */
+  if (me.scene === "plaza") { fudUpdate(now); for (let fi = 0; fi < FUDS.length; fi++) { const F = FUDS[fi]; if (F.state === "patrol") actors.push({ isFud: true, id: "fud-" + fi, x: F.x, y: F.y, fud: F }); } } /* the FUD monsters (PREVIEW): their patrol clock ticks here, and the living ones join the same y-sort by their feet — a destroyed one simply isn't pushed, so he vanishes from the world until his respawn */
   if (me.scene === "monstershop") actors.push({ id: "monshop-qbot", x: MONQBOT.x, y: MONQBOT.y, tx: MONQBOT.x, ty: MONQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the TRAINING PEN's Q-Bot (PREVIEW): the guards' fourth post — he stands INSIDE the pen in the Monster Shop and works the evolutions (the Train prompt keys off his spot, MONQBOT). Room furniture like his twins: NOT the live NPC, no presence record, never counted online */
   /* the monster followers (PREVIEW): one pseudo-actor per player in the room whose monster is out — mine from my own pick while monOut is on, everyone else's from their presence mon field. They join the actors BEFORE the sort, so each follower layers with the room exactly like a player standing at its feet, and the loop's isMon branch paints them. Mine eases after me (monFol); a remote's rides a trailing offset behind its owner's smoothed position, opposite their facing */
   for (const a of actors) {
@@ -14053,6 +14124,7 @@ function frame(now) {
   for (const a of actors) {
     const isMe = a === me;
     if (a.isDino) { drawMonShopDinoAt(a.dst); continue; } /* the shop Dino: no name plate, no chat — just his sprite, layered by his feet among the players */
+    if (a.isFud) { drawFudAt(a.fud, now); continue; } /* a FUD monster (PREVIEW): sprite only, no name plate, no chat — he is an enemy, layered by his feet like everyone else */
     if (a.isMon) { drawMonFollower(a, now); continue; } /* a monster follower (PREVIEW): no name plate, no chat, no shadow ring of its own beyond its sprite's — it just trails its owner, facing the owner's way */
     if (me.scene === "speedway" && (isMe ? myCar >= 0 : swCarOfDriver(a.id) >= 0)) continue; /* drivers render inside their cars (drawn with the track, name tags included), never as loose sprites */
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
@@ -14084,12 +14156,14 @@ function frame(now) {
   }
   if (me.scene === "trenches") drawTrenchesOver(now); /* QUANTUM TRENCHES: the guns in team neon, health/armor bars, muzzle flashes, explosions and the countdown paint over the fighters, inside this same camera pass */
   drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
+  if (me.scene === "plaza") drawFudFx(now); /* the FUD explosions (PREVIEW) paint with the player fx, over the sprites, inside this same camera pass */
   drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
   ctx.restore();
   const cab = nearestCabinet();
   if (me.scene === "gym") { promptBtn.style.display = "none"; promptAction = null; }
   else if (me.scene === "speedway" && myCar >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => stepOutOfCar(false); }
   else if (me.scene === "speedway") { promptBtn.style.display = "none"; promptAction = null; }
+  else if (me.scene === "plaza" && fudNear() >= 0) { const fi = fudNear(); promptBtn.style.display = "block"; promptBtn.textContent = "DESTROY FUD"; promptAction = () => fudDestroy(fi); } /* the FUD monsters (PREVIEW): stand close to a living one and the prompt offers the kill — the button says exactly DESTROY FUD (Jonathan 2026-11-04); it sits ahead of the cabinet branch, and the plaza has no cabinets to shadow */
   else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (me.scene === "monstershop" && monNearQBot()) { promptBtn.style.display = "block"; promptBtn.textContent = "🏋️ Train with Q-Bot — Evolve"; promptAction = openMonPen; } /* the TRAINING PEN (PREVIEW): Q-Bot works the evolutions from his post inside the pen — the prompt exists only while standing at the fence by his post, the DJ pattern */
   else if (me.scene === "monstershop" && monNearCase() >= 0) { const mc = MONCASES[monNearCase()]; promptBtn.style.display = "block"; if (monEffStage(mc.line)) { promptBtn.textContent = "✓ " + monName(mc.line) + " — Owned"; promptAction = () => sfxClick(); } else { promptBtn.textContent = "🐾 Buy " + monName(mc.line) + " — 🪙 " + MON_BASE_PRICE.toLocaleString("en-US"); promptAction = () => monBuyBase(mc.line); } } /* walk-up buying (PREVIEW): stand at a case's front and the prompt offers that case's base form; an owned case just says so — owned reads the effective collection, so the owner's unlocked cases say so too */
