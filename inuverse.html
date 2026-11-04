@@ -929,6 +929,7 @@ try {
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
     if (now - onlineTxtAt > 1000) { onlineTxtAt = now; onlineEl.textContent = "👥 " + onlineRoster().length + " online"; } /* the count used to rebuild + re-sort the whole roster and rewrite the DOM on EVERY presence snapshot — at flood rates that is thousands of roster builds a minute for a number that changes a few times an hour (fix, Jonathan 2026-11-03, the player-lag batch) */ if (typeof renderOnlineList === "function") renderOnlineList();
+    if (typeof voiceGateApply === "function") voiceGateApply(); /* voice (Jonathan 2026-11-04): a peer's scene may have just changed — hearing follows the scene gate (see the voice block) */
   });
 } catch (e) { setStatus("● Offline", "off"); }
 let lastPub = 0, lastPubKey = "", onlineTxtAt = 0;
@@ -2516,25 +2517,34 @@ cv.addEventListener("pointerup", e => { if (e.pointerType !== "touch") boxMouseM
 cv.addEventListener("pointercancel", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; if (phPlaceDrag && e.pointerId === phPlaceDrag.id) phPlaceDrag = null; if (phAim && e.pointerId === phAim.id) phAim = null; if (bowlAim && e.pointerId === bowlAim.id) bowlAim = null; holdId = null; holdVec = { x: 0, y: 0 }; }); /* a cancelled placement drag confirms nothing — the ghost stays unplaced and the turn still waits on a real release */
 window.addEventListener("pointerup", e => { if (e.pointerType !== "touch") boxMouseMask = e.buttons || 0; }); /* a release OUTSIDE the canvas still lands here, so no button bit can stick down in the mask and haunt the next bout */
 /* ============ voice chat (tap to talk) — LiveKit (Jonathan 2026-10-31) ============
-   Voice rides LiveKit Cloud now, not player-to-player connections: everyone
-   in a scene joins that scene's LiveKit room ("hub-<scene>") and the server
-   relays the audio, so a strict router or a botched pair handshake can no
-   longer silence one pair while the rest work — the mesh's exact failure
-   (7daytonic: mic on, registered, unheard). Joining needs a signed pass:
-   the page writes a request at hub/voice/<myId>/lkreq and the token minter
-   on the Q-Bot host (~/workspace/quantum-hub/lkminter.py) answers at lkres
-   with a short-lived JWT — the API secret never reaches the page (a fresh
-   hub/lk node is denied by the RTDB rules, proven by a live write test, so
-   the channel rides the existing voice node). His standing voice rules
-   carry over unchanged: per room, constant full volume, every room change
-   leaves and rejoins, mic is tap-to-toggle and tapping off ends the
-   recording outright. The speaking set rides LiveKit's active-speaker
-   feed. The old mesh, its Cloudflare TURN credentials and its _state
-   diagnostics are retired with this block. */
+   WORLD ROOM + SCENE GATE (Jonathan 2026-11-04, replacing the per-scene
+   rooms of 2026-10-31): everyone in the world joins ONE LiveKit room
+   ("hub-world") on entry and stays connected across every scene change —
+   no leave/rejoin, no fresh pass per room, so the switch gap (and the
+   refresh-to-hear it caused) is gone. Who you HEAR is gated by scene on
+   the receiving side: a voice is subscribed only while its owner's scene
+   — from the presence records this page already receives — equals yours;
+   unsubscribed audio is never streamed to you at all. Same scene =
+   constant full volume, no distance fade, exactly as before. Joining
+   still needs a signed pass: the page writes a request at
+   hub/voice/<myId>/lkreq and the token minter on the Q-Bot host
+   (~/workspace/quantum-hub/lkminter.py) answers at lkres with a
+   short-lived JWT — the API secret never reaches the page (a fresh
+   hub/lk node is denied by the RTDB rules, proven by a live write test,
+   so the channel rides the existing voice node). Mic is tap-to-toggle
+   and tapping off ends the recording outright; the mic stays published
+   across scene changes and who hears it is decided by each listener's
+   gate. The speaking set rides LiveKit's active-speaker feed, filtered
+   through the same gate, so an indicator only lights for someone you can
+   actually hear. Q-Bot / the NPCs are presence-only and never join voice
+   at all (the minter skips their pids), so they are untouched by this
+   design. REVERT: publish hub-backup-pre-voicechange-{inuverse,preview}-
+   2026-11-04.html (the per-scene build, md5 66b0ce55…). */
 let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
+const LK_ROOM_NAME = "hub-world"; /* ONE voice room for the whole world (Jonathan 2026-11-04) — hearing is gated by scene, see voiceGateApply below */
 const speakingNow = new Set();
 let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null, lkMicRetryAt = 0, lkMicBusy = false, lkMicBusyAt = 0, lkMutedSince = 0;
-function lkFetchToken(scene) {
+function lkFetchToken() {
   return new Promise(resolve => {
     if (!db || !myId || !window.LivekitClient) { resolve(null); return; }
     const base = db.ref("hub/voice/" + myId);
@@ -2548,7 +2558,7 @@ function lkFetchToken(scene) {
       if (v && v.ts === reqTs && v.token && v.url) finish({ token: v.token, url: v.url });
     });
     try { base.child("lkreq").onDisconnect().remove(); base.child("lkres").onDisconnect().remove(); } catch (e) {}
-    base.child("lkreq").set({ room: "hub-" + scene, name: me.name || "Player", ts: reqTs, srv: "self" }).catch(() => finish(null));
+    base.child("lkreq").set({ room: LK_ROOM_NAME, name: me.name || "Player", ts: reqTs, srv: "self" }).catch(() => finish(null));
   });
 }
 async function lkEnsureMicStream() {
@@ -2575,10 +2585,10 @@ async function lkEnsureMicStream() {
 }
 function lkDropMicStream() {
   /* throw the current mic stream away (tracks stopped by US, now). Used on a
-     room switch: the old room's disconnect finishes whenever it finishes and
+     (re)join: the old connection's disconnect finishes whenever it finishes and
      can only ever stop the track IT published — a stream captured after this
      drop is a different track it never knew, so it cannot be killed by the
-     old room's late teardown. */
+     old connection's late teardown. */
   lkMicTrack = null;
   if (micStream) { micStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} }); micStream = null; }
 }
@@ -2603,7 +2613,45 @@ async function lkUnpublishMic() {
 async function lkLeave() {
   const room = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null;
   speakingNow.clear();
+  lkGateWant.clear();
   if (room) { try { await room.disconnect(); } catch (e) {} }
+}
+/* ---- the scene gate (Jonathan 2026-11-04) ----
+   Everyone sits in the ONE world room; who you HEAR is decided here, on the
+   receiving side: a remote participant's audio is subscribed only while
+   their scene — read from the presence records this page already receives
+   (a LiveKit identity IS the presence pid: the minter mints sub = pid) —
+   equals your own scene. Unsubscribed tracks are never streamed to you at
+   all. Same scene = constant full volume, exactly as before; there is no
+   distance fade. The gate re-runs on every presence snapshot, on every
+   scene change (voiceReset), on participant/track events in lkJoin, and
+   on the 800ms voice tick as a backstop. Until a peer's presence record
+   has been seen their scene is unknown and they are NOT heard — the
+   snapshot that lands a moment later opens the gate. */
+const lkGateWant = new Map(); /* identity|trackSid -> the subscription state last requested */
+function lkPeerScene(identity) {
+  if (identity === myId) return me.scene;
+  const p = peers.get(identity);
+  return p ? p.scene : null;
+}
+function lkHeard(identity) { return !!identity && lkPeerScene(identity) === me.scene; }
+function lkGatePub(p, pub) {
+  if (!p || !pub || typeof pub.setSubscribed !== "function") return;
+  if (pub.kind && pub.kind !== "audio") return; /* voice only — nothing else is ever published here */
+  const want = lkHeard(p.identity);
+  const key = p.identity + "|" + (pub.trackSid || "");
+  if (lkGateWant.get(key) === want) return;
+  lkGateWant.set(key, want);
+  try { pub.setSubscribed(want); } catch (e) {}
+}
+function lkGateParticipant(p) {
+  if (!p) return;
+  try { p.audioTrackPublications.forEach(pub => lkGatePub(p, pub)); } catch (e) {}
+}
+function voiceGateApply() {
+  if (!lkRoom) return;
+  try { lkRoom.remoteParticipants.forEach(p => lkGateParticipant(p)); } catch (e) {}
+  for (const id of [...speakingNow]) if (!lkHeard(id)) speakingNow.delete(id); /* a speaker indicator only ever lights for someone you can actually hear */
 }
 let lkFails = 0, lkSpare = null, lkRefilling = false;
 function lkBackoff() {
@@ -2614,37 +2662,39 @@ function lkBackoff() {
   lkFails++;
 }
 async function lkRefillSpare() {
-  /* keep a spare pass standing by for the room you are in (a pass lives an
+  /* keep a spare pass standing by for the world room (a pass lives an
      hour, joining is all it does): a rejoin after a blip then skips the pass
      wait entirely and goes straight to connecting. */
-  if (lkRefilling || lkJoining || !entered || !lkScene) return;
-  const sc = lkScene;
+  if (lkRefilling || lkJoining || !entered || !lkRoom) return;
   lkRefilling = true;
   try {
-    const t = await lkFetchToken(sc);
-    if (t && (!lkSpare || lkSpare.scene === sc)) lkSpare = { scene: sc, token: t.token, url: t.url, at: Date.now() };
+    const t = await lkFetchToken();
+    if (t) lkSpare = { token: t.token, url: t.url, at: Date.now() };
   } catch (e) {}
   lkRefilling = false;
 }
-async function lkJoin(scene) {
+async function lkJoin() {
+  /* join the ONE world room (Jonathan 2026-11-04). This runs on entry and
+     on heal-after-disconnect ONLY — scene switches never call it, because
+     the connection no longer depends on the scene; the gate does. */
   const C = window.LivekitClient;
   if (!C || lkJoining || !entered || !db || !myId) return;
-  if (lkRoom && lkScene === scene) return;
+  if (lkRoom) return;
   lkJoining = true;
-  const prevRoom = lkRoom; /* make-before-break: the old room stays UP until the new one is connected, then closes */
   let room = null;
   try {
     let pass = null;
-    if (lkSpare && lkSpare.scene === scene && Date.now() - lkSpare.at < 2700000) { pass = lkSpare; lkSpare = null; } /* the standing spare: no pass wait at all */
+    if (lkSpare && Date.now() - lkSpare.at < 2700000) { pass = lkSpare; lkSpare = null; } /* the standing spare: no pass wait at all */
     if (!pass) {
       for (let i = 0; i < 15 && lkRefilling; i++) await new Promise(r => setTimeout(r, 100)); /* never race a spare refill for the shared request slot — wait it out briefly */
-      pass = await lkFetchToken(scene);
+      pass = await lkFetchToken();
     }
     if (!pass) { lkBackoff(); lkJoining = false; return; }
-    if (!entered || me.scene !== scene) { lkJoining = false; return; } /* the room changed while the pass was minted — the tick joins the right one */
-    room = new C.Room({});
-    room.on(C.RoomEvent.TrackSubscribed, track => {
+    if (!entered) { lkJoining = false; return; } /* left the world while the pass was minted */
+    room = new C.Room({ autoSubscribe: false }); /* NOTHING streams in on its own: the scene gate subscribes each voice, and only while its owner shares your scene */
+    room.on(C.RoomEvent.TrackSubscribed, (track, pub, participant) => {
       if (track.kind !== "audio") return;
+      if (participant && !lkHeard(participant.identity)) { try { if (pub) pub.setSubscribed(false); } catch (e) {} return; } /* the gate's safety net: a track that lands while its owner is in another scene is dropped, never played */
       try {
         const el = track.attach();
         el.volume = 1; el.style.display = "none";
@@ -2655,22 +2705,26 @@ async function lkJoin(scene) {
     room.on(C.RoomEvent.TrackUnsubscribed, track => { try { track.detach().forEach(el => el.remove()); } catch (e) {} });
     room.on(C.RoomEvent.ActiveSpeakersChanged, speakers => {
       speakingNow.clear();
-      for (const sp of speakers) if (sp && sp.identity) speakingNow.add(sp.identity);
+      for (const sp of speakers) if (sp && sp.identity && lkHeard(sp.identity)) speakingNow.add(sp.identity); /* only speakers you can actually hear light up */
+    });
+    room.on(C.RoomEvent.ParticipantConnected, p => lkGateParticipant(p));
+    room.on(C.RoomEvent.TrackPublished, (pub, p) => lkGatePub(p, pub));
+    room.on(C.RoomEvent.ParticipantDisconnected, p => {
+      if (!p) return;
+      speakingNow.delete(p.identity);
+      for (const k of [...lkGateWant.keys()]) if (k.startsWith(p.identity + "|")) lkGateWant.delete(k);
     });
     room.on(C.RoomEvent.Disconnected, () => {
-      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkBackoff(); }
+      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkGateWant.clear(); lkBackoff(); }
     });
     await room.connect(pass.url, pass.token);
-    lkRoom = room; lkScene = scene; /* the new room is the live one only from here */
+    lkRoom = room; lkScene = LK_ROOM_NAME; /* connected to the world room from here */
     lkRetryAt = 0; lkFails = 0;
-    if (prevRoom && prevRoom !== room) { try { await prevRoom.disconnect(); } catch (e) {} } /* the old room closes only now — the switch overlapped instead of gapping */
     try { const ap = room.startAudio(); if (ap && ap.catch) ap.catch(() => {}); } catch (e) {} /* hearing resumes without waiting for the next tap where the browser allows it */
-    if (pttHeld) { lkDropMicStream(); lkPublishMic(); } /* a mic you left on gets a FRESH stream in the new room — never the old room's track (see lkDropMicStream) */
+    voiceGateApply(); /* open the gate for everyone already here who shares my scene */
+    if (pttHeld) { lkDropMicStream(); lkPublishMic(); } /* a mic you left on gets a FRESH stream in the new connection — never the dropped connection's track (see lkDropMicStream) */
     lkRefillSpare(); /* restock the standing spare for the next heal */
   } catch (e) {
-    /* only the NEW room is torn down here — the old room (prevRoom) was never
-       touched, so if the new connection failed the player is still connected
-       where they were and the tick retries the switch. */
     if (room && lkRoom !== room) { try { const dp = room.disconnect(); if (dp && dp.catch) dp.catch(() => {}); } catch (err) {} }
     lkBackoff();
   }
@@ -2681,12 +2735,16 @@ document.addEventListener("visibilitychange", () => {
   /* the screen going off suspends the page and the voice connection dies
      with it (Jonathan 2026-10-31). On wake: rejoin NOW, don't sit out a
      retry wait — and if the mic was left on, the join re-lights it. */
-  if (!lkRoom && !lkJoining) { lkRetryAt = 0; lkJoin(me.scene); }
-  else if (lkRoom && lkScene !== me.scene) voiceReset();
-  else if (pttHeld && micStream) lkDropMicStream(); /* even when the room survived the sleep, the pre-sleep mic track may not have — capture fresh in the woken session */
+  if (!lkRoom && !lkJoining) { lkRetryAt = 0; lkJoin(); }
+  else if (pttHeld && micStream) lkDropMicStream(); /* even when the connection survived the sleep, the pre-sleep mic track may not have — capture fresh in the woken session */
 });
 function voiceReset() {
-  if (entered) lkJoin(me.scene); /* make-before-break: the join itself closes the old room once the new one is live */
+  /* every scene-change function still calls this, but since the world-room
+     change (Jonathan 2026-11-04) a scene switch no longer leaves or rejoins
+     anything: the connection is scene-independent now, so a switch only
+     re-runs the hearing gate for the new scene. Not entered (leaving the
+     world) still tears voice down. */
+  if (entered) voiceGateApply();
   else lkLeave();
 }
 function voiceInit() {
@@ -2703,8 +2761,8 @@ function voiceInit() {
     }
   }
   if (!entered) return;
-  if (lkRoom && lkScene !== me.scene) { voiceReset(); return; }
-  if (!lkRoom && !lkJoining && Date.now() >= lkRetryAt) lkJoin(me.scene);
+  if (!lkRoom && !lkJoining && Date.now() >= lkRetryAt) lkJoin();
+  else if (lkRoom) voiceGateApply(); /* the gate backstop: hearing follows the scene even if a presence beat was missed */
   /* the mic assertion (a mic you left ON re-lighting itself; a dead published track being replaced)
      lives in frame() now — per frame, not per tick. A mic you turned off (pttHeld false) is never
      touched by either path. */
@@ -2712,10 +2770,10 @@ function voiceInit() {
 function voiceTick() { voiceInit(); }
 setInterval(voiceTick, 800);
 /* voice watchdog: with the server move the reconciler is simple — the
-   800ms tick already asserts I'm in my scene's room; this 5-second pass is
+   800ms tick already asserts I'm in the world room; this 5-second pass is
    the same assertion as a backstop. It never touches a healthy connection
    and never turns a microphone on — it only restores one you left on when
-   a room switch killed its stream. */
+   a dropped connection killed its stream. */
 function voiceWatchdog() { voiceInit(); }
 setInterval(voiceWatchdog, 5000);
 const micBtn = $("micbtn");
@@ -2727,7 +2785,7 @@ async function pttStart() {
   me.mic = true; publish(true);
   micBtn.classList.add("on");
   ac();
-  if (!lkRoom || lkScene !== me.scene) { lkRetryAt = 0; lkJoin(me.scene); } /* "i press the mic button to connect" (Jonathan 2026-10-31): if the voice room died while the screen was off, the tap brings it back first, then the mic lights as usual */
+  if (!lkRoom) { lkRetryAt = 0; lkJoin(); } /* "i press the mic button to connect" (Jonathan 2026-10-31): if the voice connection died while the screen was off, the tap brings it back first, then the mic lights as usual */
   if (!micStream) {
     /* a fresh tap ALWAYS tries again (Jonathan 2026-10-31, on mobile:
        "sometimes i turn on the mic and nothing happens"). The old code
@@ -13651,11 +13709,11 @@ function frame(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!entered) { drawStars(0, 0, 1); return; }
   /* the voice mic assertion runs PER FRAME, not on the 800ms tick (Jonathan 2026-10-31: start the
-     reconnection faster): a published mic track that died (room-switch teardown, OS kill) is spotted
+     reconnection faster): a published mic track that died (a dropped connection's teardown, OS kill) is spotted
      within a frame and the healer replaces it; a healthy published track short-circuits the check.
-     Room joins themselves are triggered instantly by the scene-change functions (they call
-     voiceReset directly); the 800ms tick remains the backstop for joins. */
-  if (lkRoom && lkScene === me.scene && pttHeld && !lkJoining) {
+     Scene changes never touch the connection any more (2026-11-04: one world room, the
+     hearing gate follows the scene); the 800ms tick remains the backstop for joins. */
+  if (lkRoom && pttHeld && !lkJoining) {
     if (lkMicTrack && lkMicTrack.readyState !== "live") lkMicTrack = null;
     if (lkMicTrack && lkMicTrack.muted) {
       /* a third way a mic dies (Jonathan 2026-10-31: the screen slept, and
