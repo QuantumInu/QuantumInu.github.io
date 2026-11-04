@@ -5916,20 +5916,48 @@ function trShotsWatch() { /* remote fire, seen and heard — boxing's punch-reco
     const d = Math.hypot(me.x - sh.x, me.y - sh.y); trGunSfx(sh.g || 0, Math.max(0.12, 1 - d / 1500));
   }
 }
-function trDamage(seat, dmg, bySeat) { /* armor drinks first, then health; the killing blow credits the shooter's team */
+function trKoCredit(bySeat) { /* one KO, one point — the score moves by transaction too, so it can never be written as the same stale total twice */
+  const key = trTeamOf(bySeat) === 0 ? "r" : "b";
+  const ref = db ? db.ref("hub/tables/trenches/score") : null;
+  if (ref && ref.transaction) { try { ref.transaction(cur => { const s = cur && typeof cur === "object" ? { r: cur.r || 0, b: cur.b || 0 } : { r: 0, b: 0 }; s[key]++; return s; }); return; } catch (e) {} }
+  const sc = trState && trState.score ? trState.score : { r: 0, b: 0 }, ns = { r: sc.r || 0, b: sc.b || 0 };
+  ns[key]++; tblUpd("trenches", { score: ns });
+}
+function trDamage(seat, dmg, bySeat) { /* armor drinks first, then health; the killing blow credits the shooter's team.
+  DAMAGE RELIABILITY (2026-11-04 audit — Jonathan: "sometimes I cant damage a CPU or a player"): this used
+  to read hp/armor from the cached record and SET the absolute results. Every hit that landed before the
+  record echoed back — all six shotgun pellets in one burst, an Uzi string at close range, two shooters
+  focus-firing — computed from the SAME stale base and overwrote each other, so a point-blank shotgun
+  dealt one pellet's damage. Now: (1) my cached copy is patched on the spot, so my own rapid hits add up
+  on this screen whatever the network is doing; (2) the writes are RTDB transactions, subtracted from
+  whatever the server value actually is when they land, so hits from different screens can never erase
+  each other; (3) where transactions are unavailable the old absolute writes stand as the fallback —
+  still correct for a lone shooter thanks to (1). */
   const st = trState; if (!st || st.phase !== "fight" || !st.hp || typeof st.hp[seat] !== "number") return;
   const hp = st.hp[seat]; if (hp <= 0) return;
   const arm = st.arm && typeof st.arm[seat] === "number" ? st.arm[seat] : 0;
   const absorbed = Math.min(arm, dmg);
-  if (absorbed) tblSet("trenches/arm/" + seat, arm - absorbed);
   const nh = Math.max(0, hp - (dmg - absorbed));
-  tblSet("trenches/hp/" + seat, nh);
-  if (nh <= 0) {
-    const sc = st.score || { r: 0, b: 0 }, ns = { r: sc.r || 0, b: sc.b || 0 };
-    if (trTeamOf(bySeat) === 0) ns.r++; else ns.b++;
-    tblUpd("trenches", { score: ns });
-    if (bySeat === trSeat) { trNote = "🎯 KNOCKOUT!"; trNoteAt = Date.now(); }
+  if (st.arm) st.arm[seat] = arm - absorbed;
+  st.hp[seat] = nh;
+  let landed = false;
+  const armRef = db ? db.ref("hub/tables/trenches/arm/" + seat) : null;
+  const hpRef = db ? db.ref("hub/tables/trenches/hp/" + seat) : null;
+  if (armRef && armRef.transaction && hpRef && hpRef.transaction) {
+    try {
+      if (absorbed) armRef.transaction(cur => typeof cur === "number" ? Math.max(0, cur - absorbed) : cur);
+      let killPrev = -1, killNext = -1;
+      hpRef.transaction(cur => { killPrev = typeof cur === "number" ? cur : -1; if (typeof cur !== "number" || cur <= 0) { killNext = -1; return cur; } killNext = Math.max(0, cur - (dmg - absorbed)); return killNext; },
+        (err, committed) => { if (!err && committed && killPrev > 0 && killNext === 0) trKoCredit(bySeat); });
+      landed = true;
+    } catch (e) { landed = false; }
   }
+  if (!landed) {
+    if (absorbed) tblSet("trenches/arm/" + seat, arm - absorbed);
+    tblSet("trenches/hp/" + seat, nh);
+    if (nh <= 0) trKoCredit(bySeat);
+  }
+  if (nh <= 0 && bySeat === trSeat) { trNote = "🎯 KNOCKOUT!"; trNoteAt = Date.now(); }
 }
 function trMakeBoom(x, y, col) { /* a rocket blast's parts, rolled once at birth (batch 6): sixteen sparks on their own angles and speeds, all wearing the shooter's team colour — the draw pass just plays them back. Visual only: no damage number lives here */
   const sp = []; for (let s = 0; s < 16; s++) sp.push({ a: (s / 16) * Math.PI * 2 + Math.random() * 0.5, v: 120 + Math.random() * 260, w: 1.5 + Math.random() * 2.5 });
@@ -5957,7 +5985,7 @@ function trStepProjs(dt, list, real) {
         if (trTeamOf(i) === pr.team) continue;
         const hp = trState.hp ? trState.hp[i] : undefined; if (typeof hp !== "number" || hp <= 0) continue;
         const p = trFighterPos(i); if (!p) continue;
-        if (Math.hypot(p.x - pr.x, (p.y - 48) - pr.y) < 36) { dead = true; boom = pr.gun === 2; if (pr.gun !== 2) { trDamage(i, TRGUNS[pr.gun].dmg, pr.owner); trSplatAt(pr.x, pr.y, TRNEON[pr.team], 15); sfxTrHit(); } break; }
+        if (Math.abs(p.x - pr.x) < 36 && Math.abs((p.y - 48) - pr.y) < 46) { dead = true; boom = pr.gun === 2; if (pr.gun !== 2) { trDamage(i, TRGUNS[pr.gun].dmg, pr.owner); trSplatAt(pr.x, pr.y, TRNEON[pr.team], 15); sfxTrHit(); } break; } /* the hittable box matches the DRAWN fighter (2026-11-04 damage audit): the sprite paints 96 tall centred on y-48 and ~77 wide, but the old test was a 36-radius circle — shots clean through the head band and the legs/feet drew blood on screen and did nothing. Half-extents 36 x 46 cover the painted body edge to edge */
       }
     }
     if (dead) { if (pr.gun === 2) { if (real) trExplode(pr.x, pr.y, pr.owner); else trBooms.push(trMakeBoom(pr.x, pr.y, TRNEON[pr.team])); } list.splice(k, 1); }
@@ -5995,7 +6023,7 @@ function trPickupCheck(px, py, seat) { /* walking over a live pad claims it — 
     const pk = TRPICKS[k], availAt = st.pick && typeof st.pick[k] === "number" ? st.pick[k] : 0;
     if (srvNow() < availAt || Math.hypot(px - pk.x, py - pk.y) > 48) continue;
     tblSet("trenches/pick/" + k, srvNow() + 20000); /* 20 seconds to respawn */
-    if (pk.kind === "hp") { const hp = st.hp[seat] || 0; if (hp > 0 && hp < 100) tblSet("trenches/hp/" + seat, Math.min(100, hp + 50)); }
+    if (pk.kind === "hp") { const hp = st.hp[seat] || 0; if (hp > 0 && hp < 100) { st.hp[seat] = Math.min(100, hp + 50); const hpRef = db ? db.ref("hub/tables/trenches/hp/" + seat) : null; let healed = false; if (hpRef && hpRef.transaction) { try { hpRef.transaction(cur => typeof cur === "number" && cur > 0 ? Math.min(100, cur + 50) : cur); healed = true; } catch (e) { healed = false; } } if (!healed) tblSet("trenches/hp/" + seat, Math.min(100, hp + 50)); } } /* the heal adds onto the LIVE value by transaction (2026-11-04 damage audit): the old absolute set, computed from the cached hp, could erase damage landing in the same window — or be erased by it */
     else tblSet("trenches/arm/" + seat, 50);
     if (seat === trSeat) { sfxTrPickup(); trSplatAt(pk.x, pk.y, "#7CFC9A", 20); }
   }
