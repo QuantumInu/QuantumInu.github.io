@@ -5896,8 +5896,8 @@ function trFighterPos(i) { /* where fighter i stands on THIS screen, or null whe
   const rec = trSeatRec(i);
   if (rec) {
     if (rec.pid === myId) return trFighter ? { x: me.x, y: me.y, flip: me.flip } : null;
-    const p = peers[rec.pid]; if (!p || p.scene !== "trenches") return null;
-    return { x: p.dx, y: p.dy, flip: p.flip };
+    const p = peers.get(rec.pid); if (!p || p.scene !== "trenches") return null; /* peers is a Map — this branch used to read it with brackets (peers[rec.pid], always undefined), so a remote human fighter resolved to null on every other screen: no team ring, gun or HP bar in drawTrenchesOver, and no CPU or auto-aim could ever target them through here. The position is the peer's drawn x/y, the same fields boxing reads (fix, Jonathan 2026-11-03 — "fix it and push it live") */
+    return { x: p.x, y: p.y, flip: p.flip };
   }
   if (trHostAm && trCpuSims[i]) return trCpuSims[i];
   if (trCpuVis[i]) return trCpuVis[i];
@@ -10425,6 +10425,7 @@ function chessHostTick() {
    damage; first to 0 health loses. No bets — the arena is for pride.
    Both fighters staying seated after a bout starts the rematch. */
 let boxState = null, boxSeat = -1, boxLeft = -1, boxHooked = false, boxPrevPhase = "";
+let boxMissKey = "", boxMissSince = 0; /* the walkout call's absence clock (winner fix, 2026-11-03): which missing fighter the host is watching (roundId + seat), and since when — see the fight branch of boxHostTick */
 let boxLastPunchAtL = 0, boxLastPunchAtR = 0, myPunchAtL = 0, myPunchAtR = 0; /* PER-ARM punch clocks (Jonathan 2026-10-31): each glove has its own cooldown and its own throw time — one arm never waits for the other to settle */
 const boxGloveStamp = {}; const boxGloveRecTs = { L: 0, R: 0 }; /* the other fighter's gloves, per arm: seat+side -> that arm's latest punch stamp. Punch records are PER-ARM (punchL / punchR on the box table, Jonathan 2026-11-01), so each arm's last-seen record ts is tracked apart — one arm's record can never clobber the other's glove, shake or star */
 const boxPunchFxTs = { L: 0, R: 0 }; /* per arm, the instant that arm's latest punch record's effects run from on THIS screen: the record's own ts when it is mine or arrives fresh, its first-sight instant when a remote record lands stale (the invisible-opponent-punch fix in drawBoxingFx) */
@@ -10640,6 +10641,7 @@ function boxHostTick() {
     return;
   }
   if (!(seats[fresh[0]] && seats[fresh[0]].pid === myId)) return; /* the lowest fresh seat hosts */
+  if (st.phase !== "fight" || fresh.length !== 1 || st.mode === "pc") boxMissKey = ""; /* the walkout absence clock runs only while exactly one fighter is missing from a live human bout (winner fix) */
   if (st.phase === "sit" && fresh.length === 2) {
     const s0 = seats[0], s1 = seats[1];
     if (s0.rdy && s1.rdy && (s0.bet || 0) > 0 && (s0.bet || 0) === (s1.bet || 0)) tblUpd("box", { phase: "fight", mode: null, cpu: null, hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punchL: null, punchR: null, winner: -1, pot: (s0.bet || 0) + (s1.bet || 0), roundId: newRoundId() }); /* both READY with MATCHED BETS — the bell (a bet is required to fight, Jonathan 2026-10-31: "dont allow that unless they bet"). The pot is written down NOW, at the bell (claims fix): settle never recomputes it from seats a leaver may already have deleted */
@@ -10652,8 +10654,16 @@ function boxHostTick() {
       tblUpd("box", { phase: "fight", mode: "pc", hp: { 0: 100, 1: 100 }, fightTs: srvNow(), punchL: null, punchR: null, winner: -1, pot: (s0.bet || 0) * 2, roundId: newRoundId(), cpu: { seat: cpuSeat, x: cpuSeat === 0 ? BOXRING.x + 130 : BOXRING.x + BOXRING.w - 130, y: 900, flip: cpuSeat === 0 } });
     }
   } else if (st.phase === "fight" && fresh.length === 1 && st.mode !== "pc") { /* a vs-CPU bout's lone fresh seat is the design, not a walkout — it ends by the health bars or the give-up, never by this branch */
-    tblUpd("box", { phase: "done", winner: fresh[0], doneTs: now }); /* your opponent is gone — the bout is yours */
-    writeClaim(claimUid(seats[fresh[0]]), "box" + (st.roundId || 0) + "-" + fresh[0], boxPotOf(st), "🏆 Boxing win"); /* held for the fighter who stayed (claims fix) */
+    /* the walkout call (winner fix, 2026-11-03): a lone fresh seat is NOT by itself proof the other fighter left. A seat record fails while its fighter is still standing in the ring — seatOD removes it on ANY connection drop, and its heartbeat ts is written on the fighter's own clock, so a stalled or skewed clock reads stale while they fight on — and the old call awarded the bout (and the pot) on that signal alone, which handed the win to the LOSING player whenever the winner's record failed first. The missing fighter now counts as gone only when BOTH tests fail: (a) their PRESENCE has left the room too — presence beats every 2.5s on server time and the peers map is this room's live view of who is here, so a fighter whose presence is in the boxing scene is here, whatever their seat record says; and (b) the absence has then held for a sustained 8s window, clocked by the host (the only client that can make this call), so a momentary record loss can never decide a bout. A fighter who truly left fails both tests and the stayer still takes it — just seconds later, and never the wrong way round */
+    const missSeat = 1 - fresh[0], missRec = seats[missSeat], missPid = missRec && missRec.pid;
+    const missPeer = missPid ? peers.get(missPid) : null;
+    if (missPeer && missPeer.scene === "boxing") boxMissKey = ""; /* still in the room: no call, and the absence clock does not even run */
+    else if (boxMissKey !== (st.roundId || "") + ":" + missSeat) { boxMissKey = (st.roundId || "") + ":" + missSeat; boxMissSince = now; } /* first sight of this absence: start the clock, make no call yet */
+    else if (now - boxMissSince >= 8000) {
+      boxMissKey = "";
+      tblUpd("box", { phase: "done", winner: fresh[0], doneTs: now }); /* your opponent is gone — the bout is yours */
+      writeClaim(claimUid(seats[fresh[0]]), "box" + (st.roundId || 0) + "-" + fresh[0], boxPotOf(st), "🏆 Boxing win"); /* held for the fighter who stayed (claims fix) */
+    }
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 4500) {
     tblUpd("box", { phase: "sit", hp: null, punchL: null, punchR: null, winner: -1, pot: null, mode: null, cpu: null }); /* back to betting: fresh stakes and READY for the rematch */
   }
