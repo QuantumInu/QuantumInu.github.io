@@ -3725,10 +3725,16 @@ function drawSwModePlate(t) { /* the mode plate, standing on the floor LEFT of t
   ctx.fillStyle = "#241610"; rr(SWMODE_SPOT.x - 5, SWMODE_SPOT.y - 64, 10, 58, 4); ctx.fill();
   ctx.fillStyle = "#0a1428"; rr(SWMODE_SPOT.x - 118, SWMODE_SPOT.y - 118, 236, 58, 10); ctx.fill();
   ctx.strokeStyle = race ? "#ff8c28" : "#56b6ff"; ctx.lineWidth = 3; rr(SWMODE_SPOT.x - 118, SWMODE_SPOT.y - 118, 236, 58, 10); ctx.stroke();
-  ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = race ? "#ffb37a" : "#a8d8ff";
-  ctx.fillText(race ? "🏁 MODE: RACE" : "🏁 MODE: FREE DRIVE", SWMODE_SPOT.x, SWMODE_SPOT.y - 94);
-  ctx.font = "700 15px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,200,0.75)";
-  ctx.fillText("stand here · tap the button below to switch", SWMODE_SPOT.x, SWMODE_SPOT.y - 72);
+  const fitPlateFont = (weight, size, txt) => { /* auto-fit: shrink the font until the line sits fully inside the plate border (plate 236 wide, 3px stroke — 212px of text leaves a clear margin) */
+    ctx.font = weight + " " + size + "px 'Segoe UI',sans-serif";
+    while (size > 9 && ctx.measureText(txt).width > 212) { size -= 0.5; ctx.font = weight + " " + size + "px 'Segoe UI',sans-serif"; }
+  };
+  const modeTxt = race ? "🏁 MODE: RACE" : "🏁 MODE: FREE DRIVE";
+  fitPlateFont("800", 24, modeTxt); ctx.fillStyle = race ? "#ffb37a" : "#a8d8ff";
+  ctx.fillText(modeTxt, SWMODE_SPOT.x, SWMODE_SPOT.y - 94);
+  const subTxt = "stand here · tap the button below to switch";
+  fitPlateFont("700", 15, subTxt); ctx.fillStyle = "rgba(255,233,200,0.75)";
+  ctx.fillText(subTxt, SWMODE_SPOT.x, SWMODE_SPOT.y - 72);
   ctx.restore();
 }
 function syncSwRaceHud() { /* the RACE strip at the top of the screen: title + live status off the race record, fed at 10Hz; the bet panel rides inside it while I'm seated in the bet phase */
