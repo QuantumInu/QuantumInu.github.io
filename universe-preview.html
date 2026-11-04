@@ -12292,7 +12292,7 @@ function drawMonShopDinoAt(st) { /* the Dino himself, painted from a computed st
   ctx.drawImage(img, -W / 2, -H + pad, W, H);
   ctx.restore();
 }
-/* ============ FUD MONSTERS (PREVIEW, Jonathan 2026-11-04 — "do the fud thing... on preview so i can see"): four PLAYER-SIZED FUD enemies patrol the plaza, LOCAL to each visitor like the shop Dino — no presence writes, no server state, the presence record's shape untouched. Two wraiths and two mechs off his own two stickers: wraith 1 on the walkway in front of CLUB QUANTUM, mech 1 on the walkway in front of the CASINO, wraith 2 on the band in front of the MECH SHOP (the west row), mech 2 on the branch path EAST of the SPEEDWAY under the Arcade's west end. They stroll their loops the way Q-Bot walks the plaza — waypoint to waypoint with a pause at each — but SMOOTHER: eased steering with an arrival slowdown, so they glide in and out of every stop instead of stepping, and they walk with the PLAYERS' own cycle (drawPlayer's bob formula at the player's own amplitude, facing flipping with travel). Walk up to one and the prompt offers DESTROY FUD; tapping it blows the monster up (sfxFudBoom + a particle burst) and it RESPAWNS at its loop's start ~30 seconds later, so the test can run again ============ */
+/* ============ FUD MONSTERS (PREVIEW, Jonathan 2026-11-04 — "do the fud thing... on preview so i can see"): four PLAYER-SIZED FUD enemies patrol the plaza, LOCAL to each visitor like the shop Dino — no presence writes, no server state, the presence record's shape untouched. Two wraiths and two mechs off his own two stickers: wraith 1 on the walkway in front of CLUB QUANTUM, mech 1 on the walkway in front of the CASINO, wraith 2 on the band in front of the MECH SHOP (the west row), mech 2 on the branch path EAST of the SPEEDWAY under the Arcade's west end. They stroll their loops the way Q-Bot walks the plaza — waypoint to waypoint with a pause at each — but SMOOTHER: eased steering with an arrival slowdown, so they glide in and out of every stop instead of stepping, and they walk with the PLAYERS' own cycle (drawPlayer's bob formula at the player's own amplitude, facing flipping with travel). Walk up to one and the prompt offers DESTROY FUD; tapping it blows the monster up (sfxFudBoom + a particle burst) and it RESPAWNS at its loop's start ~30 seconds later, so the test can run again. Two additions (Jonathan 2026-11-04): the kill PAYS 1,000 chips through addChips, surfaced the transfer-note way (coin burst + "+🪙 1,000" riser on the player, exactly once per kill — the state guard is the lock), and the respawn FORMS IN over ~1s (formP ramp: fade + swell off his feet) instead of popping into existence ============ */
 const FUD_IMG_URLS = {
   wraith: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffud-wraith.webp?alt=media",
   mech: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffud-mech.webp?alt=media"
@@ -12305,14 +12305,15 @@ const FUD_ROUTES = [
   { kind: "wraith", route: [[-770, 2305], [-30, 2305], [-30, 2395], [-770, 2395]] }, /* wraith 2 — the MECH SHOP's front band (the shop spans x −700..−60), the plaza's west row: the band the shop Dino's own band continues east */
   { kind: "mech", route: [[1120, 705], [1500, 705], [1500, 795], [1120, 795]] } /* mech 2 — the branch path EAST of the SPEEDWAY (its east wall is 1070), under the Arcade's west end, short of the roundabout bar (1520) */
 ];
-const FUD_SPEED = 60, FUD_REACH = 120, FUD_RESPAWN_MS = 30000; /* cruise pace (the shop Dino strolls at 52), how close a player must stand for the DESTROY FUD prompt, and the respawn beat */
-const FUDS = FUD_ROUTES.map((r, i) => ({ kind: r.kind, route: r.route, x: r.route[0][0], y: r.route[0][1], vx: 0, vy: 0, wp: 1, flip: false, phase: i * 1.73, state: "patrol", pauseUntil: 0, respawnAt: 0, moving: false }));
+const FUD_SPEED = 60, FUD_REACH = 120, FUD_RESPAWN_MS = 30000, FUD_REWARD = 1000, FUD_FORM_MS = 1000; /* cruise pace (the shop Dino strolls at 52), how close a player must stand for the DESTROY FUD prompt, the respawn beat, the kill's pay (Jonathan 2026-11-04: destroying a FUD pays 1,000 chips), and the respawn's form-in beat — he eases back into the world over ~1s instead of popping in */
+const FUDS = FUD_ROUTES.map((r, i) => ({ kind: r.kind, route: r.route, x: r.route[0][0], y: r.route[0][1], vx: 0, vy: 0, wp: 1, flip: false, phase: i * 1.73, state: "patrol", pauseUntil: 0, respawnAt: 0, moving: false, formAt: 0, formP: 1 }));
 const fudFx = [];
 let fudLastT = 0;
 function fudUpdate(now) { /* the patrols' one clock, run once per plaza frame: eased steering — velocity leans toward the waypoint heading, the heading's speed tapering inside the last 80px, so every stop is a glide, never a step. A destroyed monster waits out its respawn here and re-forms at its loop's start */
   const dt = Math.min(0.05, fudLastT ? (now - fudLastT) / 1000 : 0.016); fudLastT = now;
   for (const F of FUDS) {
-    if (F.state === "dead") { if (now >= F.respawnAt) { F.state = "patrol"; F.x = F.route[0][0]; F.y = F.route[0][1]; F.vx = 0; F.vy = 0; F.wp = 1 % F.route.length; F.pauseUntil = 0; } else continue; }
+    if (F.state === "dead") { if (now >= F.respawnAt) { F.state = "patrol"; F.x = F.route[0][0]; F.y = F.route[0][1]; F.vx = 0; F.vy = 0; F.wp = 1 % F.route.length; F.pauseUntil = 0; F.formAt = now; F.formP = 0; } else continue; } /* the return is a FORM-IN, not a pop (Jonathan 2026-11-04): formP ramps 0→1 over FUD_FORM_MS and drawFudAt eases his alpha + scale off it */
+    F.formP = F.formAt ? Math.min(1, Math.max(0, (now - F.formAt) / FUD_FORM_MS)) : 1;
     if (now < F.pauseUntil) { F.vx *= 0.8; F.vy *= 0.8; F.moving = false; continue; } /* Q-Bot's pause at a stop, the glide bleeding off */
     const tg = F.route[F.wp], dx = tg[0] - F.x, dy = tg[1] - F.y, d = Math.hypot(dx, dy);
     if (d < 7) { F.wp = (F.wp + 1) % F.route.length; F.pauseUntil = now + 800 + (F.phase * 397) % 900; F.moving = false; continue; }
@@ -12329,9 +12330,11 @@ function drawFudAt(F, now) { /* a FUD monster, painted from frame()'s actor pass
   if (!img || !img.complete || !img.naturalWidth) return;
   const H = 96, W = H * (img.naturalWidth / img.naturalHeight);
   const bob = F.moving ? -Math.abs(Math.sin(now / 105 + F.phase)) * 11 : Math.sin(now / 620 + F.phase) * 1.4;
-  ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(F.x, F.y - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
-  ctx.save(); ctx.translate(F.x, F.y - H / 2 + bob);
-  if (F.flip) ctx.scale(-1, 1);
+  const fp = typeof F.formP === "number" ? F.formP : 1; /* the respawn form-in ramp (fudUpdate keeps it current): 0 the moment he re-forms, 1 when he's whole — at 1 every number below is the plain sprite this draw always was */
+  const fe = 1 - Math.pow(1 - fp, 3), fs = 0.55 + 0.45 * fe; /* ease-out: he swells up off his feet and fades in, landing soft — the scale starts at 0.55, never 0, so he grows in rather than blinking on */
+  ctx.save(); ctx.globalAlpha = fe; /* shadow and sprite fade together */
+  ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(F.x, F.y - 4, W * 0.36 * fs, 9 * fs, 0, 0, 7); ctx.fill();
+  ctx.translate(F.x, F.y); ctx.scale((F.flip ? -1 : 1) * fs, fs); ctx.translate(0, -H / 2 + bob);
   ctx.drawImage(img, -W / 2, -H / 2, W, H);
   ctx.restore();
 }
@@ -12348,6 +12351,10 @@ function fudDestroy(i) { /* DESTROY FUD: the monster blows up where he stands �
   for (let n = 0; n < 26; n++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 260; parts.push({ dx: Math.cos(a) * sp, dy: Math.sin(a) * sp - 60, r: 3 + Math.random() * 7, c: ["#ffd21f", "#ff9a3c", "#ff5e3c", "#e8f6ff"][n % 4] }); }
   fudFx.push({ x: F.x, y: F.y - 44, t0: performance.now(), parts });
   sfxFudBoom();
+  addChips(FUD_REWARD); /* the kill PAYS (Jonathan 2026-11-04): 1,000 chips through addChips — the one balance path every win in the hub uses: my own profile rises and saveChips persists it on the spot (to hub/users for a signed-in account; a guest's balance lives only in this device's local profile, the daily bonus's own treatment — no account is ever minted for a guest). He flipped to "dead" at the top of this function, behind the patrol guard, so this line can only ever run ONCE per kill */
+  sfxCoin();
+  genBurst(me.x, me.y - 46, true); /* the plus-money show belongs to the PLAYER, the transfer-note way: the coin burst at my chest... */
+  genText(me.x, me.y - 104, "+🪙 " + FUD_REWARD.toLocaleString("en-US"), "#ffd76a"); /* ...and the gold riser over my head says exactly what landed */
 }
 function drawFudFx(now) { /* the explosion bursts, painted with the player fx over the sprites: a two-tone flash, a shock ring, and the embers thrown off it, all done inside ~0.8s */
   for (let i = fudFx.length - 1; i >= 0; i--) {
