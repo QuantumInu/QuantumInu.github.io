@@ -61,6 +61,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #trguns .trgname{width:auto}
 #trguns .trtrack{flex:1;min-width:8px}
 #trguns .trcdtxt{width:auto;min-width:34px}
+#trwinpop{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:25;display:none;font-weight:800;font-size:min(46px,7.2vw);text-align:center;padding:20px 38px;background:rgba(5,8,18,.86);border:3px solid #fff;border-radius:18px;box-shadow:0 10px 44px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap} /* the Trenches WINNER POPUP (Jonathan 2026-11-03 — "it should say which team won, popped up after the match ends in the center of your screen"): a big banner in the winning team's neon at the centre of the SCREEN — not the room, whose centre sits off a chair-sitter's phone view — over the done phase. syncTrWinPop drives it off the match record, so it is state, never an event: it cannot fire during play and cannot double-fire */
 @media (max-width:760px){#trhud{top:6px;left:6px;right:6px;padding:5px 8px;gap:3px}#trhud .trtoprow{gap:2px 9px}#trhud .trteam{font-size:13.5px}#trhud .trphase{font-size:11px}#trhud .trscore{font-size:12.5px}#trhud .trbar{flex-basis:118px;min-width:104px}#trhud .trbar label{width:24px;font-size:11px}#trhud .trbar .trnum{width:26px;font-size:12px}#trhud .trtrack{height:9px}#trguns{gap:4px}#trguns .trgunrow{padding:3px 5px;gap:4px}#trguns .trgname{font-size:10.5px}#trguns .trcdtxt{min-width:29px;font-size:10px}}
 @media (max-width:430px){#trguns .trgunrow{padding:3px 4px;gap:3px}#trguns .trgname{font-size:9.5px}#trguns .trcdtxt{min-width:26px;font-size:9px}}
 .trgunrow{display:flex;align-items:center;gap:7px;border:1.5px solid rgba(255,255,255,.14);border-radius:9px;padding:4px 7px;background:rgba(255,255,255,.04)}
@@ -311,6 +312,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
       <div class="trbetrow" id="trbetrow"><button id="trbetone"></button><button id="trready">READY</button></div>
     </div>
   </div>
+  <div id="trwinpop"></div>
 
   <button id="prompt"></button>
   <div id="jukebox"><div id="jukepanel">
@@ -5732,7 +5734,7 @@ function trHostTick() {
   }
   else if (st.phase === "count" && srvNow() >= (st.fightTs || 0)) {
     const hp = {}, arm = {}, cpu = {};
-    for (let i = 0; i < 10; i++) { hp[i] = 100; arm[i] = 0; if (!trSeatRec(i)) { const rp = trRandHero(); cpu[i] = { x: TRSPAWN_X[trTeamOf(i)], y: TRSEATS[i].y, flip: trTeamOf(i) === 1, hero: rp.h, g: rp.g, ts: srvNow() }; } /* the CPU's random face is rolled here, by the host, as the seat fills — and rides the published cpu node like its position always has, so every screen dresses the same fighter (item 5) */ } /* every empty seat gets its CPU at its own spawn */
+    for (let i = 0; i < 10; i++) { hp[i] = 100; arm[i] = 0; if (!trSeatRec(i)) { const rp = trRandHero(); cpu[i] = { x: TRSPAWN_X[trTeamOf(i)], y: TRSEATS[i].y, flip: trTeamOf(i) === 0, hero: rp.h, g: rp.g, ts: srvNow() }; /* the spawn faces the enemy across the field (facing fix, Jonathan 2026-11-03): flip is drawPlayer's own rule — true is the mirrored draw that faces RIGHT — so RED in the west reads true, BLUE in the east false; this spawn (and the sim below) used to read the other way, and every CPU walked backwards */ } /* the CPU's random face is rolled here, by the host, as the seat fills — and rides the published cpu node like its position always has, so every screen dresses the same fighter (item 5) */ } /* every empty seat gets its CPU at its own spawn */
     tblUpd("trenches", { phase: "fight", hp, arm, cpu, pick: { 0: 0, 1: 0, 2: 0, 3: 0 }, shots: null });
     trCpuSims = {};
   }
@@ -5852,6 +5854,20 @@ function syncTrBet() { /* the bet panel's feed (syncTrHud's sibling on the same 
   const ticks = fresh.map(i => { const s = trSeatRec(i); return (i < 5 ? "🔴 " : "🔵 ") + (s.name || "Player") + (!betAmt ? "" : (s.bet === betAmt ? (s.rdy ? " ✓" : " — ready?") : " — no bet")); }).join("  ·  ");
   trBetStatus.textContent = !acctUser ? "🔒 Playing takes an account — guests can watch." : ((myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") + "  ·  " : "") + (betAmt && !myBet ? "Stake the match bet " + betAmt.toLocaleString("en-US") + " to play  ·  " : "") + ticks);
 }
+const trWinPopEl = $("trwinpop");
+let trWinPopKey = "";
+function syncTrWinPop() { /* the WINNER POPUP's driver, riding syncTrBtns' 200ms tick: the boxing winner dialogue's arrangement — it reads the match record in the done phase. The host's decision write lands phase "done" and win in ONE update (trHostTick's fight branch, the same write that settles the match at first-to-15), so this can only ever show over a decided match, exactly once per match, for everyone in the room — the gate is the scene, not the seat: spectators see it too. The host's recycle (done + 5.5s) returns the record to "sit" and the popup clears with it, before any next countdown. Keyed on the round so a client that somehow missed the sit interlude still re-shows the next match's win fresh */
+  const st = trState;
+  const win = (entered && me.scene === "trenches" && st && st.phase === "done" && (st.win === 0 || st.win === 1)) ? st.win : -1;
+  const key = win < 0 ? "" : (st.roundId || "") + ":" + win;
+  if (key === trWinPopKey) return;
+  trWinPopKey = key;
+  if (win < 0) { trWinPopEl.style.display = "none"; return; }
+  trWinPopEl.textContent = win === 0 ? "🔴 RED TEAM WINS!" : "🔵 BLUE TEAM WINS!";
+  trWinPopEl.style.color = TRNEON[win];
+  trWinPopEl.style.borderColor = TRNEON[win];
+  trWinPopEl.style.display = "block";
+}
 function syncTrBtns() { /* syncBoxBtns' shape: the aim stick and GUN button exist only on a coarse pointer, only while I'm in the game in this room (seated — the same gate as RUN/T/M; the stick is inert until the bell, trFrameStep firing only for a fighter in the fight); the seat HUD sync rides this same 200ms tick (plus it's what the desktop needs — the panel is for every seated player, not just phones) */
   const coarse = window.matchMedia("(pointer: coarse)").matches;
   const show = !!(entered && trSeat >= 0 && me.scene === "trenches" && coarse);
@@ -5862,6 +5878,7 @@ function syncTrBtns() { /* syncBoxBtns' shape: the aim stick and GUN button exis
   if (show) trGunEl.textContent = TRGUNS[trMyGun].icon;
   syncTrHud();
   syncTrBet();
+  syncTrWinPop();
 }
 cv.addEventListener("pointerdown", e => { if (e.pointerType === "touch") return; trMouse.x = e.clientX; trMouse.y = e.clientY; if (e.button === 0) trMouse.down = true; });
 cv.addEventListener("pointermove", e => { if (e.pointerType === "touch") return; trMouse.x = e.clientX; trMouse.y = e.clientY; });
@@ -5989,8 +6006,8 @@ function trCpuStep(dt) {
     if (trSeatRec(i)) { delete trCpuSims[i]; continue; } /* a human holds this seat — no computer under them */
     if (!st.hp || typeof st.hp[i] !== "number") continue;
     let sim = trCpuSims[i];
-    if (!sim) { const c = st.cpu ? st.cpu[i] : null; sim = trCpuSims[i] = { x: c ? c.x : TRSPAWN_X[trTeamOf(i)], y: c ? c.y : TRSEATS[i].y, flip: trTeamOf(i) === 1, gun: i % 3, fireAt: 0, strafeAt: 0, strafe: 1, respAt: 0, shotN: 0 }; }
-    if (st.hp[i] <= 0) { if (!sim.respAt) sim.respAt = Date.now() + 3000; if (Date.now() >= sim.respAt) { sim.respAt = 0; sim.x = TRSPAWN_X[trTeamOf(i)]; sim.y = TRSEATS[i].y; tblSet("trenches/hp/" + i, 100); tblSet("trenches/arm/" + i, 0); trCpuPublish(i, sim, true); } continue; }
+    if (!sim) { const c = st.cpu ? st.cpu[i] : null; sim = trCpuSims[i] = { x: c ? c.x : TRSPAWN_X[trTeamOf(i)], y: c ? c.y : TRSEATS[i].y, flip: trTeamOf(i) === 0, gun: i % 3, fireAt: 0, strafeAt: 0, strafe: 1, respAt: 0, shotN: 0 }; } /* a fresh sim faces the enemy, same rule as the host's spawn above (facing fix, Jonathan 2026-11-03) */
+    if (st.hp[i] <= 0) { if (!sim.respAt) sim.respAt = Date.now() + 3000; if (Date.now() >= sim.respAt) { sim.respAt = 0; sim.x = TRSPAWN_X[trTeamOf(i)]; sim.y = TRSEATS[i].y; sim.flip = trTeamOf(i) === 0; tblSet("trenches/hp/" + i, 100); tblSet("trenches/arm/" + i, 0); trCpuPublish(i, sim, true); } continue; }
     let tp = null, td = 1e9;
     for (let j = 0; j < 10; j++) { if (trTeamOf(j) === trTeamOf(i)) continue; const ehp = st.hp[j]; if (typeof ehp !== "number" || ehp <= 0) continue; const p = trFighterPos(j); if (!p) continue; const d = Math.hypot(p.x - sim.x, p.y - sim.y); if (d < td) { td = d; tp = p; } }
     if (tp) {
@@ -6003,7 +6020,7 @@ function trCpuStep(dt) {
       const pvx = sim.x; sim.x += (mx / ml) * 268 * dt; sim.y += (my / ml) * 268 * dt; /* a touch under a player's walk — the computer is company, not a wall */
       for (const c of TRCOVER) { const cx = Math.max(c.x, Math.min(sim.x, c.x + c.w)), cy = Math.max(c.y, Math.min(sim.y - 48, c.y + c.h)); const ddx = sim.x - cx, ddy = (sim.y - 48) - cy, dd = Math.hypot(ddx, ddy); if (dd < 30) { if (dd < 0.01) sim.y = c.y - 18; else { sim.x = cx + ddx / dd * 30; sim.y = cy + ddy / dd * 30 + 48; } } }
       sim.x = Math.max(TRFIELD.x + 42, Math.min(TRFIELD.x + TRFIELD.w - 42, sim.x)); sim.y = Math.max(TRFIELD.y + 64, Math.min(TRFIELD.y + TRFIELD.h - 30, sim.y));
-      const cmvx2 = sim.x - pvx; if (cmvx2 > 1.5) sim.flip = false; else if (cmvx2 < -1.5) sim.flip = true; /* face the way you are actually RUNNING (Jonathan 2026-11-03): flip used to read the target's side (tp.x < sim.x), so a strafing or retreating CPU slid sideways or backwards while still staring at its enemy. Now the flip follows the frame's real horizontal travel — cover push-out and the field clamp included — and holds its facing on a straight up/down run. trCpuPublish already carries flip, so every screen sees it */
+      const cmvx2 = sim.x - pvx; if (cmvx2 > 1.5) sim.flip = true; else if (cmvx2 < -1.5) sim.flip = false; /* face the way you are actually RUNNING (Jonathan 2026-11-03): flip used to read the target's side (tp.x < sim.x), so a strafing or retreating CPU slid sideways or backwards while still staring at its enemy. Now the flip follows the frame's real horizontal travel — cover push-out and the field clamp included — and holds its facing on a straight up/down run. trCpuPublish already carries flip, so every screen sees it. THE SIGNS (same night, his correction — "they are flipping but facing the wrong way when walking... the sprites have to be flipped"): flip=true is drawPlayer's mirrored draw, the one that faces RIGHT — the movement code's rule for every walker in the hub (vx > 0 sets flip true). This line first shipped with the signs swapped (running right read false), so the mirror flipped on cue while every CPU walked backwards; the signs now read the hub's way */
       const aim = Math.atan2((tp.y - 48) - (sim.y - 50), tp.x - sim.x);
       if (td < g.range * 0.95 && Date.now() >= sim.fireAt && trLosClear(sim.x, sim.y - 50, tp.x, tp.y - 48)) {
         sim.fireAt = Date.now() + g.rate * (1.6 + Math.random() * 0.9);
@@ -6128,7 +6145,7 @@ function drawTrenchesOver(t) { /* over the fighters: team rings, the guns in tea
     ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(p.x, p.y + 24, 34, 10, 0, 0, 7); ctx.stroke(); /* the gym's court ring, in team neon */
     if (hp <= 0) { ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.fillText("💫", p.x, p.y - 108); continue; }
     const sh = st.shots ? st.shots[i] : null;
-    const a = i === trSeat ? trAimA : (sh && srvNow() - (sh.ts || 0) < 1500 ? sh.a : (p.flip ? Math.PI : 0)); /* mine tracks my aim; a peer's follows their last shot, then their facing */
+    const a = i === trSeat ? trAimA : (sh && srvNow() - (sh.ts || 0) < 1500 ? sh.a : (p.flip ? 0 : Math.PI)); /* mine tracks my aim; a peer's follows their last shot, then their facing — read by drawPlayer's rule (facing fix, Jonathan 2026-11-03): flip=true faces RIGHT, so the idle gun points 0; this fallback used to read flip the CPU sim's old inverted way (true = PI) and pointed a right-facing fighter's gun left */
     const gun = i === trSeat ? trMyGun : (sh && typeof sh.g === "number" ? sh.g : 0);
     const gx = p.x + Math.cos(a) * 20, gy = (p.y - 50) + Math.sin(a) * 20, gl = TRGUNS[gun].len;
     ctx.save(); ctx.translate(gx, gy); ctx.rotate(a); ctx.shadowColor = col; ctx.shadowBlur = 12;
