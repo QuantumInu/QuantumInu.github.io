@@ -5626,7 +5626,7 @@ const MECH_B = { x: -700, y: 1960, w: 640, h: 320 }; /* the plaza building: the 
 const MECHDOOR = { x: -425, y: 2240, w: 90, h: 34 }; /* the door inset on the building's bottom face (SOUTH, like every plaza building's), centred on the building's centre line (-380) */
 const MKROOM = { w: 4720, h: 3860 }; /* the hall itself: SEVENTY display slots in the comics shop's grid rhythm (ten across, seven rows) */
 const MKEXIT = { x: MKROOM.w / 2 - 62, y: MKROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — MSEXIT's shape */
-const MKSLOTS = []; for (let i = 0; i < 70; i++) MKSLOTS.push({ x: 230 + (i % 10) * 440, y: 300 + Math.floor(i / 10) * 480, w: 300, h: 360, design: i < 5 ? SHOP_MECHS[i] : null }); /* the five designs fill the FIRST row only (slots 0-4, west to east: Rogue, Safari, Doctor, Samurai, Dragon); a slot's rect IS its obstacle (obstacles()) — you stand at its front (south) face to buy or spin it */
+const MKSLOTS = []; for (let i = 0; i < 70; i++) MKSLOTS.push({ x: 230 + (i % 10) * 440, y: 300 + Math.floor(i / 10) * 480, w: 300, h: 360, design: i >= 60 && i < 65 ? SHOP_MECHS[i - 60] : null }); /* the five designs fill the FRONT row only — the row by the door (slots 60-64, west to east: Rogue, Safari, Doctor, Samurai, Dragon). They first stood in the north row (slots 0-4) and MOVED to the front at Jonathan's word (2026-11-04 — "just move the mechs. Keep container layout dont remove anything ur just moving the mechs", a for-now arrangement): the seventy cylinders never moved, only the mechs changed cylinders — their plaques, pedestal buttons and buy prompts ride the design, and the north row stands vacant like the other sixty-five. A slot's rect IS its obstacle (obstacles()) — you stand at its front (south) face to buy or spin it */
 let mechNote = "", mechNoteAt = 0; /* the buy note over my head inside the shop — monNote's pattern */
 function mechSay(txt) { mechNote = txt; mechNoteAt = performance.now(); }
 const mkShowF = {}, mkAnim = {}; /* the displays' gender state: slot index -> showing female (absent = male, the way every display starts), and a running spin {t0, from, to}. PER CLIENT, VISUAL ONLY — never published, never saved */
@@ -6199,9 +6199,9 @@ function drawTrenches(t) {
   ctx.beginPath(); ctx.moveTo(1800, TRFIELD.y); ctx.lineTo(1800, TRFIELD.y + TRFIELD.h); ctx.stroke(); ctx.setLineDash([]);
   ctx.strokeStyle = TRNEON[0]; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(1800, TRFIELD.y + TRFIELD.h); ctx.lineTo(TRFIELD.x, TRFIELD.y + TRFIELD.h); ctx.lineTo(TRFIELD.x, TRFIELD.y); ctx.lineTo(1800, TRFIELD.y); ctx.stroke(); /* red owns the west half of EVERY edge, the bottom included (fix, Jonathan 2026-11-03 — "red team bottom border is blue but it should be red on that side"): the blue stroke used to run the whole bottom edge back to the west corner, painting the red side's bottom border blue; each colour now stops at the centre line on the bottom exactly as it always did on the top */
   ctx.strokeStyle = TRNEON[1]; ctx.beginPath(); ctx.moveTo(1800, TRFIELD.y); ctx.lineTo(TRFIELD.x + TRFIELD.w, TRFIELD.y); ctx.lineTo(TRFIELD.x + TRFIELD.w, TRFIELD.y + TRFIELD.h); ctx.lineTo(1800, TRFIELD.y + TRFIELD.h); ctx.stroke();
-  /* the green ROOM border every other room in the hub wears around itself (Jonathan 2026-11-03 — "the green border is a room border like every other room has"): the gym's own two lines, word for word — a 6px #2ee66b stroke at the room's edge and its faint twin inside it. The field's red/blue split border above is untouched, exactly as he settled it */
-  ctx.strokeStyle = "#2ee66b"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, TRROOM.w - 8, TRROOM.h - 8);
-  ctx.strokeStyle = "rgba(46,230,107,0.28)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, TRROOM.w - 36, TRROOM.h - 36);
+  /* the ROOM border every other room in the hub wears around itself (Jonathan 2026-11-03 — "the green border is a room border like every other room has"): the gym's own two lines, word for word — a 6px stroke at the room's edge and its faint twin inside it. The COLOUR changed at his word (2026-11-04 — "make the border of the trenches room same color as the outline of the trenches door outside"): it wears the facade door outline's own lime, #bef264, sampled from drawPlaza's door stroke — both layers, widths untouched; the strip under the exit below wears it too. The field's red/blue split border above is untouched, exactly as he settled it */
+  ctx.strokeStyle = "#bef264"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, TRROOM.w - 8, TRROOM.h - 8);
+  ctx.strokeStyle = "rgba(190,242,100,0.28)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, TRROOM.w - 36, TRROOM.h - 36);
   for (const c of TRCOVER) drawTrCover(c);
   for (const s of trSplats) { ctx.globalAlpha = Math.max(0, s.life) * 0.8; ctx.fillStyle = s.col; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (0.6 + 0.4 * s.life), 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(s.x + s.r * 0.7, s.y + s.r * 0.4, s.r * 0.35, 0, 7); ctx.fill(); }
   ctx.globalAlpha = 1;
@@ -6232,7 +6232,7 @@ function drawTrenches(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(TR_EXIT.x, TR_EXIT.y, TR_EXIT.w, TR_EXIT.h, 11); ctx.stroke();
   ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("EXIT", TR_EXIT.x + TR_EXIT.w / 2, TR_EXIT.y + 29);
-  ctx.fillStyle = "#2ee66b"; ctx.fillRect(TR_EXIT.x - 6, TRROOM.h - 7, TR_EXIT.w + 12, 6); /* the green room border runs unbroken underneath the exit — the bowling border's own repair, in this room's green */
+  ctx.fillStyle = "#bef264"; ctx.fillRect(TR_EXIT.x - 6, TRROOM.h - 7, TR_EXIT.w + 12, 6); /* the room border runs unbroken underneath the exit — the bowling border's own repair, in this room's lime (the door outline's #bef264, 2026-11-04) */
   /* the header + scoreboard */
   ctx.font = "800 44px system-ui"; ctx.textAlign = "center"; ctx.fillStyle = "#eaffb0"; ctx.shadowColor = "rgba(190,242,100,0.7)"; ctx.shadowBlur = 16;
   ctx.fillText("🔫 QUANTUM TRENCHES 🔫", 1800, 120); ctx.shadowBlur = 0;
@@ -6759,18 +6759,46 @@ function drawMonsterShopBuilding(t) {
 /* ============ the Mech Shop building (plaza) ============ */
 function drawMechShopBuilding(t) {
   const b = MECH_B, cx = b.x + b.w / 2;
-  /* a glass-domed showroom in PINK (Jonathan 2026-11-04 — the shop's colour, outside and in): the Monster Shop facade's own arrangement recoloured — pink-tinted dome seated on the top edge, a chasing-bulb marquee naming the shop, one aligned row of windows, its door on the bottom face like every other plaza building's */
+  /* a mech-roofed showroom in PINK (Jonathan 2026-11-04 — the shop's colour, outside and in): the Monster Shop facade's own arrangement recoloured — a mechanical canopy seated on the top edge, a chasing-bulb marquee naming the shop, one aligned row of windows, its door on the bottom face like every other plaza building's */
   ctx.fillStyle = "#2b0f22"; rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
   ctx.strokeStyle = "rgba(255,94,156,0.55)"; ctx.lineWidth = 2.5; rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
-  /* the glass dome: the monster dome's seat and span, tinted pink */
-  ctx.save(); ctx.beginPath(); ctx.ellipse(cx, b.y, b.w / 2, 112, 0, Math.PI, 0); ctx.closePath();
+  /* the roof: a MECHANICAL canopy (Jonathan 2026-11-04 — the plain glass dome "should look more mechanical"): the monster dome's seat and span kept exactly, the glass rebuilt as riveted steel-pink plating — panel seams banding the shell, ribs running seat to apex, louvred vents on both flanks, a bolted collar at the seat, a blinking beacon mast at the apex and a tracking dish riding the east slope. The pink stays; only the roof's look changes */
+  ctx.save(); ctx.beginPath(); ctx.ellipse(cx, b.y, b.w / 2, 112, 0, Math.PI, 0); ctx.closePath(); ctx.clip();
   const dg2 = ctx.createLinearGradient(cx, b.y - 112, cx, b.y);
-  dg2.addColorStop(0, "rgba(255,182,213,0.55)"); dg2.addColorStop(1, "rgba(214,80,140,0.25)");
-  ctx.fillStyle = dg2; ctx.fill();
-  ctx.strokeStyle = "rgba(255,214,232,0.7)"; ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.strokeStyle = "rgba(255,214,232,0.35)"; ctx.lineWidth = 1.5;
-  [-0.5, 0, 0.5].forEach(f => { ctx.beginPath(); ctx.moveTo(cx + f * b.w, b.y); ctx.quadraticCurveTo(cx + f * b.w * 0.55, b.y - 78, cx, b.y - 108); ctx.stroke(); });
+  dg2.addColorStop(0, "#8a4468"); dg2.addColorStop(0.55, "#66284c"); dg2.addColorStop(1, "#471a36");
+  ctx.fillStyle = dg2; ctx.fillRect(b.x, b.y - 112, b.w, 112);
+  ctx.strokeStyle = "rgba(30,8,22,0.55)"; ctx.lineWidth = 2.5;
+  [0.42, 0.66, 0.86].forEach(s => { ctx.beginPath(); ctx.ellipse(cx, b.y, (b.w / 2) * s, 112 * s, 0, Math.PI, 0); ctx.stroke(); });
+  ctx.strokeStyle = "rgba(255,214,232,0.32)"; ctx.lineWidth = 1.5;
+  [-0.78, -0.5, -0.25, 0, 0.25, 0.5, 0.78].forEach(f => { ctx.beginPath(); ctx.moveTo(cx + f * b.w, b.y); ctx.quadraticCurveTo(cx + f * b.w * 0.55, b.y - 78, cx, b.y - 108); ctx.stroke(); });
+  /* the louvred vents: five dark slats a flank, clipped to the shell */
+  for (const vs of [-1, 1]) for (let v = 0; v < 5; v++) {
+    const vx = cx + vs * 196 - 30, vy = b.y - 62 + v * 10;
+    ctx.fillStyle = "rgba(16,4,12,0.75)"; rr(vx, vy, 60, 6, 3); ctx.fill();
+    ctx.fillStyle = "rgba(255,182,213,0.35)"; ctx.fillRect(vx, vy, 60, 2);
+  }
+  /* rivets studding the lowest panel seam */
+  ctx.fillStyle = "rgba(255,215,234,0.75)";
+  for (let k = 1; k < 12; k++) { const a = Math.PI * k / 12; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * (b.w / 2) * 0.86, b.y - Math.sin(a) * 112 * 0.86, 2.2, 0, 7); ctx.fill(); }
   ctx.restore();
+  ctx.beginPath(); ctx.ellipse(cx, b.y, b.w / 2, 112, 0, Math.PI, 0); ctx.closePath();
+  ctx.strokeStyle = "rgba(255,214,232,0.7)"; ctx.lineWidth = 2.5; ctx.stroke();
+  /* the bolted collar the canopy seats in */
+  ctx.fillStyle = "#38122b"; rr(b.x + 4, b.y - 15, b.w - 8, 15, 6); ctx.fill();
+  ctx.strokeStyle = "rgba(255,94,156,0.6)"; ctx.lineWidth = 2; rr(b.x + 4, b.y - 15, b.w - 8, 15, 6); ctx.stroke();
+  ctx.fillStyle = "#ffd7ea";
+  for (let bx2 = b.x + 24; bx2 < b.x + b.w - 12; bx2 += 36) { ctx.beginPath(); ctx.arc(bx2, b.y - 7.5, 2.4, 0, 7); ctx.fill(); }
+  /* the beacon mast at the apex, blinking in the marquee sign's own rhythm */
+  ctx.strokeStyle = "#ffd7ea"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx, b.y - 106); ctx.lineTo(cx, b.y - 138); ctx.stroke();
+  ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - 10, b.y - 128); ctx.lineTo(cx + 10, b.y - 128); ctx.stroke();
+  ctx.fillStyle = (Math.floor(t / 500) % 2) ? "#ff5e9c" : "#ffd76a"; ctx.save(); ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(cx, b.y - 144, 5, 0, 7); ctx.fill(); ctx.restore();
+  /* a tracking dish riding the east slope */
+  ctx.save(); ctx.translate(cx + 188, b.y - 84); ctx.rotate(-0.55);
+  ctx.fillStyle = "#38122b"; ctx.beginPath(); ctx.moveTo(-9, 4); ctx.lineTo(11, 4); ctx.lineTo(2, 18); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#5a2c44"; ctx.beginPath(); ctx.ellipse(0, 0, 34, 13, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = "rgba(255,214,232,0.75)"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = "#ffd7ea"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(16, -14); ctx.stroke();
+  ctx.fillStyle = "#ff5e9c"; ctx.beginPath(); ctx.arc(16, -14, 3, 0, 7); ctx.fill(); ctx.restore();
   /* the marquee */
   ctx.fillStyle = "#3d1030"; rr(b.x + 40, b.y + 44, b.w - 80, 66, 12); ctx.fill();
   ctx.strokeStyle = "#ff5e9c"; ctx.lineWidth = 3; rr(b.x + 40, b.y + 44, b.w - 80, 66, 12); ctx.stroke();
@@ -7214,12 +7242,16 @@ function drawMechSlot(c, i, t) {
   ctx.fillStyle = "rgba(255,214,232,0.16)"; ctx.beginPath(); ctx.ellipse(cx, cylTop, (c.w - 76) / 2, 15, 0, Math.PI, 0); ctx.fill();
   ctx.strokeStyle = "rgba(255,255,255,0.20)"; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(c.x + 66, cylBot - 26); ctx.lineTo(c.x + 104, cylTop + 42); ctx.stroke();
   if (!d) { ctx.font = "800 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,200,225,0.4)"; ctx.fillText("· VACANT ·", cx, c.y + 190); }
-  /* the pedestal button: a pink button on the plinth's front face showing the OTHER gender's symbol — tap it (or the prompt) and the display spins to that mech. Filled slots only: an empty cylinder has nothing to spin */
+  /* the pedestal button: a round button on the plinth's front face showing the OTHER gender's symbol — tap it (or the prompt) and the display spins to that mech. Its colour follows the symbol it wears (Jonathan 2026-11-04): the MALE button (♂) is LIGHT BLUE, the female button (♀) keeps the shop's pink, and the button is captioned TAP TO / CHANGE around it. Filled slots only: an empty cylinder has nothing to spin */
   if (d) {
-    const female = mkSlotGender(i);
-    ctx.fillStyle = "#ff5e9c"; ctx.beginPath(); ctx.arc(cx, c.y + c.h - 34, 16, 0, 7); ctx.fill();
-    ctx.strokeStyle = "#ffd7ea"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, c.y + c.h - 34, 16, 0, 7); ctx.stroke();
+    const female = mkSlotGender(i), toMale = female; /* the symbol the button wears is the gender a tap brings in */
+    ctx.fillStyle = toMale ? "#64c8ff" : "#ff5e9c"; ctx.beginPath(); ctx.arc(cx, c.y + c.h - 34, 16, 0, 7); ctx.fill();
+    ctx.strokeStyle = toMale ? "#e2f4ff" : "#ffd7ea"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, c.y + c.h - 34, 16, 0, 7); ctx.stroke();
     ctx.font = "800 17px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.fillText(female ? "♂" : "♀", cx, c.y + c.h - 28);
+    ctx.font = "800 13px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd7ea";
+    ctx.textAlign = "right"; ctx.fillText("TAP TO", cx - 26, c.y + c.h - 29);
+    ctx.textAlign = "left"; ctx.fillText("CHANGE", cx + 26, c.y + c.h - 29);
+    ctx.textAlign = "center";
   }
   /* the plaque over the cylinder's head: the design's name, and under it the price — or OWNED */
   ctx.fillStyle = "rgba(20,6,16,0.88)"; rr(c.x + 34, c.y - 4, c.w - 68, 44, 8); ctx.fill();
@@ -7252,13 +7284,17 @@ function drawMechShop(t) {
   ctx.save(); ctx.shadowColor = "rgba(255,94,156,0.8)"; ctx.shadowBlur = 18;
   ctx.fillStyle = "#ffe3ef"; ctx.fillText("🤖 MECH SHOP 🤖", MKROOM.w / 2, 92); ctx.restore();
   for (let i = 0; i < MKSLOTS.length; i++) drawMechSlot(MKSLOTS[i], i, t);
-  /* my buy note, floating over my head — monNote's bubble in the shop's pink */
+  /* my buy note, floating over my head — monNote's bubble in the shop's pink. The box FITS the message (Jonathan 2026-11-04 — "fix the pop up message the square is not big enough"): the note wraps at 500px and the box grows a line at a time above my head, so the whole text always sits inside it, phone included — the one-line strip it replaces (34px tall, however long the sentence ran) let the long buy message spill past its edges. Every mechSay message rides this same bubble, so all of them inherit the fit */
   if (mechNote && performance.now() - mechNoteAt < 4200) {
     ctx.font = "600 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(mechNote).width + 30;
-    ctx.fillStyle = "rgba(24,8,20,0.92)"; rr(me.x - w / 2, me.y - 168, w, 34, 10); ctx.fill();
-    ctx.strokeStyle = "#ff5e9c"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 168, w, 34, 10); ctx.stroke();
-    ctx.fillStyle = "#ffe3ef"; ctx.fillText(mechNote, me.x, me.y - 135);
+    const words = mechNote.split(" "); let lines = [], line = "";
+    for (const wd of words) { if (line && ctx.measureText(line + " " + wd).width > 500) { lines.push(line); line = wd; } else line = line ? line + " " + wd : wd; }
+    if (line) lines.push(line);
+    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 36, bh = lines.length * 27 + 20;
+    const bx = me.x - bw / 2, by = me.y - 130 - bh;
+    ctx.fillStyle = "rgba(24,8,20,0.92)"; rr(bx, by, bw, bh, 10); ctx.fill();
+    ctx.strokeStyle = "#ff5e9c"; ctx.lineWidth = 1.5; rr(bx, by, bw, bh, 10); ctx.stroke();
+    ctx.fillStyle = "#ffe3ef"; lines.forEach((l, li) => ctx.fillText(l, me.x, by + 30 + li * 27));
   }
   /* the exit door plate on the south wall — the monster plate's paint in pink */
   ctx.fillStyle = "#050914"; ctx.fillRect(MKEXIT.x - 6, MKROOM.h - 12, MKEXIT.w + 12, 12);
@@ -12064,7 +12100,13 @@ const FALL_PUMPKIN_SPOTS = [ /* [centreX, groundY, scale] — spread along each 
   [2598.5, 2280, 0.62], [2640.5, 2274, 0.88],
   /* Quantum Bowling (BOWL_B, base y2260; door 3675..3765) — the Horse Track's layout (added 2026-11-03): triple clusters at the track's exact offsets from its building's base corners (west +42/+86/+130) and heights — and the east cluster is the west's exact mirror (insets −130/−86/−42 from the east corner, each pumpkin keeping its height and size) since the owner's word (2026-11-03) put the right pumpkins out to match the left, clear of the door and its landing */
   [3302, 2274, 0.92], [3346, 2280, 0.62], [3390, 2272, 0.80],
-  [4050, 2272, 0.80], [4094, 2280, 0.62], [4138, 2274, 0.92]
+  [4050, 2272, 0.80], [4094, 2280, 0.62], [4138, 2274, 0.92],
+  /* Quantum Trenches (TR_B, base y490; door −475..−385) — pumpkins at the corners at the owner's word (2026-11-04): Club Quantum's corner pairs at the club's exact offsets, the Monster Shop/Comics arrangement — a pair tucked at each base corner (west +36/+78, east −74/−32; outer base+14, inner base+20), clear of the door, its apron and the apron lamps below */
+  [-684, 504, 0.90], [-642, 510, 0.60],
+  [-214, 510, 0.62], [-172, 504, 0.88],
+  /* the Mech Shop (MECH_B, base y2280; door −425..−335) — the same corner pairs at the same offsets (2026-11-04), clear of the door and its landing; the west pair stands in the gap toward the world's edge, the east pair in the gap toward the Monster Shop */
+  [-664, 2294, 0.90], [-622, 2300, 0.60],
+  [-134, 2300, 0.62], [-92, 2294, 0.88]
 ];
 const FALL_LEAF_SPOTS = [ /* [centreX, groundY, radius, seed] — drifts of fallen leaves: the four tree-side grounds the scarecrows held and the Horse Track corner, plus scatter along the walkway edges and building bases drawn from the pumpkin rows */
   [512, 1168, 64, 1], [2688, 1168, 64, 2], [3224, 556, 56, 5], /* the 618,1918 drift that backed the tree east of the Monster Shop painted over the shop's east windows once the building stood there — removed at the owner's word (2026-11-02); its east mirror at 2582,1918 sat on the Quantum Comics roof's NE corner once that building stood beneath it — removed at the owner's word (2026-11-02) too, the same night he had the Arcade roof checked: no drift sits on the Arcade roof (the 1470,545 drift is on the ground at its base) */
