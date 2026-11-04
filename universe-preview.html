@@ -71,6 +71,17 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .trgunrow .trcdtxt{flex:none;width:44px;text-align:right;font-weight:800;font-size:11.5px;color:#7CFC9A}
 .trgunrow.cool .trcdtxt{color:#ffd76a}
 #trhud .trhint{font-size:11px;color:#9fd8ea;white-space:nowrap} /* the hint rides the flat top row as one short line (batch 6) — no margin, no second centred block */
+#trbet{display:none;flex-direction:column;gap:5px;width:100%;pointer-events:auto;border-top:1px solid rgba(190,242,100,.25);padding-top:5px} /* the Trenches BET PANEL (Jonathan 2026-11-03 — the bet interface he asked for since the room opened): the pool table's sit-down pattern carried into this room's strip — the casino tables' twelve amounts as chips, ONE match bet everyone stakes, and a READY button. It rides inside the flat HUD strip under the weapons line, shown only while seated in the bet phase ("sit"); syncTrBet feeds it off the match record the way syncTrHud feeds the rest. The strip is pointer-events:none; the panel takes its clicks back here */
+#trbet .trbethead{display:flex;align-items:center;flex-wrap:wrap;gap:3px 12px}
+#trbet .trbettitle{font-size:13.5px;font-weight:800;color:#ffd76a;white-space:nowrap}
+#trbet .trbetstatus{font-size:12px;font-weight:700;color:#cfeaff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#trbetamts{display:none;flex-wrap:wrap;gap:4px}
+#trbet .tramt{flex:1 1 15%;min-width:52px;padding:5px 2px;border-radius:8px;border:1.5px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:#fff;font-weight:800;font-size:12.5px;cursor:pointer;text-align:center}
+#trbet .trbetrow{display:none;align-items:center;gap:8px}
+#trbetone{flex:1;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(190,242,100,.6);background:rgba(124,252,154,.14);color:#7CFC9A;font-weight:800;font-size:14px;cursor:pointer}
+#trready{flex:1;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+#trready.on{border-color:#7CFC9A;background:rgba(124,252,154,.22);color:#7CFC9A}
+#trready:disabled{opacity:.45;cursor:default}
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
 #micbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 #micbtn.on{background:rgba(255,80,80,.55);border-color:#ff5050;box-shadow:0 0 18px rgba(255,80,80,.65)}
@@ -293,6 +304,11 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <div class="trhint" id="trhudhint"></div>
     </div>
     <div id="trguns"></div>
+    <div id="trbet">
+      <div class="trbethead"><span class="trbettitle" id="trbettitle">🎰 MATCH BET</span><span class="trbetstatus" id="trbetstatus"></span></div>
+      <div id="trbetamts"></div>
+      <div class="trbetrow" id="trbetrow"><button id="trbetone"></button><button id="trready">READY</button></div>
+    </div>
   </div>
 
   <button id="prompt"></button>
@@ -2373,7 +2389,7 @@ function joyMove(e) {
   stickEl.style.transform = "translate(calc(-50% + " + dx + "px), calc(-50% + " + dy + "px))";
   joyVec = m > 8 ? { x: dx / max, y: dy / max } : { x: 0, y: 0 };
 }
-let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0;
+let holdVec = { x: 0, y: 0 }, holdId = null, holdPX = 0, holdPY = 0, holdMouse = false;
 let boxMouseMask = 0, boxMouseWasL = false, boxMouseWasR = false; /* INSTANT GLOVES (Jonathan 2026-11-01): the mouse buttons' LIVE state (bit 1 = left, bit 2 = right), kept current by every pointer event that carries a buttons bitmask — NOT by press events alone, because some browsers/mice never deliver a usable second-press event while the first button is held, which left the second glove dead. boxMousePunchDriver (next to boxPunch) reads this mask every frame of a bout and edge-fires each arm the frame its bit lands; the Was latches hold the previous frame's bits, so holding a button can never auto-repeat a punch — the bit must be seen up again before that arm can fire again */
 cv.addEventListener("pointerdown", e => {
   if (!entered) return;
@@ -2393,6 +2409,7 @@ cv.addEventListener("pointerdown", e => {
   if (me.scene === "poolhall" && phAimBegin(e)) return; /* a press on my pool table starts the aim drag instead of a walk (only on my turn, balls at rest — phAimBegin decides) */
   if (me.scene === "bowling" && bowlAimBegin(e)) return; /* a press on my bowling lane starts the throw drag instead of a walk (only on my turn, no ball rolling — bowlAimBegin decides) */
   holdId = e.pointerId;
+  holdMouse = e.pointerType !== "touch"; /* which kind of pointer armed this hold — frame() reads it to keep a MOUSE hold from moving a seated Trenches fighter (in that game the mouse is aim + fire only) while leaving touch holds exactly as they were */
   const sx = me.x, sy = me.y, r = cv.getBoundingClientRect();
   const px = (e.clientX - r.left), py = (e.clientY - r.top);
   holdPX = px; holdPY = py;
@@ -3910,7 +3927,7 @@ function writeClaims(seats, results, keyOf, label) {
    A player who DID tap READY is untouched by all of this: the round they
    agreed to settles exactly as before, win or lose. */
 let refundODArmed = {}; /* "game/idx" -> the claim key this connection currently has armed */
-function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : game === "hrr" ? hrrState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : game.indexOf("bowl") === 0 ? bowlStates[Number(game.slice(4)) - 1] : chStates[CHTABLES.indexOf(game)]; }
+function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : game === "hrr" ? hrrState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : game.indexOf("bowl") === 0 ? bowlStates[Number(game.slice(4)) - 1] : game === "trenches" ? trState : chStates[CHTABLES.indexOf(game)]; }
 function rfKeyFor(game, st, i) {
   if (game === "bj") return "bj" + ((st && st.handId) || 0) + "-" + i + "rf";
   if (game === "hbj") return "hbj" + ((st && st.handId) || 0) + "-" + i + "rf"; /* the club blackjack's own key family — never the casino's "bj" */
@@ -5571,7 +5588,7 @@ const TRCOVER = [
 const TRPICKS = [{ x: 1800, y: 700, kind: "hp" }, { x: 1800, y: 1580, kind: "hp" }, { x: 1000, y: 1140, kind: "arm" }, { x: 2600, y: 1140, kind: "arm" }]; /* ✚ health on the centre line, 🛡 armor on each flank */
 const TRGUNS = [
   { name: "UZI", icon: "🔫", rate: 130, dmg: 6, spd: 1180, spread: 0.055, pellets: 1, range: 1000, len: 30 },
-  { name: "SHOTGUN", icon: "💥", rate: 780, dmg: 10, spd: 1020, spread: 0.17, pellets: 6, range: 640, len: 42 },
+  { name: "SHOTGUN", icon: "💥", rate: 500, dmg: 10, spd: 1020, spread: 0.17, pellets: 6, range: 640, len: 42 }, /* refire 780 -> 500 (Jonathan 2026-11-03 — "Shotgun has to fire faster"): pellets (6) and damage (10, batch 6) unchanged; the seat HUD's cooldown reads this same rate in syncTrHud, so the charge bar follows on its own */
   { name: "ROCKET", icon: "🚀", rate: 1150, dmg: 30, spd: 780, spread: 0, pellets: 1, range: 1250, len: 50, aoe: 115 }
 ];
 const TRNEON = ["#ff2d55", "#38b6ff"]; /* the team neons — red west, blue east; every gun, tracer and ring wears its owner's */
@@ -5606,12 +5623,14 @@ function trTrySit(i) {
   const s = trSeatRec(i); if (s && s.pid !== myId) { trNote = "That chair is taken."; trNoteAt = Date.now(); return; }
   trSeat = i; mySeatPos = { x: TRSEATS[i].x, y: TRSEATS[i].y }; me.x = TRSEATS[i].x; me.y = TRSEATS[i].y;
   const trSitCol = kingMechForm ? true : tonicMechForm ? "blue" : kenMechForm ? "gold" : roboMechForm ? "red" : neonMechForm ? "purple" : false; if (clearMechForms()) { spawnSmoke(me.x, me.y, me.scene, trSitCol); sfxSwap(); } /* BEGINNING THE GAME IN A MECH DISABLES IT (Jonathan 2026-11-03 — "If you begin with a mech it disables it too", scoped the same night to the GAME, not the room: "Outside the arena you should be able to do everything normal"): the sit is the moment the game begins, so a form worn into the chair pops off right here, before the claim is even written — clearMechForms is the hub's own transform-off (every form flag down, the shared cooldown zeroed), the burst wears the form's own colour at the chair, and the publish below then carries the base hero, so no screen ever sees a mech in a match. Walking the room transformed stays perfectly legal; toggleMech's seated gate keeps the form off until he stands */
-  tblSet("trenches/seats/" + i, { pid: myId, name: me.name, hero: me.hero, ts: Date.now() });
+  tblSet("trenches/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now() }); /* the account rides the seat record from the sit on (the pool seats' stamp): claimUid reads it for every claim, refund and settlement this chair can ever earn */
   seatOD("trenches", i, true); sfxClick(); publish(true);
   trNote = i < 5 ? "🔴 You're RED — get ready!" : "🔵 You're BLUE — get ready!"; trNoteAt = Date.now();
 }
 function trStandUp() {
   if (trSeat < 0) return; const was = trSeat, wasFighter = trFighter;
+  const sRec = trState && trState.seats ? trState.seats[was] : null;
+  if (sRec && sRec.pid === myId && trState.phase === "sit" && sRec.bet) { addChips(sRec.bet); trNote = "🚪 You stood up — your " + sRec.bet.toLocaleString("en-US") + " bet was returned."; trNoteAt = Date.now(); } /* standing up BEFORE the match starts never costs the stake (the pool stand-up's rule, mirrored — and seatOD below disarms the disconnect refund, so the stake comes back exactly once, in person). Past the bet phase the stake is committed: a mid-match forfeit leaves it in the frozen pot */
   tblSet("trenches/seats/" + was, null); seatOD("trenches", was, false);
   trSeat = -1; mySeatPos = null; trFighter = false; trDeadUntil = 0;
   if (wasFighter) { me.x = TRSEATS[was].x; me.y = TRSEATS[was].y + 140; } /* a forfeit steps off the field onto the apron by their chair — no chips here, nothing to hand back */
@@ -5621,12 +5640,58 @@ function trSeatBeat() { /* the claim heartbeat (boxing's, in shape): re-stamps m
   if (me.scene !== "trenches" || !entered || trSeat < 0) return;
   const cur = trState && trState.seats ? trState.seats[trSeat] : null;
   if (cur && cur.pid && cur.pid !== myId && Date.now() - (cur.ts || 0) < 25000) { const wasFighter = trFighter; trSeat = -1; mySeatPos = null; if (wasFighter) { trFighter = false; trDeadUntil = 0; trProjs = []; me.x = TRROOM.w / 2; me.y = TRROOM.h - 170; publish(true); } return; } /* the chair is genuinely someone else's now: if I was fighting from it, my match is over — the seat (and its hp leaf) belongs to the new sitter. Step off the field to the entry apron and clear the fighter flag on the spot: left standing as a seatless "fighter", the field clamp in collide() pens me on the field while the match record moves on without me — stranded (fix, Jonathan 2026-11-03) */
-  tblSet("trenches/seats/" + trSeat, { pid: myId, name: me.name, hero: me.hero, ts: Date.now() });
+  tblUpd("trenches/seats/" + trSeat, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), chips: profile ? (profile.chips || 0) : 0 }); /* the pool heartbeat's shape — a full-identity UPDATE, never a set: an update merges, so the bet and ready flags the bet panel wrote onto this record survive every beat (a set would wipe them within 4 seconds) */
+}
+/* ---- the BET + READY interface (Jonathan 2026-11-03 — the bet window he asked for since the room opened, his spec confirmed in chat): the pool table's sit-down pattern carried to this room. The casino tables' twelve amounts; ONE match bet for everyone — the first seated player's pick sets it, and from then on every chair stakes exactly that amount; READY is its own tap, lit only for a staked player (phReady's rule), and the host's countdown waits on every fresh chair being staked and readied — alone against the CPUs, one ready starts it on the spot. Chips move exactly the pool way: addChips the moment the stake is placed (phBet), the disconnect-refund arm with it, the in-person refund on a bet-phase stand-up, the bettor set frozen at the bell, results + held claims at the decision, settleOnce in the done window. CPUs never bet and never join a pot. ---- */
+const TRBETS = [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000]; /* the casino tables' twelve bet amounts (the pool draw's row) */
+function trMySeatRec() { return trSeat >= 0 && trState && trState.seats ? (trState.seats[trSeat] || null) : null; }
+function trBet(amt) {
+  const st = trState, mine = trMySeatRec();
+  if (!st || st.phase !== "sit" || trSeat < 0 || !mine || mine.pid !== myId) return;
+  if (!acctUser) { trNote = "🔒 Playing takes an account — guests can watch."; trNoteAt = Date.now(); return; }
+  const betAmt = st.betAmt || 0;
+  if (betAmt && amt !== betAmt) return; /* the match bet stands: everyone bets exactly it */
+  if (!betAmt && trFreshSeats()[0] !== trSeat) return; /* the amount row belongs to the first seated player until the match bet stands */
+  const prev = mine.bet || 0;
+  if (prev === amt) return; /* tapping the amount already staked changes nothing (blackjack's rule, by way of phBet) */
+  if (!profile || (profile.chips || 0) + prev < amt) { trNote = "Not enough chips for that bet."; trNoteAt = Date.now(); return; } /* the interface says so and commits nothing */
+  if (prev) addChips(prev); /* re-staking hands the old stake back before the new one is charged (phBet) */
+  addChips(-amt);
+  if (!betAmt) tblUpd("trenches", { betAmt: amt });
+  tblUpd("trenches/seats/" + trSeat, { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
+  mine.bet = amt; /* mirror my own write locally at once, as the casino bets do */
+  armRefundOD("trenches", trSeat, amt); /* the stake is charged: arm its disconnect refund (the never-lose net) */
+  sfxClick();
+}
+function trReady() { /* phReady, mirrored: lit only while the seated player holds a stake; tapping again un-readies */
+  const st = trState, mine = trMySeatRec();
+  if (!st || st.phase !== "sit" || trSeat < 0 || !mine) return;
+  if (!acctUser) { trNote = "🔒 Playing takes an account — guests can watch."; trNoteAt = Date.now(); return; }
+  if (!(mine.bet > 0)) return;
+  const nr = !mine.rdy;
+  tblUpd("trenches/seats/" + trSeat, { rdy: nr, ts: Date.now() });
+  mine.rdy = nr;
+  sfxClick();
+}
+function trMatchResults(st, winT) { /* the payout table, decided once by the host at the final bell and written on the record. A LONE bettor plays the house: win and he is paid DOUBLE his bet (stake back + the same again); lose and the bet stays down. Two or more bettors make a POT of every stake: the winning TEAM splits it equally among its own bettors, integer chips — a split remainder is never issued (never rounded up into existence). A forfeiter's frozen stake stays in the pot; a CPU never appears here at all */
+  const bets = st.bets || {}, ks = Object.keys(bets), results = {};
+  if (!ks.length) return results;
+  if (ks.length === 1) { const i = ks[0]; results[i] = bets[i].t === winT ? { amt: bets[i].a * 2, res: "🎉 Your team won the match — DOUBLE back: " + (bets[i].a * 2).toLocaleString("en-US") + "!" } : { amt: 0, res: "Your team lost the match — your " + bets[i].a.toLocaleString("en-US") + " bet stays down." }; return results; }
+  const pot = ks.reduce((s2, k) => s2 + (bets[k].a || 0), 0);
+  const winners = ks.filter(k => bets[k].t === winT), share = winners.length ? Math.floor(pot / winners.length) : 0;
+  for (const k of ks) results[k] = winners.indexOf(k) >= 0 ? { amt: share, res: "🎉 Your team took the pot of " + pot.toLocaleString("en-US") + " — your share: " + share.toLocaleString("en-US") + "!" } : { amt: 0, res: "The other team took the pot of " + pot.toLocaleString("en-US") + "." };
+  return results;
+}
+function trRandHero() { /* a CPU fighter's face (Jonathan 2026-11-03): a RANDOM hero from the public pool — heroes 1..70, the range heroAllowed leaves open to everyone, which keeps the owner-only 71, the NPC-only 72, OnlineMoney's 73, the other account heroes (76/78/80/82) and every mech form (74/75/77/79/81/83) out of the draw by construction — male or female at a coin flip (a female roll of a FEMALE_MISSING hero falls back to his male sprite). Rolled ONCE by the host as it fills the seat and published in the cpu node, so every screen dresses the same fighter; re-rolled with every fresh fill */
+  const h = 1 + Math.floor(Math.random() * 70);
+  let g = Math.random() < 0.5 ? "f" : "m";
+  if (g === "f" && FEMALE_MISSING[h]) g = "m";
+  return { h, g };
 }
 /* ---- the record + the referee (boxing's boxingListen/boxHostTick, in shape): any client in the room clears a leftover record; the LOWEST fresh seat hosts the match and runs the CPUs ---- */
 function trenchesListen() {
   if (!db || trHooked) return; trHooked = true;
-  db.ref("hub/tables/trenches").on("value", s => { trState = s.val(); trShotsWatch(); trPhaseWatch(); }); /* THE MATCH-START FIX (Jonathan 2026-11-03 — "it just says you're red, get ready! now with nothing else"): this line used to read tablesRef.child("trenches") — a name that exists NOWHERE in the file (every other room's listener goes straight through db.ref, sportsListen's pattern, the one this now follows). The first walk through the door threw on it, AFTER trHooked was set: no listener ever registered, and the three intervals below never started — no record snapshots (trState stayed null, the header forever on its "sit" line), no referee tick (no countdown, no CPU fill, no fight), no seat heartbeat, no button sync. Sitting still worked because trTrySit is purely local, which is exactly the state he reported: the note, the framed arena, and nothing after. The !db guard is sportsListen's own, so a failed database init leaves the hook unclaimed and the next entry retries it */
+  db.ref("hub/tables/trenches").on("value", s => { trState = s.val(); trShotsWatch(); trPhaseWatch(); trSettle(); }); /* THE MATCH-START FIX (Jonathan 2026-11-03 — "it just says you're red, get ready! now with nothing else"): this line used to read tablesRef.child("trenches") — a name that exists NOWHERE in the file (every other room's listener goes straight through db.ref, sportsListen's pattern, the one this now follows). The first walk through the door threw on it, AFTER trHooked was set: no listener ever registered, and the three intervals below never started — no record snapshots (trState stayed null, the header forever on its "sit" line), no referee tick (no countdown, no CPU fill, no fight), no seat heartbeat, no button sync. Sitting still worked because trTrySit is purely local, which is exactly the state he reported: the note, the framed arena, and nothing after. The !db guard is sportsListen's own, so a failed database init leaves the hook unclaimed and the next entry retries it */
   setInterval(trHostTick, 900); setInterval(trSeatBeat, 4000); setInterval(syncTrBtns, 200);
 }
 function trHostTick() {
@@ -5637,15 +5702,23 @@ function trHostTick() {
   if (!fresh.length) { if (st.phase !== "sit" || st.hp || st.cpu || st.shots) tblSet("trenches", { phase: "sit", seats: {}, roundId: newRoundId(), score: { r: 0, b: 0 }, win: -1, ts: srvNow() }); return; } /* the last chair emptying ends the match on the spot — the hub's table-reset rule */
   if (fresh[0] !== trSeat) { trHostAm = false; return; } /* the lowest seated player referees; if they leave, the next seat down adopts the match from the record */
   trHostAm = true;
-  if (st.phase === "sit") tblUpd("trenches", { phase: "count", fightTs: srvNow() + 3200, roundId: newRoundId(), score: { r: 0, b: 0 }, win: -1 });
+  if (st.phase === "sit") { /* the READY gate (Jonathan 2026-11-03): the countdown starts ONLY when every fresh seated human has staked the match bet and tapped READY — a lone player's ready starts it on the spot and the CPUs fill the rest at the bell */
+    const betAmt = st.betAmt || 0;
+    const allReady = betAmt > 0 && fresh.every(i => { const s = trSeatRec(i); return s && s.bet === betAmt && !!s.rdy; });
+    if (allReady) {
+      const bets = {}; for (const i of fresh) { const s = trSeatRec(i); bets[i] = { a: s.bet, u: claimUid(s), t: trTeamOf(i) }; } /* the bettor set is FROZEN at the bell (the claims-fix rule): a forfeiter's seat record may vanish mid-match, but their stake stays in the pot exactly as written here */
+      for (let i = 0; i < 10; i++) { const s = st.seats ? st.seats[i] : null; if (s && s.bet > 0 && !bets[i]) { writeClaim(claimUid(s), rfKeyFor("trenches", st, i), s.bet, "↩️ Bet returned"); tblUpd("trenches/seats/" + i, { bet: 0, rdy: false }); } } /* a staked seat the match never included (a sleeper outside the fresh window the gate counted): its stake is handed back through the rf claim and cleared off the seat in the same moment (the pool host's sleeper refund, mirrored) — never settled, never silently zeroed */
+      tblUpd("trenches", { phase: "count", fightTs: srvNow() + 3200, roundId: newRoundId(), score: { r: 0, b: 0 }, win: -1, bets, results: null });
+    }
+  }
   else if (st.phase === "count" && srvNow() >= (st.fightTs || 0)) {
     const hp = {}, arm = {}, cpu = {};
-    for (let i = 0; i < 10; i++) { hp[i] = 100; arm[i] = 0; if (!trSeatRec(i)) cpu[i] = { x: TRSPAWN_X[trTeamOf(i)], y: TRSEATS[i].y, flip: trTeamOf(i) === 1, hero: 3 + (i % 6), ts: srvNow() }; } /* every empty seat gets its CPU at its own spawn */
+    for (let i = 0; i < 10; i++) { hp[i] = 100; arm[i] = 0; if (!trSeatRec(i)) { const rp = trRandHero(); cpu[i] = { x: TRSPAWN_X[trTeamOf(i)], y: TRSEATS[i].y, flip: trTeamOf(i) === 1, hero: rp.h, g: rp.g, ts: srvNow() }; } /* the CPU's random face is rolled here, by the host, as the seat fills — and rides the published cpu node like its position always has, so every screen dresses the same fighter (item 5) */ } /* every empty seat gets its CPU at its own spawn */
     tblUpd("trenches", { phase: "fight", hp, arm, cpu, pick: { 0: 0, 1: 0, 2: 0, 3: 0 }, shots: null });
     trCpuSims = {};
   }
-  else if (st.phase === "fight") { const sc = st.score || { r: 0, b: 0 }; if ((sc.r || 0) >= TRWIN || (sc.b || 0) >= TRWIN) tblUpd("trenches", { phase: "done", win: (sc.r || 0) >= TRWIN ? 0 : 1, doneTs: srvNow() }); }
-  else if (st.phase === "done" && srvNow() - (st.doneTs || 0) > 5500) tblUpd("trenches", { phase: "sit", hp: null, arm: null, cpu: null, shots: null, score: { r: 0, b: 0 }, win: -1 });
+  else if (st.phase === "fight") { const sc = st.score || { r: 0, b: 0 }; if ((sc.r || 0) >= TRWIN || (sc.b || 0) >= TRWIN) { const winT = (sc.r || 0) >= TRWIN ? 0 : 1; const results = trMatchResults(st, winT); tblUpd("trenches", { phase: "done", win: winT, doneTs: srvNow(), results }); const accts = {}; for (const k of Object.keys(st.bets || {})) accts[k] = { acct: (st.bets[k] || {}).u || "" }; writeClaims(accts, results, i => "trenches" + (st.roundId || 0) + "-" + i, "🏆 Quantum Trenches win"); } } /* the decision and the held claims land in the same moment (the claims-fix rule): every winner's payout is written under their account at the decision, so a closed phone can no longer forfeit a decided win; each winner's own client ALSO fast-settles in the done window (trSettle) under the same key, and settleOnce makes the two paths land exactly once */
+  else if (st.phase === "done" && srvNow() - (st.doneTs || 0) > 5500) { for (let i = 0; i < 10; i++) { const s = st.seats ? st.seats[i] : null; if (s && (s.bet || s.rdy)) tblUpd("trenches/seats/" + i, { bet: 0, rdy: false }); } tblUpd("trenches", { phase: "sit", hp: null, arm: null, cpu: null, shots: null, score: { r: 0, b: 0 }, win: -1, betAmt: null, bets: null, results: null }); } /* the casino recycle, mirrored (phHostTick's done branch): every match starts with nothing down and nobody ready, and the shared match bet dies with the match */
 }
 /* ---- the phase watch (boxing's, in shape): the bell carries a seated player onto the field; the result carries them back to their chair ---- */
 function trPhaseWatch() {
@@ -5661,7 +5734,7 @@ function trPhaseWatch() {
       trFighter = false; trDeadUntil = 0; trProjs = [];
       if (trSeat >= 0) { me.x = TRSEATS[trSeat].x; me.y = TRSEATS[trSeat].y; mySeatPos = { x: TRSEATS[trSeat].x, y: TRSEATS[trSeat].y }; }
       else if (me.x > TRFIELD.x && me.x < TRFIELD.x + TRFIELD.w && me.y > TRFIELD.y && me.y < TRFIELD.y + TRFIELD.h) { me.x = TRROOM.w / 2; me.y = TRROOM.h - 170; } /* no chair to go back to (the seat changed hands mid-match — see trSeatBeat): never leave an ex-fighter standing on the field — step him off at the entry apron, the toTrenches landing (fix, Jonathan 2026-11-03) */
-      if (ph === "done") { trNote = st.win === 0 ? "🔴 RED TEAM WINS!" : "🔵 BLUE TEAM WINS!"; trNoteAt = Date.now(); if (trSeat >= 0 && st.win === trTeamOf(trSeat)) sfxWin(); }
+      if (ph === "done") { const myRes = trSeat >= 0 && st.results ? st.results[trSeat] : null; trNote = myRes && myRes.res ? myRes.res : (st.win === 0 ? "🔴 RED TEAM WINS!" : "🔵 BLUE TEAM WINS!"); trNoteAt = Date.now(); if (trSeat >= 0 && st.win === trTeamOf(trSeat)) sfxWin(); } /* a bettor reads their own result — the pot share, the double, the loss (the pool results' language); a seat that never bet, or a spectator, reads the team's win */
       publish(true);
     }
   }
@@ -5696,6 +5769,11 @@ function trStickMove(e) {
 /* ---- the SEAT HUD (Jonathan 2026-11-03 — "it just says you're red, get ready! now with nothing else"): the panel that appears the moment you sit and stays for the whole sit, hiding when you stand — the tables' bet-window moment in this room. Everything on it is read LIVE off state that already exists: team from my seat's half (trTeamOf), phase and score and my HP/armor from the match record itself (the same leaves drawTrenchesOver paints over my head — 100 HP, 50 armor, the record's own caps), the countdown from the record's fightTs on the server clock, and each gun's charge from trLastShotAt against TRGUNS' rates — the cooldown IS the ammo, so a full bar reads READY. It writes nothing anywhere: local DOM only, and the presence record gains no field. (The guns moved OUT of this panel the same night — one line across the top of the screen, #trguns — but they are still fed from this same function, off the same clocks.) ---- */
 const trHudEl = $("trhud"), trHudTeam = $("trhudteam"), trHudPhase = $("trhudphase"), trHudScore = $("trhudscore"), trHudHpFill = $("trhpfill"), trHudHpNum = $("trhpnum"), trHudArmFill = $("trarmfill"), trHudArmNum = $("trarmnum"), trGunsEl = $("trguns"), trHudHint = $("trhudhint");
 const trGunRows = [];
+function trSettle() { /* the pool settle watcher's shape (phSettle), fed by the trenches listener: while I hold a seat here — the moment the phase leaves the bet phase my stake is committed and the disconnect-refund order stands down; in the done window my result row, if any, settles onto my balance exactly once under the match key (the host's held claim for the same key races it safely — settleOnce sweeps the note, so the win lands one time, in the window or long after) */
+  const st = trState; if (!st || trSeat < 0) return;
+  if (st.phase !== "sit") cancelRefundOD("trenches", trSeat);
+  if (st.phase === "done" && st.results && st.results[trSeat]) settleOnce("trenches" + (st.roundId || 0) + "-" + trSeat, st.results[trSeat].amt || 0);
+}
 function syncTrHud() {
   const show = !!(entered && me.scene === "trenches" && trSeat >= 0); /* seated players only — a spectator standing in the room gets no panel and no weapons line */
   const d = show ? "flex" : "none"; /* the panel is a flat flex strip since batch 6 — flex, not block */
@@ -5709,6 +5787,7 @@ function syncTrHud() {
   const sc = st && st.score ? st.score : { r: 0, b: 0 };
   trHudScore.textContent = "🔴 " + (sc.r || 0) + " — " + (sc.b || 0) + " 🔵  ·  first to " + TRWIN;
   let phase = "⏳ Waiting for the match…";
+  if (st && st.phase === "sit") { const mRec = trMySeatRec(); if (!acctUser) phase = "🔒 Playing takes an account — guests can watch."; else if (!st.betAmt) phase = trFreshSeats()[0] === trSeat ? "🎰 Pick the match bet below" : "🎰 The match bet is being picked…"; else if (!mRec || (mRec.bet || 0) !== st.betAmt) phase = "🎰 Bet " + st.betAmt.toLocaleString("en-US") + " to play this match"; else if (!mRec.rdy) phase = "👇 Tap READY below to start"; else phase = "⏳ Waiting for everyone to ready…"; } /* the bet phase narrates itself in the strip's phase slot: pick, stake, ready, wait */
   if (st && st.phase === "count") phase = "⏱️ Starting in " + Math.max(1, Math.ceil(((st.fightTs || 0) - srvNow()) / 1000)) + "…";
   else if (st && st.phase === "fight") { const ph = st.hp && typeof st.hp[trSeat] === "number" ? st.hp[trSeat] : 100; phase = ph <= 0 ? ("💫 Knocked out" + (trDeadUntil > now ? " — back in " + Math.ceil((trDeadUntil - now) / 1000) + "s" : "…")) : "💥 FIGHT! First to " + TRWIN; }
   else if (st && st.phase === "done") phase = st.win === 0 ? "🔴 RED TEAM WINS!" : "🔵 BLUE TEAM WINS!";
@@ -5730,6 +5809,29 @@ function syncTrHud() {
   }
   trHudHint.textContent = window.matchMedia("(pointer: coarse)").matches ? "Right stick aims + fires · GUN button switches" : "Mouse aims · hold to fire · 1/2/3 switch gun";
 }
+const trBetEl = $("trbet"), trBetTitle = $("trbettitle"), trBetStatus = $("trbetstatus"), trBetAmts = $("trbetamts"), trBetRow = $("trbetrow"), trBetOne = $("trbetone"), trReadyBtn = $("trready");
+const trAmtBtns = [];
+trBetOne.addEventListener("click", () => { const a = trState ? (trState.betAmt || 0) : 0; if (a) trBet(a); });
+trReadyBtn.addEventListener("click", () => trReady());
+function syncTrBet() { /* the bet panel's feed (syncTrHud's sibling on the same 200ms tick): visible only while seated in the bet phase, everything read off the record so every screen agrees. Three faces: no match bet yet — the first chair picks from the twelve amounts while later chairs wait; a match bet standing — stake exactly it with the one button; staked — READY lights, and tapping again un-readies (trReady). The seated humans' stake/ready state rides the status line, so the room watches the gate fill */
+  const st = trState, show = !!(entered && me.scene === "trenches" && trSeat >= 0 && st && st.phase === "sit");
+  const d = show ? "flex" : "none";
+  if (trBetEl.style.display !== d) trBetEl.style.display = d;
+  if (!show) return;
+  if (!trAmtBtns.length) for (const amt of TRBETS) { const b = document.createElement("button"); b.className = "tramt"; b.textContent = amt.toLocaleString("en-US"); b.addEventListener("click", () => trBet(amt)); trBetAmts.appendChild(b); trAmtBtns.push(b); }
+  const mine = trMySeatRec(), betAmt = st.betAmt || 0, fresh = trFreshSeats(), myBet = mine ? (mine.bet || 0) : 0;
+  const picking = !betAmt && fresh[0] === trSeat;
+  trBetAmts.style.display = picking ? "flex" : "none";
+  trBetTitle.textContent = !betAmt ? (picking ? "🎰 PICK THE MATCH BET — everyone bets the same" : "🎰 MATCH BET — the first player is picking…") : "🎰 MATCH BET: " + betAmt.toLocaleString("en-US");
+  trBetRow.style.display = betAmt ? "flex" : "none";
+  trBetOne.style.display = myBet === betAmt ? "none" : "block";
+  trBetOne.textContent = "BET " + betAmt.toLocaleString("en-US");
+  trReadyBtn.disabled = !(myBet > 0);
+  trReadyBtn.classList.toggle("on", !!(mine && mine.rdy));
+  trReadyBtn.textContent = mine && mine.rdy ? "✓ READY" : "READY";
+  const ticks = fresh.map(i => { const s = trSeatRec(i); return (i < 5 ? "🔴 " : "🔵 ") + (s.name || "Player") + (!betAmt ? "" : (s.bet === betAmt ? (s.rdy ? " ✓" : " — ready?") : " — no bet")); }).join("  ·  ");
+  trBetStatus.textContent = !acctUser ? "🔒 Playing takes an account — guests can watch." : ((myBet > 0 ? "Your bet: " + myBet.toLocaleString("en-US") + "  ·  " : "") + ticks);
+}
 function syncTrBtns() { /* syncBoxBtns' shape: the aim stick and GUN button exist only on a coarse pointer, only while I'm in the game in this room (seated — the same gate as RUN/T/M; the stick is inert until the bell, trFrameStep firing only for a fighter in the fight); the seat HUD sync rides this same 200ms tick (plus it's what the desktop needs — the panel is for every seated player, not just phones) */
   const coarse = window.matchMedia("(pointer: coarse)").matches;
   const show = !!(entered && trSeat >= 0 && me.scene === "trenches" && coarse);
@@ -5739,6 +5841,7 @@ function syncTrBtns() { /* syncBoxBtns' shape: the aim stick and GUN button exis
   if (trFireEl.style.display !== "none") trFireEl.style.display = "none"; /* the FIRE button stays hidden in this room for good: the aim stick aims and fires in its place */
   if (show) trGunEl.textContent = TRGUNS[trMyGun].icon;
   syncTrHud();
+  syncTrBet();
 }
 cv.addEventListener("pointerdown", e => { if (e.pointerType === "touch") return; trMouse.x = e.clientX; trMouse.y = e.clientY; if (e.button === 0) trMouse.down = true; });
 cv.addEventListener("pointermove", e => { if (e.pointerType === "touch") return; trMouse.x = e.clientX; trMouse.y = e.clientY; });
@@ -13234,6 +13337,7 @@ function frame(now) {
     let hdx = holdPX - c.x, hdy = holdPY - c.y; const hm = Math.hypot(hdx, hdy);
     holdVec = hm > 14 ? { x: hdx / hm, y: hdy / hm } : { x: 0, y: 0 };
   }
+  if (holdMouse && me.scene === "trenches" && trSeat >= 0) holdVec = { x: 0, y: 0 }; /* QUANTUM TRENCHES on PC (Jonathan 2026-11-03 — "the mouse should not move you during the game only because it works against WASD"): in the game the mouse is AIM + FIRE ONLY. Holding the button to fire arms the canvas hold-to-move above, and without this line the fighter is dragged toward the pointer every frame he shoots — WASD/arrows are his only movement while seated. The gate is the seat, the batch-5 line: a spectator in the room and every other scene keep hold-to-move, and a TOUCH hold is untouched (the phone's sticks are its own controls) */
   if (keys.has("a") || keys.has("arrowleft")) vx -= 1;
   if (keys.has("d") || keys.has("arrowright")) vx += 1;
   if (keys.has("w") || keys.has("arrowup")) vy -= 1;
@@ -13524,7 +13628,7 @@ function frame(now) {
       }
       const cmvx = vx - (store.px === undefined ? vx : store.px), cmvy = vy - (store.py === undefined ? vy : store.py); store.px = vx; store.py = vy; /* this frame's real travel, read off the persistent store (the sim on the referee's screen, the eased vis everywhere else) */
       if (Math.abs(cmvx) + Math.abs(cmvy) > 1.2) store.spr = (store.spr || 0) + dt * 4.8; /* the cycle advances at the peers' own sprint rate, seeded onto the actor below — a fresh synthetic actor each frame cannot accumulate a.spr on its own */
-      actors.push({ id: "tr-cpu-" + i, x: vx, y: vy, tx: vx + cmvx * 3, ty: vy + cmvy * 3, hero: tgt.hero || 5, name: "CPU", flip: vflip, bob: 0, spr: store.spr || 0, run: true, chat: "", chatId: 0, tint: i < 5 ? "#ff5a4e" : "#4ea8ff" }); /* run: true + a projected tx/ty (the loop's own movement test) puts the CPUs on the NORMAL running animation — the same leg cycle, cadence and sprint dust a running player gets (Jonathan 2026-11-03: "make sure they have same running animation as normal"). They used to ride run:false with tx==x, so the loop read them as standing still and drew a frozen sprite sliding across the field */
+      actors.push({ id: "tr-cpu-" + i, x: vx, y: vy, tx: vx + cmvx * 3, ty: vy + cmvy * 3, hero: tgt.hero || 5, g: tgt.g || "m", name: "CPU", flip: vflip, bob: 0, spr: store.spr || 0, run: true, chat: "", chatId: 0, tint: i < 5 ? "#ff5a4e" : "#4ea8ff" }); /* g rides the actor now too: drawPlayer picks the male or female sprite set off a.g, so the host's random female CPU draws as one (heroImgFor) */ /* run: true + a projected tx/ty (the loop's own movement test) puts the CPUs on the NORMAL running animation — the same leg cycle, cadence and sprint dust a running player gets (Jonathan 2026-11-03: "make sure they have same running animation as normal"). They used to ride run:false with tx==x, so the loop read them as standing still and drew a frozen sprite sliding across the field */
     }
   }
   actors.sort((a, b) => a.y - b.y);
@@ -13600,7 +13704,7 @@ function frame(now) {
   else if (me.scene === "highrollers" && (bacSeat >= 0 || craSeat >= 0 || hbjSeat >= 0 || hrrSeat >= 0 || hrSlotSeat >= 0)) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = hrStandUpAll; }
   else if (me.scene === "chess" && chSeatT >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = chessStandUp; }
   else if (me.scene === "boxing" && boxSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = boxingBout ? "🏳️ Give up" : "🚪 Stand up"; promptAction = boxingStandUp; }
-  else if (me.scene === "trenches" && trFighter) { promptBtn.style.display = "block"; promptBtn.textContent = "🏳️ Forfeit — leave the match"; promptAction = trStandUp; }
+  else if (me.scene === "trenches" && trFighter) { promptBtn.style.display = "block"; promptBtn.textContent = "Forfeit"; promptAction = trStandUp; } /* just "Forfeit" (Jonathan 2026-11-03) — flag and tail gone, the action is the same trStandUp */
   else if (me.scene === "trenches" && trSeat >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 Stand up"; promptAction = trStandUp; }
   else if (me.scene === "trenches" && trNearChair() >= 0) { const ci = trNearChair(); promptBtn.style.display = "block"; promptBtn.textContent = ci < 5 ? "🔴 Sit — join the RED team" : "🔵 Sit — join the BLUE team"; promptAction = () => trTrySit(ci); }
   else if (me.scene === "track" && hrNear()) { promptBtn.style.display = "block"; promptBtn.textContent = "🪑 Sit at the Horse Table"; promptAction = hrTrySit; }
