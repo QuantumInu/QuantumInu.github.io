@@ -82,6 +82,28 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #trbet .trbetrow{display:none;align-items:center;gap:8px}
 #trbetone{flex:1;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(190,242,100,.6);background:rgba(124,252,154,.14);color:#7CFC9A;font-weight:800;font-size:14px;cursor:pointer}
 #trready{flex:1;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+#swhud{position:absolute;top:8px;left:8px;right:8px;z-index:16;display:none;flex-direction:column;gap:4px;background:rgba(16,8,4,.88);border:2px solid rgba(255,140,40,.55);border-radius:12px;padding:6px 10px;box-shadow:0 6px 26px rgba(0,0,0,.5);pointer-events:none;font-size:13.5px} /* the Speedway RACE HUD (Jonathan 2026-11-04): the Trenches strip's shape in race orange — shown only while the shared race record says RACE mode. Title + live status on one row; the bet panel rides inside it while you're seated in the bet phase. syncSwRaceHud feeds it off the race record, so every screen in the room reads the same state */
+#swhud .swtoprow{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px}
+#swhudtitle{font-weight:800;color:#ffb37a;white-space:nowrap}
+#swhudstatus{color:#ffe9d2;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#swbet{display:none;flex-direction:column;gap:5px;width:100%;pointer-events:auto;border-top:1px solid rgba(255,140,40,.3);padding-top:5px}
+#swbet .trbethead{display:flex;align-items:center;gap:10px}
+#swbet .trbettitle{font-weight:800;color:#ffb37a}
+#swbet .trbetstatus{color:#ffd9ae;font-weight:700;font-size:12.5px}
+#swbetamts{display:flex;flex-wrap:wrap;gap:5px}
+#swbetamts .swamt{padding:5px 9px;border-radius:8px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:13px;cursor:pointer}
+#swbetamts .swamt.on{border-color:var(--gold);background:rgba(255,215,106,.18);color:#ffd76a}
+#swbetamts .swamt.lock{opacity:.45;cursor:default}
+#swbet .trbetrow{display:flex;gap:6px}
+#swready{flex:1;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+#swready.on{border-color:#51e07a;background:rgba(81,224,122,.16);color:#7CFC9A}
+#swcount{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);z-index:30;display:none;flex-direction:column;align-items:center;gap:10px;padding:22px 46px 26px;background:rgba(4,4,10,.88);border:4px solid #ff8c28;border-radius:22px;box-shadow:0 14px 60px rgba(0,0,0,.7),0 0 44px rgba(255,140,40,.35);pointer-events:none} /* the RACE COUNTDOWN (Jonathan 2026-11-04 — "3 2 1 in the center of the screen, race themed"): starting lights over a giant count, dead centre of the SCREEN. syncSwCount drives it purely from the shared goTs on the server clock, so every screen shows the same number at the same instant */
+#swlights{display:flex;gap:14px}
+#swlights .swl{width:30px;height:30px;border-radius:50%;background:#2a1410;border:2.5px solid rgba(255,255,255,.25)}
+#swlights .swl.red{background:#ff3b30;border-color:#ff8a80;box-shadow:0 0 18px #ff3b30}
+#swlights .swl.grn{background:#2eff7a;border-color:#a7ffc4;box-shadow:0 0 18px #2eff7a}
+#swcountnum{font-weight:900;font-size:92px;line-height:1;color:#fff;text-shadow:0 4px 0 #b34700,0 0 34px rgba(255,140,40,.65);letter-spacing:2px}
+#swcount.go #swcountnum{color:#2eff7a;text-shadow:0 4px 0 #0d5c2a,0 0 34px rgba(46,255,122,.7)}
 #trready.on{border-color:#7CFC9A;background:rgba(124,252,154,.22);color:#7CFC9A}
 #trready:disabled{opacity:.45;cursor:default}
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
@@ -313,6 +335,15 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
       <div class="trbetrow" id="trbetrow"><button id="trbetone"></button><button id="trready">READY</button></div>
     </div>
   </div>
+  <div id="swhud">
+    <div class="swtoprow"><span id="swhudtitle">🏁 RACE</span><span id="swhudstatus"></span></div>
+    <div id="swbet">
+      <div class="trbethead"><span class="trbettitle" id="swbettitle">🎰 RACE BET</span><span class="trbetstatus" id="swbetstatus"></span></div>
+      <div id="swbetamts"></div>
+      <div class="trbetrow"><button id="swready">READY</button></div>
+    </div>
+  </div>
+  <div id="swcount"><div id="swlights"><span class="swl"></span><span class="swl"></span><span class="swl"></span></div><div id="swcountnum">3</div></div>
   <div id="trwinpop"></div>
 
   <button id="prompt"></button>
@@ -671,6 +702,7 @@ const sfxTick = () => tone(1250, 900, 0.03, "square", 0.014);
 const sfxPunchHit = () => { tone(110, 38, 0.16, "square", 0.26, 0); tone(64, 30, 0.20, "sine", 0.30, 0); noiseBurst(0.07, "lowpass", 900, 300, 0.20, 0); };
 const sfxPunchMiss = () => { noiseBurst(0.09, "bandpass", 1600, 500, 0.055, 0); tone(640, 260, 0.06, "sine", 0.035, 0); };
 const sfxGotHit = () => { tone(320, 170, 0.07, "triangle", 0.16, 0); noiseBurst(0.04, "bandpass", 1300, 700, 0.09, 0); }; /* GETTING hit (Jonathan 2026-11-01): a lighter thock than the puncher's THUD — shorter (0.07s vs 0.16/0.20s), higher (a 320->170Hz triangle vs the 110Hz square / 64Hz sub) and softer (0.16/0.09 vs 0.26/0.30/0.20), with a small bandpass noise tick instead of the lowpassed smack. Played ONLY on the victim's screen, off the punch record's arrival in drawBoxingFx — never by the puncher, never for a miss */
+const sfxFudBoom = () => { tone(130, 30, 0.5, "sine", 0.34, 0); tone(95, 26, 0.4, "square", 0.16, 0); noiseBurst(0.5, "lowpass", 2800, 110, 0.32, 0); noiseBurst(0.16, "highpass", 3200, 5200, 0.10, 0.02); }; /* DESTROY FUD (PREVIEW, Jonathan 2026-11-04): the FUD monster's explosion — a sub drop plus a lowpassed noise crash, built from the punch kit's own pieces (tone/noiseBurst already hush under the hub mute and the focus hold, like every hub sound) */
 const sfxCard = () => tone(280 + Math.random() * 120, 170, 0.05, "triangle", 0.028);
 /* slow swelling pad chord — detuned triangle pairs through long fades, for a cinematic-strings feel */
 function padChord(freqs, dur, vol) {
@@ -770,6 +802,30 @@ function trenchesThemeTick(tick) {
   if (step % 2 === 1) noiseBurst(0.04, "highpass", 6500, 6500, 0.005); /* hat ticks on the off-steps, the gym's own */
   tone(ch[[0, 1, 2, 3, 2, 1, 2, 3][step]] * 4, 0, 0.16, "triangle", 0.008); /* the battle arp — a minor run climbing the chord every step */
 }
+/* mechshop: Em – Em – C – D POWER chords — the MECH SHOP's own theme (Jonathan 2026-11-04 — "Give the mech shop a unique theme like a mechanical theme powerful", in the in-game sound style like every room theme, NOT a generated song file): the room themes' own kit driven like machinery — a hydraulic kick stomping every beat, a square-wave bass line that never lets up at the chord roots, band-passed metal CLANKS on the off-steps, a servo that whirs up at the top of the odd bars and winds down late in the last. (The strings-like pad swell that sat under it was removed at Jonathan's word later that day — kick, square bass, clanks and servos only.) Room-scoped like every theme: startMusic plays it only while the scene is mechshop, and leaving runs stopAllTones like every room change */
+const MECHSHOP_CHORDS = [
+  [82.4, 123.5, 164.8], [82.4, 123.5, 164.8],
+  [65.4, 98.0, 130.8], [73.4, 110.0, 146.8]
+];
+function mechThemeTick(tick) {
+  const bar = Math.floor(tick / 8) % 4, ch = MECHSHOP_CHORDS[bar], step = tick % 8;
+  if (step % 2 === 0) tone(130, 40, 0.14, "sine", 0.065); /* the hydraulic stomp: a kick on every beat, harder than the trenches drum */
+  tone(ch[[0, 0, 2, 0, 0, 2, 0, 1][step]], 0, 0.19, "square", 0.015); /* the driving low end — a square bass walking the power chord every step */
+  if (step === 3 || step === 7) noiseBurst(0.05, "bandpass", 2300, 1100, 0.013); /* the clank: band-passed metal striking on the off-steps */
+  if (step === 0 && bar % 2 === 1) tone(700, 1600, 0.22, "sawtooth", 0.005); /* a servo whirring up at the top of the odd bars */
+  if (step === 4 && bar === 3) tone(1500, 600, 0.2, "sawtooth", 0.005); /* and one winding down late in the last bar */
+}
+/* monstershop: Cmaj9 – Am7 – Fmaj9 – G — the MONSTER SHOP's own theme (Jonathan 2026-11-04 — "give the monster shop a calm melody like a greenhouse calm", in the in-game sound style like every room theme): the gentlest kit the rooms have — one long warm pad per chord, the chord root breathing under it, a slow music-box melody picking a few chord tones per chord, and one soft high sparkle late in each chord like light through leaves. NO drums, no bass drive. Room-scoped like every theme: startMusic plays it only while the scene is monstershop, and leaving runs stopAllTones like every room change */
+const MONSHOP_CHORDS = [
+  [130.8, 164.8, 196.0, 293.7], [110.0, 130.8, 164.8, 261.6],
+  [87.3, 110.0, 164.8, 329.6], [98.0, 123.5, 196.0, 293.7]
+];
+function monsterThemeTick(tick) {
+  const ci = Math.floor(tick / 16) % 4, ch = MONSHOP_CHORDS[ci], step = tick % 16;
+  if (step === 0) { padChord(ch, 8.8, 0.010); tone(ch[0] / 2, 0, 3.6, "sine", 0.012); } /* the warm pad and its breathing root, one per chord */
+  if (step % 4 === 0) tone(ch[[2, 3, 1, 2][step / 4]] * 4, 0, 2.4, "sine", 0.007); /* the greenhouse melody — a music box picking four soft notes per chord */
+  if (step === 10) tone(ch[3] * 4, 0, 1.4, "sine", 0.0035); /* one soft sparkle late in the chord, light through the glass */
+}
 function startMusic() {
   if (musicOn) return; musicOn = true;
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
@@ -799,6 +855,8 @@ function startMusic() {
     }
     if (sc === "gym" || sc === "boxing" || sc === "track") { gymThemeTick(tick); tick++; return; } /* the Boxing Arena AND the Horse Track play the Sports Complex's own theme (Jonathan 2026-10-31) — rooms of that building; the track fell through to the default melody before this */
     if (sc === "trenches") { trenchesThemeTick(tick); tick++; return; } /* Quantum Trenches has its OWN battle theme (Jonathan 2026-11-03) — it fell through to the default melody before this. Room-scoped like the rest: the interval reads the scene fresh every tick and toTrenches (like every room change) runs stopAllTones, so it starts on entry, stops on exit, can never stack or bleed into the plaza */
+    if (sc === "mechshop") { mechThemeTick(tick); tick++; return; } /* the Mech Shop has its OWN mechanical theme (Jonathan 2026-11-04) — it fell through to the default melody before this. Room-scoped like the rest: the interval reads the scene fresh every tick and every room change runs stopAllTones, so it starts on entry, stops on exit, can never stack or bleed */
+    if (sc === "monstershop") { monsterThemeTick(tick); tick++; return; } /* the Monster Shop has its OWN calm greenhouse theme (Jonathan 2026-11-04) — it fell through to the default melody before this. Room-scoped like the rest, same guarantees as the mech shop's line above */
     if (sc === "casino" || sc === "highrollers" || sc === "chess") { casinoThemeTick(tick); tick++; return; } /* the High Rollers Club and the Chess Room play the Casino's own lounge jazz (Jonathan 2026-10-31) — rooms of the casino, through its side doors; before this they fell through to the default melody */
     tone(seq[tick % seq.length], 0, 0.5, "sine", 0.022);
     if (tick % 4 === 0) tone(seq[tick % seq.length] / 2, 0, 1.6, "triangle", 0.016);
@@ -3091,6 +3149,12 @@ function swSet(p, v) { if (db) { if (v === null) db.ref("hub/tables/speedway/" +
 function speedwayListen() {
   if (!db || swHooked) return; swHooked = true;
   db.ref("hub/tables/speedway").on("value", s => { swState = s.val(); });
+  /* the RACE record (Jonathan 2026-11-04): mode + official results live at hub/tables/speedway/race — inside the tables node the RTDB rules already open. Its listener mirrors the official lap counts into swLaps and runs the settle / fx / mode-reset hooks, the same shape as the horse track's listener */
+  db.ref("hub/tables/speedway/race").on("value", s => { swRaceState = s.val(); swRaceMirror(); swRaceSettle(); swRaceFx(); swRaceResetWatch(); });
+  setInterval(() => { if (entered && me.scene === "speedway" && db) swRaceTick(); }, 900); /* the referee's housekeeping clock (gate, countdown flip, voids, recycle) — the boxing host tick's cadence */
+  setInterval(() => { if (entered && db) swRaceSeatBeat(); }, 4000); /* my race seat's heartbeat + reclaim (the casino seat beat's shape) */
+  setInterval(() => { if (swRefAm) swRefSampleAll(); }, 50); /* the referee's sampling backstop: the frame loop samples per frame while it drives; this keeps the official count flowing at 20Hz even if frames stall */
+  setInterval(() => { syncSwRaceHud(); syncSwCount(); }, 100); /* HUD + centre-screen countdown: cheap text writes, state-driven */
 }
 function swOD(on) { if (!db || myCar < 0) return; try { const ref = db.ref("hub/tables/speedway/cars/" + myCar + "/drv"); if (on) ref.onDisconnect().remove(); else ref.onDisconnect().cancel(); } catch (e) {} }
 function swCarRec(i) { return (swState && swState.cars && swState.cars[i]) || null; }
@@ -3165,8 +3229,9 @@ function sitInCar(i) {
   const v = swCarTarget(i);
   myCar = i;
   swBoostLvl[i] = 1; swSyncRunLabel(); /* fresh seat: the boost meter starts FULL and the button becomes BOOST */
-  swLaps[i] = v.lap || 0; swLapResetTrack(); /* my count continues from the car's stored lap; the progress tracker starts fresh from here */
-  swLapLev[i] = v.lev || 0; swLevSeen[i] = swLapLev[i]; swLevInit[i] = true; /* my event chain continues from the car's stored lev, and those past events are already celebrated — joining a car mid-chain fires nothing */
+  const swRaceEntry = (typeof swRaceMode === "function" && swRaceMode() === "race" && swRaceState && swRaceState.cars) ? swRaceState.cars[i] : null; /* RACE mode: my count seeds from the OFFICIAL race record, never the car's own lap field (Jonathan 2026-11-04) */
+  swLaps[i] = swRaceEntry ? (swRaceEntry.n || 0) : (v.lap || 0); swLapResetTrack(); /* my count continues from the car's stored lap; the progress tracker starts fresh from here */
+  swLapLev[i] = swRaceEntry ? (swRaceEntry.lev || 0) : (v.lev || 0); swLevSeen[i] = swLapLev[i]; swLevInit[i] = true; /* my event chain continues from the car's stored lev, and those past events are already celebrated — joining a car mid-chain fires nothing */
   carPos = { x: v.x, y: v.y, hd: v.hd || 0 }; carVel = { x: 0, y: 0 };
   me.x = carPos.x; me.y = carPos.y;
   swWriteAt = 0; swLastWrite = null;
@@ -3195,10 +3260,10 @@ function stepSpeedway(dt, ivx, ivy) {
   const now = performance.now();
   swSyncRunLabel(); /* BOOST while I drive, RUN on foot — re-synced every step so every sit/step-out path (incl. losing the car) lands right */
   /* if another driver's claim on my car landed after mine, I lost it — step out in place */
-  if (myCar >= 0) { const rec = swCarRec(myCar); if (rec && rec.drv && rec.drv !== myId && Date.now() - (rec.ts || 0) < 12000) { myCar = -1; carPos = null; carVel = { x: 0, y: 0 }; engineStop(); swLapResetTrack(); } }
+  if (myCar >= 0) { const rec = swCarRec(myCar); if (rec && rec.drv && rec.drv !== myId && Date.now() - (rec.ts || 0) < 12000) { myCar = -1; carPos = null; carVel = { x: 0, y: 0 }; engineStop(); swLapResetTrack(); if (swRaceSeat >= 0) swRaceSeatRelease(true); /* losing the car in RACE mode gives up the race seat with it (the seat helpers live in the race block below) */ } }
   if (myCar >= 0 && carPos) {
     /* ---- driving ---- */
-    const mag = Math.hypot(ivx, ivy);
+    const mag = swRaceFrozen() ? 0 : Math.hypot(ivx, ivy); /* RACE mode: the car sits frozen on the grid through the bet phase and until the shared GO instant — the countdown in the race record is the only green light, identical on every screen */
     const boosting = swBoostHeld() && swBoostLvl[myCar] > 0; /* boost is ACTIVE only while the sprint input is held AND the meter still has charge — an empty meter means no boost, however long the button stays down */
     let txv = 0, tyv = 0;
     if (mag > 0.1) { const sp = SW_SPEED * (boosting ? SW_BOOST_MULT : 1) * Math.min(1, mag); txv = ivx / mag * sp; tyv = ivy / mag * sp; }
@@ -3235,7 +3300,8 @@ function stepSpeedway(dt, ivx, ivy) {
     const spd = Math.hypot(carVel.x, carVel.y);
     if (spd > 30) carPos.hd = swTurn(carPos.hd, Math.atan2(carVel.y, carVel.x), 3.6 * dt);
     me.x = carPos.x; me.y = carPos.y; me.moving = false; me.run = false;
-    swLapUpdate(carPos.x, carPos.y); /* lap progress follows the car's final spot each frame */
+    if (swRaceMode() === "race") { if (swRefAm) swRefSampleAll(); } /* RACE mode: NO client counts its own laps — the one referee samples every car from the shared car records and writes the single official count into the race record; every screen (the referee's included) reads results from that record only */
+    else swLapUpdate(carPos.x, carPos.y); /* FREE DRIVE: lap progress follows the car's final spot each frame, exactly as it always has */
     engineUpdate(Math.min(SW_BOOST_MULT, spd / SW_SPEED)); /* the fraction runs past 1 only while boosting, so the existing pitch/level staging revs higher on boost and is untouched otherwise */
     if (boosting) swBoostLvl[myCar] = Math.max(0, swBoostLvl[myCar] - dt / SW_BOOST_USE); /* active boost spends the meter: full buys SW_BOOST_USE seconds, then it's empty and boosting stays off while held */
     else if (!swBoostHeld()) swBoostLvl[myCar] = Math.min(1, swBoostLvl[myCar] + dt / SW_BOOST_REFILL); /* released, the meter replenishes; held at empty it just sits at empty until I let go */
@@ -3253,13 +3319,13 @@ function stepSpeedway(dt, ivx, ivy) {
     for (let i = 0; i < 4; i++) {
       const v = swCarTarget(i);
       if (v.drv) continue;
-      if (Math.hypot(me.x - v.x, me.y - v.y) < 56) { sitInCar(i); break; }
+      if (Math.hypot(me.x - v.x, me.y - v.y) < 56) { if (swRaceMode() === "race") swRaceTrySit(i); else sitInCar(i); break; } /* RACE mode: walking into a car CLAIMS its race seat (account + bet phase) instead of just driving off */
     }
   }
   /* ---- lap celebrations: watch every OTHER car's event chain (my own banks already fired locally in swLapUpdate). First sight of a chain syncs silently; a rise fires exactly once per banked lap; a fall is a re-stage restarting the chain and is followed down without firing. ---- */
   for (let i = 0; i < 4; i++) {
-    if (i === myCar) continue;
-    const lev = swCarTarget(i).lev || 0;
+    if (swRaceMode() !== "race" && i === myCar) continue; /* FREE DRIVE skips my car (my banks fired locally in swLapUpdate). RACE mode skips nobody: the referee banks every car, so even my own celebrations arrive through the official record — and the referee pre-advances swLevSeen at bank time, so its own banks never double-fire here */
+    const lev = swRaceMode() === "race" ? ((swRaceState && swRaceState.cars && swRaceState.cars[i]) ? (swRaceState.cars[i].lev || 0) : 0) : (swCarTarget(i).lev || 0);
     if (!swLevInit[i]) { swLevInit[i] = true; swLevSeen[i] = lev; continue; }
     if (lev < swLevSeen[i]) { swLevSeen[i] = lev; continue; }
     while (swLevSeen[i] < lev) { swLevSeen[i]++; swLapCelebrate(i); }
@@ -3268,7 +3334,7 @@ function stepSpeedway(dt, ivx, ivy) {
   for (let i = 0; i < 4; i++) {
     if (i === myCar) { swCarsVis[i] = carPos ? { x: carPos.x, y: carPos.y, hd: carPos.hd } : swCarsVis[i]; continue; }
     const v = swCarTarget(i);
-    swLaps[i] = v.lap || 0; /* mirror the room's agreed count for this car */
+    if (swRaceMode() !== "race") swLaps[i] = v.lap || 0; /* FREE DRIVE: mirror the room's agreed count for this car. RACE mode: swLaps mirrors the OFFICIAL race record (the race listener owns it) — a car's own lap field is not a score anymore */
     let vis = swCarsVis[i];
     const pvx = vis ? vis.x : v.x, pvy = vis ? vis.y : v.y;
     if (!vis || Math.hypot(v.x - vis.x, v.y - vis.y) > 320) { vis = swCarsVis[i] = { x: v.x, y: v.y, hd: v.hd }; swVisSpd[i] = 0; }
@@ -3304,6 +3370,438 @@ function stepSpeedway(dt, ivx, ivy) {
     p.x += p.vx * dt; p.y += p.vy * dt;
     const damp = Math.max(0, 1 - 1.6 * dt); p.vx *= damp; p.vy *= damp;
     p.r += 14 * dt;
+  }
+}
+/* ================================================================
+   QUANTUM SPEEDWAY — RACE MODE + THE OFFICIAL RECORD (Jonathan 2026-11-04)
+   The track runs in one of two SHARED modes, stored in the race record
+   (hub/tables/speedway/race — inside the tables node the RTDB rules
+   already open, so no rules change was needed) and switched at the plate
+   LEFT of the exit door through the standard bottom prompt button:
+   • FREE DRIVE — exactly what the Speedway has always been: walk into a
+     car and drive; every driver counts their own laps locally. None of
+     the machinery below runs.
+   • RACE — a structured event over FIVE laps. Walking into a car claims
+     that car's race seat; seated drivers stake ONE match bet (the
+     casino/Trenches amount ladder, debited at the tap, the amount locked
+     once a second driver stakes) and tap READY; when every fresh seated
+     driver is staked and ready, the referee freezes the bets and writes
+     a shared GO instant (goTs, server clock) — the centre-screen 3-2-1
+     and every lap clock on every screen run off that one zero.
+   THE REFEREE: one racer's client officiates — the lowest-index fresh
+   race seat (the boxing host rule) — and keeps the whistle until its
+   seat record vanishes (a disconnect removes it on the spot), its
+   heartbeat goes stale, or it leaves the room (the boxing presence
+   alibi); the next racer's client then seeds its trackers from the
+   official record and carries on without resetting anything. The
+   referee samples EVERY car's shared record through the exact CCW lap
+   math free drive uses, banks laps with server-clock stamps, and
+   writes the ONE official record (per-car count/progress/last/best/
+   finish, the standings order). Every client — the referee's own
+   screen included — renders lap counters, the standings board and the
+   finish FROM THAT RECORD ONLY: no client keeps its own score in RACE
+   mode, so two screens can no longer disagree about a race.
+   PAYOUTS: the winner takes the whole frozen pot (a solo bettor's pot
+   is their own stake straight back), paid through the claims rail
+   (writeClaims + settleOnce, the casino pattern); bet-phase stand-ups
+   refund in person, mid-race stand-ups forfeit to the pot, and a
+   voided race (nobody left / ran far too long) refunds every frozen
+   stake through the same rail.
+   ================================================================ */
+const SW_RACE_LAPS = 5; /* the race distance: first to 5 laps — FREE DRIVE stays unlimited, as always */
+const SWMODE_SPOT = { x: 1560, y: 2352 }; /* the mode plate spot: LEFT of the exit door (the door plate spans x 1738..1862), on the open floor between the bottom bench banks, clear of the exit, the entry corridor and the step-out apron */
+let swRaceState = null; /* the shared race record, mirrored by its listener in speedwayListen */
+let swRaceSeat = -1; /* the car whose race seat is mine (-1 = not racing) */
+let swRaceSeatAt = 0; /* when I claimed the seat — the beat never declares a fresh claim lost while its own echo may still be in flight */
+let swRaceLeft = -1; /* the seat I stood up from — the seat beat never re-adopts that chair for me */
+let swRefAm = false; /* true while MY client holds the referee's whistle */
+let swRefCars = null; /* the referee's working copy of the official per-car counts — seeded from the record, written back whole */
+let swRefTrack = [null, null, null, null]; /* the referee's per-car lap trackers {theta, acc, base} — the same accumulation free drive's swLapUpdate keeps */
+let swRefSeedKey = ""; /* the roundId the trackers were seeded for */
+let swRefWriteAt = 0; /* the referee's progress-write throttle */
+let swResetSeen = -1; /* the last mode-reset sequence this client has acted on */
+let swRaceNote = "", swRaceNoteAt = 0; /* a short race note for the HUD status line */
+let swFxRaceDone = 0; /* the doneTs the finish fx already fired for */
+let swCountShown = ""; /* the countdown face on screen right now (a change re-pops the digit) */
+function swRaceMode() { return (swRaceState && swRaceState.mode === "race") ? "race" : "free"; }
+function swRaceSet(p, v) { if (!db) return; const r = db.ref("hub/tables/speedway/race/" + p); if (v === null) r.remove(); else r.set(v); }
+function swRaceUpdAt(p, v) { if (db) db.ref("hub/tables/speedway/race/" + p).update(v); }
+function swRaceSeatRec(i) { return (swRaceState && swRaceState.seats && swRaceState.seats[i]) || null; }
+function swRaceFreshSeats() { const out = []; if (swRaceState && swRaceState.seats) for (let i = 0; i < 4; i++) { const s = swRaceState.seats[i]; if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) out.push(i); } return out; }
+function swRaceRefSeat() { const fs = swRaceFreshSeats(); return fs.length ? fs[0] : -1; }
+function noteSwRace(t) { swRaceNote = t; swRaceNoteAt = Date.now(); }
+function swRaceFrozen() { /* cars sit frozen on the grid through the bet phase and until the shared GO instant — in FREE DRIVE never */
+  if (swRaceMode() !== "race") return false;
+  const st = swRaceState; if (!st) return true;
+  if (st.phase === "bet") return true;
+  if (st.phase === "count" && srvNow() < (st.goTs || 0)) return true;
+  return false;
+}
+function swNearModeSpot() { return me.scene === "speedway" && myCar < 0 && Math.hypot(me.x - SWMODE_SPOT.x, me.y - SWMODE_SPOT.y) < 105; }
+function swRaceSeatOD(i, on) { /* seatOD's exact shape on the race path: a disconnect removes my race seat on the spot, and standing disarms my bet refund order with it */
+  if (!db) return;
+  try { const ref = db.ref("hub/tables/speedway/race/seats/" + i); if (on) ref.onDisconnect().remove(); else { ref.onDisconnect().cancel(); cancelRefundOD("swrace", i); } } catch (e) {}
+}
+function swRaceMirror() { /* the official count is the ONLY count in race mode: swLaps follows the record for every car, mine included — and a car that isn't entered in the race reads 0, never a stale free-drive count left over from before the flip */
+  if (swRaceMode() !== "race" || !swRaceState) return;
+  const cars = swRaceState.cars || {};
+  for (let i = 0; i < 4; i++) { const e = cars[i]; swLaps[i] = e ? (e.n || 0) : 0; }
+}
+function swRaceWinKey(i) { return "swrace" + ((swRaceState && swRaceState.roundId) || 0) + "-" + i; }
+function swRaceSettle() { /* the casino settle hook's shape: past the bell my stake is in the race (no longer disconnect-refundable); at done, my result pays fast, exactly once */
+  const st = swRaceState; if (!st || !acctUser) return;
+  if (st.phase !== "bet" && swRaceSeat >= 0) cancelRefundOD("swrace", swRaceSeat);
+  if (st.phase === "done" && st.results && swRaceSeat >= 0) { const r = st.results[swRaceSeat]; if (r) settleOnce(swRaceWinKey(swRaceSeat), r.amt || 0); }
+}
+function swRaceFx() { /* the finish celebration, state-driven off the record (the horse track's pattern): fires once per doneTs, never for a stale finish */
+  const st = swRaceState; if (!st || st.mode !== "race" || st.phase !== "done" || !st.results) return;
+  const doneTs = st.doneTs || 0; if (!doneTs || doneTs === swFxRaceDone) return;
+  swFxRaceDone = doneTs;
+  if (srvNow() - doneTs > 8000) return;
+  const wk = st.win; if (wk === undefined || wk === null || wk < 0) return;
+  const wseat = st.seats && st.seats[wk];
+  const wname = (st.bets && st.bets[wk] && st.bets[wk].nm) || (wseat && wseat.name) || SW_CARS[wk].name;
+  const pot = (st.results[wk] && st.results[wk].amt) || 0;
+  haptic(30);
+  if (swRaceSeat === wk) { fxText = { txt: "🏆 YOU WIN THE RACE! +🪙 " + pot.toLocaleString("en-US"), col: "#ffd76a", at: performance.now(), big: true }; sfxCheer(); }
+  else fxText = { txt: "🏁 " + wname + " WINS THE RACE!", col: "#ffd76a", at: performance.now(), big: true };
+  const wc = swCarTarget(wk); swSpeedBurst(wc.x, wc.y);
+}
+function swRaceResetWatch() { /* a mode flip lands here on EVERY client: out of the cars, race seats given up. Standing stakes come back through the flipper's refund claims — never collected twice, because the claims are create-only and share their keys with the bettors' own disconnect refunds */
+  const st = swRaceState; if (!st) return;
+  const seq = st.resetSeq || 0;
+  if (swResetSeen < 0) { swResetSeen = seq; return; } /* first sight of the record: adopt silently */
+  if (seq === swResetSeen) return;
+  swResetSeen = seq;
+  if (swRaceSeat >= 0) swRaceSeatRelease(false);
+  if (myCar >= 0) stepOutOfCar(true);
+  swRefAm = false; swRefCars = null; swRefSeedKey = "";
+  noteSwRace(st.mode === "race" ? "🏁 RACE mode — sit in a car to race!" : "🏁 FREE DRIVE — just hop in and drive.");
+}
+function swToggleMode() { /* the plate spot's tap: flip the shared mode for the WHOLE track, refund any standing stakes through the claims rail, reset every car to its starting spot and throw every driver out (the resetSeq watcher does the throwing on each client) */
+  if (!db) return;
+  const st = swRaceState;
+  const next = swRaceMode() === "race" ? "free" : "race";
+  if (st && st.phase === "bet" && st.seats) { for (let i = 0; i < 4; i++) { const s = st.seats[i]; if (s && s.bet > 0) writeClaim(claimUid(s), rfKeyFor("swrace", st, i), s.bet, "↩️ Bet returned"); } }
+  else if (st && (st.phase === "count" || st.phase === "race") && st.bets) { for (const k in st.bets) { const b = st.bets[k]; if (b && b.a > 0) writeClaim(b.u, rfKeyFor("swrace", st, k), b.a, "↩️ Bet returned"); } } /* a finished race (done) is settled history — a flip there refunds nothing */
+  tblSet("speedway/race", { mode: next, phase: "bet", roundId: newRoundId(), seats: {}, bets: null, betAmt: 0, goTs: 0, ref: "", refTs: 0, cars: null, order: null, win: -1, results: null, doneTs: 0, resetSeq: ((st && st.resetSeq) || 0) + 1, ts: Date.now() });
+  for (let i = 0; i < 4; i++) { const s = swStage(i); swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "", drvName: "", lap: 0, lev: 0, bst: 1, ts: Date.now() }); }
+  sfxChime();
+}
+function swRaceTrySit(i) { /* walking into a car in RACE mode claims its race seat instead of just driving off */
+  const st = swRaceState;
+  if (!acctUser) { noteSwRace("🔒 Racing takes an account — guests can watch. Make a free account on the welcome screen."); sfxClick(); return; }
+  if (!st || st.phase !== "bet") { noteSwRace("🏁 A race is already running — its seats are locked until it ends."); return; }
+  const s = swRaceSeatRec(i);
+  if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) {
+    if (s.pid !== myId) { noteSwRace("That car already has a driver."); return; }
+    swRaceSeat = i; swRaceSeatAt = Date.now(); swRaceLeft = -1; swRaceSeatOD(i, true); sitInCar(i); return; /* my own seat after a reload: climb back in */
+  }
+  if (s && s.bet > 0 && s.pid !== myId) writeClaim(claimUid(s), rfKeyFor("swrace", st, i), s.bet, "↩️ Bet returned"); /* a stale chair with a stake on it: the stake goes back through the rail before the chair changes hands (the casino takeover rule) */
+  pullChips();
+  swRaceSet("seats/" + i, { pid: myId, acct: acctUser.uid, name: me.name, hero: me.hero, ts: Date.now(), bet: 0, rdy: false });
+  swRaceSeat = i; swRaceSeatAt = Date.now(); swRaceLeft = -1; swRaceSeatOD(i, true);
+  sitInCar(i);
+}
+function swRaceSeatRelease(inPerson) { /* give up my race seat: a bet-phase stake returns in person when I'm standing here, otherwise through the claims rail; a stake past the bell stays in the pot */
+  const st = swRaceState, i = swRaceSeat;
+  if (i < 0) return;
+  const s = swRaceSeatRec(i), mine = !!(s && s.pid === myId);
+  if (mine && st && st.phase === "bet" && (s.bet || 0) > 0) {
+    if (inPerson) addChips(s.bet);
+    else writeClaim(acctUser ? acctUser.uid : "", rfKeyFor("swrace", st, i), s.bet, "↩️ Bet returned");
+  }
+  if (mine) swRaceSet("seats/" + i, null);
+  swRaceSeatOD(i, false);
+  swRaceSeat = -1; swRaceLeft = i;
+}
+function swRaceStandUp() { /* GET OUT in race mode: collect a finished race first, then the seat release, then out of the car */
+  const st = swRaceState;
+  swRaceSettle();
+  if (st && (st.phase === "count" || st.phase === "race") && swRaceSeat >= 0) { const s = swRaceSeatRec(swRaceSeat); if (s && (s.bet || 0) > 0) noteSwRace("🏁 You forfeit your stake — it's in the pot now."); }
+  swRaceSeatRelease(true);
+  stepOutOfCar(false);
+}
+function swRaceSeatBeat() { /* my race seat's heartbeat + reclaim (the casino seat beat's shape): refresh my identity while I hold a seat; adopt my seat's bookkeeping back after a reload; notice if the chair record is gone or taken — but never inside the first seconds of my own claim, when the record may simply not have echoed back to me yet on a slow connection */
+  if (!db || !entered || me.scene !== "speedway") return;
+  const st = swRaceState;
+  if (swRaceSeat >= 0) {
+    const s = swRaceSeatRec(swRaceSeat);
+    if (!s || s.pid !== myId) {
+      if (Date.now() - swRaceSeatAt < 3000) return;
+      const lost = swRaceSeat; swRaceSeat = -1; if (myCar === lost) stepOutOfCar(true); return;
+    }
+    if (st && st.mode === "race") swRaceUpdAt("seats/" + swRaceSeat, { ts: Date.now(), acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, chips: profile ? profile.chips : 0 });
+    return;
+  }
+  if (!st || st.mode !== "race") return;
+  for (let i = 0; i < 4; i++) { if (i === swRaceLeft) continue; const s = swRaceSeatRec(i); if (s && s.pid === myId && Date.now() - (s.ts || 0) <= 25000) { swRaceSeat = i; swRaceSeatAt = Date.now(); swRaceSeatOD(i, true); return; } }
+}
+function swRaceBet(amt) { /* the Trenches match bet, carried to the track: one amount for the whole race — the first stake sets it, a second driver's stake locks it, debited at the tap */
+  const st = swRaceState; if (!st || st.phase !== "bet" || swRaceSeat < 0) return;
+  const mine = swRaceSeatRec(swRaceSeat); if (!mine || mine.pid !== myId) return;
+  if (!acctUser) { noteSwRace("🔒 Betting takes an account."); return; }
+  const betAmt = st.betAmt || 0;
+  const othersStaked = swRaceFreshSeats().some(i => i !== swRaceSeat && (swRaceSeatRec(i).bet || 0) > 0);
+  if (betAmt > 0 && amt !== betAmt && othersStaked) return;
+  const prev = mine.bet || 0;
+  if (prev === amt) return;
+  if (!profile || (profile.chips || 0) + prev < amt) { noteSwRace("Not enough chips for that bet."); return; }
+  if (prev) addChips(prev);
+  addChips(-amt);
+  if (betAmt !== amt) tblUpd("speedway/race", { betAmt: amt });
+  swRaceUpdAt("seats/" + swRaceSeat, { bet: amt, ts: Date.now(), acct: acctUser.uid, name: me.name, hero: me.hero, chips: profile ? profile.chips : 0 });
+  armRefundOD("swrace", swRaceSeat, amt);
+  sfxChime();
+}
+function swRaceReady() {
+  const st = swRaceState; if (!st || st.phase !== "bet" || swRaceSeat < 0) return;
+  const mine = swRaceSeatRec(swRaceSeat); if (!mine || mine.pid !== myId || !(mine.bet > 0)) return;
+  swRaceUpdAt("seats/" + swRaceSeat, { rdy: !mine.rdy, ts: Date.now(), acct: acctUser.uid, name: me.name, hero: me.hero, chips: profile ? profile.chips : 0 });
+  sfxClick();
+}
+function swRefElected() { /* the boxing host rule: the lowest fresh race seat holds the whistle. Takeover when the sitting referee's seat is gone (a disconnect removes it on the spot), their claim heartbeat is 6s stale, or their presence has left the room entirely */
+  const st = swRaceState; if (!st || st.mode !== "race") return false;
+  const rs = swRaceRefSeat();
+  if (rs < 0 || !st.seats[rs] || st.seats[rs].pid !== myId) return false;
+  if (!st.ref || st.ref === myId) return true;
+  const refSeated = swRaceFreshSeats().some(i => st.seats[i] && st.seats[i].pid === st.ref);
+  if (!refSeated) return true;
+  if (srvNow() - (st.refTs || 0) > 6000) return true;
+  const rp = peers.get(st.ref);
+  if (rp && rp.scene !== "speedway") return true;
+  return false;
+}
+function swRefSeed(st) { /* a new referee continues from the official record: per-car trackers seed from each car's current spot with acc = the record's banked progress, so the remaining travel to the next bank is exactly what the old referee still owed it — no lap is counted twice and none is skipped */
+  swRefCars = {}; swRefTrack = [null, null, null, null];
+  for (const k in (st.cars || {})) {
+    const e = st.cars[k];
+    swRefCars[k] = { n: e.n || 0, prog: e.prog || 0, lapStart: e.lapStart || 0, last: e.last || 0, best: e.best || 0, lev: e.lev || 0, fin: e.fin || 0 };
+    const v = swCarTarget(Number(k));
+    swRefTrack[k] = { theta: Math.atan2(v.y - SW_CY, v.x - 1800), acc: e.prog || 0, base: 0 };
+  }
+  swRefSeedKey = st.roundId || "";
+}
+function swRaceOrder(cars) { /* standings: finishers first, then laps, then current-lap progress — one ordering, computed once, read by everyone */
+  if (!cars) return null;
+  return Object.keys(cars).map(Number).sort((a, b) => { const A = cars[a], B = cars[b]; if (!!A.fin !== !!B.fin) return A.fin ? -1 : 1; if ((B.n || 0) !== (A.n || 0)) return (B.n || 0) - (A.n || 0); return (B.prog || 0) - (A.prog || 0); });
+}
+function swRefSampleCar(i, v) { /* swLapUpdate's exact math, run by the referee over car i's SHARED record: same ring test, same CCW accumulation, same line-crossing bank. Lap times stamp off the server clock from the car's official lap start (the shared goTs for lap 1) */
+  const trk = swRefTrack[i], e = swRefCars[i];
+  if (!trk || !e) return false;
+  const th = Math.atan2(v.y - SW_CY, v.x - 1800);
+  if (trk.theta === null || trk.theta === undefined) { trk.theta = th; return false; }
+  let d = th - trk.theta;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  const q = swSpine(v.x, v.y), rd = Math.hypot(v.x - q.x, v.y - q.y);
+  let banked = false;
+  if (rd >= SW_RI && rd <= SW_RO) {
+    /* the bank: swLapUpdate's straddle test, PLUS a full-loop fallback. The straddle test's 0.25 slack was calibrated for a driver sampling its own car every frame; the referee samples the shared record at record rate (~120ms writes + delivery), where one step at the line can exceed the slack and the straddle sample lands just short — the lap would wait a whole extra loop. Accumulated CCW travel of a full 2π since the last bank can only mean the car is at the line again (travel accrues only on the ring, clockwise subtracts), so it banks on that too — same line, same count, immune to sample phase */
+    if ((trk.theta > Math.PI / 2 && th <= Math.PI / 2 && d < 0 && trk.acc - trk.base >= Math.PI * 2 - 0.25) || trk.acc - trk.base >= Math.PI * 2 - 0.02) {
+      e.n++; e.last = Math.round((srvNow() - (e.lapStart || srvNow())) / 10) / 100; if (!e.best || e.last < e.best) e.best = e.last; e.lapStart = srvNow(); e.lev++; trk.base = trk.acc;
+      swLevSeen[i] = e.lev; swLapCelebrate(i); banked = true; /* the referee celebrates its own banks here; every other screen celebrates off the record's lev, exactly like free drive's event chain */
+      if (e.n >= SW_RACE_LAPS && !e.fin) e.fin = srvNow();
+    }
+    trk.acc -= d;
+  }
+  trk.theta = th;
+  e.prog = Math.round((trk.acc - trk.base) * 1000) / 1000;
+  return banked;
+}
+function swRefSampleAll() { /* the referee's per-frame sampling (plus a 50ms interval backstop): banks write the record at once; plain progress writes at most once a second */
+  const st = swRaceState;
+  if (!swRefAm || !st || st.mode !== "race" || !st.cars) return;
+  if (st.phase !== "race" && !(st.phase === "count" && srvNow() >= (st.goTs || 0))) return;
+  if (!swRefCars || swRefSeedKey !== (st.roundId || "")) swRefSeed(st);
+  let banked = false, finished = false;
+  for (const k in swRefCars) {
+    const i = Number(k), e = swRefCars[k];
+    if (e.fin) continue;
+    const v = swCarTarget(i);
+    if (!v.drv) continue; /* a driverless car earns nothing — its tracker waits where it stopped */
+    if (swRefSampleCar(i, v)) { banked = true; if (e.fin) finished = true; }
+  }
+  if (finished) { swRefFinish(st); return; }
+  const now = Date.now();
+  if (banked || now - swRefWriteAt > 1000) { swRefWriteAt = now; tblUpd("speedway/race", { cars: swRefCars, order: swRaceOrder(swRefCars), ref: myId, refTs: srvNow() }); }
+}
+function swRefFinish(st) { /* first to 5: freeze the official result and pay the whole pot to the winner through the claims rail */
+  const order = swRaceOrder(swRefCars);
+  const win = order.length ? order[0] : -1;
+  const bets = st.bets || {};
+  let pot = 0; for (const k in bets) pot += bets[k].a || 0;
+  const results = {};
+  for (const k in bets) results[k] = { res: Number(k) === win ? "win" : "lose", amt: Number(k) === win ? pot : 0 };
+  if (win >= 0 && bets[win] && pot > 0) writeClaim(bets[win].u, "swrace" + (st.roundId || 0) + "-" + win, pot, "🏆 Race win");
+  tblSet("speedway/race", { mode: "race", phase: "done", roundId: st.roundId, seats: st.seats || {}, bets: bets, betAmt: st.betAmt || 0, goTs: st.goTs || 0, ref: myId, refTs: srvNow(), cars: swRefCars, order: order, win: win, results: results, doneTs: srvNow(), resetSeq: st.resetSeq || 0, ts: Date.now() });
+}
+function swRefVoidRace(st) { /* nobody left to finish (or the race ran absurdly long): every frozen stake goes back through the claims rail and the track reopens for betting. Any client in the room may write this — the claims are create-only, so a second writer changes nothing */
+  const bets = st.bets || {};
+  for (const k in bets) { if (bets[k].a > 0) writeClaim(bets[k].u, rfKeyFor("swrace", st, k), bets[k].a, "↩️ Bet returned"); }
+  tblSet("speedway/race", { mode: "race", phase: "bet", roundId: newRoundId(), seats: {}, bets: null, betAmt: 0, goTs: 0, ref: "", refTs: 0, cars: null, order: null, win: -1, results: null, doneTs: 0, resetSeq: st.resetSeq || 0, ts: Date.now() });
+  swRefCars = null; swRefSeedKey = "";
+}
+function swRefBetPhase(st) { /* the bell (the Trenches gate): every fresh seated driver staked the match bet AND readied — then bets freeze, stale sleepers who staked but never readied are refunded through the rail, the official counts seed, and the shared GO instant is set 3s out on the server clock */
+  const fresh = swRaceFreshSeats();
+  if (!fresh.length || !(st.betAmt > 0)) return;
+  for (const i of fresh) { const s = st.seats[i]; if (!s.rdy || (s.bet || 0) !== st.betAmt) return; }
+  const bets = {};
+  for (const i of fresh) { const s = st.seats[i]; bets[i] = { a: s.bet || 0, u: claimUid(s), nm: s.name || "" }; }
+  if (st.seats) for (let i = 0; i < 4; i++) { const s = st.seats[i]; if (s && s.bet > 0 && fresh.indexOf(i) < 0) writeClaim(claimUid(s), rfKeyFor("swrace", st, i), s.bet, "↩️ Bet returned"); }
+  const goTs = srvNow() + 3000, rid = newRoundId();
+  const cars = {}; for (const i of fresh) cars[i] = { n: 0, prog: 0, lapStart: goTs, last: 0, best: 0, lev: 0, fin: 0 };
+  tblSet("speedway/race", { mode: "race", phase: "count", roundId: rid, seats: st.seats || {}, bets: bets, betAmt: st.betAmt, goTs: goTs, ref: myId, refTs: srvNow(), cars: cars, order: fresh.slice(), win: -1, results: null, doneTs: 0, resetSeq: st.resetSeq || 0, ts: Date.now() });
+  swRefCars = {}; swRefTrack = [null, null, null, null];
+  for (const i of fresh) { swRefCars[i] = { n: 0, prog: 0, lapStart: goTs, last: 0, best: 0, lev: 0, fin: 0 }; const v = swCarTarget(i); swRefTrack[i] = { theta: Math.atan2(v.y - SW_CY, v.x - 1800), acc: 0, base: 0 }; }
+  swRefSeedKey = rid; swRefWriteAt = 0;
+}
+function swRefDonePhase(st) { /* recycle to a fresh bet round ~5.5s after the finish: drivers stay in their cars (the casino recycle), stakes and readies cleared */
+  if (srvNow() - (st.doneTs || 0) < 5500) return;
+  const seats = {};
+  if (st.seats) for (const k in st.seats) { const s = st.seats[k]; if (s && s.pid) seats[k] = { pid: s.pid, acct: s.acct || "", name: s.name || "", hero: s.hero || 0, ts: s.ts || 0, bet: 0, rdy: false }; }
+  tblSet("speedway/race", { mode: "race", phase: "bet", roundId: newRoundId(), seats: seats, bets: null, betAmt: 0, goTs: 0, ref: myId, refTs: srvNow(), cars: null, order: null, win: -1, results: null, doneTs: 0, resetSeq: st.resetSeq || 0, ts: Date.now() });
+  swRefCars = null; swRefSeedKey = "";
+}
+function swRaceTick() { /* the referee's 900ms housekeeping (the boxing host tick's cadence): record hygiene, the election, the gate, the countdown flip, voids and the recycle */
+  const st = swRaceState;
+  if (!st) { tblSet("speedway/race", { mode: "free", phase: "bet", roundId: newRoundId(), seats: {}, bets: null, betAmt: 0, goTs: 0, ref: "", refTs: 0, cars: null, order: null, win: -1, results: null, doneTs: 0, resetSeq: 0, ts: Date.now() }); return; } /* first client in creates the record — FREE DRIVE is the default, so a fresh track behaves exactly as it always has */
+  if (st.mode !== "race") { if (swRefAm) { swRefAm = false; swRefCars = null; } return; }
+  if (["bet", "count", "race", "done"].indexOf(st.phase) < 0) { tblSet("speedway/race", { mode: "race", phase: "bet", roundId: newRoundId(), seats: {}, bets: null, betAmt: 0, goTs: 0, ref: "", refTs: 0, cars: null, order: null, win: -1, results: null, doneTs: 0, resetSeq: (st.resetSeq || 0) + 1, ts: Date.now() }); return; } /* a foreign-shaped record resets the room safely, ejecting everyone via resetSeq */
+  if (st.seats) for (let i = 0; i < 4; i++) { const s = st.seats[i]; if (s && !s.pid) swRaceSet("seats/" + i, null); } /* pid-less husks reaped (the casino rule) */
+  if ((st.phase === "race" || st.phase === "count") && swRaceFreshSeats().length === 0 && srvNow() - (st.goTs || 0) > 10000) { swRefVoidRace(st); return; } /* every racer gone: the void needs no referee */
+  const wasRef = swRefAm;
+  swRefAm = swRefElected();
+  if (!swRefAm) { if (wasRef) swRefCars = null; return; }
+  if (st.ref !== myId || srvNow() - (st.refTs || 0) > 3000) tblUpd("speedway/race", { ref: myId, refTs: srvNow() });
+  if (st.phase === "bet") swRefBetPhase(st);
+  else if (st.phase === "count") { if (srvNow() >= (st.goTs || 0)) tblUpd("speedway/race", { phase: "race", ref: myId, refTs: srvNow() }); }
+  else if (st.phase === "race") { if (srvNow() - (st.goTs || 0) > 240000) swRefVoidRace(st); }
+  else if (st.phase === "done") swRefDonePhase(st);
+}
+function swRaceBoard() { /* the official standings, read off the race record — the only standings any screen shows in RACE mode. During the bet phase the rows are the seated drivers with their stakes */
+  const st = swRaceState; if (!st) return [];
+  const rows = [];
+  if (st.cars) {
+    const order = (st.order && st.order.length) ? st.order : Object.keys(st.cars).map(Number);
+    for (const i of order) { const e = st.cars[i]; if (!e) continue; const seat = st.seats && st.seats[i]; rows.push({ car: i, name: (seat && seat.name) || (st.bets && st.bets[i] && st.bets[i].nm) || SW_CARS[i].name, laps: e.n || 0, prog: e.prog || 0, last: e.last || 0, best: e.best || 0, fin: e.fin || 0, bet: 0, rdy: false }); }
+    for (let i = 0; i < 4; i++) if (st.cars[i] && !rows.some(r => r.car === i)) rows.push({ car: i, name: SW_CARS[i].name, laps: st.cars[i].n || 0, prog: st.cars[i].prog || 0, last: st.cars[i].last || 0, best: st.cars[i].best || 0, fin: st.cars[i].fin || 0, bet: 0, rdy: false });
+    return rows;
+  }
+  if (st.seats) for (let i = 0; i < 4; i++) { const s = st.seats[i]; if (s && s.pid) rows.push({ car: i, name: s.name || SW_CARS[i].name, laps: 0, prog: 0, last: 0, best: 0, fin: 0, bet: s.bet || 0, rdy: !!s.rdy }); }
+  return rows;
+}
+function drawSwRaceBoard(t) { /* the official standings board, painted under the lap counters in RACE mode only — referee-written data, identical pixels on every screen */
+  if (swRaceMode() !== "race") return;
+  const st = swRaceState; if (!st) return;
+  const rows = swRaceBoard();
+  ctx.save(); ctx.textAlign = "center"; ctx.lineJoin = "round";
+  if (st.phase === "bet") {
+    ctx.font = "800 26px 'Segoe UI',sans-serif"; ctx.lineWidth = 6; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.fillStyle = "#ffb37a";
+    const txt = rows.length ? "🏁 RACE — " + rows.length + " DRIVER" + (rows.length > 1 ? "S" : "") + " IN · FIRST TO " + SW_RACE_LAPS + " LAPS" : "🏁 RACE MODE — SIT IN A CAR TO RACE · FIRST TO " + SW_RACE_LAPS + " LAPS";
+    ctx.strokeText(txt, 1800, 1562); ctx.fillText(txt, 1800, 1562);
+    ctx.restore(); return;
+  }
+  if (!rows.length) { ctx.restore(); return; }
+  let y = 1546;
+  ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.lineWidth = 6; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.fillStyle = "#ffd76a";
+  const head = st.phase === "done" ? "🏁 FINAL STANDINGS" : "🏁 STANDINGS — FIRST TO " + SW_RACE_LAPS;
+  ctx.strokeText(head, 1800, y); ctx.fillText(head, 1800, y); y += 34;
+  ctx.font = "700 21px 'Segoe UI',sans-serif";
+  rows.forEach((r, p) => {
+    const parts = [(p + 1) + ".", SW_CARS[r.car].name, (r.name && r.name !== SW_CARS[r.car].name) ? "· " + r.name : "", r.laps + "/" + SW_RACE_LAPS + " LAPS", r.last ? "LAST " + r.last.toFixed(2) + "s" : "", r.best ? "BEST " + r.best.toFixed(2) + "s" : "", r.fin ? "🏁" : ""].filter(Boolean).join("  ");
+    ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.fillStyle = SW_CARS[r.car].col;
+    ctx.strokeText(parts, 1800, y); ctx.fillText(parts, 1800, y); y += 28;
+  });
+  ctx.restore();
+}
+function drawSwModePlate(t) { /* the mode plate, standing on the floor LEFT of the exit door: the track's shared mode read off the race record, over a pulsing floor ring that marks the prompt spot */
+  const race = swRaceMode() === "race";
+  const pulse = 0.5 + 0.5 * Math.sin((t || 0) / 420);
+  ctx.save(); ctx.textAlign = "center"; ctx.lineJoin = "round";
+  ctx.strokeStyle = race ? "rgba(255,140,40," + (0.35 + 0.3 * pulse).toFixed(3) + ")" : "rgba(120,200,255," + (0.3 + 0.25 * pulse).toFixed(3) + ")"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(SWMODE_SPOT.x, SWMODE_SPOT.y + 6, 58, 20, 0, 0, 7); ctx.stroke();
+  ctx.fillStyle = "#241610"; rr(SWMODE_SPOT.x - 5, SWMODE_SPOT.y - 64, 10, 58, 4); ctx.fill();
+  ctx.fillStyle = "#0a1428"; rr(SWMODE_SPOT.x - 118, SWMODE_SPOT.y - 118, 236, 58, 10); ctx.fill();
+  ctx.strokeStyle = race ? "#ff8c28" : "#56b6ff"; ctx.lineWidth = 3; rr(SWMODE_SPOT.x - 118, SWMODE_SPOT.y - 118, 236, 58, 10); ctx.stroke();
+  const fitPlateFont = (weight, size, txt) => { /* auto-fit: shrink the font until the line sits fully inside the plate border (plate 236 wide, 3px stroke — 212px of text leaves a clear margin) */
+    ctx.font = weight + " " + size + "px 'Segoe UI',sans-serif";
+    while (size > 9 && ctx.measureText(txt).width > 212) { size -= 0.5; ctx.font = weight + " " + size + "px 'Segoe UI',sans-serif"; }
+  };
+  const modeTxt = race ? "🏁 MODE: RACE" : "🏁 MODE: FREE DRIVE";
+  fitPlateFont("800", 24, modeTxt); ctx.fillStyle = race ? "#ffb37a" : "#a8d8ff";
+  ctx.fillText(modeTxt, SWMODE_SPOT.x, SWMODE_SPOT.y - 94);
+  const subTxt = "stand here · tap the button below to switch";
+  fitPlateFont("700", 15, subTxt); ctx.fillStyle = "rgba(255,233,200,0.75)";
+  ctx.fillText(subTxt, SWMODE_SPOT.x, SWMODE_SPOT.y - 72);
+  ctx.restore();
+}
+function syncSwRaceHud() { /* the RACE strip at the top of the screen: title + live status off the race record, fed at 10Hz; the bet panel rides inside it while I'm seated in the bet phase */
+  const hud = document.getElementById("swhud"); if (!hud) return;
+  const show = entered && me.scene === "speedway" && swRaceMode() === "race" && !!swRaceState;
+  hud.style.display = show ? "flex" : "none";
+  if (!show) return;
+  const st = swRaceState;
+  document.getElementById("swhudtitle").textContent = "🏁 RACE · FIRST TO " + SW_RACE_LAPS + " LAPS";
+  let status = "";
+  if (swRaceNote && Date.now() - swRaceNoteAt < 4500) status = swRaceNote;
+  else if (st.phase === "bet") { const rows = swRaceBoard(); status = rows.length ? rows.map(r => r.name + ((r.bet || 0) > 0 ? " 🪙" + r.bet : " — no bet") + (r.rdy ? " ✓READY" : "")).join(" · ") : "Sit in a car to join the race."; }
+  else if (st.phase === "count") status = "🏁 Race starting…";
+  else if (st.phase === "race") { const rows = swRaceBoard(); status = rows.map((r, p) => (p + 1) + ". " + SW_CARS[r.car].name + " " + r.laps + "/" + SW_RACE_LAPS).join(" · "); }
+  else if (st.phase === "done") { const rows = swRaceBoard(); const w = rows[0]; const pot = st.results && st.win >= 0 && st.results[st.win] ? (st.results[st.win].amt || 0) : 0; status = w ? "🏆 " + w.name + " WINS" + (pot ? " · pot 🪙 " + pot.toLocaleString("en-US") : "") + " — next race soon…" : "Race over."; }
+  document.getElementById("swhudstatus").textContent = status;
+  syncSwBet();
+}
+function syncSwBet() { /* the Trenches bet panel's shape on the race strip: the twelve casino amounts as chips, one match bet, READY under it once I've staked */
+  const panel = document.getElementById("swbet"); if (!panel) return;
+  const st = swRaceState;
+  const mine = swRaceSeat >= 0 ? swRaceSeatRec(swRaceSeat) : null;
+  const show = !!(st && st.phase === "bet" && mine && mine.pid === myId && acctUser);
+  panel.style.display = show ? "flex" : "none";
+  if (!show) return;
+  const betAmt = st.betAmt || 0, myBet = mine.bet || 0;
+  const othersStaked = swRaceFreshSeats().some(i => i !== swRaceSeat && (swRaceSeatRec(i).bet || 0) > 0);
+  document.getElementById("swbettitle").textContent = betAmt > 0 ? "🎰 MATCH BET — 🪙 " + betAmt.toLocaleString("en-US") : "🎰 MATCH BET — pick the amount";
+  document.getElementById("swbetstatus").textContent = myBet > 0 ? (mine.rdy ? "✓ READY — the race starts when everyone's ready" : "Tap READY when you're set") : (betAmt > 0 ? "Everyone stakes 🪙 " + betAmt.toLocaleString("en-US") : "First bet sets the amount for everyone");
+  const box = document.getElementById("swbetamts");
+  const sig = betAmt + "|" + myBet + "|" + othersStaked;
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig; box.innerHTML = "";
+    for (const a of TRBETS) {
+      const b = document.createElement("button"); b.className = "swamt" + (a === myBet ? " on" : "") + (betAmt > 0 && a !== betAmt && othersStaked ? " lock" : "");
+      b.textContent = "🪙 " + a.toLocaleString("en-US");
+      b.onclick = () => swRaceBet(a);
+      box.appendChild(b);
+    }
+  }
+  const rb = document.getElementById("swready");
+  rb.style.display = myBet > 0 ? "block" : "none";
+  rb.className = mine.rdy ? "on" : "";
+  rb.textContent = mine.rdy ? "✓ READY" : "READY";
+  rb.onclick = () => swRaceReady();
+}
+function syncSwCount() { /* the centre-screen 3-2-1 (Jonathan 2026-11-04): starting lights over a giant count, driven PURELY by the shared goTs on the server clock — the digit is a function of srvNow, so every screen shows the same number at the same instant; nobody's countdown can run ahead of anyone else's */
+  const el = document.getElementById("swcount"); if (!el) return;
+  const st = swRaceState;
+  let face = "";
+  if (entered && me.scene === "speedway" && st && st.mode === "race" && st.goTs) {
+    const remain = (st.goTs || 0) - srvNow();
+    if (st.phase === "count" && remain > 0) face = String(Math.max(1, Math.ceil(remain / 1000)));
+    else if ((st.phase === "count" || st.phase === "race") && remain <= 0 && remain > -750) face = "GO";
+  }
+  if (!face) { if (swCountShown) { el.style.display = "none"; swCountShown = ""; el.className = ""; } return; }
+  el.style.display = "flex";
+  el.className = face === "GO" ? "go" : "";
+  if (swCountShown !== face) {
+    swCountShown = face;
+    const num = document.getElementById("swcountnum");
+    num.textContent = face === "GO" ? "GO!" : face;
+    const lights = document.getElementById("swlights").children;
+    const lit = face === "GO" ? 3 : (4 - Number(face)); /* 3 lights the first lamp, 2 the second, 1 all three — then green for GO */
+    for (let i = 0; i < 3; i++) lights[i].className = "swl " + (face === "GO" ? "grn" : (i < lit ? "red" : ""));
+    num.style.transition = "none"; num.style.transform = "scale(1.18)";
+    requestAnimationFrame(() => { num.style.transition = "transform .45s ease-out"; num.style.transform = "scale(1)"; });
+    if (face === "GO") sfxChime(); else sfxClick();
   }
 }
 /* ============ inside the Quantum Speedway ============ */
@@ -3479,7 +3977,7 @@ function drawSwLapRow(t) {
   /* the lap counter (Jonathan 2026-10-29): one counter per car under the centrepiece — in the cars' staging order, each painted in its car's colour with the room's agreed lap count. Spread wide (270 apart, so even multi-digit counts never touch) and set low, centred in the green under the centrepiece — Jonathan's screenshot verdict 2026-10-29: the first row (190 spacing, y 1408) overlapped and sat too high. When a lap banks, THAT car's counter alone pops: for ~0.65s it swells and glows in its car's colour, then settles (swLapPulse, set by swLapCelebrate). */
   ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.lineJoin = "round";
   for (let i = 0; i < 4; i++) {
-    const n = i === myCar ? swLaps[i] : (swCarTarget(i).lap || 0);
+    const n = swRaceMode() === "race" ? (swLaps[i] || 0) : (i === myCar ? swLaps[i] : (swCarTarget(i).lap || 0)); /* RACE mode: EVERY counter on EVERY screen is the referee's official count from the race record (swLaps mirrors it) — the old per-screen disagreement is gone by construction */
     const label = SW_CARS[i].name + " " + n, lx = 1800 + (i - 1.5) * 270;
     const page = (t || 0) - swLapPulse[i], pop = page >= 0 && page < 650 ? Math.sin(page / 650 * Math.PI) : 0;
     if (pop > 0) { ctx.save(); ctx.shadowColor = SW_CARS[i].col; ctx.shadowBlur = Math.round(26 * pop); ctx.font = "800 " + Math.round(46 * (1 + 0.3 * pop)) + "px 'Segoe UI',sans-serif"; }
@@ -3562,8 +4060,7 @@ function drawSpeedway(t) {
   ctx.font = "800 40px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(255,196,120,0.9)";
   ctx.fillText("🏁 QUANTUM SPEEDWAY 🏁", 1800, 1092);
   drawSwLapRow(t); /* the lap counters ride right under the centrepiece, part of the same centre display */
-  ctx.font = "700 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,200,0.65)";
-  ctx.fillText("walk into a car to drive it — just for fun", 1800, 1330);
+  drawSwRaceBoard(t); /* RACE mode only: the official standings board under the lap counters — referee-written, identical on every screen */
   ctx.font = "800 30px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,196,120,0.9)";
   ctx.fillText("SPACE TO BOOST", 1800, SW_CY + SW_RO + 130); /* at the bottom of the field (Jonathan 2026-10-31): baseline 2130 = the track's outer bottom edge (2000) + 130 — on the open floor in the centre gap of the bottom bench row (the row splits around x 1800), clear of the benches' feet (2196) and the exit plate (2342). Shown at all times in the room */
   /* infield monitors — Daily Life racing feeds, one centred in each half of the grass (Jonathan 2026-10-29) */
@@ -3581,6 +4078,7 @@ function drawSpeedway(t) {
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(SWEXIT.x, SWEXIT.y, SWEXIT.w, SWEXIT.h, 8); ctx.stroke();
   ctx.font = "700 21px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a"; ctx.textAlign = "center";
   ctx.fillText("🚪 EXIT", SWEXIT.x + SWEXIT.w / 2, SWEXIT.y + 30);
+  drawSwModePlate(t); /* the mode plate stands LEFT of the exit door: it shows the track's shared mode (from the race record) and marks the spot where the bottom prompt button offers the switch */
   ctx.restore();
 }
 function drawGym(t) {
@@ -4050,7 +4548,7 @@ function writeClaims(seats, results, keyOf, label) {
    A player who DID tap READY is untouched by all of this: the round they
    agreed to settles exactly as before, win or lose. */
 let refundODArmed = {}; /* "game/idx" -> the claim key this connection currently has armed */
-function rfStateFor(game) { return game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : game === "hrr" ? hrrState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : game.indexOf("bowl") === 0 ? bowlStates[Number(game.slice(4)) - 1] : game === "trenches" ? trState : chStates[CHTABLES.indexOf(game)]; }
+function rfStateFor(game) { return game === "swrace" ? swRaceState : game === "bj" ? bjState : game === "rr" ? rrState : game === "hr" ? hrState : game === "bac" ? bacState : game === "cra" ? craState : game === "hbj" ? hbjState : game === "hrr" ? hrrState : game === "box" ? boxState : game.indexOf("ph") === 0 ? phStates[Number(game.slice(2)) - 1] : game.indexOf("bowl") === 0 ? bowlStates[Number(game.slice(4)) - 1] : game === "trenches" ? trState : chStates[CHTABLES.indexOf(game)]; }
 function rfKeyFor(game, st, i) {
   if (game === "bj") return "bj" + ((st && st.handId) || 0) + "-" + i + "rf";
   if (game === "hbj") return "hbj" + ((st && st.handId) || 0) + "-" + i + "rf"; /* the club blackjack's own key family — never the casino's "bj" */
@@ -5600,10 +6098,11 @@ promptBtn.onclick = () => { if (promptAction) promptAction(); };
    the west lawn: a giant shopping-center hall (4400x2800) holding all 30
    monster lines in glass display cases — 3 aisles of 10 — each monster
    standing in its own little living environment inside its case. Base forms
-   are bought by walking up to a case (500,000,000; the owner account buys
+   are bought by walking up to a case (100,000,000 — 500M at the opening,
+   cut at Jonathan's word 2026-11-04; the owner account buys
    free but is recorded, the bg store's rule). Evolutions happen at the
    TRAINING PEN at the hall's far (north) end, where Q-Bot charges
-   1,000,000,000 (stage 1→2) and 2,000,000,000 (stage 2→3) and plays a
+   500,000,000 (stage 1→2) and 1,000,000,000 (stage 2→3) and plays a
    Pokémon-style evolution animation — and the next stage is a BLACK
    SILHOUETTE everywhere until it is owned (the pen panel, the collection:
    no colour preview of an unowned stage anywhere, hard rule). Ownership
@@ -12291,6 +12790,96 @@ function drawMonShopDinoAt(st) { /* the Dino himself, painted from a computed st
   ctx.drawImage(img, -W / 2, -H + pad, W, H);
   ctx.restore();
 }
+/* ============ FUD MONSTERS (PREVIEW, Jonathan 2026-11-04 — "do the fud thing... on preview so i can see"): four FUD enemies live in the plaza, LOCAL to each visitor like the shop Dino — no presence writes, no server state, the presence record's shape untouched. Two wraiths and two mechs off his own two stickers. They stand MECH HEIGHT (216 — drawPlayer's mech height; his word: "make the fud same height as mechs") and walk with the mechs' own cycle (drawPlayer's bob formula at the mech's amplitude 20, facing flipping with travel). They WANDER their fields Q-Bot style (his word: "make their paths same as the q bot but keep the speed they walk") — a waypoint picked anywhere inside the field, an eased glide to it with the arrival slowdown, a pause, then a fresh waypoint — the speed (FUD_SPEED) and the smoothness never changed, only the route logic: no fixed loops. Their fields are OPEN GROUND AMONG THE TREES, never in front of a door (his word: "Put the fuds in open fields where trees are... never in front of doors etc.") — and NEVER IN FRONT OF A BUILDING AT ALL (his standing rule, set 2026-11-04 when he rejected wraith 1's one placement on Club Quantum's frontage in the strongest terms: "No FUD should ever go in front of a buiding like that"). Wraith 1 stands LEFT OF CLUB QUANTUM (his correction: "to the left of the fucking club") — the open ground west of the club's west wall, right above the bottom walkway where it runs on west past the club. The other three: mech 1 on the WEST MIDDLE LAWN between the Speedway branch walkway and Club Quantum (the tree at (430,1150)), wraith 2 on the EAST MIDDLE LAWN between the gym branch walkway and the Casino (the tree at (2770,1150)), mech 2 on the BOWLING NORTH LAWN between the bottom walkway and Quantum Bowling's roof (the trees at (3400,1890) and (4040,1890)). Walk up to one and the prompt offers DESTROY FUD; tapping it blows the monster up (sfxFudBoom + a particle burst) and it RESPAWNS inside its field ~30 seconds later, FORMING IN over ~1s (formP ramp: fade + swell off his feet) instead of popping into existence. The kill PAYS 1,000 chips through addChips, surfaced the transfer-note way (coin burst + "+🪙 1,000" riser on the player, exactly once per kill — the state guard is the lock) — SIGNED-IN PLAYERS ONLY (his word: "Dont show anything for signed out players for tokens. You can destroy the fud tho"): a guest's kill shows NO token show at all (no riser, no coin burst, no coin sound) and credits nothing anywhere; the destroy itself — prompt, explosion, respawn — is identical for everyone ============ */
+const FUD_IMG_URLS = {
+  wraith: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffud-wraith.webp?alt=media",
+  mech: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffud-mech.webp?alt=media"
+}; /* his two stickers, trimmed to their art and sized 384 tall — the wraith (the big purple hooded FUD wraith) and the mech (the chibi FUD mech), stored under hub-fud/ beside hub-heroes/ */
+const fudImgs = {};
+function fudImg(kind) { let im = fudImgs[kind]; if (!im) { im = new Image(); im.src = FUD_IMG_URLS[kind]; fudImgs[kind] = im; } return im; } /* the monImg pattern: lazy, cached, drawn only once whole */
+const FUD_FIELDS = [ /* each field is [x0, y0, x1, y1] — the ground a monster wanders, drawn from the plaza's own layout: all four fields sit on open ground among the trees, clear of every building front, path and door (Jonathan's standing rule, 2026-11-04: no FUD ever patrols in front of a building — wraith 1's one night on Club Quantum's frontage was his rejected misplacement, corrected to the open ground LEFT of the club; its entry below) */
+  { kind: "wraith", field: [-780, 1390, 110, 1470] }, /* wraith 1 — LEFT OF CLUB QUANTUM (Jonathan 2026-11-04, correcting the frontage placement in the strongest terms: "to the left of the fucking club" + "No FUD should ever go in front of a buiding like that"): the open ground WEST of the club, right above the path — the bottom walkway (y 1480..1640) runs the plaza's full width below the club and on west past it, and this field is the grass band on the walkway's north side at the club's own latitude, west of the club's west wall (CLUB.x 140; the field ends at x 110, 30px clear of the wall) and running west to 20px off the world's edge (−800). Its feet band (1390..1470) ends 10px above the path's north edge (1480). No building fronts it, no door opens onto it (the club door is on the club's south face at x 310..390, east of the wall and across the building from this ground) — open ground only, like every other field */
+  { kind: "mech", field: [180, 870, 820, 1160] }, /* mech 1 — the WEST MIDDLE LAWN: open grass around the tree at (430,1150), between the Speedway branch walkway (its south edge 830) and Club Quantum's roofline (1180). The club's door is on its BOTTOM face at the far side (y 1456) — nowhere near this lawn */
+  { kind: "wraith", field: [2400, 870, 3150, 1160] }, /* wraith 2 — the EAST MIDDLE LAWN: the west lawn's mirror — open grass around the tree at (2770,1150), between the gym branch walkway (830) and the Casino's roofline (1180). The casino's door is on its bottom face (y 1456) and the pool stands east of x 3300 — both well clear */
+  { kind: "mech", field: [3300, 1700, 4240, 1890] } /* mech 2 — the BOWLING NORTH LAWN: open grass around the trees at (3400,1890) and (4040,1890), between the bottom walkway (its south edge 1640) and Quantum Bowling's roofline (1920). The bowling door is on the building's BOTTOM face (y 2260) — the far side of the building from this lawn */
+];
+const FUD_SPEED = 60, FUD_REACH = 120, FUD_RESPAWN_MS = 30000, FUD_REWARD = 1000, FUD_FORM_MS = 1000; /* cruise pace (the shop Dino strolls at 52), how close a player must stand for the DESTROY FUD prompt, the respawn beat, the kill's pay (Jonathan 2026-11-04: destroying a FUD pays 1,000 chips), and the respawn's form-in beat — he eases back into the world over ~1s instead of popping in */
+function fudPick(F, first) { /* Q-Bot's habit: the next waypoint is ANYWHERE inside his field — picked fresh at every arrival, never a fixed loop. Candidates land off the field's very edges, and after the first pick a candidate must be a real walk away (140px+ when the field offers one), so he roams the whole field instead of shuffling in a corner */
+  const f = F.field, m = 26;
+  let bx = 0, by = 0, bd = -1;
+  for (let n = 0; n < 5; n++) {
+    const px = f[0] + m + Math.random() * Math.max(1, f[2] - f[0] - 2 * m), py = f[1] + m + Math.random() * Math.max(1, f[3] - f[1] - 2 * m);
+    if (first) { F.tx = px; F.ty = py; return; }
+    const d = Math.hypot(px - F.x, py - F.y);
+    if (d >= 140) { F.tx = px; F.ty = py; return; }
+    if (d > bd) { bd = d; bx = px; by = py; }
+  }
+  F.tx = bx; F.ty = by;
+}
+const FUDS = FUD_FIELDS.map((r, i) => { const F = { kind: r.kind, field: r.field, x: (r.field[0] + r.field[2]) / 2 + (i - 1.5) * 60, y: (r.field[1] + r.field[3]) / 2, tx: 0, ty: 0, vx: 0, vy: 0, flip: false, phase: i * 1.73, state: "patrol", pauseUntil: 0, respawnAt: 0, moving: false, formAt: 0, formP: 1 }; fudPick(F, true); return F; }); /* each monster starts near its field's centre with its first waypoint already picked */
+const fudFx = [];
+let fudLastT = 0;
+function fudUpdate(now) { /* the wander's one clock, run once per plaza frame: eased steering — velocity leans toward the waypoint heading, the heading's speed tapering inside the last 80px, so every stop is a glide, never a step. A destroyed monster waits out its respawn here and re-forms inside its field */
+  const dt = Math.min(0.05, fudLastT ? (now - fudLastT) / 1000 : 0.016); fudLastT = now;
+  for (const F of FUDS) {
+    if (F.state === "dead") { if (now >= F.respawnAt) { F.state = "patrol"; F.x = (F.field[0] + F.field[2]) / 2; F.y = (F.field[1] + F.field[3]) / 2; F.vx = 0; F.vy = 0; fudPick(F, true); F.pauseUntil = 0; F.formAt = now; F.formP = 0; } else continue; } /* the return is a FORM-IN, not a pop (Jonathan 2026-11-04): formP ramps 0→1 over FUD_FORM_MS and drawFudAt eases his alpha + scale off it — he re-forms at his field's centre with a fresh waypoint and wanders on */
+    F.formP = F.formAt ? Math.min(1, Math.max(0, (now - F.formAt) / FUD_FORM_MS)) : 1;
+    if (now < F.pauseUntil) { F.vx *= 0.8; F.vy *= 0.8; F.moving = false; continue; } /* Q-Bot's pause at a stop, the glide bleeding off */
+    const dx = F.tx - F.x, dy = F.ty - F.y, d = Math.hypot(dx, dy);
+    if (d < 7) { fudPick(F); F.pauseUntil = now + 800 + (F.phase * 397) % 900; F.moving = false; continue; } /* arrived: Q-Bot's beat — a pause at the stop, then a fresh waypoint picked anywhere in the field (fudPick) */
+    const slow = Math.max(0.22, Math.min(1, d / 80));
+    const k = Math.min(1, dt * 5);
+    F.vx += ((dx / d) * FUD_SPEED * slow - F.vx) * k; F.vy += ((dy / d) * FUD_SPEED * slow - F.vy) * k;
+    F.x += F.vx * dt; F.y += F.vy * dt;
+    F.moving = Math.hypot(F.vx, F.vy) > 7;
+    if (F.vx > 5) F.flip = true; else if (F.vx < -5) F.flip = false; /* a player's facing: flip rides travel, and holds when he slows */
+  }
+}
+function drawFudAt(F, now) { /* a FUD monster, painted from frame()'s actor pass like the shop Dino — y-sorted among the players by his feet, with the MECH forms' own sprite treatment: 216 tall (drawPlayer's mech height exactly — Jonathan 2026-11-04: "make the fud same height as mechs"), drawPlayer's walk bob at the MECH's amplitude (20) and the same idle sway, his shadow ellipse under him (its width rides W, so it scales with the form just like a mech's). No name plate: he is an enemy, not a person */
+  const img = fudImg(F.kind);
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const H = 216, W = H * (img.naturalWidth / img.naturalHeight); /* 216 = the mech height in drawPlayer (isMechHero ? 216 : 96) — the FUDs stand exactly as tall as a transformed mech, proportions off the art itself, anchored at the feet */
+  const bob = F.moving ? -Math.abs(Math.sin(now / 105 + F.phase)) * 20 : Math.sin(now / 620 + F.phase) * 1.4; /* the mech's bob amplitude (drawPlayer's bobAmp for mech heroes), the player's own cycle */
+  const fp = typeof F.formP === "number" ? F.formP : 1; /* the respawn form-in ramp (fudUpdate keeps it current): 0 the moment he re-forms, 1 when he's whole — at 1 every number below is the plain sprite this draw always was */
+  const fe = 1 - Math.pow(1 - fp, 3), fs = 0.55 + 0.45 * fe; /* ease-out: he swells up off his feet and fades in, landing soft — the scale starts at 0.55, never 0, so he grows in rather than blinking on */
+  ctx.save(); ctx.globalAlpha = fe; /* shadow and sprite fade together */
+  ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(F.x, F.y - 4, W * 0.36 * fs, 9 * fs, 0, 0, 7); ctx.fill();
+  ctx.translate(F.x, F.y); ctx.scale((F.flip ? -1 : 1) * fs, fs); ctx.translate(0, -H / 2 + bob);
+  ctx.drawImage(img, -W / 2, -H / 2, W, H);
+  ctx.restore();
+}
+function fudNear() { /* the nearest living FUD monster within prompt reach of my feet, or −1 — plaza only, and a destroyed one offers nothing */
+  if (me.scene !== "plaza") return -1;
+  let bi = -1, bd = FUD_REACH;
+  for (let i = 0; i < FUDS.length; i++) { const F = FUDS[i]; if (F.state !== "patrol") continue; const d = Math.hypot(me.x - F.x, me.y - F.y); if (d < bd) { bd = d; bi = i; } }
+  return bi;
+}
+function fudDestroy(i) { /* DESTROY FUD: the monster blows up where he stands — a particle burst at his chest, the explosion sound, and his respawn clock starts. Purely local, like everything about him */
+  const F = FUDS[i]; if (!F || F.state !== "patrol") return;
+  F.state = "dead"; F.respawnAt = performance.now() + FUD_RESPAWN_MS;
+  const parts = [];
+  for (let n = 0; n < 26; n++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 260; parts.push({ dx: Math.cos(a) * sp, dy: Math.sin(a) * sp - 60, r: 3 + Math.random() * 7, c: ["#ffd21f", "#ff9a3c", "#ff5e3c", "#e8f6ff"][n % 4] }); }
+  fudFx.push({ x: F.x, y: F.y - 100, t0: performance.now(), parts }); /* the burst sits at his chest — at mech height (216) that is −100, not the player-sized −44 he started at */
+  sfxFudBoom();
+  if (acctUser) { /* the kill PAYS (Jonathan 2026-11-04) — SIGNED-IN PLAYERS ONLY, the credit AND the whole token show alike (his word: "Dont show anything for signed out players for tokens. You can destroy the fud tho"). acctUser is the hub's own signed-in gate (null for a guest — the same check the staking code uses: "a guest holds no stake"). Inside it: 1,000 chips through addChips, the one balance path every win in the hub uses — my own profile rises and saveChips persists it on the spot to hub/users — surfaced the transfer-note way below. He flipped to "dead" at the top of this function, behind the patrol guard, so this block can only ever run ONCE per kill. A GUEST's kill runs none of it: no credit anywhere (no server account, and not even the device-local profile a guest's daily-bonus chips used to touch — addChips is simply never called), no "+🪙 1,000" riser, no coin burst, no coin sound. The explosion above and the 30s respawn are the guest's whole show, exactly as they are for everyone */
+    addChips(FUD_REWARD);
+    sfxCoin();
+    genBurst(me.x, me.y - 46, true); /* the plus-money show belongs to the PLAYER, the transfer-note way: the coin burst at my chest... */
+    genText(me.x, me.y - 104, "+🪙 " + FUD_REWARD.toLocaleString("en-US"), "#ffd76a"); /* ...and the gold riser over my head says exactly what landed */
+  }
+}
+function drawFudFx(now) { /* the explosion bursts, painted with the player fx over the sprites: a two-tone flash, a shock ring, and the embers thrown off it, all done inside ~0.8s */
+  for (let i = fudFx.length - 1; i >= 0; i--) {
+    const fx = fudFx[i], el = (now - fx.t0) / 780;
+    if (el >= 1) { fudFx.splice(i, 1); continue; }
+    const fade = 1 - el;
+    ctx.save(); ctx.globalAlpha = 0.55 * fade; ctx.fillStyle = "#ff7a1a"; ctx.beginPath(); ctx.arc(fx.x, fx.y, 36 + el * 144, 0, 7); ctx.fill(); /* the flash and ring are sized to the mech-height body he wears now (the player-sized radii ×2.25, the same factor as the sprite) */
+    ctx.globalAlpha = 0.9 * fade; ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(fx.x, fx.y, 22 + el * 90, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.8 * fade; ctx.strokeStyle = "#ffd21f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(fx.x, fx.y, 18 + el * 198, 0, 7); ctx.stroke();
+    for (const p of fx.parts) { ctx.globalAlpha = fade; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(fx.x + p.dx * el, fx.y + p.dy * el + 130 * el * el, Math.max(0.4, p.r * (1 - el * 0.6)), 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+}
 function drawPlaza(t) {
   t = decorT(t); /* decorT: at graphics 1/4 the plaza's ambient decor (fountains, chasing bulbs, building glows, tree sparkle, spawn atom, fall leaves) steps at ~15fps — players and sync are drawn elsewhere with real time */
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
@@ -13981,6 +14570,7 @@ function frame(now) {
   if (me.scene === "highrollers") actors.push({ id: "hrc-clerk", x: HRCTR.x + HRCTR.w + 34, y: HRCTR.y + HRCTR.h / 2 + 24, tx: HRCTR.x + HRCTR.w + 34, ty: HRCTR.y + HRCTR.h / 2 + 24, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* Q-Bot the CLERK (Jonathan 2026-11-01): the guards' third post — he stands BEHIND the service counter in the strip the DJ works from, centred on the counter BY EYE — anchored 24px BELOW its midpoint (y 1619, not 1595): the sprite anchors at its feet and draws upward, so at the exact midpoint he read as sitting high on the counter; the nudge is Jonathan's word (2026-11-01, "move Q bot down a bit so he looks more centered"). The over-clerk repaint clips from his own y, so its band follows the nudge and the counter front still overlaps his lower body exactly as before. Facing the room (flip true, like his casino twin at the right-wall door). Drawn through this same actor pass at the standard hero height; the pass repaints the counter's front over his lower body (drawHRCounterOverClerk) so he reads as staff behind the desk. Room furniture like his twins: NOT the live NPC, no presence record, never counted online, never speaks or moves */
   if (me.scene === "casino") actors.push({ id: "hrc-guard", x: CASINOROOM.w - 128, y: CASINODOORS_Y + 6, tx: CASINOROOM.w - 128, ty: CASINODOORS_Y + 6, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* the High Rollers door guard (Jonathan 2026-10-31): the club guard's twin at the casino's right-wall door — the same drawn Q-Bot figure (NOT the live NPC, who never moves for this), the same 128px-inset post mirrored beside his door, his carpet and ⭐ VIP lettering painted by drawCasino — with ONE difference: he faces the OTHER WAY (flip true; the club guard's is false). Room furniture like his twin: no presence record, never counted online, no speech bubble of his own */
   if (me.scene === "plaza") { const dst = monShopDinoState(decorT(now)); actors.push({ isDino: true, id: "monshop-dino", x: dst.x, y: dst.y, dst }); } /* the shop Dino joins the sort by his FEET (his state's y), exactly like a monster follower — the pass below paints him in y order among the players */
+  if (me.scene === "plaza") { fudUpdate(now); for (let fi = 0; fi < FUDS.length; fi++) { const F = FUDS[fi]; if (F.state === "patrol") actors.push({ isFud: true, id: "fud-" + fi, x: F.x, y: F.y, fud: F }); } } /* the FUD monsters (PREVIEW): their patrol clock ticks here, and the living ones join the same y-sort by their feet — a destroyed one simply isn't pushed, so he vanishes from the world until his respawn */
   if (me.scene === "monstershop") actors.push({ id: "monshop-qbot", x: MONQBOT.x, y: MONQBOT.y, tx: MONQBOT.x, ty: MONQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the TRAINING PEN's Q-Bot (PREVIEW): the guards' fourth post — he stands INSIDE the pen in the Monster Shop and works the evolutions (the Train prompt keys off his spot, MONQBOT). Room furniture like his twins: NOT the live NPC, no presence record, never counted online */
   /* the monster followers (PREVIEW): one pseudo-actor per player in the room whose monster is out — mine from my own pick while monOut is on, everyone else's from their presence mon field. They join the actors BEFORE the sort, so each follower layers with the room exactly like a player standing at its feet, and the loop's isMon branch paints them. Mine eases after me (monFol); a remote's rides a trailing offset behind its owner's smoothed position, opposite their facing */
   for (const a of actors) {
@@ -14053,6 +14643,7 @@ function frame(now) {
   for (const a of actors) {
     const isMe = a === me;
     if (a.isDino) { drawMonShopDinoAt(a.dst); continue; } /* the shop Dino: no name plate, no chat — just his sprite, layered by his feet among the players */
+    if (a.isFud) { drawFudAt(a.fud, now); continue; } /* a FUD monster (PREVIEW): sprite only, no name plate, no chat — he is an enemy, layered by his feet like everyone else */
     if (a.isMon) { drawMonFollower(a, now); continue; } /* a monster follower (PREVIEW): no name plate, no chat, no shadow ring of its own beyond its sprite's — it just trails its owner, facing the owner's way */
     if (me.scene === "speedway" && (isMe ? myCar >= 0 : swCarOfDriver(a.id) >= 0)) continue; /* drivers render inside their cars (drawn with the track, name tags included), never as loose sprites */
     const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
@@ -14084,12 +14675,15 @@ function frame(now) {
   }
   if (me.scene === "trenches") drawTrenchesOver(now); /* QUANTUM TRENCHES: the guns in team neon, health/armor bars, muzzle flashes, explosions and the countdown paint over the fighters, inside this same camera pass */
   drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
+  if (me.scene === "plaza") drawFudFx(now); /* the FUD explosions (PREVIEW) paint with the player fx, over the sprites, inside this same camera pass */
   drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
   ctx.restore();
   const cab = nearestCabinet();
   if (me.scene === "gym") { promptBtn.style.display = "none"; promptAction = null; }
-  else if (me.scene === "speedway" && myCar >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => stepOutOfCar(false); }
+  else if (me.scene === "speedway" && myCar >= 0) { promptBtn.style.display = "block"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => { if (swRaceMode() === "race" && swRaceSeat >= 0) swRaceStandUp(); else stepOutOfCar(false); }; } /* RACE mode: GET OUT is a race stand-up — the seat (and any stake's fate) follows the race rules in the race block */
+  else if (me.scene === "speedway" && swNearModeSpot()) { promptBtn.style.display = "block"; promptBtn.textContent = swRaceMode() === "race" ? "🏁 RACE — tap to switch" : "🏁 FREE DRIVE — tap to switch"; promptAction = () => swToggleMode(); } /* the MODE SWITCH (Jonathan 2026-11-04): the standard bottom prompt button — the same one used to buy stuff — offered ONLY at the plate spot left of the exit door, and only on foot (in a car, GET OUT owns the button; near cars nothing changes). The label names the CURRENT shared mode; tapping flips it for the whole track */
   else if (me.scene === "speedway") { promptBtn.style.display = "none"; promptAction = null; }
+  else if (me.scene === "plaza" && fudNear() >= 0) { const fi = fudNear(); promptBtn.style.display = "block"; promptBtn.textContent = "DESTROY FUD"; promptAction = () => fudDestroy(fi); } /* the FUD monsters (PREVIEW): stand close to a living one and the prompt offers the kill — the button says exactly DESTROY FUD (Jonathan 2026-11-04); it sits ahead of the cabinet branch, and the plaza has no cabinets to shadow */
   else if (cab) { promptBtn.style.display = "block"; promptBtn.textContent = "▶ PLAY " + cab.title; promptAction = () => playCabinet(cab); }
   else if (me.scene === "monstershop" && monNearQBot()) { promptBtn.style.display = "block"; promptBtn.textContent = "🏋️ Train with Q-Bot — Evolve"; promptAction = openMonPen; } /* the TRAINING PEN (PREVIEW): Q-Bot works the evolutions from his post inside the pen — the prompt exists only while standing at the fence by his post, the DJ pattern */
   else if (me.scene === "monstershop" && monNearCase() >= 0) { const mc = MONCASES[monNearCase()]; promptBtn.style.display = "block"; if (monEffStage(mc.line)) { promptBtn.textContent = "✓ " + monName(mc.line) + " — Owned"; promptAction = () => sfxClick(); } else { promptBtn.textContent = "🐾 Buy " + monName(mc.line) + " — 🪙 " + MON_BASE_PRICE.toLocaleString("en-US"); promptAction = () => monBuyBase(mc.line); } } /* walk-up buying (PREVIEW): stand at a case's front and the prompt offers that case's base form; an owned case just says so — owned reads the effective collection, so the owner's unlocked cases say so too */
