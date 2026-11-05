@@ -281,6 +281,10 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #banpanel .monpanel h2,#banpanel .monclose{flex:none}
 #banpanel .monlist{flex:1 1 auto;min-height:0}
 #banpanel #bannedlist{flex:0 1 36%}
+#banpanel .monlist{overflow-x:hidden} /* the roster NEVER scrolls sideways (Jonathan 2026-11-05 — his phone showed a horizontal scrollbar through the rows, the third button cut off): roster rows are two-line blocks and anything wide wraps instead */
+#banpanel .banrow{flex-wrap:wrap} /* line 1: online dot + name; line 2 (.banrowsub): the IP on the left, the buttons on the right — or the buttons wrapped onto their own line when they can't share it */
+#banpanel .banrowsub{flex:1 1 100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+#banpanel .banrowsub .banmeta{flex:0 1 auto;min-width:0}
 #clogpanel .monpanel{height:100%}
 #clogpanel .monpanel h2,#clogpanel .monclose{flex:none}
 #clogpanel .monlist{flex:1 1 auto;min-height:0}
@@ -7499,32 +7503,77 @@ function renderBanPanel() {
   if (!banOpen) return;
   const list = $("banlist"), status = $("banstatus"), blist = $("bannedlist"), bstatus = $("bannedstatus");
   if (!list || !status || !blist || !bstatus) return;
-  const rows = [];
-  if (profile || me.name) rows.push({ pid: myId, name: (me && me.name) || (profile && profile.name) || "You", acct: acctUser ? acctUser.uid : "", self: true });
-  for (const p of peers.values()) { if (!p || p.id === myId) continue; rows.push({ pid: p.id, name: p.name || "?", acct: p.acct || "", self: false }); }
-  rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  status.textContent = rows.length + (rows.length === 1 ? " online now" : " online now");
+  /* THE ROSTER (Jonathan 2026-11-05 — "show everyone, just like the activity
+     report"): the list is no longer just who's online. SECTION 1 is one line
+     per logged-out visitor the IP logger has recorded (hub/iplog records with
+     no acct — Ban IP is their only action, they have no account to ban); a pid
+     whose record carries an acct is NOT a guest line, it belongs to its
+     account. SECTION 2 is one line per account in hub/users, its IP taken
+     from the FRESHEST iplog record carrying that uid (no record -> "—" and
+     no IP actions). Online dots ride the same presence feed the balances
+     panel uses: a guest line is online when a fresh presence holds its pid,
+     an account line when a fresh presence carries its uid (or it's you).
+     Rows are TWO-LINE blocks (.banrow + .banrowsub): name and dot on line 1,
+     IP and buttons on line 2 — on his phone the one-line rows crammed the IP
+     over the name, cut the third button off and forced sideways scrolling. */
+  const onPids = new Set([myId]), onAccts = new Set();
+  for (const p of peers.values()) { if (!p) continue; if (p.id) onPids.add(p.id); if (p.acct) onAccts.add(p.acct); }
+  if (acctUser) onAccts.add(acctUser.uid);
+  const presName = {}; /* uid -> the in-world name a fresh presence shows for it (line 1 leads with it, the account name follows when they differ) */
+  for (const p of peers.values()) if (p && p.acct && p.name) presName[p.acct] = String(p.name);
+  if (acctUser && me && me.name) presName[acctUser.uid] = String(me.name);
+  const iplog = banIplogData || {};
+  const acctIp = {}; /* uid -> the freshest iplog record seen for it */
+  const guests = [];
+  for (const pid of Object.keys(iplog)) {
+    const rec = iplog[pid] || {};
+    const ts = Number(rec.ts) || 0, ip = rec.ip ? String(rec.ip) : "";
+    if (rec.acct) { const uid = String(rec.acct); if (!acctIp[uid] || ts > acctIp[uid].ts) acctIp[uid] = { ip: ip, ts: ts, pid: pid }; }
+    else guests.push({ pid: pid, name: rec.name ? String(rec.name) : "Guest", ip: ip, ts: ts });
+  }
+  guests.sort((a, b) => b.ts - a.ts); /* most recent visitor first */
+  const users = banUsersData || {};
+  const accts = [];
+  for (const uid of Object.keys(users)) {
+    const f = acctIp[uid] || null;
+    accts.push({ uid: uid, name: banAcctName(uid) || "Unknown player", ip: f ? f.ip : "", pid: f ? f.pid : "", ts: f ? f.ts : 0 });
+  }
+  accts.sort((a, b) => (b.ts - a.ts) || String(a.name).localeCompare(String(b.name))); /* most recently seen first; never-seen accounts last, by name */
+  status.textContent = "Everyone (" + (guests.length + accts.length) + ")";
   list.innerHTML = "";
-  for (const r of rows) {
-    const ipRec = (banIplogData && banIplogData[r.pid]) || null;
-    const ip = ipRec && ipRec.ip ? String(ipRec.ip) : "";
-    const acctNm = r.acct ? banAcctName(r.acct) : "";
-    const row = document.createElement("div"); row.className = "monrow";
+  const mkHead = txt => { const h = document.createElement("div"); h.className = "monbal"; h.style.margin = "4px 0 0"; h.textContent = txt; list.appendChild(h); };
+  const mkDot = on => { const d = document.createElement("span"); d.className = "baldot"; d.textContent = on ? "🟢" : "⚪"; return d; };
+  const mkBtn = (row, label, fn) => { const b = document.createElement("button"); b.type = "button"; b.className = "banbtn"; b.textContent = label; b.onclick = fn; row.appendChild(b); };
+  mkHead("Logged-out visitors (" + guests.length + ")");
+  for (const g of guests) {
+    const row = document.createElement("div"); row.className = "monrow banrow";
+    row.appendChild(mkDot(onPids.has(g.pid)));
     const nm = document.createElement("div"); nm.className = "monnm";
-    nm.textContent = r.name + (r.self ? " (you)" : "") + (acctNm && acctNm !== r.name ? " · " + acctNm : "");
+    nm.textContent = g.name + (g.pid === myId ? " (you)" : "");
     row.appendChild(nm);
-    const meta = document.createElement("span"); meta.className = "banmeta"; meta.textContent = ip || "—"; row.appendChild(meta);
-    const isOwnerRow = r.self || (r.acct && r.acct === QK_UID);
+    const sub = document.createElement("div"); sub.className = "banrowsub"; /* line 2: IP left, buttons right (wrapping under when tight) — never one crammed line */
+    const meta = document.createElement("span"); meta.className = "banmeta"; meta.textContent = (g.ip || "—") + (g.ts ? " · last seen " + clogFmtTime(g.ts) : ""); sub.appendChild(meta);
+    if (g.ip && g.pid !== myId) mkBtn(sub, "Ban IP", () => openBuyConfirm({ kind: "banip", key: escapeIpKey(g.ip), pid: g.pid, name: g.name }, "🚫 Ban IP?", g.name, 0, "Ban IP " + g.ip + " used by " + g.name));
+    row.appendChild(sub);
+    list.appendChild(row);
+  }
+  mkHead("Accounts (" + accts.length + ")");
+  for (const a of accts) {
+    const row = document.createElement("div"); row.className = "monrow banrow";
+    row.appendChild(mkDot(onAccts.has(a.uid)));
+    const nm = document.createElement("div"); nm.className = "monnm";
+    const pn = presName[a.uid] || "";
+    nm.textContent = (pn || a.name) + (pn && pn !== a.name ? " · " + a.name : "") + (acctUser && a.uid === acctUser.uid ? " (you)" : "");
+    row.appendChild(nm);
+    const sub = document.createElement("div"); sub.className = "banrowsub";
+    const meta = document.createElement("span"); meta.className = "banmeta"; meta.textContent = (a.ip || "—") + (a.ts ? " · last seen " + clogFmtTime(a.ts) : ""); sub.appendChild(meta);
+    const isOwnerRow = a.uid === QK_UID || (acctUser && a.uid === acctUser.uid); /* the owner's own line never offers a ban */
     if (!isOwnerRow) {
-      const mk = (label, kind) => { const b = document.createElement("button"); b.type = "button"; b.className = "banbtn"; b.textContent = label; b.onclick = () => {
-        if (kind === "banacct") openBuyConfirm({ kind: "banacct", uid: r.acct, name: r.name }, "🚫 Ban Account?", r.name, 0, "Ban the account of " + r.name + (acctNm ? " (" + acctNm + ")" : ""));
-        else if (kind === "banip") openBuyConfirm({ kind: "banip", key: escapeIpKey(ip), pid: r.pid, name: r.name }, "🚫 Ban IP?", r.name, 0, "Ban IP " + ip + " used by " + r.name);
-        else openBuyConfirm({ kind: "banboth", uid: r.acct, key: escapeIpKey(ip), pid: r.pid, name: r.name }, "🚫 Ban Account + IP?", r.name, 0, "Ban the account AND IP " + ip + " of " + r.name);
-      }; row.appendChild(b); };
-      if (r.acct) mk("Ban account", "banacct");
-      if (ip) mk("Ban IP", "banip");
-      if (r.acct && ip) mk("Ban both", "banboth");
+      mkBtn(sub, "Ban account", () => openBuyConfirm({ kind: "banacct", uid: a.uid, name: a.name }, "🚫 Ban Account?", a.name, 0, "Ban the account of " + a.name));
+      if (a.ip) mkBtn(sub, "Ban IP", () => openBuyConfirm({ kind: "banip", key: escapeIpKey(a.ip), pid: a.pid, name: a.name }, "🚫 Ban IP?", a.name, 0, "Ban IP " + a.ip + " used by " + a.name));
+      if (a.ip) mkBtn(sub, "Ban both", () => openBuyConfirm({ kind: "banboth", uid: a.uid, key: escapeIpKey(a.ip), pid: a.pid, name: a.name }, "🚫 Ban Account + IP?", a.name, 0, "Ban the account AND IP " + a.ip + " of " + a.name));
     }
+    row.appendChild(sub);
     list.appendChild(row);
   }
   const bans = banBansData || bansData || {};
