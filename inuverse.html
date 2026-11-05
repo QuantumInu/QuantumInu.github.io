@@ -7543,7 +7543,7 @@ function spawnEvoSparkles() {
 function startEvoAnim(line, from, to) {
   evoAnim = { line, from, to, t0: performance.now(), swapped: false, burst: false };
   evoLock = true;
-  const im = $("evoimg"); im.src = monImgSrc(line, from); im.style.filter = ""; im.style.transform = "";
+  const im = $("evoimg"); im.src = monImgSrc(line, from); im.style.filter = ""; im.style.transform = ""; im.style.objectViewBox = ""; /* the rod transform shares this img and can leave its Quantum crop on it — a monster always shows whole */
   $("evotext").textContent = "";
   const sp = $("evospark"); if (sp) sp.innerHTML = "";
   $("evooverlay").style.display = "flex";
@@ -13327,6 +13327,9 @@ const ROD_URL = t => "https://firebasestorage.googleapis.com/v0/b/quantum-inu-ga
 const fishImgCache = {}, rodImgCache = {};
 function fishImg(i) { let im = fishImgCache[i]; if (!im) { im = new Image(); im.src = FISH_URL(i); fishImgCache[i] = im; } return im; } /* the fudImg pattern: lazy, cached */
 function rodImg(t) { let im = rodImgCache[t]; if (!im) { im = new Image(); im.src = ROD_URL(t); rodImgCache[t] = im; } return im; }
+/* the QUANTUM ROD's real bounds inside its own picture (display-only source crop, Jonathan 2026-11-05): rod-06 is his supplied file used exactly as-is — a 1254×1254 square with the rod floating in the middle — while the other five rods are tight tall pictures, so wherever the WHOLE picture was fitted (the shop wall, the in-hand draw, the panel rows, the transform show) the Quantum rod itself came out small. Measured off the live file: the rod, its white outline and its glow span x 232..1156, y 67..1153 (alpha ≥ 8; everything outside that band is ≤7/255 encode noise), padded a few px here so nothing is ever clipped. Every presentation of tier 5 draws from this rect so the ROD gets the same fit the other rods get; the image file itself is never touched */
+const QROD_RECT = { x: 227, y: 62, w: 935, h: 1097 };
+const QROD_VIEWBOX = "inset(4.94% 7.34% 7.58% 18.10%)"; /* QROD_RECT restated as an object-view-box (percentages of the 1254×1254 picture, in top/right/bottom/left order) for the HTML <img> presentations of tier 5 */
 /* ---- the catch + the rod: session state, persisted on the account doc (accounts) or this device only (guests) ---- */
 let myFish = {}, myRod = 0;
 const FISH_LS = "hubfish-v1"; /* the guest catch's own localStorage key — separate from the profile on purpose: enterHub rebuilds the profile from its fixed fields every entry, so fish kept there would be wiped on every visit */
@@ -13396,10 +13399,14 @@ function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-
   $("catchpop").style.display = "flex";
 }
 function drawFishRod(wx, wy, flip, t, tier) { /* a rod in a hand (drawPlayer's hook for mine, the actor loop for a peer's — always BEFORE the owner's sprite so the rod stays BEHIND him in depth — Jonathan 2026-11-04, 21:15). ONLY the rod sprite is drawn (21:14, his word from his fishing screenshot: the cast/line animation and the bobber are GONE — a long line ran up from the rod; the sprite itself is exactly as it was). The sprite FLIPS with the facing (21:15, his explicit order for the rod): facing right is the art's own orientation, angled up to the right; facing left mirrors it horizontally. tier = the rod tier to draw; omitted means MY rod (the original call) — a peer's rod passes the tier off his hub/fishing record */
-  const im = rodImg(typeof tier === "number" ? tier : myRod); if (!im || !im.complete || !im.naturalWidth) return;
+  const tv = typeof tier === "number" ? tier : myRod;
+  const im = rodImg(tv); if (!im || !im.complete || !im.naturalWidth) return;
   const dir = flip ? 1 : -1, hx = wx + dir * 24, hy = wy - 48; /* the dir signs were INVERTED (fix, Jonathan 2026-11-04 21:56): drawPlayer's rule is flip=true faces RIGHT (the mirrored draw), so facing right takes the art as-is on the right hand (dir 1) and facing left mirrors it onto the left hand (dir −1) — as first written (flip ? −1 : 1) the rod pointed opposite his facing both ways */
-  const RH = 128, RW = RH * (im.naturalWidth / im.naturalHeight);
-  ctx.save(); ctx.translate(hx, hy); ctx.scale(dir, 1); ctx.rotate(0.30); ctx.drawImage(im, -RW / 2, -RH + 18, RW, RH); ctx.restore();
+  const RH = 128, RW = RH * (tv === 5 ? QROD_RECT.w / QROD_RECT.h : im.naturalWidth / im.naturalHeight); /* tier 5 measures off its real bounds (QROD_RECT), so the ROD stands the full 128 tall in hand like every other tier instead of ~113 inside its square picture's margins */
+  ctx.save(); ctx.translate(hx, hy); ctx.scale(dir, 1); ctx.rotate(0.30);
+  if (tv === 5) ctx.drawImage(im, QROD_RECT.x, QROD_RECT.y, QROD_RECT.w, QROD_RECT.h, -RW / 2, -RH + 18, RW, RH);
+  else ctx.drawImage(im, -RW / 2, -RH + 18, RW, RH);
+  ctx.restore();
 }
 /* ---- the Fish Inventory (a menu for everyone, under Monster Collection in the account box): every fish owned, stacked with its count, its worth shown. View-only — selling happens at the Fishing Shop ---- */
 function renderFishInv() {
@@ -13437,7 +13444,7 @@ function renderFishPanel() {
   const h2 = document.createElement("h3"); h2.textContent = "🎣 Rod upgrades"; h2.style.color = "#bffcff"; list.appendChild(h2);
   ROD_DEFS.forEach((r, t) => { if (t === 0) return;
     const row = document.createElement("div"); row.className = "fishrow";
-    const im = document.createElement("img"); im.src = ROD_URL(t); row.appendChild(im);
+    const im = document.createElement("img"); im.src = ROD_URL(t); if (t === 5) im.style.objectViewBox = QROD_VIEWBOX; row.appendChild(im); /* the Quantum row wears the QROD source crop, so its rod fills the 52px box like the other rods instead of floating small inside its square picture */
     const mid = document.createElement("div"); const nm = document.createElement("div"); nm.className = "fname"; nm.textContent = r.name;
     const wv = document.createElement("div"); wv.className = "fworth";
     if (myRod >= t) wv.textContent = "✓ Owned"; else if (t === myRod + 1) wv.textContent = "🪙 " + r.price.toLocaleString("en-US"); else wv.textContent = "🔒 Buy the " + ROD_DEFS[t - 1].name + " first";
@@ -13495,7 +13502,7 @@ function rodBuy(tier) { /* the confirmed purchase — the monster buy's discipli
 let rodAnim = null;
 function startRodAnim(from, to) {
   rodAnim = { from: from, to: to, t0: performance.now(), swapped: false, burst: false };
-  const im = $("evoimg"); im.src = ROD_URL(from); im.style.filter = ""; im.style.transform = "";
+  const im = $("evoimg"); im.src = ROD_URL(from); im.style.filter = ""; im.style.transform = ""; im.style.objectViewBox = from === 5 ? QROD_VIEWBOX : ""; /* the shared show img: the Quantum rod shows cropped to its real bounds (QROD_RECT), any other tier shows its whole picture */
   $("evotext").textContent = "";
   const sp = $("evospark"); if (sp) sp.innerHTML = "";
   $("evooverlay").style.display = "flex";
@@ -13506,7 +13513,7 @@ function rodAnimTick() { /* THE EVOLUTION'S OWN CLOCK, phase for phase (Jonathan
   if (!rodAnim) return;
   const a = rodAnim, el = performance.now() - a.t0, im = $("evoimg");
   if (el < 2400) { const p = el / 2400; const jx = (Math.random() - 0.5) * (4 + p * 16), jy = (Math.random() - 0.5) * (4 + p * 10); const white = Math.floor(el / Math.max(55, 270 - p * 215)) % 2 === 0; im.style.filter = white ? "brightness(0) invert(1)" : ""; im.style.transform = "translate(" + jx.toFixed(1) + "px," + jy.toFixed(1) + "px)"; requestAnimationFrame(rodAnimTick); }
-  else if (el < 3300) { if (!a.swapped) { a.swapped = true; im.src = ROD_URL(a.to); } const p = (el - 2400) / 900; im.style.filter = "brightness(0)"; im.style.transform = "scale(" + (1 + p * 0.18).toFixed(3) + ")"; requestAnimationFrame(rodAnimTick); }
+  else if (el < 3300) { if (!a.swapped) { a.swapped = true; im.src = ROD_URL(a.to); im.style.objectViewBox = a.to === 5 ? QROD_VIEWBOX : ""; } const p = (el - 2400) / 900; im.style.filter = "brightness(0)"; im.style.transform = "scale(" + (1 + p * 0.18).toFixed(3) + ")"; requestAnimationFrame(rodAnimTick); }
   else if (el < 5600) { if (!a.burst) { a.burst = true; im.style.filter = ""; im.style.transform = "scale(1.18)"; $("evotext").textContent = "🎉 Your rod transformed into the " + ROD_DEFS[a.to].name + "!"; spawnEvoSparkles(); sfxEvoReveal(); } requestAnimationFrame(rodAnimTick); }
   else endRodAnim();
 }
@@ -13966,7 +13973,7 @@ function drawFishShop(t) {
   for (let ti = 0; ti < 6; ti++) { const im = rodImg(ti); const rx = 330 + ti * 348, ry = 108;
     ctx.fillStyle = "#000000"; rr(rx - 62, ry - 8, 124, 96, 8); ctx.fill(); /* the rod squares' backgrounds are BLACK (Jonathan 2026-11-04 21:26 — from his screenshot of the rod wall): the pale glass fill came out, the panels are solid black now; the blue stroke stays */
     ctx.strokeStyle = "rgba(42,127,212,0.4)"; ctx.lineWidth = 1.5; rr(rx - 62, ry - 8, 124, 96, 8); ctx.stroke();
-    if (im && im.complete && im.naturalWidth) { const sc = Math.min(96 / im.naturalWidth, 58 / im.naturalHeight), rw = im.naturalWidth * sc, rh = im.naturalHeight * sc; ctx.drawImage(im, rx - rw / 2, ry + 28 - rh / 2, rw, rh); } /* fit-to-panel, shrunk: the rod's whole art — shaft, line and lure — inside the panel's upper box, its bottom at most ry+57 = y 165 */
+    if (im && im.complete && im.naturalWidth) { if (ti === 5) { const sc = Math.min(96 / QROD_RECT.w, 58 / QROD_RECT.h), rw = QROD_RECT.w * sc, rh = QROD_RECT.h * sc; ctx.drawImage(im, QROD_RECT.x, QROD_RECT.y, QROD_RECT.w, QROD_RECT.h, rx - rw / 2, ry + 28 - rh / 2, rw, rh); } else { const sc = Math.min(96 / im.naturalWidth, 58 / im.naturalHeight), rw = im.naturalWidth * sc, rh = im.naturalHeight * sc; ctx.drawImage(im, rx - rw / 2, ry + 28 - rh / 2, rw, rh); } } /* fit-to-panel, shrunk: the rod's whole art — shaft, line and lure — inside the panel's upper box, its bottom at most ry+57 = y 165; tier 5 fits its REAL bounds (QROD_RECT) instead of its whole square picture, so the rod itself lands the same size as its neighbours */
     ctx.font = "700 14px 'Segoe UI',sans-serif"; ctx.fillStyle = myRod >= ti ? "#1d9e57" : "#5a84ad"; ctx.textAlign = "center";
     ctx.fillText(ti === 0 ? "Basic" : ROD_DEFS[ti].name.replace(" Rod", ""), rx, ry + 82);
   }
