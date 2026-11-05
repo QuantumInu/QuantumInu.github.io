@@ -254,7 +254,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #jukeclose{margin-top:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #monbtn{position:absolute;left:18px;bottom:202px;width:84px;height:84px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:var(--cyan);touch-action:none;-webkit-user-select:none;user-select:none} /* the M button (PREVIEW): above the move stick, aligned LEFT, the run button's exact size — it exists only while a follower pick is set */
 #monbtn.on{background:rgba(56,225,255,.45);border-color:var(--gold)}
-#moncoll,#monpen,#actpanel,#balpanel{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like every other menu (Jonathan 2026-11-01); z 45 puts the collection over the gate it opens from */
+#moncoll,#monpen,#actpanel,#balpanel,#banpanel,#clogpanel{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like every other menu (Jonathan 2026-11-01); z 45 puts the collection over the gate it opens from */
 .monpanel{background:var(--panel);border:2px solid rgba(74,222,128,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(74,222,128,.28)}
 .monpanel h2{margin:0 0 2px;font-size:21px;color:#4ade80;text-align:center}
 .monbal{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
@@ -277,6 +277,20 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #balpanel #balmain{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 #balpanel #balmain .monbal{flex:none}
 #balpanel .monlist{flex:1 1 auto;min-height:0}
+#banpanel .monpanel{height:100%}
+#banpanel .monpanel h2,#banpanel .monclose{flex:none}
+#banpanel .monlist{flex:1 1 auto;min-height:0}
+#banpanel #bannedlist{flex:0 1 36%}
+#clogpanel .monpanel{height:100%}
+#clogpanel .monpanel h2,#clogpanel .monclose{flex:none}
+#clogpanel .monlist{flex:1 1 auto;min-height:0}
+#clogfilter{width:100%;box-sizing:border-box;background:rgba(5,10,24,.7);border:2px solid rgba(74,222,128,.4);border-radius:12px;color:#fff;font-size:15px;padding:10px 12px;font-family:inherit;margin:6px 0 8px}
+.banbtn{flex:none;background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;color:#fff;font-weight:800;border-radius:999px;padding:8px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.banbtn:active{transform:scale(.96)}
+.banmeta{flex:none;color:#9fd8ea;font-size:12.5px}
+.clogmeta{flex:none;color:#9fd8ea;font-size:12.5px;white-space:nowrap}
+#bannedoverlay{position:fixed;inset:0;background:rgba(2,6,18,.92);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:95}
+#bannedoverlay .bannedtxt{font-size:28px;font-weight:800;color:#fff;text-align:center;padding:0 16px}
 .baldot{flex:none;font-size:11px}
 .balbal{flex:none;color:var(--gold);font-weight:700;font-size:14px}
 .balsend{flex:none;background:linear-gradient(135deg,#4ade80,#16a34a);border:none;color:#06280f;font-weight:800;border-radius:999px;padding:8px 14px;font-size:13.5px;cursor:pointer;font-family:inherit}
@@ -476,6 +490,12 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
         <div class="acctrow" id="balrow" style="margin-top:8px;display:none">
           <button id="balbtn" type="button">🪙 Player Balances</button>
         </div>
+        <div class="acctrow" id="banrow" style="margin-top:8px;display:none">
+          <button id="banbtn" type="button">🚫 Ban</button>
+        </div>
+        <div class="acctrow" id="clogrow" style="margin-top:8px;display:none">
+          <button id="clogbtn" type="button">💬 Chat Log</button>
+        </div>
         <div class="acctrow" id="mechresetrow" style="margin-top:8px;display:none">
           <button id="mechresetbtn" type="button">🤖 Reset Mechs</button>
         </div>
@@ -545,6 +565,21 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   </div>
   <button class="monclose" id="balclose" type="button">Close</button>
 </div></div>
+<div id="banpanel"><div class="monpanel">
+  <h2>🚫 Ban Players</h2>
+  <p class="monbal" id="banstatus">Loading…</p>
+  <div class="monlist" id="banlist"></div>
+  <p class="monbal" id="bannedstatus">Banned</p>
+  <div class="monlist" id="bannedlist"></div>
+  <button class="monclose" id="banclose" type="button">Close</button>
+</div></div>
+<div id="clogpanel"><div class="monpanel">
+  <h2>💬 Chat Log</h2>
+  <select id="clogfilter"><option value="">All rooms</option></select>
+  <p class="monbal" id="clogstatus">Loading…</p>
+  <div class="monlist" id="cloglist"></div>
+  <button class="monclose" id="clogclose" type="button">Close</button>
+</div></div>
 <div id="monpen"><div class="monpanel">
   <h2>🏋️ Training Pen — Q-Bot</h2>
   <p class="monbal" id="monpenbal"></p>
@@ -552,6 +587,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <p class="monmsg" id="monpenmsg"></p>
   <button class="monclose" id="monpenclose" type="button">Close</button>
 </div></div>
+<div id="bannedoverlay"><div class="bannedtxt">🚫 You are banned from the Quantum Inuverse</div></div>
 <div id="evooverlay"><div id="evospark"></div><img id="evoimg" alt=""><div id="evotext"></div></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -1032,6 +1068,9 @@ $("mutebtn").onclick = () => {
 };
 /* ============ presence (Firebase Realtime Database) ============ */
 let db = null, myRef = null, connected = false;
+let myIp = "", bansRef = null, bansWatchDb = null, bansData = null, banEntryBusy = false;
+let banOpen = false, banUsersRef = null, banUsersData = null, banIplogRef = null, banIplogData = null, banBansRef = null, banBansData = null, banTick = null;
+let clogOpen = false, clogRef = null, clogData = null;
 let srvOff = 0; /* Firebase server clock minus this device's clock (kept fresh by the .info/serverTimeOffset listener below). srvNow() puts this device on the SERVER timeline, so a shared instant stamped by one player — a roulette spin's start above all — is measured identically by every player, however their own clock is set. The old habit of stamping with one device's raw Date.now() and measuring with another's mixed two clocks: that was the roulette ball that never spun for some players (see drawRouletteTable). */
 function srvNow() { return Date.now() + srvOff; }
 let myId = localStorage.getItem("quantum-hub-session");
@@ -1068,6 +1107,7 @@ try {
     if (typeof voiceGateApply === "function") voiceGateApply(); /* voice (Jonathan 2026-11-04): a peer's scene may have just changed — hearing follows the scene gate (see the voice block) */
   });
 } catch (e) { setStatus("● Offline", "off"); }
+banWatchAttach(); /* BAN (2026-11-05): the live bans listener attaches once after db init (stored ref + db-identity guard in banWatchAttach) */
 let lastPub = 0, lastPubKey = "", onlineTxtAt = 0;
 function publish(force) {
   if (!db || !entered) return;
@@ -2058,7 +2098,7 @@ function releaseTabLock() {
 }
 window.addEventListener("beforeunload", releaseTabLock);
 window.addEventListener("pagehide", e => { if (!e.persisted) releaseTabLock(); });
-function enterHub() {
+function enterHubInner() {
   const raw = nameIn.value.trim(); if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return;
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
@@ -2326,7 +2366,9 @@ function acctUi() {
     out.style.display = "none"; inn.style.display = "block";
     $("acctwho").textContent = "✅ Signed in as " + (acctUser.email || "") + " — your name, hero and chips save to your account.";
     const ar = $("actrow"); if (ar) ar.style.display = isOwnerAcct() ? "flex" : "none"; /* the Activity Report row under Monster Collection: the owner's account ONLY — every other account (and every guest) never sees it */
-    const br = $("balrow"); if (br) br.style.display = isOwnerAcct() ? "flex" : "none"; /* the Player Balances row directly under Activity Report: the same owner-only gate */
+    const br = $("balrow"); if (br) br.style.display = isOwnerAcct() ? "flex" : "none";
+    const bnr = $("banrow"); if (bnr) bnr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Ban row directly under Player Balances: the same owner-only gate */
+    const clr = $("clogrow"); if (clr) clr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Chat Log row directly under Ban: the same owner-only gate */ /* the Player Balances row directly under Activity Report: the same owner-only gate */
     const mr = $("mechresetrow"); if (mr) mr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Mechs row directly under Player Balances (Jonathan 2026-11-04): the same owner-only gate — it clears ONLY his own mech unlocks */
     const sr = $("spdresetrow"); if (sr) sr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Speed row directly under Reset Mechs (Jonathan 2026-11-04): the Reset Mechs pattern exactly — the owner's account ONLY, and it clears ONLY his own Crystal Room speed tier */
     const qr = $("qkctlrow"); if (qr) qr.style.display = isOwnerAcct() ? "flex" : "none"; /* the one-tap sign-in controls under the Activity Report row: the same owner-only gate */
@@ -2425,6 +2467,7 @@ function initAuth() {
           claimSession(); watchChips(); watchTransfers();
         } else if (!d) { acctLoaded = true; acctChipsOnServer = false; acctSave(); claimSession(); watchChips(); watchTransfers(); } /* first sign-in on this account: push this device's profile up as the starting point — no record at all, so no chips field either: the first save heals (creates at 1000, then lands) */
         /* a server profile that can't be applied is left exactly as it is — a sign-in NEVER overwrites the account with this device's local defaults */
+        banWatchAttach(); banCheckAfterAuth(u); /* BAN (2026-11-05): with the real uid now known, re-POST the iplog check (so the iplog record gains the acct) and once-read this account's ban; if banned and already entered, eject */
       } catch (e) {}
     }
   });
@@ -6549,9 +6592,9 @@ function buyConfirmPriceTxt(price) { return isOwnerAcct() ? "FREE — your accou
 function openBuyConfirm(pend, title, name, price, priceTxt) { buyConfirmPend = pend; $("buyconftitle").textContent = title; $("buyconfname").textContent = name; $("buyconfprice").textContent = priceTxt || buyConfirmPriceTxt(price); $("buyconfirm").style.display = "flex"; sfxClick(); } /* priceTxt is an optional VERBATIM price line, for the one caller that is not a purchase: a fish SALE passes its exact credit ("🪙 +30,000") — a sale must never wear the buy line, least of all the owner's FREE line */
 function closeBuyConfirm() { buyConfirmPend = null; const el = $("buyconfirm"); if (el) el.style.display = "none"; }
 function confirmBuy() { const p = buyConfirmPend; if (!p) return; closeBuyConfirm(); /* spend the pending FIRST: the popup is closed before the purchase runs, so a second tap finds nothing left to confirm */
-  if (p.kind === "mon") monBuyBase(p.line); else if (p.kind === "rod") rodBuy(p.tier); else if (p.kind === "speed") spdBuy(p.tier); else if (p.kind === "sell") fishSellGo(p.idx, p.count); else mechBuy(p.id); }
+  if (p.kind === "mon") monBuyBase(p.line); else if (p.kind === "rod") rodBuy(p.tier); else if (p.kind === "speed") spdBuy(p.tier); else if (p.kind === "sell") fishSellGo(p.idx, p.count); else if (p.kind === "banacct") banWriteAcct(p); else if (p.kind === "banip") banWriteIp(p); else if (p.kind === "banboth") { banWriteAcct(p); banWriteIp(p); } else if (p.kind === "unbanacct") banRemoveAcct(p); else if (p.kind === "unbanip") banRemoveIp(p); else mechBuy(p.id); }
 function cancelBuyConfirm() { if (!buyConfirmPend) return; closeBuyConfirm(); sfxClick(); }
-function buyConfirmStillNear() { const p = buyConfirmPend; if (!p) return false; if (p.kind === "rod") return me.scene === "fishshop" && fishNearCounter(); if (p.kind === "sell") return me.scene === "fishshop" && fishNearCounter(); if (p.kind === "speed") return me.scene === "crystal" && spdNearCrystal(); /* walk away from the counter (or from the Quantum Crystal) and the pending confirmation dismisses itself — uncharged, unsold */ if (p.kind === "mon") { const ci = monNearCase(); return me.scene === "monstershop" && ci >= 0 && MONCASES[ci].line === p.line; } const di = mechNearDisp(); return me.scene === "mechshop" && di >= 0 && MKSLOTS[di].design && MKSLOTS[di].design.id === p.id; }
+function buyConfirmStillNear() { const p = buyConfirmPend; if (!p) return false; if (p.kind === "banacct" || p.kind === "banip" || p.kind === "banboth" || p.kind === "unbanacct" || p.kind === "unbanip") return true; /* BAN confirms are panel actions, not walk-up purchases: no nearness test ever dismisses them */ if (p.kind === "rod") return me.scene === "fishshop" && fishNearCounter(); if (p.kind === "sell") return me.scene === "fishshop" && fishNearCounter(); if (p.kind === "speed") return me.scene === "crystal" && spdNearCrystal(); /* walk away from the counter (or from the Quantum Crystal) and the pending confirmation dismisses itself — uncharged, unsold */ if (p.kind === "mon") { const ci = monNearCase(); return me.scene === "monstershop" && ci >= 0 && MONCASES[ci].line === p.line; } const di = mechNearDisp(); return me.scene === "mechshop" && di >= 0 && MKSLOTS[di].design && MKSLOTS[di].design.id === p.id; }
 function monBuyAsk(line) { /* the case prompt's new first step: owned cases never reach here (the prompt says Owned instead), guests get the refusal note and no popup — everyone else confirms first */
   if (monEffStage(line)) return;
   if (!acctUser) { monSay("🔒 Buying takes an account — guests can look."); sfxBad(); return; }
@@ -7265,7 +7308,7 @@ function renderMonColl() {
     list.appendChild(row);
   }
 }
-function openMonColl() { closeChatLog(); closeBalPanel(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
+function openMonColl() { closeChatLog(); closeBalPanel(); closeBanPanel(); closeClogPanel(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
 function closeMonColl() { $("moncoll").style.display = "none"; sfxClick(); }
 /* ---- ACTIVITY REPORT (owner-only, 2026-11-03): the droplet watcher (qi-hub-activity.service) turns account presence into login sessions and writes them to the Firestore `activity` collection; the database rules let ONLY the owner's account read that collection, and the button that opens this panel — under Monster Collection in the account menu — is only ever shown to the owner's account (see acctUi). Per-person totals up top, recent sessions below; every time is America/New_York. ---- */
 function actFmtDur(mins) { const m = Math.round(mins || 0); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? (h + " h " + r + " min") : (h + " h"); }
@@ -7306,7 +7349,7 @@ async function actLoad() {
     renderActReport(sessions);
   } catch (e) { status.textContent = "⚠️ Couldn't load the activity report — try again in a bit."; }
 }
-function openActPanel() { if (!isOwnerAcct()) return; closeChatLog(); closeMonColl(); closeBalPanel(); $("actpanel").style.display = "flex"; sfxClick(); actLoad(); }
+function openActPanel() { if (!isOwnerAcct()) return; closeChatLog(); closeMonColl(); closeBalPanel(); closeBanPanel(); closeClogPanel(); $("actpanel").style.display = "flex"; sfxClick(); actLoad(); }
 function closeActPanel() { $("actpanel").style.display = "none"; sfxClick(); }
 /* ---- PLAYER BALANCES (owner-only, 2026-11-03): a button under Activity Report in the account menu (owner's account ONLY, same isOwnerAcct gate) opens a panel listing EVERY account in hub/users with its live balance and who's online right now — an account counts as online when a live presence record carries its uid (the same peers feed the world runs on), and his own row always counts as online. The RTDB rules carry one extra read grant so the owner's account, and only his, can read the whole hub/users node; every other account still reads only its own record. The Send button sits on every row (his choice: anyone, online or not) and opens an amount box; confirming writes the SAME gift note a normal player send writes under hub/transfers/<their uid> ({amt, from: his name, ts}) and debits NOTHING — the tokens are created, not taken out of his balance. The recipient's own client does everything else exactly like a player send (watchTransfers): the credit, the coin sound, the burst, the "+🪙" text and the chat line — online players get it on the spot, offline players collect it with the same show the next time they sign in. One note can carry at most the transfer rules' amt cap. ---- */
 const BAL_CAP = 10000000000; /* the hub/transfers amt validate cap: a single gift note can carry at most this much — send again for more */
@@ -7335,7 +7378,7 @@ function renderBalPanel() {
 }
 function openBalPanel() {
   if (!isOwnerAcct() || !acctUser || !db) return;
-  closeChatLog(); closeMonColl(); closeActPanel();
+  closeChatLog(); closeMonColl(); closeActPanel(); closeBanPanel(); closeClogPanel();
   balShowList();
   $("balpanel").style.display = "flex"; sfxClick();
   $("balstatus").textContent = "Loading…"; $("ballist").innerHTML = "";
@@ -7350,6 +7393,234 @@ function closeBalPanel() {
   if (balTick) { clearInterval(balTick); balTick = null; }
   balData = null;
   const el = $("balpanel"); if (el) el.style.display = "none";
+}
+/* ================= BAN SYSTEM + OWNER CHAT LOG (2026-11-05) =================
+   Owner-only. Ban enforcement: an iplog check endpoint (POST
+   https://voice.quantuminuofficial.com/iplog/check {pid,name,acct} ->
+   {ip,banned}) at entry and after sign-in, a direct hub/bans read as the
+   fallback, and ONE live hub/bans listener that ejects on a matching ban.
+   Ban data: hub/bans/accounts/<uid> = {name, ts};
+   hub/bans/ips/<key> = {name, pid, ts} with the key's '.' -> ',' and
+   ':' -> ';'. Presence records are FIELD-LOCKED and gain NO field here.
+   The owner (isOwnerAcct(), or the QK_UID account) is exempt everywhere. */
+function banIsExempt() { return isOwnerAcct() || !!(acctUser && acctUser.uid === QK_UID); }
+function escapeIpKey(ip) { return String(ip == null ? "" : ip).replace(/\./g, ",").replace(/:/g, ";"); }
+function unescapeIpKey(key) { return String(key == null ? "" : key).replace(/;/g, ":").replace(/,/g, "."); }
+function showBannedScreen() { const el = $("bannedoverlay"); if (el) el.style.display = "flex"; }
+async function banPostCheck(nm, acctUid) {
+  try {
+    const opts = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pid: myId, name: nm || "", acct: acctUid || "" }) };
+    let resp;
+    if (typeof AbortController !== "undefined") {
+      const ctl = new AbortController(); opts.signal = ctl.signal;
+      const to = setTimeout(() => { try { ctl.abort(); } catch (e) {} }, 4000);
+      try { resp = await fetch("https://voice.quantuminuofficial.com/iplog/check", opts); } finally { clearTimeout(to); }
+    } else resp = await fetch("https://voice.quantuminuofficial.com/iplog/check", opts);
+    if (!resp || !resp.ok) return null;
+    const j = await resp.json(); if (!j) return null;
+    if (j.ip) myIp = String(j.ip);
+    return j;
+  } catch (e) { return null; }
+}
+function banWatchAttach() {
+  if (!db) return;
+  if (bansRef && bansWatchDb === db) return; /* attaches once per db handle */
+  if (bansRef) { try { bansRef.off(); } catch (e) {} bansRef = null; }
+  bansWatchDb = db;
+  try {
+    bansRef = db.ref("hub/bans");
+    bansRef.on("value", snap => { bansData = (snap && snap.val()) || {}; banEnforceLive(); if (banOpen) renderBanPanel(); });
+  } catch (e) { bansRef = null; bansWatchDb = null; }
+}
+function banEnforceLive() {
+  if (banIsExempt()) return;
+  const v = bansData; if (!v) return;
+  if (acctUser && v.accounts && v.accounts[acctUser.uid]) { banEject(); return; }
+  if (myIp && v.ips && v.ips[escapeIpKey(myIp)]) banEject();
+}
+function banEject() {
+  if (banIsExempt()) return;
+  if (myRef) { try { myRef.remove(); } catch (e) {} try { myRef.onDisconnect().cancel(); } catch (e) {} }
+  entered = false;
+  try { closeBuyConfirm(); } catch (e) {}
+  try { closeBalPanel(); } catch (e) {}
+  try { closeActPanel(); } catch (e) {}
+  try { closeMonColl(); } catch (e) {}
+  try { closeChatLog(); } catch (e) {}
+  closeBanPanel(); closeClogPanel();
+  for (const id of ["monpen", "fishinv", "fishpanel", "store", "jukebox", "onlinelist", "sendtok", "vipquiz", "catchpop"]) { const el = $(id); if (el) el.style.display = "none"; }
+  if (gate) gate.style.display = "none";
+  showBannedScreen();
+}
+function banEntryPrecheck() { /* enterHubInner's own early validations, mirrored: entry only reaches the ban check when it would otherwise proceed to the claim/profile stage */
+  const raw = nameIn.value.trim();
+  if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return false;
+  if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return false;
+  if (nameBlocked(raw) && !isOwnerAcct()) return false;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return false;
+  return true;
+}
+async function enterHub() { /* the entry wrapper (2026-11-05): the ban check runs after enterHubInner's validations and BEFORE its profile rebuild / entered=true / publish(true); the non-banned path is enterHubInner exactly as before */
+  if (banEntryBusy) return;
+  if (banIsExempt() || !banEntryPrecheck()) { enterHubInner(); return; }
+  banEntryBusy = true;
+  try {
+    const nm = nameIn.value.trim();
+    let banned = false;
+    const j = await banPostCheck(nm, acctUser ? acctUser.uid : "");
+    if (j && j.banned) banned = true;
+    if (!banned && db) { /* fail-open on the endpoint, never on the direct read: a banned:false (or a failed POST) still faces hub/bans itself */
+      try {
+        const snap = await db.ref("hub/bans").once("value");
+        const v = snap ? snap.val() : null;
+        if (v) { bansData = v; if (acctUser && v.accounts && v.accounts[acctUser.uid]) banned = true; else if (myIp && v.ips && v.ips[escapeIpKey(myIp)]) banned = true; }
+      } catch (e) {}
+    }
+    banWatchAttach();
+    if (banned) { showBannedScreen(); return; } /* abort entry entirely: no presence, and the gate stays hidden behind the banned screen */
+    enterHubInner();
+  } finally { banEntryBusy = false; }
+}
+async function banCheckAfterAuth(u) { /* post-sign-in (2026-11-05): the entry check may have run as a guest — with the real uid, re-POST (the iplog record gains the acct) and once-read this account's ban; a banned, already-entered player is ejected */
+  if (!u || banIsExempt()) return;
+  let banned = false;
+  const j = await banPostCheck((profile && profile.name) || "", u.uid);
+  if (j && j.banned) banned = true;
+  if (!banned && db) { try { const s = await db.ref("hub/bans/accounts/" + u.uid).once("value"); if (s && s.val()) banned = true; } catch (e) {} }
+  banWatchAttach();
+  if (banned && entered) banEject();
+}
+function banWriteAcct(p) { if (!db || !p.uid) return; try { db.ref("hub/bans/accounts/" + p.uid).set({ name: p.name, ts: firebase.database.ServerValue.TIMESTAMP }); } catch (e) {} }
+function banWriteIp(p) { if (!db || !p.key) return; try { db.ref("hub/bans/ips/" + p.key).set({ name: p.name, pid: p.pid, ts: firebase.database.ServerValue.TIMESTAMP }); } catch (e) {} }
+function banRemoveAcct(p) { if (!db || !p.uid) return; try { db.ref("hub/bans/accounts/" + p.uid).remove(); } catch (e) {} }
+function banRemoveIp(p) { if (!db || !p.key) return; try { db.ref("hub/bans/ips/" + p.key).remove(); } catch (e) {} }
+function banAcctName(uid) { const r = (banUsersData && banUsersData[uid]) || null; if (!r) return ""; return String(r.name || "").trim() || (r.email ? String(r.email).split("@")[0] : "") || "Unknown player"; }
+function renderBanPanel() {
+  if (!banOpen) return;
+  const list = $("banlist"), status = $("banstatus"), blist = $("bannedlist"), bstatus = $("bannedstatus");
+  if (!list || !status || !blist || !bstatus) return;
+  const rows = [];
+  if (profile || me.name) rows.push({ pid: myId, name: (me && me.name) || (profile && profile.name) || "You", acct: acctUser ? acctUser.uid : "", self: true });
+  for (const p of peers.values()) { if (!p || p.id === myId) continue; rows.push({ pid: p.id, name: p.name || "?", acct: p.acct || "", self: false }); }
+  rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  status.textContent = rows.length + (rows.length === 1 ? " online now" : " online now");
+  list.innerHTML = "";
+  for (const r of rows) {
+    const ipRec = (banIplogData && banIplogData[r.pid]) || null;
+    const ip = ipRec && ipRec.ip ? String(ipRec.ip) : "";
+    const acctNm = r.acct ? banAcctName(r.acct) : "";
+    const row = document.createElement("div"); row.className = "monrow";
+    const nm = document.createElement("div"); nm.className = "monnm";
+    nm.textContent = r.name + (r.self ? " (you)" : "") + (acctNm && acctNm !== r.name ? " · " + acctNm : "");
+    row.appendChild(nm);
+    const meta = document.createElement("span"); meta.className = "banmeta"; meta.textContent = ip || "—"; row.appendChild(meta);
+    const isOwnerRow = r.self || (r.acct && r.acct === QK_UID);
+    if (!isOwnerRow) {
+      const mk = (label, kind) => { const b = document.createElement("button"); b.type = "button"; b.className = "banbtn"; b.textContent = label; b.onclick = () => {
+        if (kind === "banacct") openBuyConfirm({ kind: "banacct", uid: r.acct, name: r.name }, "🚫 Ban Account?", r.name, 0, "Ban the account of " + r.name + (acctNm ? " (" + acctNm + ")" : ""));
+        else if (kind === "banip") openBuyConfirm({ kind: "banip", key: escapeIpKey(ip), pid: r.pid, name: r.name }, "🚫 Ban IP?", r.name, 0, "Ban IP " + ip + " used by " + r.name);
+        else openBuyConfirm({ kind: "banboth", uid: r.acct, key: escapeIpKey(ip), pid: r.pid, name: r.name }, "🚫 Ban Account + IP?", r.name, 0, "Ban the account AND IP " + ip + " of " + r.name);
+      }; row.appendChild(b); };
+      if (r.acct) mk("Ban account", "banacct");
+      if (ip) mk("Ban IP", "banip");
+      if (r.acct && ip) mk("Ban both", "banboth");
+    }
+    list.appendChild(row);
+  }
+  const bans = banBansData || bansData || {};
+  const bRows = [];
+  const accs = bans.accounts || {}, ips = bans.ips || {};
+  for (const uid of Object.keys(accs)) bRows.push({ kind: "unbanacct", uid: uid, label: ((accs[uid] && accs[uid].name) || "Unknown player") + " · acct " + uid.slice(0, 8) + "…", name: (accs[uid] && accs[uid].name) || "Unknown player" });
+  for (const key of Object.keys(ips)) bRows.push({ kind: "unbanip", key: key, label: unescapeIpKey(key) + " · " + (((ips[key] || {}).name) || ""), name: ((ips[key] || {}).name) || unescapeIpKey(key) });
+  bstatus.textContent = "Banned (" + bRows.length + ")";
+  blist.innerHTML = "";
+  for (const br of bRows) {
+    const row = document.createElement("div"); row.className = "monrow";
+    const nm = document.createElement("div"); nm.className = "monnm"; nm.textContent = br.label; row.appendChild(nm);
+    const b = document.createElement("button"); b.type = "button"; b.className = "banbtn"; b.textContent = "Unban";
+    b.onclick = () => openBuyConfirm(br.kind === "unbanacct" ? { kind: "unbanacct", uid: br.uid, name: br.name } : { kind: "unbanip", key: br.key, name: br.name }, "✅ Unban?", br.name, 0, "Remove the ban on " + br.label);
+    row.appendChild(b);
+    blist.appendChild(row);
+  }
+}
+function openBanPanel() {
+  if (!isOwnerAcct() || !db) return;
+  closeChatLog(); closeMonColl(); closeActPanel(); closeBalPanel(); closeClogPanel();
+  banOpen = true;
+  $("banpanel").style.display = "flex"; sfxClick();
+  $("banstatus").textContent = "Loading…"; $("banlist").innerHTML = "";
+  banWatchAttach();
+  if (banUsersRef) { try { banUsersRef.off(); } catch (e) {} banUsersRef = null; }
+  banUsersRef = db.ref("hub/users"); banUsersRef.on("value", snap => { banUsersData = snap.val() || {}; if (banOpen) renderBanPanel(); });
+  if (banIplogRef) { try { banIplogRef.off(); } catch (e) {} banIplogRef = null; }
+  banIplogRef = db.ref("hub/iplog"); banIplogRef.on("value", snap => { banIplogData = snap.val() || {}; if (banOpen) renderBanPanel(); });
+  if (banBansRef) { try { banBansRef.off(); } catch (e) {} banBansRef = null; }
+  banBansRef = db.ref("hub/bans"); banBansRef.on("value", snap => { banBansData = snap.val() || {}; if (banOpen) renderBanPanel(); });
+  if (banTick) clearInterval(banTick);
+  banTick = setInterval(() => { if (banOpen) renderBanPanel(); }, 5000); /* the online rows follow the live presence feed, like the balances panel's dots */
+  renderBanPanel();
+}
+function closeBanPanel() {
+  banOpen = false;
+  if (banUsersRef) { try { banUsersRef.off(); } catch (e) {} banUsersRef = null; }
+  if (banIplogRef) { try { banIplogRef.off(); } catch (e) {} banIplogRef = null; }
+  if (banBansRef) { try { banBansRef.off(); } catch (e) {} banBansRef = null; }
+  if (banTick) { clearInterval(banTick); banTick = null; }
+  banUsersData = null; banIplogData = null; banBansData = null;
+  const el = $("banpanel"); if (el) el.style.display = "none";
+}
+/* ---- OWNER CHAT LOG (2026-11-05): reads the SERVER-side per-room logs at
+   hub/tables/chatlog/<scene> (records {name, text, ts} — saveChatMessage's
+   shape) across ALL rooms. This is the owner's admin view ONLY: the
+   player-facing session log and its strict-witness behaviour are untouched. */
+function clogFmtTime(ts) {
+  const d = new Date(Number(ts) || 0);
+  const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(d);
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "numeric", day: "numeric" }).format(d);
+  const today = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "numeric", day: "numeric" }).format(new Date());
+  if (day === today) return clock;
+  return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" }).format(d) + " " + clock;
+}
+function renderClogPanel() {
+  if (!clogOpen) return;
+  const list = $("cloglist"), status = $("clogstatus"), filter = $("clogfilter");
+  if (!list || !status || !filter) return;
+  const data = clogData || {};
+  const rooms = Object.keys(data).filter(r => data[r] && typeof data[r] === "object" && Object.keys(data[r]).length);
+  const cur = filter.value;
+  filter.innerHTML = "";
+  const all = document.createElement("option"); all.value = ""; all.textContent = "All rooms"; filter.appendChild(all);
+  for (const r of rooms.sort()) { const o = document.createElement("option"); o.value = r; o.textContent = onlineRoomName(r); filter.appendChild(o); }
+  filter.value = rooms.includes(cur) ? cur : "";
+  const msgs = [];
+  for (const room of rooms) { if (filter.value && room !== filter.value) continue; for (const k of Object.keys(data[room])) { const v = data[room][k] || {}; msgs.push({ room: room, name: String(v.name || "?"), text: String(v.text || ""), ts: Number(v.ts) || 0 }); } }
+  msgs.sort((a, b) => b.ts - a.ts);
+  const shown = msgs.slice(0, 300);
+  status.textContent = msgs.length + (msgs.length === 1 ? " message" : " messages") + (filter.value ? " in " + onlineRoomName(filter.value) : " across all rooms");
+  list.innerHTML = "";
+  for (const m of shown) {
+    const row = document.createElement("div"); row.className = "monrow";
+    const meta = document.createElement("span"); meta.className = "clogmeta"; meta.textContent = onlineRoomName(m.room) + " · " + clogFmtTime(m.ts); row.appendChild(meta);
+    const nm = document.createElement("div"); nm.className = "monnm"; nm.textContent = m.name + ": " + m.text; row.appendChild(nm);
+    list.appendChild(row);
+  }
+  if (!shown.length) status.textContent = "No saved messages yet.";
+}
+function openClogPanel() {
+  if (!isOwnerAcct() || !db) return;
+  closeChatLog(); closeMonColl(); closeActPanel(); closeBalPanel(); closeBanPanel();
+  clogOpen = true;
+  $("clogpanel").style.display = "flex"; sfxClick();
+  $("clogstatus").textContent = "Loading…"; $("cloglist").innerHTML = "";
+  if (clogRef) { try { clogRef.off(); } catch (e) {} clogRef = null; }
+  clogRef = db.ref("hub/tables/chatlog"); clogRef.on("value", snap => { clogData = snap.val() || {}; if (clogOpen) renderClogPanel(); });
+  renderClogPanel();
+}
+function closeClogPanel() {
+  clogOpen = false;
+  if (clogRef) { try { clogRef.off(); } catch (e) {} clogRef = null; }
+  clogData = null;
+  const el = $("clogpanel"); if (el) el.style.display = "none";
 }
 function openBalSend(uid, name) {
   balSendUid = uid; balSendName = name;
@@ -7610,6 +7881,11 @@ $("qkbtn").onclick = () => qkSignIn();
 qkSyncRow(); /* first paint: the one-tap button appears at once on a device that holds a key, before auth has even resolved (persistence is NONE, so this visit starts signed out regardless) */
 $("actclose").onclick = () => closeActPanel();
 $("balbtn").onclick = () => openBalPanel();
+$("banbtn").onclick = () => openBanPanel();
+$("clogbtn").onclick = () => openClogPanel();
+$("banclose").onclick = () => { closeBanPanel(); sfxClick(); };
+$("clogclose").onclick = () => { closeClogPanel(); sfxClick(); };
+$("clogfilter").onchange = () => renderClogPanel();
 let mechResetArmUntil = 0;
 $("mechresetbtn").onclick = () => { /* RESET MECHS (owner-only, Jonathan 2026-11-04): clears the OWNER's own unlocked mech set back to none — the picker M's disappear and the shop sells to him again. His account only: the row never renders for anyone else, and the write goes to his own doc's mechs field and nowhere else. Two taps, because it is destructive and its neighbours are all single-tap openers: the first tap arms the button for four seconds, the second does it */
   if (!isOwnerAcct() || !acctUser) return;
@@ -14102,23 +14378,22 @@ function fudBoomFx(F, silent) { /* the explosion itself, in one place: a particl
   fudFx.push({ x: F.x, y: F.y - 100, t0: performance.now(), parts });
   if (!silent) sfxFudBoom();
 }
-function fudDestroy(i) { /* DESTROY FUD — SHARED now (owner ruling, 2026-11-04): the monsters are ONE shared monster per field for the whole server (see the shared block after drawFudFx). If MY client drives them, the kill lands on the spot through fudApplyBoom and publishes; if another client drives, I file a kill request on the shared record and the driver lands it there — the boom comes back through the record and pays me in fudOnRec. Offline (no db), the local path is the whole story, exactly as he always was */
+function fudDestroy(i) { /* DESTROY FUD — REFEREE (2026-11-05): the monsters are the server referee's now. With a database, EVERY client only files the kill on the record and the referee lands it — the boom comes back through the record and pays the killer in fudOnRec; there is no local-driver shortcut any more. Offline (no db), the local path is the whole story, exactly as he always was */
   const F = FUDS[i]; if (!F || F.state !== "patrol") return;
-  if (fudAmDriver || !db) { fudApplyBoom(i, myId, null, !!acctUser); return; }
+  if (!db) { fudApplyBoom(i, myId, null, !!acctUser); return; }
   const id = "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   try { db.ref("hub/tables/fud/kill").set({ i: i, by: myId, id: id, at: srvNow() }); } catch (e) {}
 }
-function fudApplyBoom(i, byPid, boomId, paid) { /* a kill LANDING — run by the DRIVER's client (for its own kills and for filed kill requests alike): the monster dies here, once, and the driver publishes the boom so he dies on every screen at the same moment. The payout discipline is unchanged (his standing word, 2026-11-04): SIGNED-IN PLAYERS ONLY — the credit AND the whole token show alike; a guest's kill shows NO token show at all (no riser, no coin burst, no coin sound) and credits nothing anywhere, while the destroy itself — prompt, explosion, respawn — is identical for everyone. The token show now has two seats, by the sharing ruling: the KILLER gets the transfer-note show at their own chest (credit + "+🪙 1,000" riser + coin burst + coin sound, exactly once — the seen/paid sets are the lock), and every OTHER watcher gets the explosion plus the money burst at the MONSTER. When the killer is a guest, paid is false and there is no money burst anywhere — the guest rule stands over the spectacle */
+function fudApplyBoom(i, byPid, boomId, paid) { /* a kill LANDING on the OFFLINE path (no database) — the monster dies here, once, locally. With a database this function never runs: the referee lands kills and the boom arrives through the record (fudOnRec). The payout discipline is unchanged (his standing word, 2026-11-04): SIGNED-IN PLAYERS ONLY — the credit AND the whole token show alike; a guest's kill shows NO token show at all (no riser, no coin burst, no coin sound) and credits nothing anywhere, while the destroy itself — prompt, explosion, respawn — is identical for everyone. The token show now has two seats, by the sharing ruling: the KILLER gets the transfer-note show at their own chest (credit + "+🪙 1,000" riser + coin burst + coin sound, exactly once — the seen/paid sets are the lock), and every OTHER watcher gets the explosion plus the money burst at the MONSTER. When the killer is a guest, paid is false and there is no money burst anywhere — the guest rule stands over the spectacle */
   const F = FUDS[i]; if (!F || F.state !== "patrol") return;
   F.state = "dead"; F.respawnAt = performance.now() + FUD_RESPAWN_MS;
   const id = boomId || ("b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   fudSeenBooms.add(id); /* my own boom echo through the record must not burst twice */
-  fudBoomFx(F, byPid !== myId); /* on the driver's screen a FILED kill by another player lands here: the picture plays, the boom sound doesn't (his 22:40 rule — sound is the killer's alone); my own kills keep the sound */
+  fudBoomFx(F, byPid !== myId); /* the picture plays; the boom SOUND is the killer's alone (his 22:40 rule) — offline the killer is always me, so the sound plays */
   if (byPid === myId) {
     fudPaidBooms.add(id);
     if (acctUser) { addChips(FUD_REWARD); sfxCoin(); genBurst(me.x, me.y - 46, true); genText(me.x, me.y - 104, "+🪙 " + FUD_REWARD.toLocaleString("en-US"), "#ffd76a"); }
   } else if (paid) genBurst(F.x, F.y - 100, true); /* another player's paid kill, watched from the driver's screen: the money burst at the monster */
-  if (fudAmDriver && db) { fudBoomPend = { i: i, by: byPid, id: id, at: srvNow(), paid: paid ? 1 : 0 }; fudKillClear = true; fudPublish(true); }
 }
 function drawFudFx(now) { /* the explosion bursts, painted with the player fx over the sprites: a two-tone flash, a shock ring, and the embers thrown off it, all done inside ~0.8s */
   for (let i = fudFx.length - 1; i >= 0; i--) {
@@ -14132,52 +14407,19 @@ function drawFudFx(now) { /* the explosion bursts, painted with the player fx ov
     ctx.restore();
   }
 }
-/* ============ FUD MONSTERS — SHARED (owner ruling, 2026-11-04): the monsters stop being local to each visitor and become ONE shared monster per field for the whole server — same spawn, same wander, same death, same respawn, on every screen at the same moment. The state lives at hub/tables/fud — inside the tables node the RTDB rules already open, the Speedway race record's own home: NO rules change, and the presence record's shape is untouched. One client DRIVES (the Speedway referee's pattern): the lowest-pid fresh presence in the PLAZA holds the whistle, runs the very same wander simulation in FUDS that the monsters always ran, and publishes positions/states at frame cadence; every other client eases its FUDS toward the record, the peers' own smoothing. A kill filed by a non-driver lands when the driver applies it and publishes the boom; the boom carries who killed it and whether it paid, and every watcher plays the explosion (plus the money burst at the monster when it paid) while the 1,000 chips go ONLY to the killer, through addChips, exactly once. The respawn (30s) and the 1s form-in ride the record's server timestamps, so they land together everywhere. If nobody is in the plaza the monsters simply rest in the record; the next driver seeds from it. With no database at all, everything falls back to the original local behaviour ============ */
-let fudRec = null; /* the shared record's last snapshot { drv, m: {0..2}, boom, kill } — three monsters since wraith 1's removal (2026-11-04) */
-let fudAmDriver = false; /* true while MY client holds the whistle */
-let fudPubAt = 0, fudBoomPend = null, fudKillClear = false;
-const fudSeenBooms = new Set(), fudPaidBooms = new Set(), fudKillSeen = new Set();
+/* ============ FUD MONSTERS — SHARED, SERVER REFEREE (owner ruling, 2026-11-05): the monsters are ONE shared monster per field for the whole server — same spawn, same wander, same death, same respawn, on every screen at the same moment. The state lives at hub/tables/fud — inside the tables node the RTDB rules already open: NO rules change, and the presence record's shape is untouched. The DRIVER is now a server referee on the droplet (its claim rides the record's drv, pid "fud-referee"): it runs the wander simulation, lands filed kills, and publishes positions/states/booms at frame cadence. CLIENTS ARE FOLLOWERS ONLY: they ease their FUDS onto the record (the peers' own smoothing), play booms off it, and file kills at hub/tables/fud/kill — no client ever writes positions, drv or booms, and no client elects or seizes the whistle. The boom carries who killed it and whether it paid: every watcher plays the explosion (plus the money burst at the monster when it paid) while the 1,000 chips go ONLY to the killer, through addChips on the killer's own client, exactly once (the seen/paid sets are the lock). The respawn (30s) and the 1s form-in ride the record's server timestamps, so they land together everywhere. If nobody is in the plaza the monsters simply rest in the record. With no database at all, everything falls back to the original local behaviour ============ */
+let fudRec = null; /* the shared record's last snapshot { drv, m: {0..2}, boom, kill } — three monsters since wraith 1's removal (2026-11-04); drv is the server referee's claim and clients never write it */
+const fudSeenBooms = new Set(), fudPaidBooms = new Set();
 let fudBoomBaseDone = false; /* the entry baseline (Jonathan 2026-11-04 22:29 — "don't play the pending FUD destruction sounds and effects when you load into the plaza"): the first record snapshot a fresh client receives still carries the LAST kill's boom, and an empty seen-set made that history replay as a fresh explosion on entry. The first snapshot now baselines whatever boom it holds as seen — silently, no fx, no burst, no payout — and only booms landing after it play */
-function fudPidSignedIn(pid) { for (const p of peers.values()) if (p.id === pid) return !!p.acct; return pid === myId ? !!acctUser : false; } /* whether a killer's kill PAYS (and so shows the money burst) — read off their presence acct, the record the room already keeps; the payout itself never trusts this, it is the killer's own client that credits them */
-function fudPublish(force) { /* the driver mirrors FUDS into the record: positions rounded (the presence record's own economy), facing/moving as flags, dead monsters carrying their respawn moment and forming ones their form start — both as SERVER times, so every screen agrees on them */
-  if (!db || !fudAmDriver) return;
-  const now = performance.now(); if (!force && now - fudPubAt < 150) return; fudPubAt = now;
-  const sn = srvNow(), m = {};
-  FUDS.forEach((F, i) => { m[i] = { x: Math.round(F.x), y: Math.round(F.y), fl: F.flip ? 1 : 0, mv: F.moving ? 1 : 0, st: F.state, ra: F.state === "dead" ? sn + Math.max(0, F.respawnAt - now) : 0, fa: F.formAt ? sn - (now - F.formAt) : 0 }; });
-  const u = { m: m, drv: { pid: myId, ts: sn } };
-  if (fudBoomPend) { u.boom = fudBoomPend; fudBoomPend = null; }
-  if (fudKillClear) { u.kill = null; fudKillClear = false; }
-  try { db.ref("hub/tables/fud").update(u); } catch (e) {}
+let fudWatchDb = null, fudWatchRef = null;
+function fudWatchAttach() { /* the record listener — attached once per db handle (the banWatchAttach pattern) and re-checked from fudFrameTick: clients only ever READ this record; the server referee is the only writer of its positions, drv and booms */
+  if (!db) return;
+  if (fudWatchRef && fudWatchDb === db) return;
+  if (fudWatchRef) { try { fudWatchRef.off(); } catch (e) {} fudWatchRef = null; }
+  fudWatchDb = db;
+  try { fudWatchRef = db.ref("hub/tables/fud"); fudWatchRef.on("value", snap => { fudRec = snap.val(); fudOnRec(); }); } catch (e) { fudWatchRef = null; fudWatchDb = null; }
 }
-function fudSeedFromRec() { /* a new driver continues from the record, the Speedway referee's seed: positions, death clocks and form-ins convert from server time onto my clocks, so no monster jumps, double-dies or loses its respawn */
-  const rec = fudRec; if (!rec || !rec.m) return;
-  const sn = srvNow(), now = performance.now();
-  FUDS.forEach((F, i) => { const e = rec.m[i]; if (!e) return;
-    F.x = e.x; F.y = e.y; F.flip = !!e.fl; F.moving = !!e.mv;
-    if (e.st === "dead") { F.state = "dead"; F.respawnAt = now + Math.max(0, (e.ra || 0) - sn); }
-    else { F.state = "patrol"; if (e.fa) { F.formAt = now - Math.max(0, sn - e.fa); F.formP = Math.min(1, Math.max(0, (now - F.formAt) / FUD_FORM_MS)); } }
-  });
-}
-function fudElect() { /* the whistle, re-judged every second: the standing claim wins while its holder is a fresh plaza presence and the claim is under 6s old (the Speedway referee's takeover rules). When the claim lapses, the seat no longer drops straight to the lowest pid (the 2026-11-05 freeze: the presence heartbeat runs on its own timer, so a backgrounded tab stays a fresh candidate while its render loop — the only place fudFrameTick runs — is stopped dead; it kept winning the old fallback, never published, never landed filed kills, and was re-elected every second forever). Now each candidate takes the whistle FOR ITSELF in pid-rank order as the claim's staleness grows: rank r (the candidates sorted by pid, rank 0 = lowest) seizes once the claim is over 6s + r×4s stale, the extra wait capped at 20s — rank 0 seizes the moment the claim lapses, exactly the old fallback; rank 1 first waits ~10s of proven silence from rank 0; and so on — so a frame-dead low pid now blocks the monsters for seconds, not forever. A fresh claim landing in the record stands everyone else down at the branch above, the seizer included, so two live clients never drive beyond a brief overlap */
-  if (!entered) { fudAmDriver = false; return; }
-  const cands = [];
-  if (me.scene === "plaza") cands.push(myId);
-  for (const p of peers.values()) if (p.scene === "plaza") cands.push(p.id);
-  const drv = fudRec && fudRec.drv;
-  let driver = "";
-  if (drv && drv.pid && cands.indexOf(drv.pid) >= 0 && srvNow() - (drv.ts || 0) < 6000) driver = drv.pid;
-  else if (cands.length) {
-    cands.sort();
-    const rank = cands.indexOf(myId); /* my own rank among the candidates (−1 when I am not one of them — not in the plaza — and then I never seize) */
-    const stale = drv && drv.ts ? srvNow() - drv.ts : Infinity; /* no claim at all counts as stale forever: every rank's wait has long since passed, the first claim to land stands the rest down, and with no database the local drive is untouched */
-    if (rank >= 0 && stale > 6000 + Math.min(rank * 4000, 20000)) driver = myId;
-  }
-  const was = fudAmDriver;
-  fudAmDriver = !!driver && driver === myId;
-  if (fudAmDriver && !was) { fudSeedFromRec(); fudOnRec(); } /* on taking the whistle, run the record through fudOnRec once myself: a kill filed while the seat was empty or dead sits in rec.kill with no record change coming to wake fudOnRec on MY client, so without this pass it would sit unlanded until my first publish happened to echo back; fudOnRec's kill branch is guarded to the driver and its boom branch is seen-set locked, so the extra pass is a no-op when nothing is pending. The respawns need no extra hand: fudSeedFromRec arms a past-due ra as respawnAt = now, and the driver's own fudUpdate flips him back to patrol on the next frame */
-}
-setInterval(fudElect, 1000);
-function fudOnRec() { /* the record moved: booms land on every screen, and the driver lands filed kills */
+function fudOnRec() { /* the record moved: booms land on every screen. Kills are the referee's to land — no client branch reads rec.kill any more */
   const rec = fudRec; if (!rec) return;
   const boom = rec.boom;
   if (!fudBoomBaseDone) { fudBoomBaseDone = true; if (boom && boom.id) fudSeenBooms.add(boom.id); } /* the baseline (see fudBoomBaseDone): the boom already in the record at subscribe time is history — marked seen here so the block below never plays it; booms landing later aren't in the set and play in full */
@@ -14187,25 +14429,20 @@ function fudOnRec() { /* the record moved: booms land on every screen, and the d
     if (F) {
       F.state = "dead"; /* he is gone on my screen too, the same moment as everywhere */
       fudBoomFx(F, boom.by !== myId); /* the explosion's picture, for everyone who can see the field — but its SOUND only when the kill is MINE (boom.by carries the killer; Jonathan 2026-11-04 22:40) */
-      if (boom.by === myId) { if (!fudPaidBooms.has(boom.id)) { fudPaidBooms.add(boom.id); if (acctUser) { addChips(FUD_REWARD); sfxCoin(); genBurst(me.x, me.y - 46, true); genText(me.x, me.y - 104, "+🪙 " + FUD_REWARD.toLocaleString("en-US"), "#ffd76a"); } } } /* MY kill, landed by another driver: the payout and its show, exactly once */
+      if (boom.by === myId) { if (!fudPaidBooms.has(boom.id)) { fudPaidBooms.add(boom.id); if (acctUser) { addChips(FUD_REWARD); sfxCoin(); genBurst(me.x, me.y - 46, true); genText(me.x, me.y - 104, "+🪙 " + FUD_REWARD.toLocaleString("en-US"), "#ffd76a"); } } } /* MY kill, landed by the referee: the payout and its show, exactly once */
       else if (boom.paid) genBurst(F.x, F.y - 100, true); /* someone else's paid kill: the money burst at the monster (a guest's kill bursts nothing — the guest rule stands) */
     }
   }
-  if (fudAmDriver && rec.kill && rec.kill.id && !fudKillSeen.has(rec.kill.id)) {
-    fudKillSeen.add(rec.kill.id);
-    const F = FUDS[rec.kill.i];
-    if (F && F.state === "patrol") fudApplyBoom(rec.kill.i, rec.kill.by, rec.kill.id, fudPidSignedIn(rec.kill.by));
-    else { fudKillClear = true; fudPublish(true); } /* the monster was already dead when the request landed: just clear the request off the record */
-  }
 }
-if (db) { try { db.ref("hub/tables/fud").on("value", s => { fudRec = s.val(); fudOnRec(); }); } catch (e) {} }
-function fudFrameTick(now) { /* the plaza frame's FUD beat: the driver simulates + publishes; a follower eases its monsters onto the record (the peers' own rate), reads death/form off it, and lets the record's clock run the respawn's shape. No record yet (or no database): the original local simulation, untouched */
-  if (fudAmDriver || !fudRec || !fudRec.m) { fudUpdate(now); if (fudAmDriver) fudPublish(false); return; }
+fudWatchAttach();
+function fudFrameTick(now) { /* the plaza frame's FUD beat (REFEREE, 2026-11-05): a follower eases its monsters onto the record (the peers' own rate), reads death/form off it, and lets the record's clock run the respawn's shape. No record yet (or no database): the original local simulation, untouched */
+  fudWatchAttach();
+  if (!fudRec || !fudRec.m) { fudUpdate(now); return; }
   const dt = Math.min(0.05, fudLastT ? (now - fudLastT) / 1000 : 0.016); fudLastT = now;
   const sn = srvNow();
   FUDS.forEach((F, i) => { const e = fudRec.m[i]; if (!e) return;
     if (e.st === "dead") { F.state = "dead"; return; }
-    if (F.state === "dead") { F.state = "patrol"; F.x = e.x; F.y = e.y; } /* he re-formed (the driver's clock said so): start from the record's spot, at the record's form moment */
+    if (F.state === "dead") { F.state = "patrol"; F.x = e.x; F.y = e.y; } /* he re-formed (the referee's clock said so): start from the record's spot, at the record's form moment */
     F.x += (e.x - F.x) * Math.min(1, dt * 9); F.y += (e.y - F.y) * Math.min(1, dt * 9);
     F.flip = !!e.fl; F.moving = !!e.mv;
     F.formP = e.fa ? Math.min(1, Math.max(0, (sn - e.fa) / FUD_FORM_MS)) : 1;
