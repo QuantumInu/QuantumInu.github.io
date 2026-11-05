@@ -2084,11 +2084,11 @@ function collide(nx, ny) {
       if (m === dxl) nx = o.x - r; else if (m === dxr) nx = o.x + o.w + r; else if (m === dyt) ny = o.y - r; else ny = o.y + o.h + r;
     }
   }
-  if (me.scene === "plaza") { /* the moat's ROUNDED CORNERS clamp (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): MOAT_SOLIDS are trimmed out of the corner squares, so this clamp is the authority there and runs LAST — a centre near a corner may never cross the drawn arc, set radially to exactly MOAT_R from the arc's centre — feet ON the water's edge at the corners too (Jonathan 2026-11-05 — "Same with top edge of water": the rest here used to sit one body (r) off the arc, the same 30px standoff the straight shores kept before their solids were inset into MOAT_COLLIDE) — so the cut-off squares are honest walkable land and the water inside the arc stays solid */
+  if (me.scene === "plaza") { /* the moat's ROUNDED CORNERS clamp (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): MOAT_SOLIDS are trimmed out of the corner squares, so this clamp is the authority there and runs LAST — a centre near a corner may never rest closer than one body (r) to the drawn arc, set radially to exactly r from it, so the cut-off squares are honest walkable land and the water inside the arc stays solid with the same standoff every straight shore keeps */
     for (const c of MOAT_CORNERS) {
       if (nx > c.ox - r && nx < c.ox + MOAT_R + r && ny > c.oy - r && ny < c.oy + MOAT_R + r) {
         const dx = nx - c.cx, dy = ny - c.cy, d = Math.hypot(dx, dy);
-        if (d < MOAT_R && d > 0.001) { nx = c.cx + dx / d * MOAT_R; ny = c.cy + dy / d * MOAT_R; }
+        if (d < MOAT_R + r && d > 0.001) { nx = c.cx + dx / d * (MOAT_R + r); ny = c.cy + dy / d * (MOAT_R + r); }
       }
     }
   }
@@ -5263,11 +5263,11 @@ function tableIdleClear(game, st, resetVal) {
   const keys = Object.keys(seats).filter(k => seats[k]);
   const fresh = keys.filter(k => seats[k].pid && now - (seats[k].ts || 0) < 25000); /* pid-less husks are not seated players: they must not hold a table open (ghost-seat fix, 2026-10-30) */
   if (fresh.length) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
-  const dirty = st.phase !== "bet" || keys.some(k => seats[k].bet > 0 || (typeof craPbSum === "function" && craPbSum(seats[k]) > 0)) || !!st.firstBetTs; /* a craps seat's place bets are a stake riding on the record too (craPbSum reads 0 on every other game's seats — they carry no pb) */
+  const dirty = st.phase !== "bet" || keys.some(k => seats[k].bet > 0) || !!st.firstBetTs;
   if (!dirty) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
   if (!keys.length) { tblSet(game, resetVal); return; } /* every seat record is gone — the last player actually left (stand-up removes the record; a disconnect removes it too): the game ends and the table resets on the spot, any phase (his rule 2026-10-28) */
   if (!st.emptyTs) { tblUpd(game, { emptyTs: now }); return; }
-  if (now - st.emptyTs > 6000) { Object.keys(seats).forEach(k => { const s = seats[k]; const riding = (s ? (s.bet || 0) : 0) + (s && typeof craPbSum === "function" ? craPbSum(s) : 0); if (s && riding > 0) writeClaim(claimUid(s), rfKeyFor(game, st, k), riding, "↩️ Bet returned"); }); tblSet(game, resetVal); } /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears. The wipe destroys the seat records, so any stake still riding on one is handed back through the rf claim FIRST (never-lose net): a bettor whose phone merely slept wakes to a claim note, not a vanished bet — at craps the handed-back stake is the pass bet plus every place bet */
+  if (now - st.emptyTs > 6000) { Object.keys(seats).forEach(k => { const s = seats[k]; if (s && s.bet > 0) writeClaim(claimUid(s), rfKeyFor(game, st, k), s.bet, "↩️ Bet returned"); }); tblSet(game, resetVal); } /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears. The wipe destroys the seat records, so any stake still riding on one is handed back through the rf claim FIRST (never-lose net): a bettor whose phone merely slept wakes to a claim note, not a vanished bet */
 }
 /* ============ Quantum Horse Track: the betting table (PREVIEW, Jonathan 2026-10-30) ============
    The casino tables' pattern, carried to the gallery: a shared table record at
@@ -10724,13 +10724,7 @@ function hrListen() {
   setInterval(hrcSeatBeat, 4000);
 }
 function bacSettle() { const st = bacState; if (st && st.phase !== "bet" && bacSeat >= 0) cancelRefundOD("bac", bacSeat); /* the cards are dealt: committed */ if (st && st.phase === "done" && bacSeat >= 0 && st.results && st.results[bacSeat]) settleOnce("bac" + st.roundId + "-" + bacSeat, st.results[bacSeat].amt || 0); }
-let craPrevPhase = "";
-function craSettle() { const st = craState;
-  if (st && st.pbPay && craSeat >= 0 && st.pbPay[craSeat]) { const pp = st.pbPay[craSeat]; if (pp && pp.amt > 0 && !settledKeys.has(pp.key)) { settleOnce(pp.key, pp.amt); if (me.scene === "highrollers") { const sp2 = CRASEATS[craSeat]; if (sp2) fxText(sp2.x, sp2.y - 64, "+🪙 " + pp.amt.toLocaleString("en-US"), "#ffd76a", "highrollers"); sfxWin(0.55); } } } /* a PLACE-bet win off the latest roll (the host publishes pbPay with each roll's resolution): settled under the very key the host's claim carries, so the fast path and the held claim land it exactly once between them */
-  if (st && st.phase !== "bet" && craSeat >= 0) cancelRefundOD("cra", craSeat); /* the dice are out: committed */
-  if (st && st.phase === "bet" && craPrevPhase && craPrevPhase !== "bet" && craSeat >= 0) craArmMine(); /* a fresh betting phase: my standing place bets (they persist across rounds) re-arm their disconnect refund under the new round's key, at pass bet + place total */
-  if (st) craPrevPhase = st.phase;
-  if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
+function craSettle() { const st = craState; if (st && st.phase !== "bet" && craSeat >= 0) cancelRefundOD("cra", craSeat); /* the dice are out: committed */ if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
 function hbjSettle() { const st = hbjState; if (st && st.phase !== "bet" && hbjSeat >= 0) cancelRefundOD("hbj", hbjSeat); /* the hand has started: committed */ if (st && st.phase === "done" && hbjSeat >= 0 && st.results && st.results[hbjSeat]) settleOnce("hbj" + st.handId + "-" + hbjSeat, st.results[hbjSeat].amt || 0); }
 function hrrSettle() { const st = hrrState; if (st && st.phase !== "bet" && hrrSeat >= 0) cancelRefundOD("hrr", hrrSeat); /* the wheel is spinning: committed */ if (st && st.phase === "done" && hrrSeat >= 0 && st.results && st.results[hrrSeat]) settleOnce("hrr" + st.spinId + "-" + hrrSeat, st.results[hrrSeat].amt || 0); }
 /* ---- sound & light for the High Rollers tables and the Chess Room (Jonathan 2026-10-31): the casino's treatment, carried over — a win bursts coins at the seat, a loss puffs grey, a push dings soft. Client-local only: nothing here writes a record. ---- */
@@ -10838,8 +10832,7 @@ function hrcSitAt(game, i) {
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) { hrcSetSeat(game, i); seatOD(game, i, true); return; }
   if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHRC("That seat is taken."); return; }
-  const takeBack = (s && s.bet > 0 ? s.bet : 0) + (s && game === "cra" ? craPbSum(s) : 0); /* a craps chair can carry place bets beside its pass bet — the takeover hands back the whole stake riding on it */
-  if (s && takeBack > 0 && s.pid !== myId && st && st.phase === "bet") writeClaim(claimUid(s), rfKeyFor(game, st, i), takeBack, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
+  if (s && s.bet > 0 && s.pid !== myId && st && st.phase === "bet") writeClaim(claimUid(s), rfKeyFor(game, st, i), s.bet, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
   tblSet(game + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
   hrcSetSeat(game, i); seatOD(game, i, true);
 }
@@ -10848,10 +10841,8 @@ function hrcStand(game) {
   hrcSetLeft(game, i);
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
-    const pbBack = game === "cra" ? craPbSum(s) : 0; /* craps place bets ride the seat beside the pass bet: they come back on the same exits the pass bet does */
-    if (st.phase === "bet" && (s.bet || pbBack)) { const back = (s.bet || 0) + pbBack; addChips(back); noteHRC("🚪 You stood up — your " + back.toLocaleString("en-US") + " bet was returned."); }
-    else if (st.phase === "done" && pbBack && !(st.dice && st.dice[0] + st.dice[1] === 7)) { addChips(pbBack); noteHRC("🚪 You stood up — your place bets (🪙 " + pbBack.toLocaleString("en-US") + ") came down with you."); } /* the round is decided and no 7 took them (a 7 on the last roll already cleared them at the table — the dice in the record say which) — they come down with their owner */
-    else if ((s.bet || pbBack) && st.phase !== "done") noteHRC("🚪 You left mid-round — your spot and bet are forfeited."); /* "done" is not mid-round: the round is decided, standing then is clean and the win banks below */
+    if (st.phase === "bet" && s.bet) { addChips(s.bet); noteHRC("🚪 You stood up — your " + s.bet.toLocaleString("en-US") + " bet was returned."); }
+    else if (s.bet && st.phase !== "done") noteHRC("🚪 You left mid-round — your spot and bet are forfeited."); /* "done" is not mid-round: the round is decided, standing then is clean and the win banks below */
   }
   if (game === "bac") bacSettle(); else if (game === "cra") craSettle(); else if (game === "hbj") hbjSettle(); else hrrSettle(); /* a decided round banks before the chair is freed */
   if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet(game + "/seats/" + i, null);
@@ -11265,7 +11256,7 @@ function hrcBet(game, type) {
   addChips(-amt);
   tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, betType: type, ts: Date.now(), chips: profile ? profile.chips : 0 });
   mine.bet = amt; mine.betType = type;
-  if (game === "cra") craArmMine(); else armRefundOD(game, hrcIdx(game), amt); /* the stake is charged: arm its disconnect refund (never-lose net) — at craps the arm covers the place bets riding beside it too */
+  armRefundOD(game, hrcIdx(game), amt); /* the stake is charged: arm its disconnect refund (never-lose net) */
   sfxClick();
 }
 function hrcSetAmt(game, amt) {
@@ -11277,7 +11268,7 @@ function hrcSetAmt(game, amt) {
     addChips(mine.bet); addChips(-amt);
     tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
     mine.bet = amt;
-    if (game === "cra") craArmMine(); else armRefundOD(game, hrcIdx(game), amt); /* the re-stake moves the disconnect refund to the new amount too (at craps: pass + place total) */
+    armRefundOD(game, hrcIdx(game), amt); /* the re-stake moves the disconnect refund to the new amount too */
   }
   sfxClick();
 }
@@ -11353,68 +11344,6 @@ function bacHostTick() {
     tblUpd("bac", { phase: "bet", results: null, pHand: null, bHand: null, winner: null, roundId: newRoundId() });
   }
 }
-/* ---- craps PLACE BETS (Jonathan 2026-11-04 22:14, approved after the walk-through): the point numbers as their own bets beside the pass line ----
-   Each seat record carries pb — { "6": stake, ... } — written only by the seat's owner through craPlaceBet (debit at placement, chips rules as everywhere: accounts only). A player may hold several numbers at once. The bets WORK EVERY ROLL and persist across pass-line rounds: the host snapshots the seats' pb into pbSnap each time it publishes dice, and resolves that snapshot at the roll's resolution — a hit pays PROFIT and the bet stays up, a 7 takes every snapshotted bet down. Snapshotting at publish time is what keeps the dice honest: a bet placed while the dice are out joins from the NEXT roll (it was never under the dice already showing), and a take-down is refused while the dice are out for the same reason. Wins ride the claims rail (writeClaim under the roll's own key) AND the record's pbPay, settled by craSettle under that same key — exactly once between the two paths, even for a winner who disconnects. */
-const CRA_PLACE_NUMS = [4, 5, 6, 8, 9, 10];
-function craPbSum(s) { const pb = (s && s.pb) || {}; let t = 0; for (const ns in pb) t += pb[ns] || 0; return t; }
-function craPbPayout(num, stake) { if (num === 4 || num === 10) return Math.floor(stake * 9 / 5); if (num === 5 || num === 9) return Math.floor(stake * 7 / 5); return Math.floor(stake * 7 / 6); } /* place-bet PROFIT (the stake itself stays up): 9 to 5 on 4 and 10, 7 to 5 on 5 and 9, 7 to 6 on 6 and 8, floored to whole chips */
-function craPbFmt(v) { if (v >= 1e9) return (Math.round(v / 1e8) / 10) + "B"; if (v >= 1e6) return (Math.round(v / 1e5) / 10) + "M"; if (v >= 1e3) return (Math.round(v / 100) / 10) + "k"; return String(v); }
-function craArmMine() { /* my disconnect refund at this table covers EVERYTHING I have riding — the pass bet plus every place bet — recomputed on each change (cancel first, so a round change can never leave a zombie order armed under the old round's key) */
-  if (craSeat < 0) return; const mine = hrcMySeat("cra"); if (!mine) return;
-  const tot = (mine.bet || 0) + craPbSum(mine);
-  cancelRefundOD("cra", craSeat);
-  if (tot > 0) armRefundOD("cra", craSeat, tot);
-}
-function craPlaceBet(n) {
-  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch."); return; } /* guests cannot place (they cannot even sit at the club tables — this is the second lock) */
-  const st = craState, mine = hrcMySeat("cra");
-  if (!st || craSeat < 0 || !mine) return;
-  const pb = Object.assign({}, mine.pb || {});
-  if ((pb[n] || 0) > 0) { /* tapping a number I already hold TAKES THAT BET DOWN, refunded whole */
-    if (st.phase === "roll") { noteHRC("🚫 Place bets come down between rolls — the dice are out."); sfxBad(); return; }
-    if (st.phase === "done" && st.dice && st.dice[0] + st.dice[1] === 7) { noteHRC("The 7 on the last roll already took that bet."); sfxBad(); return; } /* the host cleared it at the table even if my seat echo is a beat behind — never refund a bet the 7 already collected */
-    const back = pb[n]; delete pb[n];
-    addChips(back);
-    tblUpd("cra/seats/" + craSeat, { pb: Object.keys(pb).length ? pb : null, ts: Date.now(), chips: profile ? profile.chips : 0 });
-    mine.pb = Object.keys(pb).length ? pb : null;
-    craArmMine();
-    noteHRC("↩️ Place bet on " + n + " taken down — 🪙 " + back.toLocaleString("en-US") + " returned.");
-    sfxClick(); return;
-  }
-  const amt = craAmt; /* staked at the bet amount currently selected on the panel */
-  if (!profile || (profile.chips || 0) < amt) { noteHRC("Not enough chips for a " + amt.toLocaleString("en-US") + " place bet."); return; }
-  addChips(-amt); /* charged the moment it is placed, like every stake in the casino */
-  pb[n] = amt;
-  tblUpd("cra/seats/" + craSeat, { pb, ts: Date.now(), chips: profile ? profile.chips : 0 });
-  mine.pb = pb;
-  craArmMine();
-  if (st.phase === "roll") noteHRC("🎲 Place bet on " + n + " is down — it plays from the next roll.");
-  sfxClick();
-}
-function craPbSnapshot(st) { /* the place bets the NEXT published dice play under — read off the seat records at publish time, so no bet can ever land on dice already showing */
-  const snap = {}; const seats = (st && st.seats) || {};
-  Object.keys(seats).forEach(k => { const s = seats[k]; if (!s || !s.pb) return; const held = {}; for (const ns in s.pb) { if ((s.pb[ns] || 0) > 0) held[ns] = s.pb[ns]; } if (Object.keys(held).length) snap[k] = held; });
-  return Object.keys(snap).length ? snap : null;
-}
-function craResolvePlace(st, sum) { /* one roll against the snapshot (host, at resolution): a held number pays PROFIT and stays up; a 7 takes every snapshotted bet down. Returns the per-seat win map the record carries as pbPay — every win ALSO rides a claim under the same key */
-  const snap = st.pbSnap || {}, seats = st.seats || {}, pay = {};
-  Object.keys(snap).forEach(k => {
-    const i = Number(k), s = seats[i]; if (!s || !s.pid) return; /* the seat is gone — stood or disconnected mid-round: forfeited, exactly like the pass bet */
-    const held = snap[k] || {};
-    for (const ns in held) {
-      const num = Number(ns), stake = held[ns] || 0;
-      if (!(stake > 0) || !s.pb || (s.pb[ns] || 0) !== stake) continue; /* no longer holding exactly this (defensive — take-downs are refused while the dice are out) */
-      if (sum !== 7 && sum === num) { const profit = craPbPayout(num, stake); if (profit > 0) { const key = "crapb" + (st.roundId || 0) + "-" + (st.rollTs || 0) + "-" + i; writeClaim(claimUid(s), key, profit, "🎲 Craps place win"); pay[i] = { amt: profit, key }; } }
-    }
-  });
-  if (sum === 7) Object.keys(snap).forEach(k => { /* the 7: every bet that was live under this roll comes down — a number placed mid-roll was never in the snapshot and survives */
-    const i = Number(k), s = seats[i]; if (!s || !s.pb) return;
-    const npb = Object.assign({}, s.pb); let changed = false;
-    for (const ns in (snap[k] || {})) { if (npb[ns] === (snap[k][ns] || 0)) { delete npb[ns]; changed = true; } }
-    if (changed) tblUpd("cra/seats/" + i, { pb: Object.keys(npb).length ? npb : null });
-  });
-  return Object.keys(pay).length ? pay : null;
-}
 function craHostTick() {
   if (!craState) { tblSet("cra", { phase: "bet", seats: {}, roundId: newRoundId(), point: 0, ts: Date.now() }); return; }
   const hi = hrcHostSeat(craState); if (hi < 0 || craState.seats[hi].pid !== myId) return;
@@ -11422,20 +11351,19 @@ function craHostTick() {
   const { fresh, ready, bettors } = hrcFreshReady(st);
   const rollDice = () => [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
   if (st.phase === "bet") {
-    if (fresh.length && ready.length === fresh.length) tblUpd("cra", { phase: "roll", dice: rollDice(), point: 0, rollTs: srvNow(), results: null, pbSnap: craPbSnapshot(st), pbPay: null });
+    if (fresh.length && ready.length === fresh.length) tblUpd("cra", { phase: "roll", dice: rollDice(), point: 0, rollTs: srvNow(), results: null });
   } else if (st.phase === "roll" && srvNow() - (st.rollTs || 0) > 2800) {
     const sum = (st.dice ? st.dice[0] + st.dice[1] : 0), point = st.point || 0;
-    const pbPay = craResolvePlace(st, sum); /* EVERY roll resolves the place bets first — they work every roll: a hit pays and stays up, a 7 clears the table's place bets */
     let end = null;
     if (!point) {
       if (sum === 7 || sum === 11) end = "pass";
       else if (sum === 2 || sum === 3) end = "dontpass";
       else if (sum === 12) end = "pushdp";
-      else { tblUpd("cra", { point: sum, dice: rollDice(), rollTs: srvNow(), pbSnap: craPbSnapshot(st), pbPay }); return; }
+      else { tblUpd("cra", { point: sum, dice: rollDice(), rollTs: srvNow() }); return; }
     } else {
       if (sum === point) end = "pass";
       else if (sum === 7) end = "dontpass";
-      else { tblUpd("cra", { dice: rollDice(), rollTs: srvNow(), pbSnap: craPbSnapshot(st), pbPay }); return; }
+      else { tblUpd("cra", { dice: rollDice(), rollTs: srvNow() }); return; }
     }
     const results = {};
     const deciders = Object.keys(st.seats || {}).map(Number).filter(i => st.seats[i] && st.seats[i].bet > 0); /* FROZEN at decision time from everyone debited (claims fix) */
@@ -11449,10 +11377,10 @@ function craHostTick() {
       results[i] = { res, amt };
       if (amt > 0) writeClaim(claimUid(s), "cra" + st.roundId + "-" + i, amt, "🏆 Craps win");
     });
-    tblUpd("cra", { phase: "done", results, doneTs: now, end, pbPay });
+    tblUpd("cra", { phase: "done", results, doneTs: now, end });
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
-    Object.keys(st.seats || {}).forEach(i => tblUpd("cra/seats/" + i, { bet: 0, betType: "", rdy: false })); /* the pass stakes recycle — the seats' pb is NOT touched: place bets persist into the next round */
-    tblUpd("cra", { phase: "bet", results: null, point: 0, dice: null, end: null, roundId: newRoundId(), pbSnap: null, pbPay: null });
+    Object.keys(st.seats || {}).forEach(i => tblUpd("cra/seats/" + i, { bet: 0, betType: "", rdy: false }));
+    tblUpd("cra", { phase: "bet", results: null, point: 0, dice: null, end: null, roundId: newRoundId() });
   }
 }
 /* ---- the club's blackjack (Jonathan 2026-11-01): the casino's bjBet/bjReady/bjHit/bjStand/bjDouble/bjHostTick carried onto the club's own record, seat and names. The ONLY differences are the room's: the stake ladder is HR_BETS (each amount button stakes that amount outright), the notes are the club's, and every key — settle "hbj<handId>-<seat>", claim, rf refund — carries the "hbj" family so this table and the casino's can run side by side and never collide. The ready gate, the frozen decider set, the never-ready decision refund and the never-dealt recycle refund are the casino's, unchanged ---- */
@@ -12621,21 +12549,11 @@ function drawCraTable() {
   const mine = hrcMySeat("cra"), canBet = !!(st && st.phase === "bet" && mine);
   const picks = [["pass", "✅ PASS LINE · pays 1 to 1", "#1d4e89"], ["dontpass", "🚫 DON'T PASS · pays 1 to 1", "#7a1a1a"]];
   picks.forEach((tp, k) => {
-    const bx = T.x + 478, by = T.y + 112 + k * 64, bw = 392; /* the two bet buttons A LITTLE FLATTER (Jonathan 2026-11-04 21:50): 52 tall on a 64 pitch (was 64 on a 76 pitch), freeing the band under them for the point-number row */
+    const bx = T.x + 478, by = T.y + 116 + k * 76, bw = 392;
     const sel = !!mine && mine.betType === tp[0];
-    if (canBet) drawBtn(bx, by, bw, 52, tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), () => hrcBet("cra", tp[0]), { fs: 20, fill: tp[2], sel, pad: 6 });
-    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 52, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 52, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 34); ctx.globalAlpha = 1; }
+    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), () => hrcBet("cra", tp[0]), { fs: 20, fill: tp[2], sel, pad: 6 });
+    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
   });
-  /* the POINT NUMBERS under the bet buttons (Jonathan 2026-11-04 21:50, made PLACE BETS 22:14): 4 5 6 8 9 10 are tappable while I hold a seat (craPlaceBet — debit at placement, tap a held number to take it down); the 7 stays a plain label. A held number shows its stake under the digit — MY stake on a gold-lit box, other players' stakes in pale gold for everyone to see */
-  const pbTot = {}, pbMine = {};
-  if (st && st.seats) Object.keys(st.seats).forEach(k => { const spb = st.seats[k] && st.seats[k].pb; if (!spb) return; for (const ns in spb) { if ((spb[ns] || 0) > 0) pbTot[ns] = (pbTot[ns] || 0) + spb[ns]; } });
-  if (mine && mine.pb) for (const ns in mine.pb) { if ((mine.pb[ns] || 0) > 0) pbMine[ns] = mine.pb[ns]; }
-  ctx.textAlign = "center";
-  [4, 5, 6, 7, 8, 9, 10].forEach((n, i) => { const nx = T.x + 478 + i * 57, ny = T.y + 240, myStake = pbMine[n] || 0, totStake = pbTot[n] || 0;
-    if (n !== 7 && mine) drawBtn(nx, ny, 49, 44, "", () => craPlaceBet(n), { sel: myStake > 0, fill: "rgba(0,0,0,0.35)", pad: 3 });
-    else { ctx.fillStyle = myStake > 0 ? "#ffd76a" : "rgba(0,0,0,0.35)"; rr(nx, ny, 49, 44, 9); ctx.fill(); ctx.strokeStyle = myStake > 0 ? "#fff2c4" : "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(nx, ny, 49, 44, 9); ctx.stroke(); }
-    ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = myStake > 0 ? "#241a08" : "#ffe9a8"; ctx.fillText(String(n), nx + 24.5, ny + 21);
-    if (totStake > 0) { ctx.font = "800 12px 'Segoe UI',sans-serif"; ctx.fillStyle = myStake > 0 ? "#241a08" : "rgba(255,233,168,0.9)"; ctx.fillText("🪙" + craPbFmt(myStake > 0 ? myStake : totStake), nx + 24.5, ny + 38); } });
   const drawDie = (cx, cy, v) => {
     ctx.fillStyle = "#f6f2e8"; rr(cx - 34, cy - 34, 68, 68, 12); ctx.fill();
     ctx.strokeStyle = "rgba(10,10,20,0.55)"; ctx.lineWidth = 2; rr(cx - 34, cy - 34, 68, 68, 12); ctx.stroke();
@@ -12669,8 +12587,8 @@ function drawCraTable() {
       ctx.fillText(st.end === "pass" ? "✅ PASS WINS!" : st.end === "dontpass" ? "🚫 DON'T PASS WINS!" : "Bar 12 — don't pass pushes", T.x + 224, T.y + 340);
     }
   } else {
-    ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)"; ctx.textAlign = "center";
-    ctx.fillText("come-out: 7 · 11 wins, 2 · 3 · 12 loses — make the point before a 7 · tap a number to place a bet on it", T.x + T.w / 2, T.y + T.h - 14);
+    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)"; ctx.textAlign = "center";
+    ctx.fillText("pass line only — come-out 7 or 11 wins, 2 · 3 · 12 loses, then make the point before a 7", T.x + T.w / 2, T.y + T.h - 14);
   }
   hrcSeatBets(CRASEATS, st, "cra");
   hrcSeatsRow(CRASEATS, st, "cra");
@@ -13605,7 +13523,7 @@ const CASTLEDOOR = { x: 1552, y: -730, w: 96, h: 34 }; /* on the bottom face (SO
 const MOAT_OUT = { x: 470, y: -1910, w: 2260, h: 1560 }; /* the lake's outer edge (grown with the castle from 1540×1130 to 2260×1560): centred on 1600, its south shore still at −350 where the castle road's leg lands — the bridge, the road and every southern approach are exactly where they were */
 const ISLE = { x: 670, y: -1710, w: 1860, h: 1160 }; /* the castle island (grown from 1140×730 to 1860×1160): a 200-wide ring of water still runs between it and the outer shore on EVERY side — north −1910..−1710, south −550..−350, west 470..670, east 2530..2730 */
 const MOAT_SOLIDS = [{ x: 610, y: -1910, w: 1980, h: 200 }, { x: 470, y: -1770, w: 200, h: 1280 }, { x: 2530, y: -1770, w: 200, h: 1280 }, { x: 610, y: -550, w: 910, h: 200 }, { x: 1680, y: -550, w: 910, h: 200 }]; /* the water as five solids (plaza obstacles), grown to the new lake: the north strip, the west and east strips, and the south strip split by the drawbridge gap (x 1520..1680) — fishing keys off these (moatDist), so both shores and the bridge still fish exactly as before. ROUNDED CORNERS (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): the strips are trimmed out of the four outer corner squares and the west/east strips stretch to the corner arcs' ends (y −1770..−490) to cover the bands the north/south trims opened — the corner squares themselves are policed by collide()'s arc clamp and measured by moatDist()'s arc term, both off MOAT_CORNERS below, so drawn water is never walkable and the cut-off corner land never blocks. The strips' island-side edges are exactly where they always were */
-const MOAT_COLLIDE = [{ x: 610, y: -1880, w: 1980, h: 140 }, { x: 500, y: -1770, w: 140, h: 1280 }, { x: 2560, y: -1770, w: 140, h: 1280 }, { x: 610, y: -520, w: 910, h: 140 }, { x: 1680, y: -520, w: 910, h: 140 }]; /* the moat's COLLISION copies (the plaza obstacles) — MOAT_SOLIDS inset 30px INTO the water on every land-facing edge (Jonathan 2026-11-05 — "Same with top edge of water" / "And above the castle too"): collide()'s standoff is r = 30 everywhere, so a solid starting exactly at the drawn shore held the feet 30px short of the water on every bank; starting the solid 30px inside the water lands that standoff exactly ON the drawn edge, feet touching the water — the arcade/gym facade treatment, and the same trim the Mech Shop slots got. MOAT_SOLIDS itself is NOT touched: moatDist()/nearMoat() (fishing range) read it and keep measuring off the drawn shore exactly as before. The inset is per-strip because the strips face land on different edges: the north strip gives 30 at its top (outer shore) AND its bottom (island shore) — y −1880, h 140; the west/east strips give 30 on both long edges (w 140) and keep their y span, their ends meeting the corner cuts and the south strips as before; the south strips give 30 at their top (island shore) AND bottom (outer shore) — y −520, h 140 — their x extents and the 1520..1680 drawbridge gap unchanged. The rounded corners are not in this list: collide()'s arc clamp polices them, with its rest now set to the arc itself */
+const MOAT_COLLIDE = [{ x: 610, y: -1880, w: 1980, h: 170 }, { x: 470, y: -1770, w: 200, h: 1280 }, { x: 2530, y: -1770, w: 200, h: 1280 }, { x: 610, y: -550, w: 910, h: 200 }, { x: 1680, y: -550, w: 910, h: 200 }]; /* the moat's COLLISION copies (the plaza obstacles): ONLY the lake's TOP edge is inset — the north strip starts 30px inside the water (y −1880, its bottom edge back at the original −1710, h 170) so collide()'s r = 30 standoff lands the feet exactly ON the drawn top shore above the castle (Jonathan 2026-11-05 — "Same with top edge of water" / "And above the castle too": the arcade/gym facade treatment, and the same trim the Mech Shop slots got). Every other strip is an EXACT copy of MOAT_SOLIDS — the bottom of the lake, the island shores, the sides and the rounded corners all keep their original standoff, and collide()'s corner clamp keeps its original MOAT_R + r rest (his correction the same day: "the bottom of the lake hitbox was okay though, didnt ask you to change that" / "only asked you to change the top of the water" — an all-shores inset shipped first and was narrowed to the top edge at his word). MOAT_SOLIDS itself is NOT touched: moatDist()/nearMoat() (fishing range) read it and keep measuring off the drawn shore exactly as before */
 const BRIDGE = { x: 1520, y: -550, w: 160, h: 200 }; /* the drawbridge: 160 wide (the path width) on the castle's centre line, spanning the south water strip from the island's south shore (−550) to the moat's south shore (−350) */
 const MOAT_R = 140; /* the moat's outer corner radius (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): the banks run straight exactly where they always have; only the four OUTER corners arc at this radius. The island's inner shore stays square. ONE definition read by the drawing (drawCastleArea's rounded path), collide()'s arc clamp and moatDist()'s arc term, so the three can never disagree */
 const MOAT_CORNERS = [
