@@ -319,6 +319,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .fishrow .fname{font-weight:700;color:#eaf6ff}
 .fishrow .fworth{color:#ffd76a;font-size:13px}
 .fishrow button{margin-left:auto;flex:none}
+.fishbtn{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800;font-size:12px;font-family:inherit;border:none;border-radius:999px;padding:8px 14px;height:34px;cursor:pointer;box-shadow:0 4px 22px rgba(56,225,255,.45);white-space:nowrap} /* the FISHING SHOP's Sell 1 / Sell all / Buy buttons wear the bottom prompt button's own dress (Jonathan 2026-11-05): the #prompt gradient pill — same background, border, radius, text colour and weight — sized for the panel rows at one consistent 34px height on desktop and mobile alike */
 #catchpop{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:47;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #catchpop .monpanel{width:min(420px,96vw);text-align:center}
 #catchimg{width:150px;height:150px;object-fit:contain;align-self:center} /* centred in the popup (Jonathan 2026-11-04, 21:18 — from his catch-popup screenshot: the fish art sat LEFT of centre in the column panel while the text below it was centred; align-self centres the image box itself) */
@@ -13653,7 +13654,8 @@ const ROD_DEFS = [ /* tier 0 is the Basic Rod — free, everyone starts with it;
   { name: "Golden Rod", price: 100000000 }, { name: "Crystal Rod", price: 500000000 }, { name: "Quantum Rod", price: 1000000000 }
 ];
 const FISH_URL = i => "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffish-" + String(i + 1).padStart(2, "0") + ".webp?alt=media";
-const ROD_URL = t => "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Frod-" + String(t + 1).padStart(2, "0") + ".webp?alt=media";
+const ROD_FILE = t => t === 2 ? 5 : t === 4 ? 3 : t + 1; /* the COSMIC / CRYSTAL ARTWORK SWAP (Jonathan 2026-11-05): display-side only — the Cosmic Rod (tier 3) wears the rod-05 picture and the Crystal Rod (tier 5) wears the rod-03 picture, everywhere a rod is shown (in hand, the shop wall, the panel rows, the transform show — all of them resolve through ROD_URL). Names, prices, tier order and odds are untouched, and the stored image files never move */
+const ROD_URL = t => "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Frod-" + String(ROD_FILE(t)).padStart(2, "0") + ".webp?alt=media";
 /* his own supplied art (the Crypto Sea Creature set + the Quantum Fishing Rod set), trimmed and stored under hub-heroes/ like the FUD art — fish-01 = Satoshi Shrimp … fish-10 = Quantum Whale (already flipped, per his word), rod-01 = Basic … rod-06 = Quantum */
 const fishImgCache = {}, rodImgCache = {};
 function fishImg(i) { let im = fishImgCache[i]; if (!im) { im = new Image(); im.src = FISH_URL(i); fishImgCache[i] = im; } return im; } /* the fudImg pattern: lazy, cached */
@@ -13768,8 +13770,8 @@ function renderFishPanel() {
     const mid = document.createElement("div"); const nm = document.createElement("div"); nm.className = "fname"; nm.textContent = f.name + "  ×" + n;
     const wv = document.createElement("div"); wv.className = "fworth"; wv.textContent = "🪙 " + f.worth.toLocaleString("en-US") + " each";
     mid.appendChild(nm); mid.appendChild(wv); row.appendChild(mid);
-    const b1 = document.createElement("button"); b1.type = "button"; b1.textContent = "Sell 1"; b1.onclick = () => fishSell(i, 1); row.appendChild(b1);
-    if (n > 1) { const b2 = document.createElement("button"); b2.type = "button"; b2.textContent = "Sell all"; b2.onclick = () => fishSell(i, n); row.appendChild(b2); }
+    const b1 = document.createElement("button"); b1.type = "button"; b1.className = "fishbtn"; b1.textContent = "Sell 1"; b1.onclick = () => fishSell(i, 1); row.appendChild(b1);
+    if (n > 1) { const b2 = document.createElement("button"); b2.type = "button"; b2.className = "fishbtn"; b2.textContent = "Sell all"; b2.onclick = () => fishSell(i, n); row.appendChild(b2); }
     list.appendChild(row); });
   if (!any) { const p = document.createElement("p"); p.className = "monmsg"; p.textContent = "Your bucket is empty — fish the castle lake first!"; list.appendChild(p); }
   const h2 = document.createElement("h3"); h2.textContent = "🎣 Rod upgrades"; h2.style.color = "#bffcff"; list.appendChild(h2);
@@ -13780,7 +13782,7 @@ function renderFishPanel() {
     const wv = document.createElement("div"); wv.className = "fworth";
     if (myRod >= t) wv.textContent = "✓ Owned"; else if (t === myRod + 1) wv.textContent = "🪙 " + r.price.toLocaleString("en-US"); else wv.textContent = "🔒 Buy the " + ROD_DEFS[t - 1].name + " first";
     mid.appendChild(nm); mid.appendChild(wv); row.appendChild(mid);
-    if (t === myRod + 1) { const b = document.createElement("button"); b.type = "button"; b.textContent = "Buy"; b.onclick = () => rodBuyAsk(t); row.appendChild(b); }
+    if (t === myRod + 1) { const b = document.createElement("button"); b.type = "button"; b.className = "fishbtn"; b.textContent = "Buy"; b.onclick = () => rodBuyAsk(t); row.appendChild(b); }
     list.appendChild(row); });
   if (isOwnerAcct()) { /* the RESET ROD row (owner-only, Jonathan 2026-11-04): the Reset Speed button's twin, living with the rod rows it resets — it renders ONLY for the owner's account (no other account and no guest ever sees it), in the panel's own row dress, and rodReset refuses for anyone else regardless */
     const row = document.createElement("div"); row.className = "fishrow";
