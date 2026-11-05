@@ -1896,7 +1896,7 @@ function obstacles() {
   if (me.scene === "boxing") return boxingBout ? [] : [BOXRING]; /* the bleachers are walk-over scenery (Jonathan 2026-10-31) — only the ring is solid, and only until YOUR bout starts (pass D) */
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
   if (me.scene === "speedway") return [...SWTV, ...SWSTANDS]; /* on foot you can walk the whole arena — apron, track and infield; the ring clamp only bites while driving. The only solids are the infield monitors and the corner concession stands (Jonathan 2026-10-29); the benches stay walk-over scenery */
-  if (me.scene === "fishshop") return [FISHCTR]; /* the Fishing Shop's counter across the top of the room is solid — Q-Bot stands behind it and you work the shop from its front */
+  if (me.scene === "fishshop") return [FISHCTR, FISHKEEPER]; /* the Fishing Shop's counter across the top of the room is solid — Q-Bot stands behind it and you work the shop from its front; FISHKEEPER walls off the whole zone behind the counter at full room width, so nobody slips around the counter's ends into the keeper zone (Jonathan 2026-11-04 22:11) */
   if (me.scene === "castle") return []; /* the throne room has NO solids now (Jonathan 2026-11-04 21:37 — from his screenshot of the stage: "let players WALK ON TOP of it"): the throne dais — the long gold-bordered rectangle stage at the hall's north end — used to block movement like a solid; its surface is WALKABLE now, so a player can step up and stand/walk on the stage itself. The dais rect survives in CASTLE_SOLIDS purely as drawCastle's paint source; it is returned as an obstacle nowhere. (The four pedestals' solids left with their painting, 2026-11-04) */
   if (me.scene === "dining") return [...DINING_SOLIDS]; /* the dining hall's long table is its one solid */
   if (me.scene === "crystal") return [...CRYSTAL_SOLIDS]; /* the Quantum Crystal's plinth is solid — the centrepiece is walked around, never through */
@@ -2065,6 +2065,7 @@ function enterHub() {
   ac(); startMusic(); sfxChime();
   publish(true);
   poolBallListen(); /* the plaza is home: follow the pool's beach ball from the moment I step in */
+  fishNetInit(); /* PEER RODS (2026-11-04): follow hub/fishing from the moment I step in, so a rod already out on the lake is on its owner's hand when I arrive */
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
@@ -5093,11 +5094,11 @@ function tableIdleClear(game, st, resetVal) {
   const keys = Object.keys(seats).filter(k => seats[k]);
   const fresh = keys.filter(k => seats[k].pid && now - (seats[k].ts || 0) < 25000); /* pid-less husks are not seated players: they must not hold a table open (ghost-seat fix, 2026-10-30) */
   if (fresh.length) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
-  const dirty = st.phase !== "bet" || keys.some(k => seats[k].bet > 0) || !!st.firstBetTs;
+  const dirty = st.phase !== "bet" || keys.some(k => seats[k].bet > 0 || (typeof craPbSum === "function" && craPbSum(seats[k]) > 0)) || !!st.firstBetTs; /* a craps seat's place bets are a stake riding on the record too (craPbSum reads 0 on every other game's seats — they carry no pb) */
   if (!dirty) { if (st.emptyTs) tblUpd(game, { emptyTs: null }); return; }
   if (!keys.length) { tblSet(game, resetVal); return; } /* every seat record is gone — the last player actually left (stand-up removes the record; a disconnect removes it too): the game ends and the table resets on the spot, any phase (his rule 2026-10-28) */
   if (!st.emptyTs) { tblUpd(game, { emptyTs: now }); return; }
-  if (now - st.emptyTs > 6000) { Object.keys(seats).forEach(k => { const s = seats[k]; if (s && s.bet > 0) writeClaim(claimUid(s), rfKeyFor(game, st, k), s.bet, "↩️ Bet returned"); }); tblSet(game, resetVal); } /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears. The wipe destroys the seat records, so any stake still riding on one is handed back through the rf claim FIRST (never-lose net): a bettor whose phone merely slept wakes to a claim note, not a vanished bet */
+  if (now - st.emptyTs > 6000) { Object.keys(seats).forEach(k => { const s = seats[k]; const riding = (s ? (s.bet || 0) : 0) + (s && typeof craPbSum === "function" ? craPbSum(s) : 0); if (s && riding > 0) writeClaim(claimUid(s), rfKeyFor(game, st, k), riding, "↩️ Bet returned"); }); tblSet(game, resetVal); } /* backstop only: seat records lingering with no fresh heartbeat (a vanished client) — all stale + 6s and the leftover game clears. The wipe destroys the seat records, so any stake still riding on one is handed back through the rf claim FIRST (never-lose net): a bettor whose phone merely slept wakes to a claim note, not a vanished bet — at craps the handed-back stake is the pass bet plus every place bet */
 }
 /* ============ Quantum Horse Track: the betting table (PREVIEW, Jonathan 2026-10-30) ============
    The casino tables' pattern, carried to the gallery: a shared table record at
@@ -10245,7 +10246,13 @@ function hrListen() {
   setInterval(hrcSeatBeat, 4000);
 }
 function bacSettle() { const st = bacState; if (st && st.phase !== "bet" && bacSeat >= 0) cancelRefundOD("bac", bacSeat); /* the cards are dealt: committed */ if (st && st.phase === "done" && bacSeat >= 0 && st.results && st.results[bacSeat]) settleOnce("bac" + st.roundId + "-" + bacSeat, st.results[bacSeat].amt || 0); }
-function craSettle() { const st = craState; if (st && st.phase !== "bet" && craSeat >= 0) cancelRefundOD("cra", craSeat); /* the dice are out: committed */ if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
+let craPrevPhase = "";
+function craSettle() { const st = craState;
+  if (st && st.pbPay && craSeat >= 0 && st.pbPay[craSeat]) { const pp = st.pbPay[craSeat]; if (pp && pp.amt > 0 && !settledKeys.has(pp.key)) { settleOnce(pp.key, pp.amt); if (me.scene === "highrollers") { const sp2 = CRASEATS[craSeat]; if (sp2) fxText(sp2.x, sp2.y - 64, "+🪙 " + pp.amt.toLocaleString("en-US"), "#ffd76a", "highrollers"); sfxWin(0.55); } } } /* a PLACE-bet win off the latest roll (the host publishes pbPay with each roll's resolution): settled under the very key the host's claim carries, so the fast path and the held claim land it exactly once between them */
+  if (st && st.phase !== "bet" && craSeat >= 0) cancelRefundOD("cra", craSeat); /* the dice are out: committed */
+  if (st && st.phase === "bet" && craPrevPhase && craPrevPhase !== "bet" && craSeat >= 0) craArmMine(); /* a fresh betting phase: my standing place bets (they persist across rounds) re-arm their disconnect refund under the new round's key, at pass bet + place total */
+  if (st) craPrevPhase = st.phase;
+  if (st && st.phase === "done" && craSeat >= 0 && st.results && st.results[craSeat]) settleOnce("cra" + st.roundId + "-" + craSeat, st.results[craSeat].amt || 0); }
 function hbjSettle() { const st = hbjState; if (st && st.phase !== "bet" && hbjSeat >= 0) cancelRefundOD("hbj", hbjSeat); /* the hand has started: committed */ if (st && st.phase === "done" && hbjSeat >= 0 && st.results && st.results[hbjSeat]) settleOnce("hbj" + st.handId + "-" + hbjSeat, st.results[hbjSeat].amt || 0); }
 function hrrSettle() { const st = hrrState; if (st && st.phase !== "bet" && hrrSeat >= 0) cancelRefundOD("hrr", hrrSeat); /* the wheel is spinning: committed */ if (st && st.phase === "done" && hrrSeat >= 0 && st.results && st.results[hrrSeat]) settleOnce("hrr" + st.spinId + "-" + hrrSeat, st.results[hrrSeat].amt || 0); }
 /* ---- sound & light for the High Rollers tables and the Chess Room (Jonathan 2026-10-31): the casino's treatment, carried over — a win bursts coins at the seat, a loss puffs grey, a push dings soft. Client-local only: nothing here writes a record. ---- */
@@ -10353,7 +10360,8 @@ function hrcSitAt(game, i) {
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) { hrcSetSeat(game, i); seatOD(game, i, true); return; }
   if (s && s.pid && Date.now() - (s.ts || 0) <= 25000) { noteHRC("That seat is taken."); return; }
-  if (s && s.bet > 0 && s.pid !== myId && st && st.phase === "bet") writeClaim(claimUid(s), rfKeyFor(game, st, i), s.bet, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
+  const takeBack = (s && s.bet > 0 ? s.bet : 0) + (s && game === "cra" ? craPbSum(s) : 0); /* a craps chair can carry place bets beside its pass bet — the takeover hands back the whole stake riding on it */
+  if (s && takeBack > 0 && s.pid !== myId && st && st.phase === "bet") writeClaim(claimUid(s), rfKeyFor(game, st, i), takeBack, "↩️ Bet returned"); /* taking over a stale chair destroys its record (never-lose net): a stake still riding on it goes back to its owner through the rf claim first */
   tblSet(game + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero, ts: Date.now(), bet: 0, betType: "", chips: profile ? (profile.chips || 0) : 0 });
   hrcSetSeat(game, i); seatOD(game, i, true);
 }
@@ -10362,8 +10370,10 @@ function hrcStand(game) {
   hrcSetLeft(game, i);
   const st = hrcSt(game), s = st && st.seats && st.seats[i];
   if (s && s.pid === myId) {
-    if (st.phase === "bet" && s.bet) { addChips(s.bet); noteHRC("🚪 You stood up — your " + s.bet.toLocaleString("en-US") + " bet was returned."); }
-    else if (s.bet && st.phase !== "done") noteHRC("🚪 You left mid-round — your spot and bet are forfeited."); /* "done" is not mid-round: the round is decided, standing then is clean and the win banks below */
+    const pbBack = game === "cra" ? craPbSum(s) : 0; /* craps place bets ride the seat beside the pass bet: they come back on the same exits the pass bet does */
+    if (st.phase === "bet" && (s.bet || pbBack)) { const back = (s.bet || 0) + pbBack; addChips(back); noteHRC("🚪 You stood up — your " + back.toLocaleString("en-US") + " bet was returned."); }
+    else if (st.phase === "done" && pbBack && !(st.dice && st.dice[0] + st.dice[1] === 7)) { addChips(pbBack); noteHRC("🚪 You stood up — your place bets (🪙 " + pbBack.toLocaleString("en-US") + ") came down with you."); } /* the round is decided and no 7 took them (a 7 on the last roll already cleared them at the table — the dice in the record say which) — they come down with their owner */
+    else if ((s.bet || pbBack) && st.phase !== "done") noteHRC("🚪 You left mid-round — your spot and bet are forfeited."); /* "done" is not mid-round: the round is decided, standing then is clean and the win banks below */
   }
   if (game === "bac") bacSettle(); else if (game === "cra") craSettle(); else if (game === "hbj") hbjSettle(); else hrrSettle(); /* a decided round banks before the chair is freed */
   if (!(s && s.pid && s.pid !== myId && Date.now() - (s.ts || 0) <= 25000)) tblSet(game + "/seats/" + i, null);
@@ -10777,7 +10787,7 @@ function hrcBet(game, type) {
   addChips(-amt);
   tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, betType: type, ts: Date.now(), chips: profile ? profile.chips : 0 });
   mine.bet = amt; mine.betType = type;
-  armRefundOD(game, hrcIdx(game), amt); /* the stake is charged: arm its disconnect refund (never-lose net) */
+  if (game === "cra") craArmMine(); else armRefundOD(game, hrcIdx(game), amt); /* the stake is charged: arm its disconnect refund (never-lose net) — at craps the arm covers the place bets riding beside it too */
   sfxClick();
 }
 function hrcSetAmt(game, amt) {
@@ -10789,7 +10799,7 @@ function hrcSetAmt(game, amt) {
     addChips(mine.bet); addChips(-amt);
     tblUpd(game + "/seats/" + hrcIdx(game), { bet: amt, ts: Date.now(), chips: profile ? profile.chips : 0 });
     mine.bet = amt;
-    armRefundOD(game, hrcIdx(game), amt); /* the re-stake moves the disconnect refund to the new amount too */
+    if (game === "cra") craArmMine(); else armRefundOD(game, hrcIdx(game), amt); /* the re-stake moves the disconnect refund to the new amount too (at craps: pass + place total) */
   }
   sfxClick();
 }
@@ -10865,6 +10875,68 @@ function bacHostTick() {
     tblUpd("bac", { phase: "bet", results: null, pHand: null, bHand: null, winner: null, roundId: newRoundId() });
   }
 }
+/* ---- craps PLACE BETS (Jonathan 2026-11-04 22:14, approved after the walk-through): the point numbers as their own bets beside the pass line ----
+   Each seat record carries pb — { "6": stake, ... } — written only by the seat's owner through craPlaceBet (debit at placement, chips rules as everywhere: accounts only). A player may hold several numbers at once. The bets WORK EVERY ROLL and persist across pass-line rounds: the host snapshots the seats' pb into pbSnap each time it publishes dice, and resolves that snapshot at the roll's resolution — a hit pays PROFIT and the bet stays up, a 7 takes every snapshotted bet down. Snapshotting at publish time is what keeps the dice honest: a bet placed while the dice are out joins from the NEXT roll (it was never under the dice already showing), and a take-down is refused while the dice are out for the same reason. Wins ride the claims rail (writeClaim under the roll's own key) AND the record's pbPay, settled by craSettle under that same key — exactly once between the two paths, even for a winner who disconnects. */
+const CRA_PLACE_NUMS = [4, 5, 6, 8, 9, 10];
+function craPbSum(s) { const pb = (s && s.pb) || {}; let t = 0; for (const ns in pb) t += pb[ns] || 0; return t; }
+function craPbPayout(num, stake) { if (num === 4 || num === 10) return Math.floor(stake * 9 / 5); if (num === 5 || num === 9) return Math.floor(stake * 7 / 5); return Math.floor(stake * 7 / 6); } /* place-bet PROFIT (the stake itself stays up): 9 to 5 on 4 and 10, 7 to 5 on 5 and 9, 7 to 6 on 6 and 8, floored to whole chips */
+function craPbFmt(v) { if (v >= 1e9) return (Math.round(v / 1e8) / 10) + "B"; if (v >= 1e6) return (Math.round(v / 1e5) / 10) + "M"; if (v >= 1e3) return (Math.round(v / 100) / 10) + "k"; return String(v); }
+function craArmMine() { /* my disconnect refund at this table covers EVERYTHING I have riding — the pass bet plus every place bet — recomputed on each change (cancel first, so a round change can never leave a zombie order armed under the old round's key) */
+  if (craSeat < 0) return; const mine = hrcMySeat("cra"); if (!mine) return;
+  const tot = (mine.bet || 0) + craPbSum(mine);
+  cancelRefundOD("cra", craSeat);
+  if (tot > 0) armRefundOD("cra", craSeat, tot);
+}
+function craPlaceBet(n) {
+  if (!acctUser) { noteHRC("🔒 Playing takes an account — guests can watch."); return; } /* guests cannot place (they cannot even sit at the club tables — this is the second lock) */
+  const st = craState, mine = hrcMySeat("cra");
+  if (!st || craSeat < 0 || !mine) return;
+  const pb = Object.assign({}, mine.pb || {});
+  if ((pb[n] || 0) > 0) { /* tapping a number I already hold TAKES THAT BET DOWN, refunded whole */
+    if (st.phase === "roll") { noteHRC("🚫 Place bets come down between rolls — the dice are out."); sfxBad(); return; }
+    if (st.phase === "done" && st.dice && st.dice[0] + st.dice[1] === 7) { noteHRC("The 7 on the last roll already took that bet."); sfxBad(); return; } /* the host cleared it at the table even if my seat echo is a beat behind — never refund a bet the 7 already collected */
+    const back = pb[n]; delete pb[n];
+    addChips(back);
+    tblUpd("cra/seats/" + craSeat, { pb: Object.keys(pb).length ? pb : null, ts: Date.now(), chips: profile ? profile.chips : 0 });
+    mine.pb = Object.keys(pb).length ? pb : null;
+    craArmMine();
+    noteHRC("↩️ Place bet on " + n + " taken down — 🪙 " + back.toLocaleString("en-US") + " returned.");
+    sfxClick(); return;
+  }
+  const amt = craAmt; /* staked at the bet amount currently selected on the panel */
+  if (!profile || (profile.chips || 0) < amt) { noteHRC("Not enough chips for a " + amt.toLocaleString("en-US") + " place bet."); return; }
+  addChips(-amt); /* charged the moment it is placed, like every stake in the casino */
+  pb[n] = amt;
+  tblUpd("cra/seats/" + craSeat, { pb, ts: Date.now(), chips: profile ? profile.chips : 0 });
+  mine.pb = pb;
+  craArmMine();
+  if (st.phase === "roll") noteHRC("🎲 Place bet on " + n + " is down — it plays from the next roll.");
+  sfxClick();
+}
+function craPbSnapshot(st) { /* the place bets the NEXT published dice play under — read off the seat records at publish time, so no bet can ever land on dice already showing */
+  const snap = {}; const seats = (st && st.seats) || {};
+  Object.keys(seats).forEach(k => { const s = seats[k]; if (!s || !s.pb) return; const held = {}; for (const ns in s.pb) { if ((s.pb[ns] || 0) > 0) held[ns] = s.pb[ns]; } if (Object.keys(held).length) snap[k] = held; });
+  return Object.keys(snap).length ? snap : null;
+}
+function craResolvePlace(st, sum) { /* one roll against the snapshot (host, at resolution): a held number pays PROFIT and stays up; a 7 takes every snapshotted bet down. Returns the per-seat win map the record carries as pbPay — every win ALSO rides a claim under the same key */
+  const snap = st.pbSnap || {}, seats = st.seats || {}, pay = {};
+  Object.keys(snap).forEach(k => {
+    const i = Number(k), s = seats[i]; if (!s || !s.pid) return; /* the seat is gone — stood or disconnected mid-round: forfeited, exactly like the pass bet */
+    const held = snap[k] || {};
+    for (const ns in held) {
+      const num = Number(ns), stake = held[ns] || 0;
+      if (!(stake > 0) || !s.pb || (s.pb[ns] || 0) !== stake) continue; /* no longer holding exactly this (defensive — take-downs are refused while the dice are out) */
+      if (sum !== 7 && sum === num) { const profit = craPbPayout(num, stake); if (profit > 0) { const key = "crapb" + (st.roundId || 0) + "-" + (st.rollTs || 0) + "-" + i; writeClaim(claimUid(s), key, profit, "🎲 Craps place win"); pay[i] = { amt: profit, key }; } }
+    }
+  });
+  if (sum === 7) Object.keys(snap).forEach(k => { /* the 7: every bet that was live under this roll comes down — a number placed mid-roll was never in the snapshot and survives */
+    const i = Number(k), s = seats[i]; if (!s || !s.pb) return;
+    const npb = Object.assign({}, s.pb); let changed = false;
+    for (const ns in (snap[k] || {})) { if (npb[ns] === (snap[k][ns] || 0)) { delete npb[ns]; changed = true; } }
+    if (changed) tblUpd("cra/seats/" + i, { pb: Object.keys(npb).length ? npb : null });
+  });
+  return Object.keys(pay).length ? pay : null;
+}
 function craHostTick() {
   if (!craState) { tblSet("cra", { phase: "bet", seats: {}, roundId: newRoundId(), point: 0, ts: Date.now() }); return; }
   const hi = hrcHostSeat(craState); if (hi < 0 || craState.seats[hi].pid !== myId) return;
@@ -10872,19 +10944,20 @@ function craHostTick() {
   const { fresh, ready, bettors } = hrcFreshReady(st);
   const rollDice = () => [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
   if (st.phase === "bet") {
-    if (fresh.length && ready.length === fresh.length) tblUpd("cra", { phase: "roll", dice: rollDice(), point: 0, rollTs: srvNow(), results: null });
+    if (fresh.length && ready.length === fresh.length) tblUpd("cra", { phase: "roll", dice: rollDice(), point: 0, rollTs: srvNow(), results: null, pbSnap: craPbSnapshot(st), pbPay: null });
   } else if (st.phase === "roll" && srvNow() - (st.rollTs || 0) > 2800) {
     const sum = (st.dice ? st.dice[0] + st.dice[1] : 0), point = st.point || 0;
+    const pbPay = craResolvePlace(st, sum); /* EVERY roll resolves the place bets first — they work every roll: a hit pays and stays up, a 7 clears the table's place bets */
     let end = null;
     if (!point) {
       if (sum === 7 || sum === 11) end = "pass";
       else if (sum === 2 || sum === 3) end = "dontpass";
       else if (sum === 12) end = "pushdp";
-      else { tblUpd("cra", { point: sum, dice: rollDice(), rollTs: srvNow() }); return; }
+      else { tblUpd("cra", { point: sum, dice: rollDice(), rollTs: srvNow(), pbSnap: craPbSnapshot(st), pbPay }); return; }
     } else {
       if (sum === point) end = "pass";
       else if (sum === 7) end = "dontpass";
-      else { tblUpd("cra", { dice: rollDice(), rollTs: srvNow() }); return; }
+      else { tblUpd("cra", { dice: rollDice(), rollTs: srvNow(), pbSnap: craPbSnapshot(st), pbPay }); return; }
     }
     const results = {};
     const deciders = Object.keys(st.seats || {}).map(Number).filter(i => st.seats[i] && st.seats[i].bet > 0); /* FROZEN at decision time from everyone debited (claims fix) */
@@ -10898,10 +10971,10 @@ function craHostTick() {
       results[i] = { res, amt };
       if (amt > 0) writeClaim(claimUid(s), "cra" + st.roundId + "-" + i, amt, "🏆 Craps win");
     });
-    tblUpd("cra", { phase: "done", results, doneTs: now, end });
+    tblUpd("cra", { phase: "done", results, doneTs: now, end, pbPay });
   } else if (st.phase === "done" && now - (st.doneTs || 0) > 3000) {
-    Object.keys(st.seats || {}).forEach(i => tblUpd("cra/seats/" + i, { bet: 0, betType: "", rdy: false }));
-    tblUpd("cra", { phase: "bet", results: null, point: 0, dice: null, end: null, roundId: newRoundId() });
+    Object.keys(st.seats || {}).forEach(i => tblUpd("cra/seats/" + i, { bet: 0, betType: "", rdy: false })); /* the pass stakes recycle — the seats' pb is NOT touched: place bets persist into the next round */
+    tblUpd("cra", { phase: "bet", results: null, point: 0, dice: null, end: null, roundId: newRoundId(), pbSnap: null, pbPay: null });
   }
 }
 /* ---- the club's blackjack (Jonathan 2026-11-01): the casino's bjBet/bjReady/bjHit/bjStand/bjDouble/bjHostTick carried onto the club's own record, seat and names. The ONLY differences are the room's: the stake ladder is HR_BETS (each amount button stakes that amount outright), the notes are the club's, and every key — settle "hbj<handId>-<seat>", claim, rf refund — carries the "hbj" family so this table and the casino's can run side by side and never collide. The ready gate, the frozen decider set, the never-ready decision refund and the never-dealt recycle refund are the casino's, unchanged ---- */
@@ -12074,11 +12147,16 @@ function drawCraTable() {
     if (canBet) drawBtn(bx, by, bw, 52, tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), () => hrcBet("cra", tp[0]), { fs: 20, fill: tp[2], sel, pad: 6 });
     else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 52, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 52, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 34); ctx.globalAlpha = 1; }
   });
-  /* the POINT NUMBERS under the bet buttons (Jonathan 2026-11-04 21:50): 4 5 6 7 8 9 10, each in its own box in the buttons' column (rel. y 240–284) — clear of the dice and result text on the left, of the "your bet amount" label and amount rows below (their ink starts at rel. ~325) and of the rules line at the felt's foot */
-  ctx.textAlign = "center"; ctx.font = "800 22px 'Segoe UI',sans-serif";
-  [4, 5, 6, 7, 8, 9, 10].forEach((n, i) => { const nx = T.x + 478 + i * 57, ny = T.y + 240;
-    ctx.fillStyle = "rgba(0,0,0,0.35)"; rr(nx, ny, 49, 44, 9); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(nx, ny, 49, 44, 9); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(String(n), nx + 24.5, ny + 30); });
+  /* the POINT NUMBERS under the bet buttons (Jonathan 2026-11-04 21:50, made PLACE BETS 22:14): 4 5 6 8 9 10 are tappable while I hold a seat (craPlaceBet — debit at placement, tap a held number to take it down); the 7 stays a plain label. A held number shows its stake under the digit — MY stake on a gold-lit box, other players' stakes in pale gold for everyone to see */
+  const pbTot = {}, pbMine = {};
+  if (st && st.seats) Object.keys(st.seats).forEach(k => { const spb = st.seats[k] && st.seats[k].pb; if (!spb) return; for (const ns in spb) { if ((spb[ns] || 0) > 0) pbTot[ns] = (pbTot[ns] || 0) + spb[ns]; } });
+  if (mine && mine.pb) for (const ns in mine.pb) { if ((mine.pb[ns] || 0) > 0) pbMine[ns] = mine.pb[ns]; }
+  ctx.textAlign = "center";
+  [4, 5, 6, 7, 8, 9, 10].forEach((n, i) => { const nx = T.x + 478 + i * 57, ny = T.y + 240, myStake = pbMine[n] || 0, totStake = pbTot[n] || 0;
+    if (n !== 7 && mine) drawBtn(nx, ny, 49, 44, "", () => craPlaceBet(n), { sel: myStake > 0, fill: "rgba(0,0,0,0.35)", pad: 3 });
+    else { ctx.fillStyle = myStake > 0 ? "#ffd76a" : "rgba(0,0,0,0.35)"; rr(nx, ny, 49, 44, 9); ctx.fill(); ctx.strokeStyle = myStake > 0 ? "#fff2c4" : "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(nx, ny, 49, 44, 9); ctx.stroke(); }
+    ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.fillStyle = myStake > 0 ? "#241a08" : "#ffe9a8"; ctx.fillText(String(n), nx + 24.5, ny + 21);
+    if (totStake > 0) { ctx.font = "800 12px 'Segoe UI',sans-serif"; ctx.fillStyle = myStake > 0 ? "#241a08" : "rgba(255,233,168,0.9)"; ctx.fillText("🪙" + craPbFmt(myStake > 0 ? myStake : totStake), nx + 24.5, ny + 38); } });
   const drawDie = (cx, cy, v) => {
     ctx.fillStyle = "#f6f2e8"; rr(cx - 34, cy - 34, 68, 68, 12); ctx.fill();
     ctx.strokeStyle = "rgba(10,10,20,0.55)"; ctx.lineWidth = 2; rr(cx - 34, cy - 34, 68, 68, 12); ctx.stroke();
@@ -12112,8 +12190,8 @@ function drawCraTable() {
       ctx.fillText(st.end === "pass" ? "✅ PASS WINS!" : st.end === "dontpass" ? "🚫 DON'T PASS WINS!" : "Bar 12 — don't pass pushes", T.x + 224, T.y + 340);
     }
   } else {
-    ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)"; ctx.textAlign = "center";
-    ctx.fillText("pass line only — come-out 7 or 11 wins, 2 · 3 · 12 loses, then make the point before a 7", T.x + T.w / 2, T.y + T.h - 14);
+    ctx.font = "700 18px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(255,233,168,0.75)"; ctx.textAlign = "center";
+    ctx.fillText("come-out: 7 · 11 wins, 2 · 3 · 12 loses — make the point before a 7 · tap a number to place a bet on it", T.x + T.w / 2, T.y + T.h - 14);
   }
   hrcSeatBets(CRASEATS, st, "cra");
   hrcSeatsRow(CRASEATS, st, "cra");
@@ -13075,6 +13153,7 @@ const FISHDOOR = { x: -465, y: 1440, w: 90, h: 34 }; /* on the bottom face, cent
 const FISHROOM = { w: 2400, h: 1500 }; /* the shop interior */
 const FISHEXIT = { x: FISHROOM.w / 2 - 62, y: FISHROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — MSEXIT's shape */
 const FISHCTR = { x: 268, y: 210, w: 1864, h: 74 }; /* the counter across the TOP of the room (Jonathan's design, 2026-11-04): solid, with Q-Bot behind it — WIDENED at his word (2026-11-04 19:55) so its ends line up with the rod display above it: the outermost rod panels span x 268..2132 (centres 330 and 2070, 124 wide), and the counter now runs exactly edge to edge with them, 268..2132, its centre still the room's 1200 */
+const FISHKEEPER = { x: 0, y: 0, w: FISHROOM.w, h: FISHCTR.y + FISHCTR.h }; /* the KEEPER ZONE behind the counter, walled off (Jonathan 2026-11-04 22:11, from his screenshot inside the shop — "dont let the player go behind this blue counter thing in depth in the shop"): FISHCTR alone spans only the rod display's width (x 268..2132), so a walker could slip around either end and stand behind the counter, in Q-Bot's zone under the rod wall. This rect runs the room's FULL width from the north wall down to the counter's bottom edge (y 284), so the counter band and the whole keeper zone behind it are one solid — you stop at the counter's front line anywhere along the room (feet rest at y 314, the collide standoff south of 284), exactly where fishNearCounter already reads a customer. Nothing else lives north of the counter but Q-Bot, and he is an actor — collide never moves him, so his post is untouched. The fish domes (baselines y 600 / 1010) and the exit plate stay in the open customer floor, south of the line */
 const FISHQBOT = { x: 1200, y: 262 }; /* Q-Bot's post: centred BEHIND the counter — his feet stand inside the counter's band and its front is repainted over his lower body (drawFishCounterFront), so he reads as staff behind the desk, the High Rollers clerk's own arrangement */
 const FISH_DEFS = [ /* the ten fish, smallest to biggest — names the owner's (2026-11-04), odds are the QUANTUM rod's table (the sixths mechanic, restored 2026-11-04 21:51): nothing under 1%, the Whale strictly rarer than the Leviathan; worth = sell price, repriced by the owner 2026-11-04 19:35 (final set after his correction chain: everything tripled except the Whale, which stays 10,000,000) */
   { name: "Satoshi Shrimp", odds: 25, worth: 15000 }, { name: "FOMO Minnow", odds: 24, worth: 30000 },
@@ -13106,20 +13185,51 @@ function loadFishFromAccount(d) { /* sign-in (and sign-out, with null): the fish
 fishLocalLoad();
 /* ---- fishing itself ---- */
 let fishState = { mode: "", biteAt: 0, castAt: 0, waitMs: 0 }; /* "" on dry land, "wait" with the line out, "bite" inside the reel window — mine only, never published; castAt/waitMs time the wait bar under me while a cast is out */
+/* ---- PEER RODS (Jonathan 2026-11-04 22:18 — "make sure others can see you deploy your fishing rod"): the presence record is FIELD-LOCKED and grows NO fishing field, so a cast rides its own little record at hub/fishing/<pid> — the same client pid presence uses, so guests and accounts both carry one. Shape: {scene, rod (tier), st (the fishState mode), ts (server)}. Written when a cast starts, refreshed while it stands, REMOVED the moment the rod goes away (reel, cancel, walk-off, scene change — fishPublish is called from every one of those paths) and on disconnect. Peers keep a map off the hub/fishing listener and expire a record on the presence rule (45s without a fresh ts = gone), so a crashed tab's rod never haunts the lake. NOTE (2026-11-04): the live RTDB rules do not cover hub/fishing yet — a REST write/read/delete probe on 2026-11-04 was refused 401 on all three. The code below is built against this exact path and simply starts working the moment the rules entry lands; until then myRef.set() rejects are swallowed and peers' maps stay empty. ---- */
+const peerFish = new Map(); /* pid -> {rod, st, scene, ts} */
+let myFishRef = null, myFishPubKey = "", myFishPubAt = 0, fishNetHooked = false;
+function fishNetInit() {
+  if (!db || fishNetHooked) return; fishNetHooked = true;
+  db.ref("hub/fishing").on("value", snap => {
+    const now = Date.now(), seen = new Set();
+    snap.forEach(ch => {
+      const v = ch.val(); if (!v || ch.key === myId) return;
+      if (now - (v.ts || 0) > 45000) return; /* the presence staleness rule: a record this old is a ghost */
+      seen.add(ch.key);
+      peerFish.set(ch.key, { rod: (typeof v.rod === "number" ? v.rod : 0), st: v.st || "", scene: v.scene || "", ts: v.ts || 0 });
+    });
+    for (const k of [...peerFish.keys()]) if (!seen.has(k)) peerFish.delete(k);
+  });
+}
+function fishPublish() { /* my own record: up while my rod is out, gone when it isn't */
+  if (!db || !entered) return;
+  fishNetInit();
+  if (!fishState.mode) {
+    if (myFishRef) { try { const p = myFishRef.remove(); if (p && p.catch) p.catch(() => {}); } catch (e) {} myFishRef = null; myFishPubKey = ""; }
+    return;
+  }
+  const key = fishState.mode + "|" + myRod, now = performance.now();
+  if (!myFishRef) { myFishRef = db.ref("hub/fishing/" + myId); try { myFishRef.onDisconnect().remove(); } catch (e) {} }
+  if (key !== myFishPubKey || now - myFishPubAt > 8000) { /* a state change lands at once; a standing cast re-stamps its ts every 8s so the record never ages out mid-fish */
+    myFishPubKey = key; myFishPubAt = now;
+    try { const p = myFishRef.set({ scene: "plaza", rod: myRod, st: fishState.mode, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  }
+}
 function moatDist(x, y) { let bd = 1e18; for (const r of MOAT_SOLIDS) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } return bd; }
 function nearMoat() { return me.scene === "plaza" && moatDist(me.x, me.y) <= 85; } /* standing at the lake's edge: on either shore or on the drawbridge, within a step of the water */
-function fishCancel() { fishState.mode = ""; }
-function startFishing() { if (!nearMoat() || fishState.mode) return; fishState.mode = "wait"; fishState.castAt = performance.now(); fishState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, myRod); fishState.biteAt = fishState.castAt + fishState.waitMs; /* the basic bite wait is 4–9s random; every rod tier shrinks it ~15% */
+function fishCancel() { fishState.mode = ""; fishPublish(); /* the rod goes away for the whole lake the moment it goes away for me */ }
+function startFishing() { if (!nearMoat() || fishState.mode) return; fishState.mode = "wait"; fishPublish(); /* peers see the rod from the cast's first frame */ fishState.castAt = performance.now(); fishState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, myRod); fishState.biteAt = fishState.castAt + fishState.waitMs; /* the basic bite wait is 4–9s random; every rod tier shrinks it ~15% */
   tone(280, 640, 0.18, "sine", 0.05); noiseBurst(0.12, "bandpass", 900, 480, 0.035); } /* the cast: a rising sweep and the line's soft splash */
 function fishTick(now) { /* the fishing clock, run on plaza frames beside the FUD clock: walking away (or leaving the plaza) puts the rod away; the bite opens a 1.6s reel window, then the fish is gone */
   if (!fishState.mode) return;
-  if (me.scene !== "plaza" || me.moving) { fishState.mode = ""; return; }
-  if (fishState.mode === "wait" && now >= fishState.biteAt) { fishState.mode = "bite"; tone(1180, 1180, 0.09, "square", 0.05); tone(1568, 1568, 0.13, "square", 0.05, 0.09); }
-  else if (fishState.mode === "bite" && now > fishState.biteAt + 1600) { fishState.mode = ""; genText(me.x, me.y - 104, "It got away…", "#9db8d9"); }
+  if (me.scene !== "plaza" || me.moving) { fishState.mode = ""; fishPublish(); return; } /* walked off / left the plaza: the record dies with the cast */
+  if (fishState.mode === "wait" && now >= fishState.biteAt) { fishState.mode = "bite"; fishPublish(); tone(1180, 1180, 0.09, "square", 0.05); tone(1568, 1568, 0.13, "square", 0.05, 0.09); }
+  else if (fishState.mode === "bite" && now > fishState.biteAt + 1600) { fishState.mode = ""; fishPublish(); genText(me.x, me.y - 104, "It got away…", "#9db8d9"); }
+  else fishPublish(); /* a standing cast: the 8s ts refresh inside fishPublish keeps the record fresh for the lake */
 }
 function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-04 21:51): the SIXTHS, restored at his word over the 21:23 sequential rolls. The FISH_DEFS odds are the QUANTUM rod's table (Shrimp 25 … Whale 1, summing to 100) and every rod scales EVERY fish by its fraction of that table: Basic (tier 0) 1/6, Blue 2/6, Cosmic 3/6, Golden 4/6, Crystal 5/6, Quantum (tier 5) 6/6. ONE weighted roll over a 600-point field — each fish owns odds×(tier+1) points and whatever of the 600 is left over is an EMPTY cast (Basic 500/600 ≈ 83.33% empty, Quantum none). The bite-window miss ("It got away") is a separate, earlier failure and stays exactly as it was */
   if (fishState.mode !== "bite") return;
-  fishState.mode = "";
+  fishState.mode = ""; fishPublish(); /* reeled in: the record comes down before the catch popup even opens */
   let idx = -1, acc = 0; const roll = Math.random() * 600;
   for (let i = 0; i < FISH_DEFS.length; i++) { acc += FISH_DEFS[i].odds * (myRod + 1); if (roll < acc) { idx = i; break; } }
   if (idx < 0) { genText(me.x, me.y - 104, "Nothing there…", "#9db8d9"); tone(300, 190, 0.22, "sine", 0.04); return; } /* the empty cast: the roll landed in the leftover field — same floating-text beat as a missed bite */
@@ -13130,8 +13240,8 @@ function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-
   $("catchworth").textContent = "Worth 🪙 " + FISH_DEFS[idx].worth.toLocaleString("en-US") + " — it's in your Fish Inventory";
   $("catchpop").style.display = "flex";
 }
-function drawFishRod(wx, wy, flip, t) { /* my rod in my hand (drawPlayer's hook, called BEFORE my sprite so the rod stays BEHIND me in depth — Jonathan 2026-11-04, 21:15). ONLY the rod sprite is drawn (21:14, his word from his fishing screenshot: the cast/line animation and the bobber are GONE — a long line ran up from the rod; the sprite itself is exactly as it was). The sprite FLIPS with my facing (21:15, his explicit order for the rod): facing right is the art's own orientation, angled up to the right; facing left mirrors it horizontally */
-  const im = rodImg(myRod); if (!im || !im.complete || !im.naturalWidth) return;
+function drawFishRod(wx, wy, flip, t, tier) { /* a rod in a hand (drawPlayer's hook for mine, the actor loop for a peer's — always BEFORE the owner's sprite so the rod stays BEHIND him in depth — Jonathan 2026-11-04, 21:15). ONLY the rod sprite is drawn (21:14, his word from his fishing screenshot: the cast/line animation and the bobber are GONE — a long line ran up from the rod; the sprite itself is exactly as it was). The sprite FLIPS with the facing (21:15, his explicit order for the rod): facing right is the art's own orientation, angled up to the right; facing left mirrors it horizontally. tier = the rod tier to draw; omitted means MY rod (the original call) — a peer's rod passes the tier off his hub/fishing record */
+  const im = rodImg(typeof tier === "number" ? tier : myRod); if (!im || !im.complete || !im.naturalWidth) return;
   const dir = flip ? 1 : -1, hx = wx + dir * 24, hy = wy - 48; /* the dir signs were INVERTED (fix, Jonathan 2026-11-04 21:56): drawPlayer's rule is flip=true faces RIGHT (the mirrored draw), so facing right takes the art as-is on the right hand (dir 1) and facing left mirrors it onto the left hand (dir −1) — as first written (flip ? −1 : 1) the rod pointed opposite his facing both ways */
   const RH = 128, RW = RH * (im.naturalWidth / im.naturalHeight);
   ctx.save(); ctx.translate(hx, hy); ctx.scale(dir, 1); ctx.rotate(0.30); ctx.drawImage(im, -RW / 2, -RH + 18, RW, RH); ctx.restore();
@@ -13218,15 +13328,14 @@ function startRodAnim(from, to) {
   const sp = $("evospark"); if (sp) sp.innerHTML = "";
   $("evooverlay").style.display = "flex";
   sfxEvoRise();
-  rodAnim.sndEnd = AC ? AC.currentTime + 3.016 : 0; /* SOUND SYNC (Jonathan 2026-11-04 21:25 — "the rod upgrade animation finishes before the sound effect finishes so fix that"): the show now ends on the AUDIO clock, not just the wall clock. Measured off the code itself: sfxEvoRise's 18 notes (each 0.16s, starts stepping max(0.09, 0.24 − i·0.009)) put its last note's start at 2.856s and its tail — tone()'s gain reaches silence exactly at start + dur — at 3.016s from the show's start; sfxEvoReveal's longest pieces (the two 0.4s sines at +0.4 offset) ring 0.80s past the burst. sndEnd is that last sounding moment ON THE AUDIO CONTEXT'S OWN CLOCK (the clock the notes were actually scheduled against), so any start latency the device puts on the audio is waited out by the picture too; the tick also folds the reveal's tail in at the burst. The tier still lands in endRodAnim, when the show ends */
   requestAnimationFrame(rodAnimTick);
 }
-function rodAnimTick() {
+function rodAnimTick() { /* THE EVOLUTION'S OWN CLOCK, phase for phase (Jonathan 2026-11-04 22:24 — "make sure the rod upgrade animation is the same length as the monster upgrade animation, because it's finishing before the sound effect for the evolution"): the 21:25 audio-clock gate (sndEnd) still let the picture close first on his phone, so the gate is GONE and this tick now mirrors evoAnimTick exactly — shake 0–2400 with the evolution's own flash cadence and jitter growth, morph 2400–3300, burst/reveal 3300–5600, end at 5600 on the plain wall clock, the same end mechanism as the monster show. The sounds are the evolution's own and are NOT shortened: sfxEvoRise (last note starts 2.856s, tail ends 3.016s) and sfxEvoReveal fired at the burst (longest tail +0.8s, silent by ~4.1s) — so exactly like the monster show, the picture outlasts every sound by a wide margin and can never finish first. The tier still lands in endRodAnim, when the show ends */
   if (!rodAnim) return;
   const a = rodAnim, el = performance.now() - a.t0, im = $("evoimg");
-  if (el < 1200) { const p = el / 1200; const jx = (Math.random() - 0.5) * (4 + p * 14), jy = (Math.random() - 0.5) * (4 + p * 9); const white = Math.floor(el / Math.max(55, 240 - p * 185)) % 2 === 0; im.style.filter = white ? "brightness(0) invert(1)" : ""; im.style.transform = "translate(" + jx.toFixed(1) + "px," + jy.toFixed(1) + "px)"; requestAnimationFrame(rodAnimTick); }
-  else if (el < 1900) { if (!a.swapped) { a.swapped = true; im.src = ROD_URL(a.to); } const p = (el - 1200) / 700; im.style.filter = "brightness(0)"; im.style.transform = "scale(" + (1 + p * 0.18).toFixed(3) + ")"; requestAnimationFrame(rodAnimTick); }
-  else if (el < 3600 || (AC && AC.currentTime < (a.sndEnd || 0))) { if (!a.burst) { a.burst = true; im.style.filter = ""; im.style.transform = "scale(1.18)"; $("evotext").textContent = "🎉 Your rod transformed into the " + ROD_DEFS[a.to].name + "!"; spawnEvoSparkles(); sfxEvoReveal(); if (AC) a.sndEnd = Math.max(a.sndEnd || 0, AC.currentTime + 0.8); } requestAnimationFrame(rodAnimTick); } /* the reveal phase HOLDS past 3600ms until the audio clock passes sndEnd — picture and sound finish together, the sound never cut and never left playing under a closed overlay (the sync note at startRodAnim) */
+  if (el < 2400) { const p = el / 2400; const jx = (Math.random() - 0.5) * (4 + p * 16), jy = (Math.random() - 0.5) * (4 + p * 10); const white = Math.floor(el / Math.max(55, 270 - p * 215)) % 2 === 0; im.style.filter = white ? "brightness(0) invert(1)" : ""; im.style.transform = "translate(" + jx.toFixed(1) + "px," + jy.toFixed(1) + "px)"; requestAnimationFrame(rodAnimTick); }
+  else if (el < 3300) { if (!a.swapped) { a.swapped = true; im.src = ROD_URL(a.to); } const p = (el - 2400) / 900; im.style.filter = "brightness(0)"; im.style.transform = "scale(" + (1 + p * 0.18).toFixed(3) + ")"; requestAnimationFrame(rodAnimTick); }
+  else if (el < 5600) { if (!a.burst) { a.burst = true; im.style.filter = ""; im.style.transform = "scale(1.18)"; $("evotext").textContent = "🎉 Your rod transformed into the " + ROD_DEFS[a.to].name + "!"; spawnEvoSparkles(); sfxEvoReveal(); } requestAnimationFrame(rodAnimTick); }
   else endRodAnim();
 }
 function endRodAnim() { if (!rodAnim) return; const a = rodAnim; rodAnim = null; $("evooverlay").style.display = "none"; myRod = a.to; fishSave(); } /* the new tier lands NOW — after the show, in the evolution's own order */
@@ -13434,14 +13543,13 @@ function drawSconceAt(x, y) { /* a wall sconce: a soft glow, a gold bracket and 
   ctx.save(); ctx.translate(x, y - 12); ctx.rotate(Math.PI / 4); ctx.fillStyle = "#8ee6ff"; ctx.fillRect(-8, -8, 16, 16); ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1.2; ctx.strokeRect(-8, -8, 16, 16); ctx.restore();
   ctx.restore();
 }
-function drawSideDoorAt(roomW, y, side, label) { /* a doorway in a side wall (side −1 = west wall, +1 = east wall): a dark gap in the wall's line washed with the light of the room beyond, a lamp diamond over it, and a floor plaque in front naming where it leads */
-  const gx = side < 0 ? 0 : roomW - 54, lx = side < 0 ? 27 : roomW - 27, px = side < 0 ? 172 : roomW - 172;
+function drawSideDoorAt(roomW, y, side, label) { /* a doorway in a side wall (side −1 = west wall, +1 = east wall): a dark gap in the wall's line washed with the light of the room beyond, and a floor plaque in front naming where it leads. The little lamp diamond that sat on top of the door is GONE (Jonathan 2026-11-04 22:40) — the door, its frame and the plaque are untouched, and this one painter serves every interior castle door (throne room both sides, Dining Hall, Crystal Room), so all of them lose it together */
+  const gx = side < 0 ? 0 : roomW - 54, px = side < 0 ? 172 : roomW - 172;
   ctx.save();
   const grd = ctx.createLinearGradient(side < 0 ? 0 : roomW, 0, side < 0 ? 150 : roomW - 150, 0); grd.addColorStop(0, "rgba(56,225,255,0.20)"); grd.addColorStop(1, "rgba(56,225,255,0)");
   ctx.fillStyle = grd; ctx.fillRect(side < 0 ? 0 : roomW - 150, y - 78, 150, 156);
   ctx.fillStyle = "#050914"; ctx.fillRect(gx, y - 78, 54, 156);
   ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 3; ctx.strokeRect(side < 0 ? 3 : roomW - 57, y - 78, 54, 156);
-  ctx.save(); ctx.translate(lx, y - 98); ctx.rotate(Math.PI / 4); ctx.fillStyle = "#8ee6ff"; ctx.fillRect(-7, -7, 14, 14); ctx.restore();
   ctx.fillStyle = "#0d2038"; rr(px - 108, y - 26, 216, 52, 11); ctx.fill();
   ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 2.5; rr(px - 108, y - 26, 216, 52, 11); ctx.stroke();
   ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#8ee6ff"; ctx.fillText(label, px, y + 7);
@@ -13703,7 +13811,7 @@ function drawFishCounter() { /* the counter across the TOP of the room: a pale t
   ctx.fillStyle = cg; ctx.fillRect(c.x, c.y + 16, c.w, c.h - 16);
   ctx.strokeStyle = "#1763ac"; ctx.lineWidth = 2.5; rr(c.x, c.y, c.w, c.h, 8); ctx.stroke();
 }
-function drawFishCounterFront() { /* the counter's front over Q-Bot's lower body (the High Rollers clerk's trick): repainted inside the actor pass's camera transform, clipped to his own span (FISHQBOT.x ± 72) across the counter's front band, so no player standing at the counter is ever painted over */
+function drawFishCounterFront() { /* the counter's front over Q-Bot's lower body (the High Rollers clerk's trick): repainted inside the actor pass's camera transform, clipped to his own span (FISHQBOT.x ± 72) across the counter's front band. WHEN it paints is the whole trick (moved 2026-11-04 22:28): the caller is the actor loop, immediately after Q-Bot's draw — from the over pass this same paint swallowed any player standing at the counter front inside his span, and only Q-Bot may ever be behind this counter */
   const c = FISHCTR;
   ctx.save(); ctx.beginPath(); ctx.rect(FISHQBOT.x - 72, c.y + 16, 144, c.h - 16); ctx.clip();
   const cg = ctx.createLinearGradient(0, c.y + 16, 0, c.y + c.h);
@@ -13784,11 +13892,11 @@ function fudNear() { /* the nearest living FUD monster within prompt reach of my
   for (let i = 0; i < FUDS.length; i++) { const F = FUDS[i]; if (F.state !== "patrol") continue; const d = Math.hypot(me.x - F.x, me.y - F.y); if (d < bd) { bd = d; bi = i; } }
   return bi;
 }
-function fudBoomFx(F) { /* the explosion itself, in one place: a particle burst at his chest (at mech height 216 that is −100, not the player-sized −44 he started at) and the boom — the destroyer, the driver and every watcher all land here, so the show is identical on every screen */
+function fudBoomFx(F, silent) { /* the explosion itself, in one place: a particle burst at his chest (at mech height 216 that is −100, not the player-sized −44 he started at) and the boom. The PICTURE is identical on every screen, but the SOUND is the killer's alone now (Jonathan 2026-11-04 22:40 — "dont play sound for other people destroying fuds but play effects"): callers pass silent=true whenever the kill is SOMEONE ELSE'S, and only the destruction sound is skipped — the burst, the flash and (for a paid kill) the coin burst all still play for watchers exactly as before */
   const parts = [];
   for (let n = 0; n < 26; n++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 260; parts.push({ dx: Math.cos(a) * sp, dy: Math.sin(a) * sp - 60, r: 3 + Math.random() * 7, c: ["#ffd21f", "#ff9a3c", "#ff5e3c", "#e8f6ff"][n % 4] }); }
   fudFx.push({ x: F.x, y: F.y - 100, t0: performance.now(), parts });
-  sfxFudBoom();
+  if (!silent) sfxFudBoom();
 }
 function fudDestroy(i) { /* DESTROY FUD — SHARED now (owner ruling, 2026-11-04): the monsters are ONE shared monster per field for the whole server (see the shared block after drawFudFx). If MY client drives them, the kill lands on the spot through fudApplyBoom and publishes; if another client drives, I file a kill request on the shared record and the driver lands it there — the boom comes back through the record and pays me in fudOnRec. Offline (no db), the local path is the whole story, exactly as he always was */
   const F = FUDS[i]; if (!F || F.state !== "patrol") return;
@@ -13801,7 +13909,7 @@ function fudApplyBoom(i, byPid, boomId, paid) { /* a kill LANDING — run by the
   F.state = "dead"; F.respawnAt = performance.now() + FUD_RESPAWN_MS;
   const id = boomId || ("b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   fudSeenBooms.add(id); /* my own boom echo through the record must not burst twice */
-  fudBoomFx(F);
+  fudBoomFx(F, byPid !== myId); /* on the driver's screen a FILED kill by another player lands here: the picture plays, the boom sound doesn't (his 22:40 rule — sound is the killer's alone); my own kills keep the sound */
   if (byPid === myId) {
     fudPaidBooms.add(id);
     if (acctUser) { addChips(FUD_REWARD); sfxCoin(); genBurst(me.x, me.y - 46, true); genText(me.x, me.y - 104, "+🪙 " + FUD_REWARD.toLocaleString("en-US"), "#ffd76a"); }
@@ -13825,6 +13933,7 @@ let fudRec = null; /* the shared record's last snapshot { drv, m: {0..2}, boom, 
 let fudAmDriver = false; /* true while MY client holds the whistle */
 let fudPubAt = 0, fudBoomPend = null, fudKillClear = false;
 const fudSeenBooms = new Set(), fudPaidBooms = new Set(), fudKillSeen = new Set();
+let fudBoomBaseDone = false; /* the entry baseline (Jonathan 2026-11-04 22:29 — "don't play the pending FUD destruction sounds and effects when you load into the plaza"): the first record snapshot a fresh client receives still carries the LAST kill's boom, and an empty seen-set made that history replay as a fresh explosion on entry. The first snapshot now baselines whatever boom it holds as seen — silently, no fx, no burst, no payout — and only booms landing after it play */
 function fudPidSignedIn(pid) { for (const p of peers.values()) if (p.id === pid) return !!p.acct; return pid === myId ? !!acctUser : false; } /* whether a killer's kill PAYS (and so shows the money burst) — read off their presence acct, the record the room already keeps; the payout itself never trusts this, it is the killer's own client that credits them */
 function fudPublish(force) { /* the driver mirrors FUDS into the record: positions rounded (the presence record's own economy), facing/moving as flags, dead monsters carrying their respawn moment and forming ones their form start — both as SERVER times, so every screen agrees on them */
   if (!db || !fudAmDriver) return;
@@ -13862,12 +13971,13 @@ setInterval(fudElect, 1000);
 function fudOnRec() { /* the record moved: booms land on every screen, and the driver lands filed kills */
   const rec = fudRec; if (!rec) return;
   const boom = rec.boom;
+  if (!fudBoomBaseDone) { fudBoomBaseDone = true; if (boom && boom.id) fudSeenBooms.add(boom.id); } /* the baseline (see fudBoomBaseDone): the boom already in the record at subscribe time is history — marked seen here so the block below never plays it; booms landing later aren't in the set and play in full */
   if (boom && boom.id && !fudSeenBooms.has(boom.id)) {
     fudSeenBooms.add(boom.id);
     const F = FUDS[boom.i];
     if (F) {
       F.state = "dead"; /* he is gone on my screen too, the same moment as everywhere */
-      fudBoomFx(F); /* the explosion, for everyone who can see the field */
+      fudBoomFx(F, boom.by !== myId); /* the explosion's picture, for everyone who can see the field — but its SOUND only when the kill is MINE (boom.by carries the killer; Jonathan 2026-11-04 22:40) */
       if (boom.by === myId) { if (!fudPaidBooms.has(boom.id)) { fudPaidBooms.add(boom.id); if (acctUser) { addChips(FUD_REWARD); sfxCoin(); genBurst(me.x, me.y - 46, true); genText(me.x, me.y - 104, "+🪙 " + FUD_REWARD.toLocaleString("en-US"), "#ffd76a"); } } } /* MY kill, landed by another driver: the payout and its show, exactly once */
       else if (boom.paid) genBurst(F.x, F.y - 100, true); /* someone else's paid kill: the money burst at the monster (a guest's kill bursts nothing — the guest rule stands) */
     }
@@ -15694,12 +15804,14 @@ function frame(now) {
     }
     const chatAge = a.id === NPC_PID && a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999); /* Q-Bot's bubble ages from when this screen received his answer (his timestamps come from the server's clock), so it lasts the same 5s as a player's own bubble */
     if (me.scene === "gym") { const ci2 = courtAt(a.x, a.y); if (ci2) { const sd = a.x < ci2.r.x + ci2.r.w / 2 ? "A" : "B"; ctx.beginPath(); ctx.ellipse(a.x, a.y + 26, 30, 10, 0, 0, 7); ctx.strokeStyle = sd === "A" ? "rgba(56,225,255,0.9)" : "rgba(255,93,143,0.9)"; ctx.lineWidth = 3.5; ctx.stroke(); } }
+    if (!isMe && me.scene === "plaza") { const pf = peerFish.get(a.id); if (pf && pf.scene === "plaza" && pf.st && Date.now() - (pf.ts || 0) < 45000) drawFishRod(a.x, a.y, a.flip, now, pf.rod); } /* a PEER's rod (2026-11-04 22:18): drawn here, immediately before his sprite, so it sits BEHIND him in depth exactly like mine does — his tier off his hub/fishing record, his side off his own facing (a.flip, the same value his sprite mirrors on) */
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g, a.tint);
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now));
     if (me.scene === "rooftop" && atRoofDJBooth(a.x, a.y)) drawDJBooth(decorT(now), ROOFDJBOOTH);
     if (me.scene === "rooftop" && atRoofBoom(ROOFBOOM_L, a.x, a.y)) drawRoofBoom(decorT(now), ROOFBOOM_L); /* the boom boxes get the booth's own walk-behind: standing in a box's strip repaints the box over your lower body */
     if (me.scene === "rooftop" && atRoofBoom(ROOFBOOM_R, a.x, a.y)) drawRoofBoom(decorT(now), ROOFBOOM_R); /* the rooftop's DJ, the club's own treatment: the booth repaints over a DJ standing in its strip */
     if (me.scene === "highrollers" && a.id === "hrc-clerk") drawHRCounterOverClerk(a); /* the clerk stands behind the service counter: its front paints over his lower body, the DJ booth's trick scoped to him alone (see drawHRCounterOverClerk) */ /* a DJ standing behind the booth: repaint the counter over their lower body so their head pokes up behind it. Actors are y-sorted, so anyone in FRONT of the booth has a larger y and is drawn after this — they paint over the booth as normal. Applies to my sprite and to remote players alike (a.x/a.y are the smoothed positions everyone sees) */
+    if (me.scene === "fishshop" && a.id === "fishshop-qbot") drawFishCounterFront(); /* the Fishing Shop counter's front over Q-Bot — repainted HERE, immediately after Q-Bot's own draw and before every actor in front of him (the clerk's arrangement, moved 2026-11-04 22:28): it used to run in the over pass after ALL actors, so a player standing at the counter front inside Q-Bot's span was painted over by the counter front and read as stuck behind the desk. Now Q-Bot is the ONLY figure the repaint can ever cover: every player stands south of him (the FISHKEEPER block keeps feet at y 314+, his are at 262), sorts after him, and paints over the counter front in full */
     const aSub = (me.scene === "plaza" || me.scene === "rooftop") ? poolSubmersion(a.x, a.y, isMe ? (mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : shopMechForm ? shopMechForm : a.hero) : a.hero, me.scene === "rooftop" ? ROOFPOOLW : undefined) : null; /* the local actor's a.hero is the BASE hero — the transform swap lives in drawPlayer and the presence writer (line 727), never in a.hero — so my own wading band resolves the effective hero here the same way, or it sizes small-dog while I stand there as a mech (Jonathan 2026-11-01) */
     if (aSub && heroImgFor(a.hero, a.g)) { /* wading (PREVIEW): the sprite's lower half wears the water — a translucent band over exactly the submerged half (poolSubmersion), with the bright waterline ring sitting on the band's own top edge, the halfway cut. A sprite short of the edge thresholds paints nothing (Jonathan 2026-10-30) */
       ctx.fillStyle = "rgba(35,105,175,0.45)"; ctx.fillRect(a.x - aSub.hw, aSub.top, aSub.hw * 2, aSub.h); /* the band at the wearer's own width — the mech's is 2.25x the dog's (Jonathan 2026-10-31) */
@@ -15710,7 +15822,7 @@ function frame(now) {
   if (me.scene === "trenches") drawTrenchesOver(now); /* QUANTUM TRENCHES: the guns in team neon, health/armor bars, muzzle flashes, explosions and the countdown paint over the fighters, inside this same camera pass */
   drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
   if (me.scene === "plaza") drawFudFx(now); /* the FUD explosions (PREVIEW) paint with the player fx, over the sprites, inside this same camera pass */
-  if (me.scene === "fishshop") drawFishCounterFront(); /* the Fishing Shop counter's front, repainted over Q-Bot's lower body so he reads as staff behind the desk — the High Rollers clerk's own trick, clipped to his own span so no player is ever painted over */
+  /* the Fishing Shop counter's front is NO LONGER repainted here (2026-11-04 22:28): it moved into the actor loop, immediately after Q-Bot's own draw (drawFishCounterFront) — from this over pass it painted over PLAYERS standing at the counter front inside Q-Bot's span, and Jonathan's word is that only Q-Bot is ever behind that counter */
   if (me.scene === "dining") drawDiningWindowsFront(); /* the Dining Hall's windows paint HERE, over the actors (Jonathan 2026-11-04 21:30): in this room the windows are in front of players depth-wise — you walk behind the glass */
   drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
   ctx.restore();
