@@ -3277,7 +3277,7 @@ function stepSpeedway(dt, ivx, ivy) {
   if (myCar >= 0 && carPos) {
     /* ---- driving ---- */
     const mag = swRaceFrozen() ? 0 : Math.hypot(ivx, ivy); /* RACE mode: the car sits frozen on the grid through the bet phase and until the shared GO instant — the countdown in the race record is the only green light, identical on every screen */
-    const boosting = swBoostHeld() && swBoostLvl[myCar] > 0; /* boost is ACTIVE only while the sprint input is held AND the meter still has charge — an empty meter means no boost, however long the button stays down */
+    const boosting = swBoostHeld() && swBoostLvl[myCar] > 0 && !swRaceFrozen(); /* boost is ACTIVE only while the sprint input is held AND the meter still has charge — an empty meter means no boost, however long the button stays down. RACE mode (owner 2026-11-04): boost is DEAD until the shared GO instant — the same swRaceFrozen gate that unlocks driving — so holding it on the grid through the bet phase and the countdown gives no speed, no boost smoke, and does NOT drain the meter (the drain below keys off this same flag, and the refill still only runs while the button is released) */
     let txv = 0, tyv = 0;
     if (mag > 0.1) { const sp = SW_SPEED * (boosting ? SW_BOOST_MULT : 1) * Math.min(1, mag); txv = ivx / mag * sp; tyv = ivy / mag * sp; }
     const ACC = mag > 0.1 ? 1500 : 2300;
@@ -3622,11 +3622,31 @@ function swPcDrive(st) { /* the referee drives the PC cars (Jonathan 2026-11-04)
   dt = Math.max(0.001, Math.min(0.1, dt));
   for (const i of st.pcs) {
     let p = swPcState[i];
-    if (!p) { const v = swCarTarget(i); const q = swSpine(v.x, v.y); const rdx = v.x - q.x, rdy = v.y - q.y; const rd0 = Math.hypot(rdx, rdy) || 1; const pace0 = swPcPace(i, st.roundId); p = swPcState[i] = { x: v.x, y: v.y, vx: rdy / rd0 * pace0 * 0.8, vy: -rdx / rd0 * pace0 * 0.8, hd: v.hd || 0 }; }
+    if (!p) { const v = swCarTarget(i); const q = swSpine(v.x, v.y); const rdx = v.x - q.x, rdy = v.y - q.y; const rd0 = Math.hypot(rdx, rdy) || 1; const pace0 = swPcPace(i, st.roundId); p = swPcState[i] = { x: v.x, y: v.y, vx: rdy / rd0 * pace0 * 0.8, vy: -rdx / rd0 * pace0 * 0.8, hd: v.hd || 0, bst: 1, boostWait: false }; }
     const pace = swPcPace(i, st.roundId);
     const q = swSpine(p.x, p.y); let rx = p.x - q.x, ry = p.y - q.y; const rd = Math.hypot(rx, ry) || 1; rx /= rd; ry /= rd;
+    /* ---- PC BOOST judgement (owner 2026-11-04: "PC boost on the straight and out of corners where it makes sense — make them race properly"): the PC reads the road ahead along its OWN lane line off the spine, stepping ~45px at a time and accumulating how much the tangent heading bends. bendNear = the bend inside the first ~90px (is the car IN a corner right now); distBend = how far the car can travel before the road has bent a full 0.30 rad (a real corner). It boosts only when it is aligned with the spine, NOT mid-corner, and a long straight lies ahead — so it fires down the straights and the instant a corner exit opens onto one — and it lifts while the next corner is still ~205px out, in time to settle back to pace before turn-in. The meter is the human meter under the human rules: it starts full, drains dt/SW_BOOST_USE while boosting, refills dt/SW_BOOST_REFILL while off, and an emptied meter stays dead until it has half-refilled (the PC's "let go of the button" moment) — and the live meter rides the shared car record (bst), so the room sees a PC's bar drain and its boost smoke exactly like a human's. Boost strength is the human SW_BOOST_MULT on top of the car's hashed pace, which is untouched. ---- */
+    if (p.bst === undefined) { p.bst = 1; p.boostWait = false; }
+    let bendNear = 0, distBend = 9999;
+    { let sx = q.x + rx * rd, sy = q.y + ry * rd, txu = ry, tyu = -rx, prevH = Math.atan2(tyu, txu), cum = 0;
+      for (let s2 = 1; s2 <= 11; s2++) {
+        const cxp = sx + txu * 45, cyp = sy + tyu * 45; const nq = swSpine(cxp, cyp); let ux = cxp - nq.x, uy = cyp - nq.y; const ud = Math.hypot(ux, uy) || 1; ux /= ud; uy /= ud;
+        sx = nq.x + ux * rd; sy = nq.y + uy * rd; txu = uy; tyu = -ux;
+        const nh = Math.atan2(tyu, txu); let dh = nh - prevH; while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2; prevH = nh; cum += Math.abs(dh);
+        if (s2 === 2) bendNear = cum;
+        if (cum >= 0.30) { distBend = s2 * 45; break; }
+      } }
+    const spdN = Math.hypot(p.vx, p.vy);
+    let align = true;
+    if (spdN > 120) { let ad = Math.atan2(p.vy, p.vx) - Math.atan2(-rx, ry); while (ad > Math.PI) ad -= Math.PI * 2; while (ad < -Math.PI) ad += Math.PI * 2; align = Math.abs(ad) < 0.38; }
+    if (p.boostWait && p.bst >= 0.55) p.boostWait = false;
+    const wantBoost = align && bendNear <= 0.11 && distBend > (p.boosting ? 205 : 320) && !p.boostWait;
+    p.boosting = wantBoost && p.bst > 0;
+    if (p.boosting) { p.bst = Math.max(0, p.bst - dt / SW_BOOST_USE); if (p.bst <= 0) p.boostWait = true; }
+    else p.bst = Math.min(1, p.bst + dt / SW_BOOST_REFILL);
+    const effPace = pace * (p.boosting ? SW_BOOST_MULT : 1);
     const laneErr = Math.max(-1, Math.min(1, (SW_LANES[i] - rd) / 60));
-    const dvx = ry * pace + rx * laneErr * pace * 0.55, dvy = -rx * pace + ry * laneErr * pace * 0.55; /* the tangent (ry, -rx) is the CCW direction of travel — the same way the lap math counts */
+    const dvx = ry * effPace + rx * laneErr * effPace * 0.55, dvy = -rx * effPace + ry * laneErr * effPace * 0.55; /* the tangent (ry, -rx) is the CCW direction of travel — the same way the lap math counts */
     const ax = dvx - p.vx, ay = dvy - p.vy, al = Math.hypot(ax, ay), mx = 1500 * dt;
     if (al > mx && al > 0.001) { p.vx += ax / al * mx; p.vy += ay / al * mx; } else { p.vx = dvx; p.vy = dvy; }
     const cl = swRingClamp(p.x + p.vx * dt, p.y + p.vy * dt, 40);
@@ -3635,7 +3655,7 @@ function swPcDrive(st) { /* the referee drives the PC cars (Jonathan 2026-11-04)
     for (let j = 0; j < 4; j++) { if (j === i) continue; let ov = null; if ((st.pcs || []).indexOf(j) >= 0) ov = swPcState[j]; else { const t = swCarTarget(j); if (t.drv) ov = t; } if (!ov) continue; let bx = p.x - ov.x, by = p.y - ov.y; const bd = Math.hypot(bx, by); if (bd >= SW_BUMP_DIST || bd < 0.001) continue; bx /= bd; by /= bd; p.x = ov.x + bx * SW_BUMP_DIST; p.y = ov.y + by * SW_BUMP_DIST; const cl3 = swRingClamp(p.x, p.y, 40); p.x = cl3.x; p.y = cl3.y; }
     const spd = Math.hypot(p.vx, p.vy);
     if (spd > 30) p.hd = swTurn(p.hd, Math.atan2(p.vy, p.vx), 3.6 * dt);
-    if (Date.now() - (swPcWriteAt[i] || 0) > 120) { swPcWriteAt[i] = Date.now(); const e = swRefCars && swRefCars[i]; swSet("cars/" + i, { x: Math.round(p.x), y: Math.round(p.y), hd: +p.hd.toFixed(3), drv: "pc", drvName: "PC", lap: e ? e.n : 0, lev: e ? e.lev : 0, bst: 1, ts: Date.now() }); }
+    if (Date.now() - (swPcWriteAt[i] || 0) > 120) { swPcWriteAt[i] = Date.now(); const e = swRefCars && swRefCars[i]; swSet("cars/" + i, { x: Math.round(p.x), y: Math.round(p.y), hd: +p.hd.toFixed(3), drv: "pc", drvName: "PC", lap: e ? e.n : 0, lev: e ? e.lev : 0, bst: +p.bst.toFixed(2), ts: Date.now() }); }
   }
 }
 function swRefSeed(st) { /* a new referee continues from the official record: per-car trackers seed from each car's current spot with acc = the record's banked progress, so the remaining travel to the next bank is exactly what the old referee still owed it — no lap is counted twice and none is skipped */
@@ -3647,7 +3667,7 @@ function swRefSeed(st) { /* a new referee continues from the official record: pe
     swRefTrack[k] = { theta: Math.atan2(v.y - SW_CY, v.x - 1800), acc: e.prog || 0, base: 0 };
   }
   if (st.pcs) for (const i of st.pcs) { /* a successor referee picks up the PC cars where they are (migration, Jonathan 2026-11-04): seed each PC's drive state off its shared record, already moving at its hashed pace, so the field never notices the handover */
-    if (swRefCars[i] && !swPcState[i]) { const v = swCarTarget(i); const q = swSpine(v.x, v.y); let rx = v.x - q.x, ry = v.y - q.y; const rd = Math.hypot(rx, ry) || 1; rx /= rd; ry /= rd; const pace = swPcPace(i, st.roundId); swPcState[i] = { x: v.x, y: v.y, vx: ry * pace * 0.8, vy: -rx * pace * 0.8, hd: v.hd || 0 }; swPcWriteAt[i] = 0; }
+    if (swRefCars[i] && !swPcState[i]) { const v = swCarTarget(i); const q = swSpine(v.x, v.y); let rx = v.x - q.x, ry = v.y - q.y; const rd = Math.hypot(rx, ry) || 1; rx /= rd; ry /= rd; const pace = swPcPace(i, st.roundId); swPcState[i] = { x: v.x, y: v.y, vx: ry * pace * 0.8, vy: -rx * pace * 0.8, hd: v.hd || 0, bst: 1, boostWait: false }; swPcWriteAt[i] = 0; }
   }
   swPcLastT = 0;
   swRefSeedKey = st.roundId || "";
@@ -3726,7 +3746,7 @@ function swRefBetPhase(st) { /* the bell (the Trenches gate): every fresh seated
   swRefCars = {}; swRefTrack = [null, null, null, null]; swPcState = [null, null, null, null]; swPcLastT = 0;
   for (let i = 0; i < 4; i++) swRefCars[i] = { n: 0, prog: 0, lapStart: goTs, last: 0, best: 0, lev: 0, fin: 0 };
   for (const i of fresh) { const v = swCarTarget(i); swRefTrack[i] = { theta: Math.atan2(v.y - SW_CY, v.x - 1800), acc: 0, base: 0 }; }
-  for (const i of pcs) { const s = swStage(i); swRefTrack[i] = { theta: Math.atan2(s.y - SW_CY, s.x - 1800), acc: 0, base: 0 }; swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "pc", drvName: "PC", lap: 0, lev: 0, bst: 1, ts: Date.now() }); swPcState[i] = { x: s.x, y: s.y, vx: 0, vy: 0, hd: s.hd }; swPcWriteAt[i] = 0; } /* PC cars start from their grid slots like everyone else */
+  for (const i of pcs) { const s = swStage(i); swRefTrack[i] = { theta: Math.atan2(s.y - SW_CY, s.x - 1800), acc: 0, base: 0 }; swSet("cars/" + i, { x: s.x, y: s.y, hd: s.hd, drv: "pc", drvName: "PC", lap: 0, lev: 0, bst: 1, ts: Date.now() }); swPcState[i] = { x: s.x, y: s.y, vx: 0, vy: 0, hd: s.hd, bst: 1, boostWait: false }; swPcWriteAt[i] = 0; } /* PC cars start from their grid slots like everyone else — boost meter full, like every fresh driver */
   swRefSeedKey = rid; swRefWriteAt = 0;
 }
 function swRefDonePhase(st) { /* recycle to a fresh bet round ~5.5s after the finish: drivers stay in their cars (the casino recycle), stakes and readies cleared — and every car goes back to its grid slot (Jonathan 2026-11-04) */
