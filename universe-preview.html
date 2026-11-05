@@ -622,9 +622,11 @@ const GAMES = [
 ["QI Quantum Orbit","qi-quantum-orbit.html","qi-quantum-orbit.jpg"],
 ["QI Quantum Pinball","qi-quantum-pinball.html","qi-quantum-pinball.jpg"],
 ["QI Quantum Crossy","qi-quantum-crossy.html","qi-quantum-crossy.jpg"],
-["QI Quantum Rally","qi-quantum-rally.html","qi-quantum-rally.jpg"]];
+["QI Quantum Rally","qi-quantum-rally.html","qi-quantum-rally.jpg"],
+["QI Quantum Lander","qi-quantum-lander.html","qi-quantum-lander.jpg"]];
 /* the site's full song library: [slug, title, artist, genre, seconds] */
 const SONGS = [
+["quantum-trenches","Quantum Trenches","Phat Boi J","Rap",222],
 ["qi-is-my-gasoline","QI Is My Gasoline","Phat Boi J","Techno",351],
 ["night-shift","Night Shift","Phat Boi J","Rap",251],
 ["bigger-erry-day","Bigger Erry Day","Phat Boi J","Rap",248],
@@ -12067,11 +12069,16 @@ function drawCraTable() {
   const mine = hrcMySeat("cra"), canBet = !!(st && st.phase === "bet" && mine);
   const picks = [["pass", "✅ PASS LINE · pays 1 to 1", "#1d4e89"], ["dontpass", "🚫 DON'T PASS · pays 1 to 1", "#7a1a1a"]];
   picks.forEach((tp, k) => {
-    const bx = T.x + 478, by = T.y + 116 + k * 76, bw = 392;
+    const bx = T.x + 478, by = T.y + 112 + k * 64, bw = 392; /* the two bet buttons A LITTLE FLATTER (Jonathan 2026-11-04 21:50): 52 tall on a 64 pitch (was 64 on a 76 pitch), freeing the band under them for the point-number row */
     const sel = !!mine && mine.betType === tp[0];
-    if (canBet) drawBtn(bx, by, bw, 64, tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), () => hrcBet("cra", tp[0]), { fs: 20, fill: tp[2], sel, pad: 6 });
-    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 64, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 64, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 41); ctx.globalAlpha = 1; }
+    if (canBet) drawBtn(bx, by, bw, 52, tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), () => hrcBet("cra", tp[0]), { fs: 20, fill: tp[2], sel, pad: 6 });
+    else { ctx.globalAlpha = 0.85; ctx.fillStyle = tp[2]; rr(bx, by, bw, 52, 12); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(bx, by, bw, 52, 12); ctx.stroke(); ctx.font = "800 20px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8"; ctx.textAlign = "center"; ctx.fillText(tp[1] + (sel ? " · " + (mine.bet || 0).toLocaleString("en-US") : ""), bx + bw / 2, by + 34); ctx.globalAlpha = 1; }
   });
+  /* the POINT NUMBERS under the bet buttons (Jonathan 2026-11-04 21:50): 4 5 6 7 8 9 10, each in its own box in the buttons' column (rel. y 240–284) — clear of the dice and result text on the left, of the "your bet amount" label and amount rows below (their ink starts at rel. ~325) and of the rules line at the felt's foot */
+  ctx.textAlign = "center"; ctx.font = "800 22px 'Segoe UI',sans-serif";
+  [4, 5, 6, 7, 8, 9, 10].forEach((n, i) => { const nx = T.x + 478 + i * 57, ny = T.y + 240;
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; rr(nx, ny, 49, 44, 9); ctx.fill(); ctx.strokeStyle = "rgba(255,215,106,0.55)"; ctx.lineWidth = 2; rr(nx, ny, 49, 44, 9); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(String(n), nx + 24.5, ny + 30); });
   const drawDie = (cx, cy, v) => {
     ctx.fillStyle = "#f6f2e8"; rr(cx - 34, cy - 34, 68, 68, 12); ctx.fill();
     ctx.strokeStyle = "rgba(10,10,20,0.55)"; ctx.lineWidth = 2; rr(cx - 34, cy - 34, 68, 68, 12); ctx.stroke();
@@ -13069,7 +13076,7 @@ const FISHROOM = { w: 2400, h: 1500 }; /* the shop interior */
 const FISHEXIT = { x: FISHROOM.w / 2 - 62, y: FISHROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — MSEXIT's shape */
 const FISHCTR = { x: 268, y: 210, w: 1864, h: 74 }; /* the counter across the TOP of the room (Jonathan's design, 2026-11-04): solid, with Q-Bot behind it — WIDENED at his word (2026-11-04 19:55) so its ends line up with the rod display above it: the outermost rod panels span x 268..2132 (centres 330 and 2070, 124 wide), and the counter now runs exactly edge to edge with them, 268..2132, its centre still the room's 1200 */
 const FISHQBOT = { x: 1200, y: 262 }; /* Q-Bot's post: centred BEHIND the counter — his feet stand inside the counter's band and its front is repainted over his lower body (drawFishCounterFront), so he reads as staff behind the desk, the High Rollers clerk's own arrangement */
-const FISH_DEFS = [ /* the ten fish, smallest to biggest — names the owner's (2026-11-04), odds his FINAL numbers (2026-11-04 18:02): nothing under 1%, the Whale strictly rarer than the Leviathan; worth = sell price, repriced by the owner 2026-11-04 19:35 (final set after his correction chain: everything tripled except the Whale, which stays 10,000,000) */
+const FISH_DEFS = [ /* the ten fish, smallest to biggest — names the owner's (2026-11-04), odds are the QUANTUM rod's table (the sixths mechanic, restored 2026-11-04 21:51): nothing under 1%, the Whale strictly rarer than the Leviathan; worth = sell price, repriced by the owner 2026-11-04 19:35 (final set after his correction chain: everything tripled except the Whale, which stays 10,000,000) */
   { name: "Satoshi Shrimp", odds: 25, worth: 15000 }, { name: "FOMO Minnow", odds: 24, worth: 30000 },
   { name: "Paperhand Piranha", odds: 16, worth: 75000 }, { name: "Sideways Crab", odds: 12, worth: 120000 },
   { name: "Hodl Octopus", odds: 8, worth: 225000 }, { name: "Moon Koi", odds: 5, worth: 450000 },
@@ -13110,12 +13117,12 @@ function fishTick(now) { /* the fishing clock, run on plaza frames beside the FU
   if (fishState.mode === "wait" && now >= fishState.biteAt) { fishState.mode = "bite"; tone(1180, 1180, 0.09, "square", 0.05); tone(1568, 1568, 0.13, "square", 0.05, 0.09); }
   else if (fishState.mode === "bite" && now > fishState.biteAt + 1600) { fishState.mode = ""; genText(me.x, me.y - 104, "It got away…", "#9db8d9"); }
 }
-function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-04 21:23), superseding the sixths, the held per-point version AND the weighted pick: on a successful reel-in, EACH FISH ROLLS ITS OWN CHANCE, RAREST FIRST (Whale down to Shrimp), at the rod's percentage for that fish — the FISH_DEFS odds are the BASIC rod's percentages (Whale 1%, Leviathan 2%, … Shrimp 25%) and every rod upgrade adds +1 point to every fish (Quantum: Whale 6%, … Shrimp 30%). The first fish whose roll hits is the catch; if NONE of the ten rolls hit, the reel comes up EMPTY — a successful reel can still catch nothing, by the owner's word. The bite-window miss ("It got away") is a separate, earlier failure and stays exactly as it was */
+function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-04 21:51): the SIXTHS, restored at his word over the 21:23 sequential rolls. The FISH_DEFS odds are the QUANTUM rod's table (Shrimp 25 … Whale 1, summing to 100) and every rod scales EVERY fish by its fraction of that table: Basic (tier 0) 1/6, Blue 2/6, Cosmic 3/6, Golden 4/6, Crystal 5/6, Quantum (tier 5) 6/6. ONE weighted roll over a 600-point field — each fish owns odds×(tier+1) points and whatever of the 600 is left over is an EMPTY cast (Basic 500/600 ≈ 83.33% empty, Quantum none). The bite-window miss ("It got away") is a separate, earlier failure and stays exactly as it was */
   if (fishState.mode !== "bite") return;
   fishState.mode = "";
-  let idx = -1;
-  for (let i = FISH_DEFS.length - 1; i >= 0; i--) { if (Math.random() * 100 < FISH_DEFS[i].odds + myRod) { idx = i; break; } } /* FISH_DEFS run smallest→biggest, so walking the array backwards IS rarest-first */
-  if (idx < 0) { genText(me.x, me.y - 104, "Nothing there…", "#9db8d9"); tone(300, 190, 0.22, "sine", 0.04); return; } /* the empty reel: all ten rolls missed — same floating-text beat as a missed bite */
+  let idx = -1, acc = 0; const roll = Math.random() * 600;
+  for (let i = 0; i < FISH_DEFS.length; i++) { acc += FISH_DEFS[i].odds * (myRod + 1); if (roll < acc) { idx = i; break; } }
+  if (idx < 0) { genText(me.x, me.y - 104, "Nothing there…", "#9db8d9"); tone(300, 190, 0.22, "sine", 0.04); return; } /* the empty cast: the roll landed in the leftover field — same floating-text beat as a missed bite */
   myFish[idx] = (myFish[idx] || 0) + 1; fishSave();
   sfxCoin(); genBurst(me.x, me.y - 46, false);
   $("catchimg").src = FISH_URL(idx);
