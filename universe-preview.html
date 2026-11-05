@@ -577,13 +577,13 @@ const NEON_MECH_HERO = 83; /* the owner's galaxy DJ mech (Jonathan 2026-11-02): 
 const ROGUE_MECH_HERO = 84, SAFARI_MECH_HERO = 85, DOCTOR_MECH_HERO = 86, SAMURAI_MECH_HERO = 87; /* the MECH SHOP forms (Jonathan 2026-11-04): the next form numbers after the account pairs' 74/75/77/79/81/83 — one form per shop design, hero-NNN.webp wearing the design's MALE art and female-NNN.webp its FEMALE art, so a form reads off the wearer's picker gender exactly like a base hero does. Never picker cells, never saved to a profile; only an owner's T transform wears them (the ownership gate lives in toggleMech's shop branch) */
 function isShopMechHero(h) { return h === ROGUE_MECH_HERO || h === SAFARI_MECH_HERO || h === DOCTOR_MECH_HERO || h === SAMURAI_MECH_HERO; }
 function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO || h === KEN_MECH_HERO || h === ROBO_MECH_HERO || h === NEON_MECH_HERO || isShopMechHero(h); } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
-/* the MECH SHOP designs (Jonathan 2026-11-04): each design is ONE costume's mech transformation, bought once for the account in the Mech Shop — one purchase unlocks both its male and female costumes. maleBase/femaleBase are the picker numbers of the costume in each gender's own numbering (the female numbers follow the FEMALE picker's sequence, which is why the doctor is male 55 but female 29); form is the mech hero number the transform rides. The DRAGON's form already exists — it is 7daytonic's galaxy mech (77): its male art is REPLACED by the new dragon art and female-077 is its female, so the shop's dragon display sells the unlock for the 76<->77 transform (Tonic keeps his account access as today, shop or no shop) */
+/* the MECH SHOP designs (Jonathan 2026-11-04): each design is ONE costume's mech transformation, bought once for the account in the Mech Shop — one purchase unlocks both its male and female costumes. maleBase/femaleBase are the picker numbers of the costume in each gender's own numbering (the female numbers follow the FEMALE picker's sequence, which is why the doctor is male 55 but female 74 — the female bases are Jonathan's own sheet numbers, corrected 2026-11-04 off his Cosmic Husky female sheet: rogue 71, safari 72, doctor 74, samurai 75, dragon 76); form is the mech hero number the transform rides. The DRAGON's form already exists — it is 7daytonic's galaxy mech (77): its male art is REPLACED by the new dragon art and female-077 is its female, so the shop's dragon display sells the unlock for that form. Its base costume is male 57 "Dragon Rider" / female 76 (the male base re-paired from 76 on 2026-11-04 — see the dragon row); Tonic keeps his 76<->77 account access as today, shop or no shop) */
 const SHOP_MECHS = [
   { id: "rogue", name: "Rogue", maleBase: 52, femaleBase: 71, form: ROGUE_MECH_HERO },
   { id: "safari", name: "Safari", maleBase: 53, femaleBase: 72, form: SAFARI_MECH_HERO },
-  { id: "doctor", name: "Doctor", maleBase: 55, femaleBase: 29, form: DOCTOR_MECH_HERO },
+  { id: "doctor", name: "Doctor", maleBase: 55, femaleBase: 74, form: DOCTOR_MECH_HERO },
   { id: "samurai", name: "Samurai", maleBase: 56, femaleBase: 75, form: SAMURAI_MECH_HERO },
-  { id: "dragon", name: "Dragon", maleBase: 76, femaleBase: 76, form: TONIC_MECH_HERO }
+  { id: "dragon", name: "Dragon", maleBase: 57, femaleBase: 76, form: TONIC_MECH_HERO } /* the dragon's base costume (Jonathan 2026-11-04): MALE 57 "Dragon Rider" — from his own picker, where 52/55/56 carried their yellow M and 57 showed none, because the design first shipped with maleBase 76, 7daytonic's gated hero, a cell that exists in no other player's picker, so the M could never show and no regular costume could wear the form; FEMALE 76, from his Cosmic Husky female sheet the same night. The FORM stays 77, shared with Tonic's account pair: he keeps 76<->77 through his own swap in toggleMech (the shop branch's carve-out guards his female-track press, where 76 is also this design's base), shop or no shop, and a dragon buyer now transforms off the Dragon Rider costume exactly like every other design off its own */
 ];
 const MECH_PRICE = 100000000; /* a mech costs what a monster costs (Jonathan 2026-11-04: 500M at the shop's opening, cut to 100M the same night — "change cost of monsters and mechs to 100M") */
 let myMechs = {}; /* my unlocked mech designs: design id -> 1, loaded from the account doc at sign-in (the monster collection's shape) */
@@ -596,7 +596,7 @@ function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCas
 function isKingAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === KING_EMAIL); }
 function isTonicAcct() { return !!(acctUser && acctUser.uid === TONIC_UID); }
 function isKenAcct() { return !!(acctUser && acctUser.uid === KEN_UID); } /* Dj Ken's gate: his account's uid, the same shape as 7daytonic's */ /* 7daytonic's gate: his account's uid, read off the signed-in account object the same way the email gates read its email */
-function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === ROBO_HERO) return isOwnerAcct(); if (n === NEON_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); if (n === KEN_HERO) return isKenAcct(); return n >= 1 && n <= 70; }
+function heroAllowed(n) { if (pickedGender === "f" && FEMALE_EXTRA.indexOf(n) >= 0) return true; /* a sheet costume picked in the female track is ANY player's pick: the number's male-track gate below (71 the owner's, 76 Tonic's, 80/82 the owner's) guards the MALE sticker, never the female costume that shares its number \u2014 the worn file is read off the gender, so no special male art can leak through a female pick */ if (n === OWNER_HERO) return isOwnerAcct(); if (n === ROBO_HERO) return isOwnerAcct(); if (n === NEON_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); if (n === KEN_HERO) return isKenAcct(); return n >= 1 && n <= 70; }
 const NPC_PID = "qbot-npc"; /* Q-Bot: server-driven NPC wandering the plaza roundabout; renders from presence like any player, but is never a voice peer and does not count as a person online */
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
@@ -937,8 +937,10 @@ const gate = $("gate"), grid = $("grid"), nameIn = $("namein"), enterBtn = $("en
       onlineEl = $("online"), promptBtn = $("prompt"), chatIn = $("chatin");
 let heroImgs = {}, loadedCount = 0;
 let heroImgsF = {}, femaleLoadedCount = 0; /* the female sticker cache and its OWN load counter \u2014 the male HERO_TOTAL gate below is untouched */
-const FEMALE_MISSING = { 38: 1, 40: 1 }; /* owner removal (2026-10-30): female 038 and 040 do not exist \u2014 the female grid has 68 cells and the numbers NEVER shift (female N is always male hero N's counterpart) */
-const FEMALE_TOTAL = 68;
+const FEMALE_MISSING = { 38: 1, 40: 1 }; /* owner removal (2026-10-30): female 038 and 040 do not exist \u2014 the female roster grid has 68 cells and the numbers NEVER shift (female N is always male hero N's counterpart) */
+const FEMALE_EXTRA = [71, 72, 73, 74, 76, 78, 79, 80, 81, 82, 83, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97]; /* the Cosmic Husky FEMALE SHEET costumes (Jonathan 2026-11-04 \u2014 "add the ones from the sheet i sent you too as female sprites because they are not in the game"): his sheet's numbers 071-097 are the female track's OWN sequence, past the roster's 70. These 21 had no file in the game \u2014 cut from his sheet and uploaded as hub-heroes/female-NNN.webp, and they ride at the end of the female grid in sheet order. The sheet's other six numbers already HAD files and were never overwritten or given picker cells: 75 is the king mech's female form, 77 the dragon mech's female form, 84-87 the four shop mechs' female forms \u2014 form art, not costumes. The mech designs' female bases (71/72/74/75/76) are costumes from this same sheet: 71/72/74/76 are cells in this list; 75's base costume is the one sheet sticker that could not be added, because its number is taken by the king mech's female form */
+const FEMALE_EXTRA_NAMES = { 71: "Rogue", 72: "Safari", 73: "Safari Scarf", 74: "Doctor", 76: "Dragon", 78: "Robot Suit", 79: "Queen", 80: "Leaf Druid", 81: "Blacksmith", 82: "Medal Athlete", 83: "Medal Athlete", 88: "Musketeer", 89: "Rainbow Cape", 90: "Checkered King", 91: "Jester", 92: "Ranger", 93: "Astronaut", 94: "Dino Costume", 95: "Rocket Racer", 96: "Crowned Knight", 97: "Atom Armour" }; /* his sheet's own labels */
+const FEMALE_TOTAL = 89; /* 68 roster cells + the 21 sheet costumes */
 function heroUrl(n, g) { return g === "f" ? "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffemale-" + String(n).padStart(3, "0") + ".webp?alt=media" : "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media"; }
 function heroImgFor(n, g) { return g === "f" ? heroImgsF[n] : heroImgs[n]; }
 function makeHeroCell(n, nm, g) {
@@ -959,9 +961,10 @@ function makeHeroCell(n, nm, g) {
   return cell;
 }
 function syncMechBadges() { document.querySelectorAll(".cell").forEach(c => { const b = c._mbadge; if (!b) return; const d = SHOP_MECHS.find(x => (c.dataset.gender === "f" ? x.femaleBase : x.maleBase) === Number(c.dataset.hero)); b.style.display = (d && mechOwned(d.id)) ? "block" : "none"; }); } /* called whenever the grid is (re)built and whenever ownership lands or changes (sign-in, a buy), so the M's always read the account's real unlocks */
-function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift). The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
+function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift), plus the sheet costumes (FEMALE_EXTRA) appended at the end in sheet-number order. The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
   grid.innerHTML = "";
   HERO_NAMES.forEach((nm, i) => { const n = i + 1; if (pickedGender === "f" && FEMALE_MISSING[n]) return; grid.appendChild(makeHeroCell(n, nm, pickedGender)); });
+  if (pickedGender === "f") FEMALE_EXTRA.forEach(n => grid.appendChild(makeHeroCell(n, FEMALE_EXTRA_NAMES[n], "f"))); /* female mode only: the sheet costumes close the grid, in sheet-number order */
   ownerCells = []; kingCell = null; tonicCell = null; kenCell = null; roboCell = null; neonCell = null;
   syncOwnerCell();
   syncMechBadges();
@@ -988,7 +991,7 @@ buildGrid();
 const HERO_TOTAL = 77;
 function heroLoaded() { loadedCount++; syncLoadLine(); checkEnter(); }
 function heroLoadedF() { femaleLoadedCount++; syncLoadLine(); checkEnter(); }
-function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 77 (70 grid + the 7 special preloads) in male mode, the 68 female cells in female mode */
+function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 77 (70 grid + the 7 special preloads) in male mode, the 89 female cells (68 roster + 21 sheet costumes) in female mode */
   if (pickedGender === "f") loadLine.textContent = femaleLoadedCount >= FEMALE_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + femaleLoadedCount + "/" + FEMALE_TOTAL;
   else loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL;
 }
@@ -2473,7 +2476,7 @@ window.addEventListener("resize", resize); resize();
 const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
-  if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct() || isTonicAcct() || isKenAcct() || shopMechReady())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero, and Dj Ken's gentleman mech under his; toggleMech routes by account. The MECH SHOP (2026-11-04) adds one more gate: any account wearing a costume whose mech it has unlocked — shopMechReady reads the worn costume, never a menu */
+  if ((e.key === "t" || e.key === "T") && entered && ((isOwnerAcct() && (me.hero === OWNER_HERO || me.hero === ROBO_HERO || me.hero === NEON_HERO)) || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO) || (isKenAcct() && me.hero === KEN_HERO) || shopMechReady())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero, and Dj Ken's gentleman mech under his; toggleMech routes by account. The MECH SHOP (2026-11-04) adds one more gate: any account wearing a costume whose mech it has unlocked — shopMechReady reads the worn costume, never a menu */
   if ((e.key === "m" || e.key === "M") && entered && myMonSel && !e.repeat && !evoLock) { const tg = e.target; if (!(tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable))) { toggleMonOut(); return; } } /* the M key (the owner's fix, 2026-11-02): the M button on a keyboard — it toggles the picked monster out/in exactly like tapping the button, at any pointer type, but never while typing in a field (chat above all — the chat field already returns at this handler's top; this guard covers every other input), never off a held key's auto-repeat, and never during the evolution show */
   /* boxing on PC: NO keyboard punches (Jonathan 2026-10-31, final word) — the mouse is the ONLY way to punch on desktop: Left Mouse = left punch, Right Mouse = right punch (the canvas pointerdown below). Q/E/J/K do nothing in a bout. Phones keep their L / R punch buttons */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
@@ -2493,7 +2496,7 @@ function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = fal
 runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
 /* ---- the mech transforms (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; on a phone it exists ONLY for the transform accounts, from the moment they are in — the owner (DreadMech), OnlineMoney while his King QI avatar is selected (king mech), and 7daytonic while his own hero is selected (galaxy mech) ---- */
 const tEl = $("tbtn");
-function syncTBtn() { const show = entered && (isOwnerAcct() || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO) || (isKenAcct() && me.hero === KEN_HERO) || shopMechReady()) && !boxingBout && !(me.scene === "trenches" && trSeat >= 0) && window.matchMedia("(pointer: coarse)").matches; /* shopMechReady: the T button also exists on a phone for ANY account currently wearing a costume whose mech it owns (the Mech Shop's transforms) — the same trenches/boxing suppression as the account pairs */ /* the T button also goes away on a phone while he is IN THE GAME in the Trenches (seated — Jonathan 2026-11-03, corrected the same night: the room is not the game, "Outside the arena you should be able to do everything normal"): transforms are blocked only in the match (toggleMech's gate) and the aim stick owns the right side — a spectator in the room keeps T like anywhere else, and the 400ms tick brings the button back when he stands */ const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function syncTBtn() { const show = entered && ((isOwnerAcct() && (me.hero === OWNER_HERO || me.hero === ROBO_HERO || me.hero === NEON_HERO)) || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO) || (isKenAcct() && me.hero === KEN_HERO) || shopMechReady()) && !boxingBout && !(me.scene === "trenches" && trSeat >= 0) && window.matchMedia("(pointer: coarse)").matches; /* shopMechReady: the T button also exists on a phone for ANY account currently wearing a costume whose mech it owns (the Mech Shop's transforms) — the same trenches/boxing suppression as the account pairs */ /* the T button also goes away on a phone while he is IN THE GAME in the Trenches (seated — Jonathan 2026-11-03, corrected the same night: the room is not the game, "Outside the arena you should be able to do everything normal"): transforms are blocked only in the match (toggleMech's gate) and the aim stick owns the right side — a spectator in the room keeps T like anywhere else, and the 400ms tick brings the button back when he stands */ const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
 function toggleKingMech() { /* OnlineMoney's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — except the burst is RED and the form is the king mech. It hangs off his King QI avatar: any other hero selected and T does nothing */
   if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the owner */
   if (me.hero !== KING_HERO) return;
@@ -2552,13 +2555,13 @@ function toggleNeonMech() { /* the owner's neon swap (Jonathan 2026-11-02): the 
 function toggleMech() {
   if (!entered) return;
   if (me.scene === "trenches" && trSeat >= 0) return; /* NO MECHS IN THE GAME (Jonathan 2026-11-03, corrected the same night — "Outside the arena you should be able to do everything normal"): this is the ONE toggle entry — the T key and the phone T button both route here, and every per-account swap (king/tonic/ken/robo/neon and the owner's own) hangs off it — so this single gate locks them all, but ONLY while he is in the match (seated), the boxingBout lock's own arrangement. A spectator anywhere in the room transforms as normal; sitting down in a form pops it off at the chair (trTrySit's clearMechForms), so no form ever fights and none is stranded */
-  const shopD = shopDesignFor(me.hero, me.g); if (shopD && mechOwned(shopD.id) && !(isTonicAcct() && me.hero === TONIC_HERO)) { toggleShopMech(shopD); return; } /* the MECH SHOP branch (Jonathan 2026-11-04): wearing a costume whose mech this account has unlocked, T drives THAT design's mech. It routes FIRST because the account swaps below it gate on their own hero and would swallow the press whole for their owners wearing anything else (the king's swap no-ops off hero 73, stranding a king who bought the rogue). Exactly ONE carve-out: 7daytonic on his own hero 76 — the dragon design and his galaxy mech are the same form (77), and his T keeps driving it through his own swap below, blue burst and all, exactly as today, whether or not the shop ever sold him the dragon. Everywhere else the pre-existing pairs are untouched: the king's 73, Ken's 78 and the owner's 80/82 have no shop design, so this branch can never fire on them, and an unowned costume falls through to whatever T meant before — for the owner his DreadMech, for everyone else nothing */
+  const shopD = shopDesignFor(me.hero, me.g); if (shopD && mechOwned(shopD.id) && !(isTonicAcct() && me.hero === TONIC_HERO)) { toggleShopMech(shopD); return; } /* the MECH SHOP branch (Jonathan 2026-11-04): wearing a costume whose mech this account has unlocked, T drives THAT design's mech. It routes FIRST because the account swaps below it gate on their own hero and would swallow the press whole for their owners wearing anything else (the king's swap no-ops off hero 73, stranding a king who bought the rogue). Exactly ONE carve-out: 7daytonic on his own hero 76 — on the female track 76 is the dragon design's base too, and his T keeps driving his galaxy mech through his own swap below, blue burst and all, exactly as today, whether or not the shop ever sold him the dragon (on the male track 76 carries no design since the dragon re-paired to 57, so there the carve-out simply never fires). Everywhere else the pre-existing pairs are untouched: the king's 73, Ken's 78 and the owner's 80/82 have no shop design, so this branch can never fire on them, and an unowned costume falls through to whatever T meant before — for the owner his DreadMech (only while he wears 71, per the avatar-tied gate at the fall-through), for everyone else nothing */
   if (isKingAcct()) { toggleKingMech(); return; } /* OnlineMoney's T drives his king mech, never the owner's */
   if (isTonicAcct()) { toggleTonicMech(); return; } /* 7daytonic's T drives his galaxy mech, never the others' */
   if (isKenAcct()) { toggleKenMech(); return; } /* Dj Ken's T drives his gentleman mech, never the others' */
   if (isOwnerAcct() && me.hero === ROBO_HERO) { toggleRoboMech(); return; } /* the owner's T while his robo-dog (80) is selected drives the dome mech — with any other hero selected his T drives the DreadMech below, exactly as before */
   if (isOwnerAcct() && me.hero === NEON_HERO) { toggleNeonMech(); return; } /* the owner's T while his neon streetwear QI (82) is selected drives the galaxy DJ mech — with any other hero selected his T drives the DreadMech below, exactly as before */
-  if (!isOwnerAcct()) return;
+  if (!isOwnerAcct() || me.hero !== OWNER_HERO) return; /* the DreadMech hangs off Owner QI (71) ALONE (Jonathan 2026-11-04 — transforms are tied to the avatar WORN, his words: "Dread mech should be tied to the dread avatar, same for all unique avatar/mech connections. And all player unique ones like online money etc"): wearing any other sprite, the owner's T does nothing at all. His 80/82 pairs and any owned shop costume route above this line; the king/tonic/ken swaps self-gate on their own heroes; a sprite with no pair has no transform — no fallback to the DreadMech or any other mech */
   if (boxingBout) return; /* no transforming mid-bout (Jonathan 2026-10-31): entering the arena untransforms you and the T button is gone until the bout ends */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
   mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
@@ -4538,6 +4541,70 @@ function drawSeatBetOverlay() {
       ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[0].amt ? "#7dffb0" : "#ffb3b3";
       ctx.fillText(st.results[0].res, sp.x, sp.y - 124); /* the TOP seat's result, above its sprite's head — the bottom seat's never hid and still paints in the board pass at +118 */
     }
+  }
+}
+/* ============ head notes, painted OVER the sprites (Jonathan 2026-11-04, 23:40) ============
+   One family, one rule — drawSeatBetOverlay's rule applied to the note bubble that floats over
+   MY head (mechNote, monNote, casinoNote, hrNote, phNote, bowlNote: one pattern, "bowlNote's
+   pattern", copied room to room). Every one of them used to paint inside its room's scene draw,
+   and the scene passes run BEFORE frame()'s actor pass — a dog (96 tall) never reaches the
+   bubble's band (top at me.y−158), but a MECH (216 tall) stands right through it, so buying a
+   mech while transformed put the "✅ … is yours" text BEHIND the mech (his Mech Shop
+   screenshot). The bug was the family's, not the one shop's: the same bubble hid the same way
+   behind any mech form in the Monster Shop, the casino, the horse track, the pool hall and the
+   bowling alley. So all six paints live here now — after the actors, inside the same camera
+   transform, right after drawSeatBetOverlay. Words, fonts, colours and anchors are exactly the
+   ones the scene passes used; only the layer changed, and each note still paints only in its
+   own room, exactly as before. (The Trenches' trNote is a different animal — a fixed-position
+   banner that already paints in drawTrenchesOver's over pass — and the speedway's race note is
+   a HUD status line; neither is this family and neither moves.) */
+function drawHeadNotes() {
+  if (me.scene === "mechshop" && mechNote && performance.now() - mechNoteAt < 4200) {
+    /* my buy note, floating over my head — monNote's bubble in the shop's pink. The box FITS the message (Jonathan 2026-11-04 — "fix the pop up message the square is not big enough"): the note wraps at 500px and the box grows a line at a time above my head, so the whole text always sits inside it, phone included — the one-line strip it replaces (34px tall, however long the sentence ran) let the long buy message spill past its edges. Every mechSay message rides this same bubble, so all of them inherit the fit */
+    ctx.font = "600 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const words = mechNote.split(" "); let lines = [], line = "";
+    for (const wd of words) { if (line && ctx.measureText(line + " " + wd).width > 500) { lines.push(line); line = wd; } else line = line ? line + " " + wd : wd; }
+    if (line) lines.push(line);
+    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 36, bh = lines.length * 27 + 20;
+    const bx = me.x - bw / 2, by = me.y - 130 - bh;
+    ctx.fillStyle = "rgba(24,8,20,0.92)"; rr(bx, by, bw, bh, 10); ctx.fill();
+    ctx.strokeStyle = "#ff5e9c"; ctx.lineWidth = 1.5; rr(bx, by, bw, bh, 10); ctx.stroke();
+    ctx.fillStyle = "#ffe3ef"; lines.forEach((l, li) => ctx.fillText(l, me.x, by + 30 + li * 27));
+  }
+  if (me.scene === "monstershop" && monNote && performance.now() - monNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(monNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(74,222,128,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#d9ffe6"; ctx.fillText(monNote, me.x, me.y - 135);
+  }
+  if (me.scene === "casino" && casinoNote && performance.now() - casinoNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(casinoNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.93)"; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(casinoNote, me.x, me.y - 133);
+  }
+  if (me.scene === "track" && hrNote && performance.now() - hrNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(hrNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(hrNote, me.x, me.y - 135);
+  }
+  if (me.scene === "poolhall" && phNote && performance.now() - phNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(phNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(phNote, me.x, me.y - 135);
+  }
+  if (me.scene === "bowling" && bowlNote && performance.now() - bowlNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(bowlNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(bowlNote, me.x, me.y - 135);
   }
 }
 function drawGenFx(dt) {
@@ -7866,14 +7933,7 @@ function drawMonsterShop(t) {
   for (let py2 = pen.y + 46; py2 < pen.y + pen.h - 20; py2 += 70) { ctx.fillRect(pen.x - 5, py2, 24, 10); ctx.fillRect(pen.x + pen.w - 19, py2, 24, 10); }
   /* ---- the cases, aisle by aisle ---- */
   MONCASES.forEach((c, i) => drawMonCase(c, i, t));
-  /* the note line over my head — the bowling note's twin, in the shop's green */
-  if (monNote && performance.now() - monNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(monNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(74,222,128,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#d9ffe6"; ctx.fillText(monNote, me.x, me.y - 135);
-  }
+  /* the note line over my head paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* the exit: the Arcade-style door at the south wall — the bowling exit's paint, word for word in the shop's gold */
   ctx.fillStyle = "#050914"; ctx.fillRect(MSEXIT.x - 6, MSROOM.h - 12, MSEXIT.w + 12, 12);
   ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
@@ -8083,18 +8143,7 @@ function drawMechShop(t) {
   ctx.save(); ctx.shadowColor = "rgba(255,94,156,0.8)"; ctx.shadowBlur = 18;
   ctx.fillStyle = "#ffe3ef"; ctx.fillText("🤖 MECH SHOP 🤖", MKROOM.w / 2, 92); ctx.restore();
   for (let i = 0; i < MKSLOTS.length; i++) drawMechSlot(MKSLOTS[i], i, t);
-  /* my buy note, floating over my head — monNote's bubble in the shop's pink. The box FITS the message (Jonathan 2026-11-04 — "fix the pop up message the square is not big enough"): the note wraps at 500px and the box grows a line at a time above my head, so the whole text always sits inside it, phone included — the one-line strip it replaces (34px tall, however long the sentence ran) let the long buy message spill past its edges. Every mechSay message rides this same bubble, so all of them inherit the fit */
-  if (mechNote && performance.now() - mechNoteAt < 4200) {
-    ctx.font = "600 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const words = mechNote.split(" "); let lines = [], line = "";
-    for (const wd of words) { if (line && ctx.measureText(line + " " + wd).width > 500) { lines.push(line); line = wd; } else line = line ? line + " " + wd : wd; }
-    if (line) lines.push(line);
-    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 36, bh = lines.length * 27 + 20;
-    const bx = me.x - bw / 2, by = me.y - 130 - bh;
-    ctx.fillStyle = "rgba(24,8,20,0.92)"; rr(bx, by, bw, bh, 10); ctx.fill();
-    ctx.strokeStyle = "#ff5e9c"; ctx.lineWidth = 1.5; rr(bx, by, bw, bh, 10); ctx.stroke();
-    ctx.fillStyle = "#ffe3ef"; lines.forEach((l, li) => ctx.fillText(l, me.x, by + 30 + li * 27));
-  }
+  /* my buy note paints in frame()'s front pass now (drawHeadNotes, after the actors): in here it sat in the scene pass and a mech form painted over it (Jonathan 2026-11-04, 23:40) */
   /* the exit door plate on the south wall — the monster plate's paint in pink */
   ctx.fillStyle = "#050914"; ctx.fillRect(MKEXIT.x - 6, MKROOM.h - 12, MKEXIT.w + 12, 12);
   ctx.save(); ctx.shadowColor = "rgba(255,94,156,0.55)"; ctx.shadowBlur = 12;
@@ -8967,14 +9016,7 @@ function drawTrack(t) {
     [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 374 + (k % 6) * 126, by + Math.floor(k / 6) * 31, 118, 27, "BET " + amt.toLocaleString("en-US"), () => hrBet(amt), { fs: 18 }));
   }
   drawTableFx(t, "track");
-  /* the note line, the casino note's twin */
-  if (hrNote && performance.now() - hrNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(hrNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(hrNote, me.x, me.y - 135);
-  }
+  /* the note line paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* exit door */
   ctx.fillStyle = "#ffd76a"; rr(TREXIT.x, TREXIT.y, TREXIT.w, 10, 5); ctx.fill();
   ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
@@ -9217,14 +9259,7 @@ function drawPoolHall(t) {
   uiZones = [];
   for (let tt = 0; tt < 4; tt++) drawPhTable(tt, t);
   drawTableFx(t, "poolhall");
-  /* the note line, the casino note's twin */
-  if (phNote && performance.now() - phNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(phNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(phNote, me.x, me.y - 135);
-  }
+  /* the note line paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* exit doorway in the right wall (PREVIEW round 3): the theatre doorway's own look, exactly as the Arcade's Pool Hall door wears it — dark gap in the wall, gold wash, corner ticks, chevrons, and the gold sign plate hanging inside, reading ARCADE. It stands the same distance above this room's bottom border as the Arcade's door stands above the Arcade's */
   ctx.fillStyle = "#050914"; ctx.fillRect(PHROOM.w - 12, PHEXIT.y - PHEXIT.half, 12, PHEXIT.half * 2);
   const eg = ctx.createLinearGradient(PHROOM.w - 90, 0, PHROOM.w, 0);
@@ -10199,14 +10234,7 @@ function drawBowling(t) {
   for (let tt = 0; tt < 4; tt++) drawBowlLane(tt, t);
   drawBowlPanel(t);
   drawTableFx(t, "bowling");
-  /* the note line, the pool hall note's twin */
-  if (bowlNote && performance.now() - bowlNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(bowlNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(bowlNote, me.x, me.y - 135);
-  }
+  /* the note line paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* the exit: the Arcade-style door at the south wall — a dark gap at the wall's base and the gold floor plate reading EXIT, drawn last so no panel ever covers it */
   ctx.fillStyle = "#050914"; ctx.fillRect(BOWLEXIT.x - 6, BOWLROOM.h - 12, BOWLEXIT.w + 12, 12);
   ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
@@ -12864,13 +12892,7 @@ function drawCasino(t) {
   drawTableFx(t, "casino");
   /* the corner palms (Jonathan 2026-10-31: "add the palm tree emojis back") — drawn LAST in the room, over everything else, at the same four corners they always stood in, a touch larger so they read clearly */
   ctx.font = "58px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌴", 92, 108); ctx.fillText("🌴", CASINOROOM.w - 92, 108); ctx.fillText("🌴", 92, CASINOROOM.h - 66); ctx.fillText("🌴", CASINOROOM.w - 92, CASINOROOM.h - 66);
-  if (casinoNote && performance.now() - casinoNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif";
-    const w = ctx.measureText(casinoNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.93)"; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(casinoNote, me.x, me.y - 133);
-  }
+  /* the casino note paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   ctx.restore();
 }
 
@@ -12995,7 +13017,10 @@ const FALL_PUMPKIN_SPOTS = [ /* [centreX, groundY, scale] — spread along each 
   [-214, 510, 0.62], [-172, 504, 0.88],
   /* the Mech Shop (MECH_B, base y2280; door −425..−335) — the same corner pairs at the same offsets (2026-11-04), clear of the door and its landing; the west pair stands in the gap toward the world's edge, the east pair in the gap toward the Monster Shop */
   [-664, 2294, 0.90], [-622, 2300, 0.60],
-  [-134, 2300, 0.62], [-92, 2294, 0.88]
+  [-134, 2300, 0.62], [-92, 2294, 0.88],
+  /* the Fishing Shop (FISH_B, base y1480; door −465..−375) — the Monster Shop's corner pairs at the same offsets (added at the owner's word 2026-11-04): a pair tucked at each base corner (west +36/+78, east −74/−32) and heights (outer base+14, inner base+20), clear of the door and its landing */
+  [-664, 1494, 0.90], [-622, 1500, 0.60],
+  [-214, 1500, 0.62], [-172, 1494, 0.88]
 ];
 const FALL_LEAF_SPOTS = [ /* [centreX, groundY, radius, seed] — drifts of fallen leaves: the four tree-side grounds the scarecrows held and the Horse Track corner, plus scatter along the walkway edges and building bases drawn from the pumpkin rows */
   [512, 1168, 64, 1], [2688, 1168, 64, 2], [3224, 556, 56, 5], /* the 618,1918 drift that backed the tree east of the Monster Shop painted over the shop's east windows once the building stood there — removed at the owner's word (2026-11-02); its east mirror at 2582,1918 sat on the Quantum Comics roof's NE corner once that building stood beneath it — removed at the owner's word (2026-11-02) too, the same night he had the Arcade roof checked: no drift sits on the Arcade roof (the 1470,545 drift is on the ground at its base) */
@@ -13289,6 +13314,13 @@ function renderFishPanel() {
     mid.appendChild(nm); mid.appendChild(wv); row.appendChild(mid);
     if (t === myRod + 1) { const b = document.createElement("button"); b.type = "button"; b.textContent = "Buy"; b.onclick = () => rodBuyAsk(t); row.appendChild(b); }
     list.appendChild(row); });
+  if (isOwnerAcct()) { /* the RESET ROD row (owner-only, Jonathan 2026-11-04): the Reset Speed button's twin, living with the rod rows it resets — it renders ONLY for the owner's account (no other account and no guest ever sees it), in the panel's own row dress, and rodReset refuses for anyone else regardless */
+    const row = document.createElement("div"); row.className = "fishrow";
+    const mid = document.createElement("div"); const nm = document.createElement("div"); nm.className = "fname"; nm.textContent = "🎣 Your rod";
+    const wv = document.createElement("div"); wv.className = "fworth"; wv.textContent = "Owner reset — back to the Basic Rod";
+    mid.appendChild(nm); mid.appendChild(wv); row.appendChild(mid);
+    const b = document.createElement("button"); b.type = "button"; b.id = "rodresetbtn"; b.textContent = Date.now() < rodResetArmUntil ? "⚠️ Tap again to reset your rod to Basic" : "Reset Rod"; b.onclick = () => rodReset(); row.appendChild(b);
+    list.appendChild(row); }
 }
 function openFishPanel() { renderFishPanel(); fishShopMsg(""); fishPanelOpen = true; $("fishpanel").style.display = "flex"; sfxClick(); }
 function closeFishPanel() { fishPanelOpen = false; const el = $("fishpanel"); if (el) el.style.display = "none"; }
@@ -13306,6 +13338,16 @@ function fishSellGo(i, n) { /* the sale itself, run only from confirmBuy: the st
   renderFishPanel();
 }
 function rodBuyAsk(tier) { if (tier !== myRod + 1) return; if (!acctUser) { fishShopMsg("🔒 Rod upgrades take an account — guests fish with the Basic Rod."); sfxBad(); return; } openBuyConfirm({ kind: "rod", tier: tier }, "🎣 Buy Rod?", ROD_DEFS[tier].name, ROD_DEFS[tier].price); } /* the standard buy confirmation: it names the rod and its exact price, and only CONFIRM runs the purchase */
+let rodResetArmUntil = 0;
+function rodReset() { /* RESET ROD (owner-only, Jonathan 2026-11-04): clears the OWNER's own rod tier back to Basic (0) and records it on his own users doc through fishSave → acctFishSave, the rod tier's own write, and nowhere else. The row never renders for anyone else, and this handler refuses for anyone else regardless. Two taps, the Reset Speed pattern exactly: the first tap arms the button for four seconds, the second does it */
+  if (!isOwnerAcct() || !acctUser) return;
+  const btn = $("rodresetbtn"), nowMs = Date.now();
+  if (nowMs > rodResetArmUntil) { rodResetArmUntil = nowMs + 4000; if (btn) btn.textContent = "⚠️ Tap again to reset your rod to Basic"; setTimeout(() => { if (Date.now() > rodResetArmUntil) { const b2 = $("rodresetbtn"); if (b2) b2.textContent = "Reset Rod"; } }, 4100); return; }
+  rodResetArmUntil = 0;
+  myRod = 0; fishSave();
+  renderFishPanel();
+  fishShopMsg("✓ Your rod is reset — back to the Basic Rod");
+}
 function spdBuyAsk() { const t = mySpd + 1; if (t > SPD_DEFS.length) return; if (!acctUser) { genText(me.x, me.y - 104, "🔒 Speed upgrades take an account", "#9db8d9"); sfxBad(); return; } openBuyConfirm({ kind: "speed", tier: t }, "⚡ Buy Speed?", "Crystal Speed ×" + SPD_DEFS[t - 1].mult, SPD_DEFS[t - 1].price); } /* the rod ask's twin at the Quantum Crystal: guests are refused in the open (there is no panel here — the refusal floats over the player, the fishing feedback's own way), and the standard confirmation names the tier and its exact price; only CONFIRM runs the purchase */
 function spdBuy(tier) { if (tier !== mySpd + 1) return; const def = SPD_DEFS[tier - 1]; if (!def) return;
   if (!isOwnerAcct()) { pullChips(); if (!profile || (profile.chips || 0) < def.price) { genText(me.x, me.y - 104, "Not enough chips — ×" + def.mult + " costs 🪙 " + def.price.toLocaleString("en-US"), "#ff9db0"); sfxBad(); return; } addChips(-def.price); } /* the rod buy's own discipline: the owner's account is never charged (his purchase is still recorded below), everyone else is debited exactly the price, only here on confirm */
@@ -13413,9 +13455,9 @@ function drawCastleBuilding(t) {
   ctx.strokeStyle = "rgba(56,225,255,0.9)"; ctx.lineWidth = 3;
   for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3); ctx.beginPath(); ctx.ellipse(0, 0, 44, 16, 0, 0, 7); ctx.stroke(); ctx.restore(); }
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.fill(); ctx.restore();
-  /* the parapet: a battlement band along the whole roofline between the towers, on the keep's own top edge */
+  /* the parapet: a battlement band along the whole roofline between the towers, on the keep's own top edge. The band itself is centred on cx; the TEETH march is centred on cx too (Jonathan 2026-11-04, 23:38 — from his screenshot of the castle top: the row of 12 rectangles is centred, with its middle gap centred under the central spire): 12 teeth of 44 on the shared 80 pitch span 924, so the march runs cx−462 .. cx+462. The old march from b.x+140 spanned 1120..2044 — the same 12 teeth, but the row's centre sat 18px LEFT of the castle's centre line, so a tooth's edge (not a tooth, not a gap) landed under the spire and the row read as off-centre with its middle missing */
   ctx.fillStyle = "#2e4c80"; ctx.fillRect(b.x + 130, b.y - 12, b.w - 260, 16);
-  merlons(b.x + 140, b.x + b.w - 140, b.y - 42);
+  merlons(cx - 462, cx + 462, b.y - 42);
   ctx.strokeStyle = "rgba(140,230,255,0.5)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x + 130, b.y + 4); ctx.lineTo(b.x + b.w - 130, b.y + 4); ctx.stroke();
   /* the name board — centred on cx, as it always was */
   ctx.fillStyle = "#101f42"; rr(cx - 340, b.y + 44, 680, 76, 12); ctx.fill();
@@ -13423,9 +13465,8 @@ function drawCastleBuilding(t) {
   ctx.font = "800 33px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(56,225,255,0.8)"; ctx.shadowBlur = 14;
   ctx.fillStyle = "#d9f6ff"; ctx.fillText("💎 CRYSTAL QUANTUM CASTLE", cx, b.y + 94); ctx.restore();
-  /* crystal windows: TWO aligned rows of glowing diamonds (baselines b.y+250 and b.y+430) on mirrored columns (cx ± 240 / ±380) — the casino window row's discipline, doubled. The ±520 columns are deliberately NOT in this loop: they land inside the corner towers, 39px from the towers' own windows, and read as a sloppy doubled window (caught on the v2 wide shot) — the towers carry those columns on the same baselines instead. The gatehouse's columns stay clear of both rows' centres — with one exception, noted in the loop: the lower row's ±240 pair came off at the owner's word (2026-11-04, 21:13) */
+  /* crystal windows: TWO aligned rows of glowing diamonds (baselines b.y+250 and b.y+430) on mirrored columns (cx ± 240 / ±380) — the casino window row's discipline, doubled. The ±520 columns are deliberately NOT in this loop: they land inside the corner towers, 39px from the towers' own windows, and read as a sloppy doubled window (caught on the v2 wide shot) — the towers carry those columns on the same baselines instead. The gatehouse's columns stay clear of both rows' centres. The lower row's ±240 pair came off at the owner's word (2026-11-04, 21:13) and went BACK at his word the same night (23:39 — from his screenshot of the front wall: "add 1 missing diamond here and on the other side too") — both rows now carry the full mirrored set, ±240 and ±380, no exceptions */
   for (const wy of [250, 430]) for (const off of [-380, -240, 240, 380]) {
-    if (wy === 430 && Math.abs(off) === 240) continue; /* the lower row's INNER pair is GONE (Jonathan 2026-11-04, 21:13 — from his close-up: the little diamonds sitting above the castle's front entrance door, flanking the central tower over the gatehouse, come off; the upper row's inner pair and both ±380 columns stay) */
     const wx = cx + off;
     ctx.save(); ctx.translate(wx, b.y + wy); ctx.rotate(Math.PI / 4);
     const pulse = 0.55 + 0.3 * Math.sin(t / 600 + wx * 0.05);
@@ -13483,6 +13524,10 @@ function drawFishingShopBuilding(t) {
   /* the windows: one aligned row, the casino window row's own height and measure, in the shop's blue — MIRRORED about the building's centre line, with the LEFT pair as the reference (owner fix + correction, 2026-11-04: the row read lopsided because the pairs were not mirrors — first the left pair was moved to match the right, then he reversed it: the LEFT two are the reference and do not move (0.14/0.32, centre −202/−101), and the RIGHT pair now sits at their exact mirror (0.68/0.86, centre +101/+202) — same heights, same spacing, like every other building's windows) */
   ctx.fillStyle = "rgba(42,127,212,0.35)";
   for (const fx of [0.14, 0.32, 0.68, 0.86]) { rr(b.x + b.w * fx - 28, b.y + 168, 56, 62, 6); ctx.fill(); }
+  /* the fish sign over the door (Jonathan 2026-11-04): the Sports Complex's sport-ball sign copied line for line — a dark disc (r31), a gold ring (#ffd76a, lineWidth 2.5) and the glyph centred inside at the same 34px — one circle on the building's centre line in the window row's centre gap, directly above the door, the sports balls' own spot: clear of the marquee above (ends b.y+126), of the inner windows either side (their facing edges sit 72.8 out from centre against the disc's 31) and of the door's glow below (starts FISHDOOR.y−6) */
+  ctx.globalAlpha = 1; ctx.fillStyle = "#06231a"; ctx.beginPath(); ctx.arc(cx, b.y + 199, 31, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, b.y + 199, 31, 0, 7); ctx.stroke();
+  ctx.font = "34px sans-serif"; ctx.fillText("🐠", cx, b.y + 210);
   /* the door */
   const dg = ctx.createLinearGradient(0, FISHDOOR.y, 0, FISHDOOR.y + 100);
   dg.addColorStop(0, "rgba(56,180,255,0.55)"); dg.addColorStop(1, "rgba(56,180,255,0)");
@@ -15825,6 +15870,7 @@ function frame(now) {
   /* the Fishing Shop counter's front is NO LONGER repainted here (2026-11-04 22:28): it moved into the actor loop, immediately after Q-Bot's own draw (drawFishCounterFront) — from this over pass it painted over PLAYERS standing at the counter front inside Q-Bot's span, and Jonathan's word is that only Q-Bot is ever behind that counter */
   if (me.scene === "dining") drawDiningWindowsFront(); /* the Dining Hall's windows paint HERE, over the actors (Jonathan 2026-11-04 21:30): in this room the windows are in front of players depth-wise — you walk behind the glass */
   drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
+  drawHeadNotes(); /* the over-my-head note bubbles paint here too, over the sprites — a buy note must never hide behind the (mech) player it belongs to (Jonathan 2026-11-04, 23:40) */
   ctx.restore();
   if (buyConfirmPend && !buyConfirmStillNear()) closeBuyConfirm(); /* walking away from the case or display takes the buy confirmation down with it — nothing bought, nothing debited */
   if (fishPanelOpen && !fishNearCounter()) closeFishPanel(); /* the Fishing Shop panel belongs to the counter, like the buy confirmation belongs to its case: walk away and it closes */
