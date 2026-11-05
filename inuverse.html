@@ -574,29 +574,34 @@ const ROBO_HERO = 80; /* the owner's robo-dog (Jonathan 2026-11-01): the black-a
 const ROBO_MECH_HERO = 81; /* the owner's dome mech (Jonathan 2026-11-01): his second transform form — the big red-and-black mech art at hub-heroes/hero-081.webp, the robo-dog himself piloting it inside the glass dome; never a picker cell, never saved to a profile; only his T transform wears it, and only while his robo-dog (80) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate (the owner account AND hero 80), the art, and the smoke: this pair's burst is RED (the DreadMech's stays cyan, OnlineMoney's red, 7daytonic's a normal blue, Dj Ken's gold) */
 const NEON_HERO = 82; /* the owner's neon streetwear QI (Jonathan 2026-11-02): the cosmic shiba in the purple-trim streetwear with the headphones and atom chain — his uploaded art at hub-heroes/hero-082.webp; offered as a picker cell ONLY under the owner sign-in (the same account gate as Owner QI), sitting IMMEDIATELY AFTER his robo-dog (80) in his picker — his third special pick */
 const NEON_MECH_HERO = 83; /* the owner's galaxy DJ mech (Jonathan 2026-11-02): his third transform form — the purple DJ mech art at hub-heroes/hero-083.webp, the streetwear QI himself at the decks inside the dome; never a picker cell, never saved to a profile; only his T transform wears it, and only while his neon streetwear hero (82) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate (the owner account AND hero 82), the art, and the smoke: this pair's burst is PURPLE (the DreadMech's stays cyan, OnlineMoney's red, 7daytonic's a normal blue, Dj Ken's gold, the dome mech's red) */
+const BBE_HERO = 88, BBE_UID = "krYsh88JuagyEj8uz7A0w1LS0cH2"; /* Big Boy Eater's own hero (Jonathan 2026-11-05): the piñata — his own art at hub-heroes/hero-088.webp; offered as a picker cell ONLY under his sign-in, exactly like 71/73/76/78. His gate keys on the account UID, not an email, exactly like 7daytonic's and Dj Ken's (his uid was read off his live presence, signed in as bigboyeater21) */
+const BBE_MECH_HERO = 89; /* Big Boy Eater's piñata mech (Jonathan 2026-11-05): his transform form — his own art at hub-heroes/hero-089.webp; never a picker cell, never saved to a profile; only HIS T transform wears it, and only while his piñata (88) is selected. A full-size mech exactly like the DreadMech (216 tall, bob 20, same cooldown, sound, sync and boxing lock) — the differences are the gate, the art, and the smoke: his burst is the standard CYAN, the DreadMech's own colour. One collision the older forms don't have: the female track's 89 is the Rainbow Cape COSTUME (FEMALE_EXTRA), so this form's mech treatment keys on the wearer being male-track — see FORM_COSTUME_CLASH below */
 const ROGUE_MECH_HERO = 84, SAFARI_MECH_HERO = 85, DOCTOR_MECH_HERO = 86, SAMURAI_MECH_HERO = 87; /* the MECH SHOP forms (Jonathan 2026-11-04): the next form numbers after the account pairs' 74/75/77/79/81/83 — one form per shop design, hero-NNN.webp wearing the design's MALE art and female-NNN.webp its FEMALE art, so a form reads off the wearer's picker gender exactly like a base hero does. Never picker cells, never saved to a profile; only an owner's T transform wears them (the ownership gate lives in toggleMech's shop branch) */
 function isShopMechHero(h) { return h === ROGUE_MECH_HERO || h === SAFARI_MECH_HERO || h === DOCTOR_MECH_HERO || h === SAMURAI_MECH_HERO; }
-function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO || h === KEN_MECH_HERO || h === ROBO_MECH_HERO || h === NEON_MECH_HERO || isShopMechHero(h); } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically */
-/* the MECH SHOP designs (Jonathan 2026-11-04): each design is ONE costume's mech transformation, bought once for the account in the Mech Shop — one purchase unlocks both its male and female costumes. maleBase/femaleBase are the picker numbers of the costume in each gender's own numbering (the female numbers follow the FEMALE picker's sequence, which is why the doctor is male 55 but female 29); form is the mech hero number the transform rides. The DRAGON's form already exists — it is 7daytonic's galaxy mech (77): its male art is REPLACED by the new dragon art and female-077 is its female, so the shop's dragon display sells the unlock for the 76<->77 transform (Tonic keeps his account access as today, shop or no shop) */
+function isMechHero(h) { return h === MECH_HERO || h === KING_MECH_HERO || h === TONIC_MECH_HERO || h === KEN_MECH_HERO || h === ROBO_MECH_HERO || h === NEON_MECH_HERO || h === BBE_MECH_HERO || isShopMechHero(h); } /* every form-aware draw (height, bob, wading span, running dust) treats the mechs identically — subject to the clash rule below wherever the actor's gender is known */
+const FORM_COSTUME_CLASH = { 74: 1, 75: 1, 79: 1, 81: 1, 83: 1, 89: 1 }; /* form numbers that are ALSO female costumes (FEMALE_EXTRA): the DreadMech's 74 is the female Doctor, the King's 75 the female Samurai, Dj Ken's 79 the female Queen, the dome mech's 81 the female Blacksmith, the DJ mech's 83 the female Medal Athlete, Big Boy Eater's 89 the female Rainbow Cape. On the FEMALE track the number is the COSTUME — a woman wearing it draws the costume art at dog size; she is never in that form (her transforms ride the shop forms 84-87 and the dragon 77, numbers that are costumes nowhere). On the MALE track the number can only be a transform state, and draws the form (Jonathan 2026-11-05: "a female player wearing the costume must look like the costume; only an actual transform state draws a mech form") */
+function isFormHere(hero, g) { return isMechHero(hero) && !(g === "f" && FORM_COSTUME_CLASH[hero]); } /* is this actor, of this gender, actually wearing a mech FORM at this number? — every form-aware draw (height, bob, wading span, running dust, transform smoke, the glove test) reads this instead of the bare isMechHero wherever the actor's gender is known, so a clashed costume never inherits the form's size or art */
+/* the MECH SHOP designs (Jonathan 2026-11-04): each design is ONE costume's mech transformation, bought once for the account in the Mech Shop — one purchase unlocks both its male and female costumes. maleBase/femaleBase are the picker numbers of the costume in each gender's own numbering (the female numbers follow the FEMALE picker's sequence, which is why the doctor is male 55 but female 74 — the female bases are Jonathan's own sheet numbers, corrected 2026-11-04 off his Cosmic Husky female sheet: rogue 71, safari 72, doctor 74, samurai 75, dragon 76); form is the mech hero number the transform rides. The DRAGON's form already exists — it is 7daytonic's galaxy mech (77): its male art is REPLACED by the new dragon art and female-077 is its female, so the shop's dragon display sells the unlock for that form. Its base costume is male 57 "Dragon Rider" / female 76 (the male base re-paired from 76 on 2026-11-04 — see the dragon row); Tonic keeps his 76<->77 account access as today, shop or no shop) */
 const SHOP_MECHS = [
   { id: "rogue", name: "Rogue", maleBase: 52, femaleBase: 71, form: ROGUE_MECH_HERO },
   { id: "safari", name: "Safari", maleBase: 53, femaleBase: 72, form: SAFARI_MECH_HERO },
-  { id: "doctor", name: "Doctor", maleBase: 55, femaleBase: 29, form: DOCTOR_MECH_HERO },
+  { id: "doctor", name: "Doctor", maleBase: 55, femaleBase: 74, form: DOCTOR_MECH_HERO },
   { id: "samurai", name: "Samurai", maleBase: 56, femaleBase: 75, form: SAMURAI_MECH_HERO },
-  { id: "dragon", name: "Dragon", maleBase: 76, femaleBase: 76, form: TONIC_MECH_HERO }
+  { id: "dragon", name: "Dragon", maleBase: 57, femaleBase: 76, form: TONIC_MECH_HERO } /* the dragon's base costume (Jonathan 2026-11-04): MALE 57 "Dragon Rider" — from his own picker, where 52/55/56 carried their yellow M and 57 showed none, because the design first shipped with maleBase 76, 7daytonic's gated hero, a cell that exists in no other player's picker, so the M could never show and no regular costume could wear the form; FEMALE 76, from his Cosmic Husky female sheet the same night. The FORM stays 77, shared with Tonic's account pair: he keeps 76<->77 through his own swap in toggleMech (the shop branch's carve-out guards his female-track press, where 76 is also this design's base), shop or no shop, and a dragon buyer now transforms off the Dragon Rider costume exactly like every other design off its own */
 ];
 const MECH_PRICE = 100000000; /* a mech costs what a monster costs (Jonathan 2026-11-04: 500M at the shop's opening, cut to 100M the same night — "change cost of monsters and mechs to 100M") */
 let myMechs = {}; /* my unlocked mech designs: design id -> 1, loaded from the account doc at sign-in (the monster collection's shape) */
 function mechOwned(id) { return !!(myMechs && myMechs[id]); }
 function shopDesignFor(hero, g) { return SHOP_MECHS.find(d => (g === "f" ? d.femaleBase : d.maleBase) === hero) || null; } /* the design a worn costume belongs to, in the wearer's own gender numbering — null for every costume that has no mech */
-function mechDrawGender(hero, g) { return (isMechHero(hero) && hero !== KING_MECH_HERO && hero !== TONIC_MECH_HERO && !isShopMechHero(hero)) ? "m" : g; } /* the old rule (every mech draws its male art) survives ONLY for the forms that HAVE no female file (74/79/81/83). The king mech (75), the galaxy/dragon mech (77) and the four shop forms have female art now (Jonathan 2026-11-04: female-075 was the missing file he ordered added), so their draws respect the wearer's gender like a base hero's do; while a female file is still loading, drawPlayer's own hero>70 fallback paints the male art, never a shadow */
+function mechDrawGender(hero, g) { return (isMechHero(hero) && hero !== TONIC_MECH_HERO && !isShopMechHero(hero) && !FORM_COSTUME_CLASH[hero]) ? "m" : g; } /* the old rule (every mech draws its male art) survives for the forms that HAVE no female file of their own: 74/79/81/83 — and the KING (75) since Jonathan's ruling (2026-11-05: "for females, 75 is the female version of the samurai mech"): female-075 now holds the SAMURAI COSTUME from his sheet, so the king form has no female art and draws its male art for female wearers too, exactly like 74/79/81/83 (OnlineMoney's pair itself, 73 -> 75, is untouched). The galaxy/dragon mech (77) and the four shop forms keep their female art, so their draws respect the wearer's gender like a base hero's do; while a female file is still loading, drawPlayer's own hero>70 fallback paints the male art, never a shadow. The FORM_COSTUME_CLASH numbers stand outside this rule entirely (Jonathan 2026-11-05): each of them is a female costume as well as a form, so the gender always stands — a female at that number reads her costume file, a male reads the form. With the clash set out, the force-male branch has no current tenant (every male-art-only form's number is clashed); it stays as the rule a future unclashed form would need */
 let acctUser = null; /* declared early: the gate/picker code below reads it via isOwnerAcct() */
 let acctLoaded = false; /* true once this device has READ the account profile (or found none exists). acctSave stays silent until then — an unreconciled local profile must never overwrite the account (that is how a fresh device's 1000 default used to knock the real balance back down). */
 function isOwnerAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === OWNER_EMAIL); }
 function isKingAcct() { return !!(acctUser && (acctUser.email || "").toLowerCase() === KING_EMAIL); }
 function isTonicAcct() { return !!(acctUser && acctUser.uid === TONIC_UID); }
 function isKenAcct() { return !!(acctUser && acctUser.uid === KEN_UID); } /* Dj Ken's gate: his account's uid, the same shape as 7daytonic's */ /* 7daytonic's gate: his account's uid, read off the signed-in account object the same way the email gates read its email */
-function heroAllowed(n) { if (n === OWNER_HERO) return isOwnerAcct(); if (n === ROBO_HERO) return isOwnerAcct(); if (n === NEON_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); if (n === KEN_HERO) return isKenAcct(); return n >= 1 && n <= 70; }
+function isBbeAcct() { return !!(acctUser && acctUser.uid === BBE_UID); } /* Big Boy Eater's gate: his account's uid, the same shape as 7daytonic's and Dj Ken's */
+function heroAllowed(n) { if (pickedGender === "f" && FEMALE_EXTRA.indexOf(n) >= 0) return true; /* a sheet costume picked in the female track is ANY player's pick: the number's male-track gate below (71 the owner's, 76 Tonic's, 80/82 the owner's, 88 Big Boy Eater's) guards the MALE sticker, never the female costume that shares its number \u2014 the worn file is read off the gender, so no special male art can leak through a female pick */ if (n === OWNER_HERO) return isOwnerAcct(); if (n === ROBO_HERO) return isOwnerAcct(); if (n === NEON_HERO) return isOwnerAcct(); if (n === KING_HERO) return isKingAcct(); if (n === TONIC_HERO) return isTonicAcct(); if (n === KEN_HERO) return isKenAcct(); if (n === BBE_HERO) return isBbeAcct(); return n >= 1 && n <= 70; }
 const NPC_PID = "qbot-npc"; /* Q-Bot: server-driven NPC wandering the plaza roundabout; renders from presence like any player, but is never a voice peer and does not count as a person online */
 const GAMES = [
 ["QI Quantum Asteroids","qi-quantum-asteroids.html","qi-quantum-asteroids.jpg"],
@@ -937,8 +942,10 @@ const gate = $("gate"), grid = $("grid"), nameIn = $("namein"), enterBtn = $("en
       onlineEl = $("online"), promptBtn = $("prompt"), chatIn = $("chatin");
 let heroImgs = {}, loadedCount = 0;
 let heroImgsF = {}, femaleLoadedCount = 0; /* the female sticker cache and its OWN load counter \u2014 the male HERO_TOTAL gate below is untouched */
-const FEMALE_MISSING = { 38: 1, 40: 1 }; /* owner removal (2026-10-30): female 038 and 040 do not exist \u2014 the female grid has 68 cells and the numbers NEVER shift (female N is always male hero N's counterpart) */
-const FEMALE_TOTAL = 68;
+const FEMALE_MISSING = { 38: 1, 40: 1 }; /* owner removal (2026-10-30): female 038 and 040 do not exist \u2014 the female roster grid has 68 cells and the numbers NEVER shift (female N is always male hero N's counterpart) */
+const FEMALE_EXTRA = [71, 72, 73, 74, 75, 76, 78, 79, 80, 81, 82, 83, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97]; /* the Cosmic Husky FEMALE SHEET costumes (Jonathan 2026-11-04 \u2014 "add the ones from the sheet i sent you too as female sprites because they are not in the game"): his sheet's numbers 071-097 are the female track's OWN sequence, past the roster's 70. These 22 had no costume file in the game \u2014 cut from his sheet and uploaded as hub-heroes/female-NNN.webp, and they ride at the end of the female grid in sheet order. The sheet's other five numbers already HAD files and were never overwritten or given picker cells: 77 the dragon mech's female form, 84-87 the four shop mechs' female forms \u2014 form art, not costumes. The mech designs' female bases (71/72/74/75/76) are all costumes from this same sheet, 75 included. 75's costume joined a day later at his ruling (2026-11-05: "for females, 75 is the female version of the samurai mech"): female-075 was re-pointed to the sheet's Samurai, replacing the file the game had treated as the king mech's female form (in fact a byte-copy of the samurai form's own female art, still live at female-087); the king form draws its male art for every wearer now (mechDrawGender) */
+const FEMALE_EXTRA_NAMES = { 71: "Rogue", 72: "Safari", 73: "Safari Scarf", 74: "Doctor", 75: "Samurai", 76: "Dragon", 78: "Robot Suit", 79: "Queen", 80: "Leaf Druid", 81: "Blacksmith", 82: "Medal Athlete", 83: "Medal Athlete", 88: "Musketeer", 89: "Rainbow Cape", 90: "Checkered King", 91: "Jester", 92: "Ranger", 93: "Astronaut", 94: "Dino Costume", 95: "Rocket Racer", 96: "Crowned Knight", 97: "Atom Armour" }; /* his sheet's own labels */
+const FEMALE_TOTAL = 90; /* 68 roster cells + the 22 sheet costumes */
 function heroUrl(n, g) { return g === "f" ? "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffemale-" + String(n).padStart(3, "0") + ".webp?alt=media" : "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media"; }
 function heroImgFor(n, g) { return g === "f" ? heroImgsF[n] : heroImgs[n]; }
 function makeHeroCell(n, nm, g) {
@@ -959,15 +966,16 @@ function makeHeroCell(n, nm, g) {
   return cell;
 }
 function syncMechBadges() { document.querySelectorAll(".cell").forEach(c => { const b = c._mbadge; if (!b) return; const d = SHOP_MECHS.find(x => (c.dataset.gender === "f" ? x.femaleBase : x.maleBase) === Number(c.dataset.hero)); b.style.display = (d && mechOwned(d.id)) ? "block" : "none"; }); } /* called whenever the grid is (re)built and whenever ownership lands or changes (sign-in, a buy), so the M's always read the account's real unlocks */
-function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift). The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
+function buildGrid() { /* (re)build the hero cells for the picked gender: male shows all 70 exactly as before; female shows the same numbers and the same names with the female stickers, minus the owner's two removals (38/40 \u2014 the cells are simply ABSENT, the numbers never shift), plus the sheet costumes (FEMALE_EXTRA) appended at the end in sheet-number order. The special cells are re-inserted by syncOwnerCell afterwards, always as the male stickers */
   grid.innerHTML = "";
   HERO_NAMES.forEach((nm, i) => { const n = i + 1; if (pickedGender === "f" && FEMALE_MISSING[n]) return; grid.appendChild(makeHeroCell(n, nm, pickedGender)); });
-  ownerCells = []; kingCell = null; tonicCell = null; kenCell = null; roboCell = null; neonCell = null;
+  if (pickedGender === "f") FEMALE_EXTRA.forEach(n => grid.appendChild(makeHeroCell(n, FEMALE_EXTRA_NAMES[n], "f"))); /* female mode only: the sheet costumes close the grid, in sheet-number order */
+  ownerCells = []; kingCell = null; tonicCell = null; kenCell = null; roboCell = null; neonCell = null; bbeCell = null;
   syncOwnerCell();
   syncMechBadges();
 }
 /* the special heroes exist as picker cells ONLY for their own accounts, always FIRST in the grid, and each player still taps his own himself: hero 71 for the owner account, hero 73 (the king) for OnlineMoney's account — the two are never offered to the same sign-in */
-let ownerCells = [], kingCell = null, tonicCell = null, kenCell = null, roboCell = null, neonCell = null;
+let ownerCells = [], kingCell = null, tonicCell = null, kenCell = null, roboCell = null, neonCell = null, bbeCell = null;
 function syncOwnerCell() {
   if (isOwnerAcct() && !ownerCells.length) { const c71 = makeHeroCell(OWNER_HERO, "Owner QI"); grid.insertBefore(c71, grid.firstChild); ownerCells = [c71]; }
   else if (!isOwnerAcct() && ownerCells.length) { ownerCells.forEach(c => c.remove()); ownerCells = []; if (pickedHero === OWNER_HERO) pickedHero = 0; }
@@ -981,18 +989,20 @@ function syncOwnerCell() {
   else if (!isTonicAcct() && tonicCell) { tonicCell.remove(); tonicCell = null; if (pickedHero === TONIC_HERO) pickedHero = 0; }
   if (isKenAcct() && !kenCell) { kenCell = makeHeroCell(KEN_HERO, "Dj Ken"); grid.insertBefore(kenCell, grid.firstChild); }
   else if (!isKenAcct() && kenCell) { kenCell.remove(); kenCell = null; if (pickedHero === KEN_HERO) pickedHero = 0; }
+  if (isBbeAcct() && !bbeCell) { bbeCell = makeHeroCell(BBE_HERO, "bigboyeater21"); grid.insertBefore(bbeCell, grid.firstChild); }
+  else if (!isBbeAcct() && bbeCell) { bbeCell.remove(); bbeCell = null; if (pickedHero === BBE_HERO) pickedHero = 0; }
   syncHeroSel();
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
 buildGrid();
-const HERO_TOTAL = 77;
+const HERO_TOTAL = 78;
 function heroLoaded() { loadedCount++; syncLoadLine(); checkEnter(); }
 function heroLoadedF() { femaleLoadedCount++; syncLoadLine(); checkEnter(); }
-function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 77 (70 grid + the 7 special preloads) in male mode, the 68 female cells in female mode */
+function syncLoadLine() { /* the load line reports the counter of the mode you are looking at: the male 78 (70 grid + the 8 special preloads) in male mode, the 90 female cells (68 roster + 22 sheet costumes) in female mode */
   if (pickedGender === "f") loadLine.textContent = femaleLoadedCount >= FEMALE_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + femaleLoadedCount + "/" + FEMALE_TOTAL;
   else loadLine.textContent = loadedCount >= HERO_TOTAL ? "all stickers loaded \u2713" : "loading stickers " + loadedCount + "/" + HERO_TOTAL;
 }
-[71, 72, 73, 76, 78, 80, 82].forEach(n => {
+[71, 72, 73, 76, 78, 80, 82, 88].forEach(n => {
   const im = new Image();
   im.onload = () => { heroImgs[n] = im; heroLoaded(); };
   im.onerror = () => { heroLoaded(); };
@@ -1049,7 +1059,7 @@ try {
       if (now - (v.ts || 0) > 45000) return;
       seen.add(ch.key);
       const p = peers.get(ch.key);
-      if (p) { if (p.rx === v.x && p.ty === v.y && p.scene === v.scene && p.hero === v.hero && p.name === v.name && p.flip === !!v.flip && p.run === !!v.run && p.mic === !!v.mic && p.chat === (v.chat || "") && p.chatId === (v.chatId || 0) && p.acct === (v.acct || "") && p.mon === (v.mon || "")) { p.ts = v.ts || 0; } else if (true) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isMechHero(v.hero) || isMechHero(p.hero)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : (v.hero === ROBO_MECH_HERO || p.hero === ROBO_MECH_HERO) ? "red" : (v.hero === NEON_MECH_HERO || p.hero === NEON_MECH_HERO) ? "purple" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech, GOLD when it involves Dj Ken's gentleman mech, RED again when it involves the owner's dome mech, PURPLE when it involves his galaxy DJ mech */ if ((v.mon || "") !== (p.mon || "") && v.scene === me.scene) { const mp = monParse(v.mon || p.mon); if (mp) spawnMonSmoke(px, v.y, v.scene, mp.line); } /* a peer's monster just came out, went back in, or changed stage on my screen (PREVIEW): the same summon burst at their spot, in that monster's own colour — cosmetic only, derived from the presence change exactly like the transform smoke above */ Object.assign(p, { rx: v.x, name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; } }
+      if (p) { if (p.rx === v.x && p.ty === v.y && p.scene === v.scene && p.hero === v.hero && p.name === v.name && p.flip === !!v.flip && p.run === !!v.run && p.mic === !!v.mic && p.chat === (v.chat || "") && p.chatId === (v.chatId || 0) && p.acct === (v.acct || "") && p.mon === (v.mon || "")) { p.ts = v.ts || 0; } else if (true) { if (v.chatId && v.chatId !== p.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene); if (v.scene !== p.scene) p.snap = true; p.tx = px; p.ty = v.y; if (v.hero !== p.hero && (isFormHere(v.hero, pg) || isFormHere(p.hero, pg)) && v.scene === me.scene) { spawnSmoke(px, v.y, v.scene, (v.hero === KING_MECH_HERO || p.hero === KING_MECH_HERO) ? true : (v.hero === TONIC_MECH_HERO || p.hero === TONIC_MECH_HERO) ? "blue" : (v.hero === KEN_MECH_HERO || p.hero === KEN_MECH_HERO) ? "gold" : (v.hero === ROBO_MECH_HERO || p.hero === ROBO_MECH_HERO) ? "red" : (v.hero === NEON_MECH_HERO || p.hero === NEON_MECH_HERO) ? "purple" : false); sfxSwap(); } /* a transform just flipped on my screen: smoke + the swap noise for everyone in the room (Jonathan 2026-10-31) — cyan for the owner's DreadMech, RED when the flip involves OnlineMoney's king mech, BLUE when it involves 7daytonic's galaxy mech, GOLD when it involves Dj Ken's gentleman mech, RED again when it involves the owner's dome mech, PURPLE when it involves his galaxy DJ mech */ if ((v.mon || "") !== (p.mon || "") && v.scene === me.scene) { const mp = monParse(v.mon || p.mon); if (mp) spawnMonSmoke(px, v.y, v.scene, mp.line); } /* a peer's monster just came out, went back in, or changed stage on my screen (PREVIEW): the same summon burst at their spot, in that monster's own colour — cosmetic only, derived from the presence change exactly like the transform smoke above */ Object.assign(p, { rx: v.x, name: v.name, hero: v.hero, g: pg, scene: v.scene, flip: !!v.flip, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? (p.chatId === v.chatId ? p.chatAt : now) : 0, ts: v.ts || 0 }); p.chatId = v.chatId || 0; } }
       else peers.set(ch.key, { id: ch.key, rx: v.x, name: v.name, hero: v.hero, g: pg, scene: v.scene, x: px, y: v.y, tx: px, ty: v.y, flip: !!v.flip, chat: v.chat || "", chatId: v.chatId || 0, chatAt: v.chatId ? now : 0, bob: Math.random() * 6, run: !!v.run, mic: !!v.mic, acct: v.acct || "", mon: v.mon || "", ts: v.ts || 0, spr: 0, dustAt: 0 }); if (v.chatId && v.chat) logPeerChat(ch.key, v.name, v.chatId, v.chat, v.scene);
     });
     for (const k of [...peers.keys()]) if (!seen.has(k)) peers.delete(k);
@@ -1067,7 +1077,7 @@ function publish(force) {
   lastPub = now; lastPubKey = key;
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
-  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : shopMechForm ? shopMechForm : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77, and Dj Ken's gentleman mech as 79, and the owner's dome mech as 81, and his galaxy DJ mech as 83 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
+  const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : bbeMechForm ? BBE_MECH_HERO : shopMechForm ? shopMechForm : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77, and Dj Ken's gentleman mech as 79, and the owner's dome mech as 81, and his galaxy DJ mech as 83, and Big Boy Eater's piñata mech as 89 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   if (typeof monOut !== "undefined" && monOut && myMonSel) rec.mon = myMonSel; /* the monster follower (PREVIEW, Jonathan 2026-11-02): the rules now accept this ONE optional field — it is present only while a monster is out, as "<line>-<stage>", and never otherwise; NO other field may ever be added here */
   myRef.set(rec).catch(() => {});
@@ -1465,15 +1475,16 @@ const me = { name: "", hero: 0, g: "m", scene: "plaza", x: 1600 + spawnOff, y: 1
 let entered = false;
 let mechForm = false, mechCdUntil = 0; /* the owner's mech transform (Jonathan 2026-10-31): session-only — a fresh page load starts as the dog; 3 second cooldown between flips */
 let shopMechForm = 0; /* the MECH SHOP transform (Jonathan 2026-11-04): the form hero number currently worn (0 = none) — ONE flag for all five designs, where the account pairs above each carry their own, because a shop form is picked by the (costume, gender) worn, not by account. Same session-only shape, same shared cooldown clock */
-[75, 77, ROGUE_MECH_HERO, SAFARI_MECH_HERO, DOCTOR_MECH_HERO, SAMURAI_MECH_HERO].forEach(n => { ensureHero(n, "m"); ensureHero(n, "f"); }); /* the mech forms' own art warms silently at startup (Jonathan 2026-11-04): the king mech's female (female-075, the file that never existed), the dragon's female (female-077) and the four shop forms in both genders — deliberately OUTSIDE the HERO_TOTAL/FEMALE_TOTAL enter-gate counters (the gate counts picker stickers, and these are not picker stickers); ensureHero's on-demand load remains the backstop for anything still in flight when a transform first paints. This loop lives HERE, below ensureHero and its loader flags, never up in the gate block */
+[75, 77, BBE_MECH_HERO, ROGUE_MECH_HERO, SAFARI_MECH_HERO, DOCTOR_MECH_HERO, SAMURAI_MECH_HERO].forEach(n => { ensureHero(n, "m"); ensureHero(n, "f"); }); /* the mech forms' own art warms silently at startup (Jonathan 2026-11-04): the dragon's female (female-077) and the four shop forms in both genders. 75 warms both its files too, but since his 2026-11-05 ruling its female file is the Samurai picker costume (the king form reads the male file only — mechDrawGender), so that warm doubles as the costume's. Deliberately OUTSIDE the HERO_TOTAL/FEMALE_TOTAL enter-gate counters (the gate counts picker stickers, and the forms are not picker stickers); ensureHero's on-demand load remains the backstop for anything still in flight when a transform first paints. This loop lives HERE, below ensureHero and its loader flags, never up in the gate block */
 let kingMechForm = false; /* OnlineMoney's king mech transform: the same session-only shape, hanging off his King QI avatar; it shares the 3s cooldown clock above — only one account is ever signed in on a client, so the two forms never contend for it */
 let tonicMechForm = false; /* 7daytonic's galaxy mech transform: the same session-only shape again, hanging off his own hero (76); it shares the same 3s cooldown clock for the same reason */
 let kenMechForm = false; /* Dj Ken's gentleman mech transform: the same session-only shape again, hanging off his own hero (78); it shares the same 3s cooldown clock for the same reason */
 let roboMechForm = false; /* the owner's dome mech transform: the same session-only shape again, hanging off his robo-dog (80) on his own account; it shares the same 3s cooldown clock for the same reason */
 let neonMechForm = false; /* the owner's galaxy DJ mech transform: the same session-only shape again, hanging off his neon streetwear hero (82) on his own account; it shares the same 3s cooldown clock for the same reason */
+let bbeMechForm = false; /* Big Boy Eater's piñata mech transform: the same session-only shape again, hanging off his piñata (88) on his own account; it shares the same 3s cooldown clock for the same reason */
 function clearMechForms() { /* the full transform reset (Jonathan 2026-11-01): every form flag down and the shared cooldown zeroed, so the character is simply its base hero again. It exists for the picker switch that used to strand the mech — change base hero while transformed and the flags stayed up, so presence kept publishing the mech id, the self-draw kept wearing it, and T routed against the new base and nothing worked. Session-only, exactly like the forms themselves: nothing here touches the presence record's shape or the saved profile */
-  const was = mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm || neonMechForm || shopMechForm;
-  mechForm = kingMechForm = tonicMechForm = kenMechForm = roboMechForm = neonMechForm = false; shopMechForm = 0;
+  const was = mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm || neonMechForm || bbeMechForm || shopMechForm;
+  mechForm = kingMechForm = tonicMechForm = kenMechForm = roboMechForm = neonMechForm = bbeMechForm = false; shopMechForm = 0;
   mechCdUntil = 0;
   return was;
 }
@@ -1553,8 +1564,8 @@ const POOL = { x: 3260, y: 1080, w: 920, h: 400 }; /* the stone deck's outer edg
 const POOLW = { x: 3306, y: 1126, w: 828, h: 308 }; /* the water itself, inset by the deck rim */
 /* the waterfall boulders and the rock archway that first stood here were removed at Jonathan's word (2026-10-30) — the pool is open water with its deck now, no rockwork, nothing solid in or around it */
 function inPoolWater(x, y, W) { W = W || POOLW; return x > W.x && x < W.x + W.w && y > W.y && y < W.y + W.h; } /* the rect is a parameter for the rooftop pool's twin water — plaza calls pass nothing, exactly as before */ /* standing IN the water (feet inside the water rect): drives the half-submerged render, the splashes and the wading pace */
-function poolSubmersion(x, y, hero, W) { W = W || POOLW; /* the water rect is a parameter so the rooftop pool runs the very same rules against its own water (PREVIEW, Jonathan 2026-11-01) — every plaza call passes nothing and reads POOLW exactly as before */ /* the waterline (PREVIEW round 3 — the pre-round-2 read, restored at Jonathan's word): when the band shows, the water cuts the sprite exactly in HALF — the band is always the sprite's lower half. Round 2's true-overlap band is gone: pinned to the water's top edge it tinted the whole sprite the deeper you waded, and read as completely underwater. What round 3 sets is WHEN the band appears, by the edge the sprite overlaps the water from: from the TOP or BOTTOM edge, only once HALF the sprite is inside the water; from the LEFT or RIGHT edge, only once the sprite is FULLY inside. Splashes and the wading pace still key off the feet (inPoolWater), untouched. Returns { top, h } in world space, or null while dry. ROUND 4 added one exception, the bottom edge only: feet past the water's bottom edge force the band off at once (see the off switch at the return). */
-  const hw = isMechHero(hero) ? 100 : 29, sh = isMechHero(hero) ? 216 : 96; /* the sprite's own span, form-aware (Jonathan 2026-10-31): the span, the halfway threshold and the band all scale with the wearer. The mech's water band spans its FULL body width (half-width 100 of the 216-wide sprite) — the first pass scaled the dog's body column by 2.25 (half-width 65) and he called it out from his phone: the ring and the band under it still read as a tiny circle and a narrow cylinder under the wide mech. For the dog this is exactly the old span (29 half-width, 96 tall, anchored at the feet) */
+function poolSubmersion(x, y, hero, W, g) { W = W || POOLW; /* the water rect is a parameter so the rooftop pool runs the very same rules against its own water (PREVIEW, Jonathan 2026-11-01) — every plaza call passes nothing and reads POOLW exactly as before */ /* the waterline (PREVIEW round 3 — the pre-round-2 read, restored at Jonathan's word): when the band shows, the water cuts the sprite exactly in HALF — the band is always the sprite's lower half. Round 2's true-overlap band is gone: pinned to the water's top edge it tinted the whole sprite the deeper you waded, and read as completely underwater. What round 3 sets is WHEN the band appears, by the edge the sprite overlaps the water from: from the TOP or BOTTOM edge, only once HALF the sprite is inside the water; from the LEFT or RIGHT edge, only once the sprite is FULLY inside. Splashes and the wading pace still key off the feet (inPoolWater), untouched. Returns { top, h } in world space, or null while dry. ROUND 4 added one exception, the bottom edge only: feet past the water's bottom edge force the band off at once (see the off switch at the return). */
+  const hw = isFormHere(hero, g) ? 100 : 29, sh = isFormHere(hero, g) ? 216 : 96; /* form-aware through isFormHere (the wearer's gender rides the call): a clashed female costume — the Doctor at 74, the Rainbow Cape at 89 — wades at the DOG's span, never the form's */ /* the sprite's own span, form-aware (Jonathan 2026-10-31): the span, the halfway threshold and the band all scale with the wearer. The mech's water band spans its FULL body width (half-width 100 of the 216-wide sprite) — the first pass scaled the dog's body column by 2.25 (half-width 65) and he called it out from his phone: the ring and the band under it still read as a tiny circle and a narrow cylinder under the wide mech. For the dog this is exactly the old span (29 half-width, 96 tall, anchored at the feet) */
   const sx0 = x - hw, sx1 = x + hw, sy0 = y - sh, sy1 = y;
   const oy = Math.min(sy1, W.y + W.h) - Math.max(sy0, W.y); /* how much of the sprite stands inside the water, measured vertically */
   if (oy <= 0) return null; /* no overlap at all — up on the deck, dry */
@@ -2043,7 +2054,7 @@ function enterHub() {
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
-  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct())) return;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ You're already signed in in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   const todayStr = new Date().toLocaleDateString("en-CA");
   let startChips = 1000, lastDay = todayStr, dailyBonus = false;
@@ -2372,7 +2383,7 @@ function initAuth() {
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === ROBO_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === NEON_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === ROBO_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === NEON_HERO) || ((u.uid === BBE_UID) && d.hero === BBE_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
           syncOwnerCell(); syncHeroSel();
@@ -2473,7 +2484,7 @@ window.addEventListener("resize", resize); resize();
 const keys = new Set();
 window.addEventListener("keydown", e => {
   if (document.activeElement === chatIn || document.activeElement === nameIn) return;
-  if ((e.key === "t" || e.key === "T") && entered && (isOwnerAcct() || isKingAcct() || isTonicAcct() || isKenAcct() || shopMechReady())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero, and Dj Ken's gentleman mech under his; toggleMech routes by account. The MECH SHOP (2026-11-04) adds one more gate: any account wearing a costume whose mech it has unlocked — shopMechReady reads the worn costume, never a menu */
+  if ((e.key === "t" || e.key === "T") && entered && ((isOwnerAcct() && (me.hero === OWNER_HERO || me.hero === ROBO_HERO || me.hero === NEON_HERO)) || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO) || (isKenAcct() && me.hero === KEN_HERO) || bbeMechReady() || shopMechReady())) { toggleMech(); return; } /* the transform key on PC (Jonathan 2026-10-31): the owner's DreadMech — OnlineMoney's king mech under his King QI avatar, and 7daytonic's galaxy mech under his own hero, and Dj Ken's gentleman mech under his; toggleMech routes by account. The MECH SHOP (2026-11-04) adds one more gate: any account wearing a costume whose mech it has unlocked — shopMechReady reads the worn costume, never a menu */
   if ((e.key === "m" || e.key === "M") && entered && myMonSel && !e.repeat && !evoLock) { const tg = e.target; if (!(tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable))) { toggleMonOut(); return; } } /* the M key (the owner's fix, 2026-11-02): the M button on a keyboard — it toggles the picked monster out/in exactly like tapping the button, at any pointer type, but never while typing in a field (chat above all — the chat field already returns at this handler's top; this guard covers every other input), never off a held key's auto-repeat, and never during the evolution show */
   /* boxing on PC: NO keyboard punches (Jonathan 2026-10-31, final word) — the mouse is the ONLY way to punch on desktop: Left Mouse = left punch, Right Mouse = right punch (the canvas pointerdown below). Q/E/J/K do nothing in a bout. Phones keep their L / R punch buttons */
   if (e.key === "Enter" && entered) { e.preventDefault(); closeOnlineList(); chatIn.focus(); return; }
@@ -2493,7 +2504,7 @@ function runEnd(e) { if (e.pointerId === runId) { runId = null; runBtnHeld = fal
 runEl.addEventListener("pointerup", runEnd); runEl.addEventListener("pointercancel", runEnd);
 /* ---- the mech transforms (Jonathan 2026-10-31): the round T button sits above RUN, same size, right-aligned like RUN; on a phone it exists ONLY for the transform accounts, from the moment they are in — the owner (DreadMech), OnlineMoney while his King QI avatar is selected (king mech), and 7daytonic while his own hero is selected (galaxy mech) ---- */
 const tEl = $("tbtn");
-function syncTBtn() { const show = entered && (isOwnerAcct() || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO) || (isKenAcct() && me.hero === KEN_HERO) || shopMechReady()) && !boxingBout && !(me.scene === "trenches" && trSeat >= 0) && window.matchMedia("(pointer: coarse)").matches; /* shopMechReady: the T button also exists on a phone for ANY account currently wearing a costume whose mech it owns (the Mech Shop's transforms) — the same trenches/boxing suppression as the account pairs */ /* the T button also goes away on a phone while he is IN THE GAME in the Trenches (seated — Jonathan 2026-11-03, corrected the same night: the room is not the game, "Outside the arena you should be able to do everything normal"): transforms are blocked only in the match (toggleMech's gate) and the aim stick owns the right side — a spectator in the room keeps T like anywhere else, and the 400ms tick brings the button back when he stands */ const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
+function syncTBtn() { const show = entered && ((isOwnerAcct() && (me.hero === OWNER_HERO || me.hero === ROBO_HERO || me.hero === NEON_HERO)) || (isKingAcct() && me.hero === KING_HERO) || (isTonicAcct() && me.hero === TONIC_HERO) || (isKenAcct() && me.hero === KEN_HERO) || bbeMechReady() || shopMechReady()) && !boxingBout && !(me.scene === "trenches" && trSeat >= 0) && window.matchMedia("(pointer: coarse)").matches; /* shopMechReady: the T button also exists on a phone for ANY account currently wearing a costume whose mech it owns (the Mech Shop's transforms) — the same trenches/boxing suppression as the account pairs */ /* the T button also goes away on a phone while he is IN THE GAME in the Trenches (seated — Jonathan 2026-11-03, corrected the same night: the room is not the game, "Outside the arena you should be able to do everything normal"): transforms are blocked only in the match (toggleMech's gate) and the aim stick owns the right side — a spectator in the room keeps T like anywhere else, and the 400ms tick brings the button back when he stands */ const want = show ? "flex" : "none"; if (tEl.style.display !== want) tEl.style.display = want; tEl.classList.toggle("cd", show && Date.now() < mechCdUntil); }
 function toggleKingMech() { /* OnlineMoney's swap (Jonathan 2026-10-31): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — except the burst is RED and the form is the king mech. It hangs off his King QI avatar: any other hero selected and T does nothing */
   if (boxingBout) return; /* no transforming mid-bout: entering the arena untransforms him and T is locked until the bout ends, exactly as for the owner */
   if (me.hero !== KING_HERO) return;
@@ -2549,16 +2560,28 @@ function toggleNeonMech() { /* the owner's neon swap (Jonathan 2026-11-02): the 
   publish(true);
   syncTBtn();
 }
+function toggleBbeMech() { /* Big Boy Eater's swap (Jonathan 2026-11-05): the DreadMech routine mirrored exactly — same cooldown clock, same swap sound, same publish — with the standard CYAN burst and the piñata mech form. It hangs off his piñata (88) on the MALE track: any other hero selected and T does nothing, and on the female track 88 is the Musketeer costume (any player's), which has no transform — his gate there reads bbeMechReady's male-track clause, not this hero number alone */
+  if (boxingBout) return; /* no transforming mid-bout, exactly as for the others */
+  if (me.hero !== BBE_HERO || me.g !== "m") return;
+  const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
+  mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
+  bbeMechForm = !bbeMechForm;
+  spawnSmoke(me.x, me.y, me.scene); /* CYAN smoke — the standard colour, the DreadMech's own */
+  sfxSwap();
+  publish(true);
+  syncTBtn();
+}
 function toggleMech() {
   if (!entered) return;
   if (me.scene === "trenches" && trSeat >= 0) return; /* NO MECHS IN THE GAME (Jonathan 2026-11-03, corrected the same night — "Outside the arena you should be able to do everything normal"): this is the ONE toggle entry — the T key and the phone T button both route here, and every per-account swap (king/tonic/ken/robo/neon and the owner's own) hangs off it — so this single gate locks them all, but ONLY while he is in the match (seated), the boxingBout lock's own arrangement. A spectator anywhere in the room transforms as normal; sitting down in a form pops it off at the chair (trTrySit's clearMechForms), so no form ever fights and none is stranded */
-  const shopD = shopDesignFor(me.hero, me.g); if (shopD && mechOwned(shopD.id) && !(isTonicAcct() && me.hero === TONIC_HERO)) { toggleShopMech(shopD); return; } /* the MECH SHOP branch (Jonathan 2026-11-04): wearing a costume whose mech this account has unlocked, T drives THAT design's mech. It routes FIRST because the account swaps below it gate on their own hero and would swallow the press whole for their owners wearing anything else (the king's swap no-ops off hero 73, stranding a king who bought the rogue). Exactly ONE carve-out: 7daytonic on his own hero 76 — the dragon design and his galaxy mech are the same form (77), and his T keeps driving it through his own swap below, blue burst and all, exactly as today, whether or not the shop ever sold him the dragon. Everywhere else the pre-existing pairs are untouched: the king's 73, Ken's 78 and the owner's 80/82 have no shop design, so this branch can never fire on them, and an unowned costume falls through to whatever T meant before — for the owner his DreadMech, for everyone else nothing */
+  const shopD = shopDesignFor(me.hero, me.g); if (shopD && mechOwned(shopD.id) && !(isTonicAcct() && me.hero === TONIC_HERO)) { toggleShopMech(shopD); return; } /* the MECH SHOP branch (Jonathan 2026-11-04): wearing a costume whose mech this account has unlocked, T drives THAT design's mech. It routes FIRST because the account swaps below it gate on their own hero and would swallow the press whole for their owners wearing anything else (the king's swap no-ops off hero 73, stranding a king who bought the rogue). Exactly ONE carve-out: 7daytonic on his own hero 76 — on the female track 76 is the dragon design's base too, and his T keeps driving his galaxy mech through his own swap below, blue burst and all, exactly as today, whether or not the shop ever sold him the dragon (on the male track 76 carries no design since the dragon re-paired to 57, so there the carve-out simply never fires). Everywhere else the pre-existing pairs are untouched: the king's 73, Ken's 78 and the owner's 80/82 have no shop design, so this branch can never fire on them, and an unowned costume falls through to whatever T meant before — for the owner his DreadMech (only while he wears 71, per the avatar-tied gate at the fall-through), for everyone else nothing */
   if (isKingAcct()) { toggleKingMech(); return; } /* OnlineMoney's T drives his king mech, never the owner's */
   if (isTonicAcct()) { toggleTonicMech(); return; } /* 7daytonic's T drives his galaxy mech, never the others' */
   if (isKenAcct()) { toggleKenMech(); return; } /* Dj Ken's T drives his gentleman mech, never the others' */
+  if (isBbeAcct()) { toggleBbeMech(); return; } /* Big Boy Eater's T drives his piñata mech, never the others' */
   if (isOwnerAcct() && me.hero === ROBO_HERO) { toggleRoboMech(); return; } /* the owner's T while his robo-dog (80) is selected drives the dome mech — with any other hero selected his T drives the DreadMech below, exactly as before */
   if (isOwnerAcct() && me.hero === NEON_HERO) { toggleNeonMech(); return; } /* the owner's T while his neon streetwear QI (82) is selected drives the galaxy DJ mech — with any other hero selected his T drives the DreadMech below, exactly as before */
-  if (!isOwnerAcct()) return;
+  if (!isOwnerAcct() || me.hero !== OWNER_HERO) return; /* the DreadMech hangs off Owner QI (71) ALONE (Jonathan 2026-11-04 — transforms are tied to the avatar WORN, his words: "Dread mech should be tied to the dread avatar, same for all unique avatar/mech connections. And all player unique ones like online money etc"): wearing any other sprite, the owner's T does nothing at all. His 80/82 pairs and any owned shop costume route above this line; the king/tonic/ken swaps self-gate on their own heroes; a sprite with no pair has no transform — no fallback to the DreadMech or any other mech */
   if (boxingBout) return; /* no transforming mid-bout (Jonathan 2026-10-31): entering the arena untransforms you and the T button is gone until the bout ends */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
   mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
@@ -2569,12 +2592,13 @@ function toggleMech() {
   syncTBtn();
 }
 function shopMechReady() { const d = shopDesignFor(me.hero, me.g); return !!(d && mechOwned(d.id)); } /* can this account transform RIGHT NOW off a shop design? — the worn costume (in its own gender numbering) must have a design and the account must own it. Read by the T key gate and the phone T button, so the three can never drift */
+function bbeMechReady() { return isBbeAcct() && me.hero === BBE_HERO && me.g === "m"; } /* can Big Boy Eater transform RIGHT NOW? — his account, his piñata worn, on the male track (the female track's 88 is the Musketeer costume, which is not his and has no mech). Read by the T key gate and the phone T button, the shopMechReady arrangement, so the three can never drift */
 function toggleShopMech(d) { /* a MECH SHOP swap (Jonathan 2026-11-04): the account pairs' routine mirrored — same cooldown clock, same swap sound, same publish — except the gate is OWNERSHIP of the worn costume's design, and the form is the design's own hero number, whose male/female art follows my picker gender in the draw. The burst is the default cyan, the DreadMech's own colour — the peer-side smoke chain already reads an unknown form as that same default */
   if (boxingBout) return; /* no transforming mid-bout, exactly as for the account pairs */
   const nowMs = Date.now(); if (nowMs < mechCdUntil) return;
   mechCdUntil = nowMs + 3000; /* 3 second cooldown between transforms */
   if (shopMechForm === d.form) shopMechForm = 0; /* wearing this design's form: T takes it off, back to the costume I am wearing */
-  else { mechForm = kingMechForm = tonicMechForm = kenMechForm = roboMechForm = neonMechForm = false; shopMechForm = d.form; } /* putting a shop form on first stands every other form down — the publish chain and the self-draw read the flags in order, and two forms up at once would wear the wrong one */
+  else { mechForm = kingMechForm = tonicMechForm = kenMechForm = roboMechForm = neonMechForm = bbeMechForm = false; shopMechForm = d.form; } /* putting a shop form on first stands every other form down — the publish chain and the self-draw read the flags in order, and two forms up at once would wear the wrong one */
   spawnSmoke(me.x, me.y, me.scene);
   sfxSwap();
   publish(true);
@@ -4538,6 +4562,70 @@ function drawSeatBetOverlay() {
       ctx.font = "800 18px 'Segoe UI',sans-serif"; ctx.fillStyle = st.results[0].amt ? "#7dffb0" : "#ffb3b3";
       ctx.fillText(st.results[0].res, sp.x, sp.y - 124); /* the TOP seat's result, above its sprite's head — the bottom seat's never hid and still paints in the board pass at +118 */
     }
+  }
+}
+/* ============ head notes, painted OVER the sprites (Jonathan 2026-11-04, 23:40) ============
+   One family, one rule — drawSeatBetOverlay's rule applied to the note bubble that floats over
+   MY head (mechNote, monNote, casinoNote, hrNote, phNote, bowlNote: one pattern, "bowlNote's
+   pattern", copied room to room). Every one of them used to paint inside its room's scene draw,
+   and the scene passes run BEFORE frame()'s actor pass — a dog (96 tall) never reaches the
+   bubble's band (top at me.y−158), but a MECH (216 tall) stands right through it, so buying a
+   mech while transformed put the "✅ … is yours" text BEHIND the mech (his Mech Shop
+   screenshot). The bug was the family's, not the one shop's: the same bubble hid the same way
+   behind any mech form in the Monster Shop, the casino, the horse track, the pool hall and the
+   bowling alley. So all six paints live here now — after the actors, inside the same camera
+   transform, right after drawSeatBetOverlay. Words, fonts, colours and anchors are exactly the
+   ones the scene passes used; only the layer changed, and each note still paints only in its
+   own room, exactly as before. (The Trenches' trNote is a different animal — a fixed-position
+   banner that already paints in drawTrenchesOver's over pass — and the speedway's race note is
+   a HUD status line; neither is this family and neither moves.) */
+function drawHeadNotes() {
+  if (me.scene === "mechshop" && mechNote && performance.now() - mechNoteAt < 4200) {
+    /* my buy note, floating over my head — monNote's bubble in the shop's pink. The box FITS the message (Jonathan 2026-11-04 — "fix the pop up message the square is not big enough"): the note wraps at 500px and the box grows a line at a time above my head, so the whole text always sits inside it, phone included — the one-line strip it replaces (34px tall, however long the sentence ran) let the long buy message spill past its edges. Every mechSay message rides this same bubble, so all of them inherit the fit */
+    ctx.font = "600 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const words = mechNote.split(" "); let lines = [], line = "";
+    for (const wd of words) { if (line && ctx.measureText(line + " " + wd).width > 500) { lines.push(line); line = wd; } else line = line ? line + " " + wd : wd; }
+    if (line) lines.push(line);
+    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 36, bh = lines.length * 27 + 20;
+    const bx = me.x - bw / 2, by = me.y - 130 - bh;
+    ctx.fillStyle = "rgba(24,8,20,0.92)"; rr(bx, by, bw, bh, 10); ctx.fill();
+    ctx.strokeStyle = "#ff5e9c"; ctx.lineWidth = 1.5; rr(bx, by, bw, bh, 10); ctx.stroke();
+    ctx.fillStyle = "#ffe3ef"; lines.forEach((l, li) => ctx.fillText(l, me.x, by + 30 + li * 27));
+  }
+  if (me.scene === "monstershop" && monNote && performance.now() - monNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(monNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(74,222,128,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#d9ffe6"; ctx.fillText(monNote, me.x, me.y - 135);
+  }
+  if (me.scene === "casino" && casinoNote && performance.now() - casinoNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(casinoNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.93)"; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(casinoNote, me.x, me.y - 133);
+  }
+  if (me.scene === "track" && hrNote && performance.now() - hrNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(hrNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(hrNote, me.x, me.y - 135);
+  }
+  if (me.scene === "poolhall" && phNote && performance.now() - phNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(phNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(phNote, me.x, me.y - 135);
+  }
+  if (me.scene === "bowling" && bowlNote && performance.now() - bowlNoteAt < 4200) {
+    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
+    const w = ctx.measureText(bowlNote).width + 30;
+    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
+    ctx.fillStyle = "#ffe9a8"; ctx.fillText(bowlNote, me.x, me.y - 135);
   }
 }
 function drawGenFx(dt) {
@@ -7866,14 +7954,7 @@ function drawMonsterShop(t) {
   for (let py2 = pen.y + 46; py2 < pen.y + pen.h - 20; py2 += 70) { ctx.fillRect(pen.x - 5, py2, 24, 10); ctx.fillRect(pen.x + pen.w - 19, py2, 24, 10); }
   /* ---- the cases, aisle by aisle ---- */
   MONCASES.forEach((c, i) => drawMonCase(c, i, t));
-  /* the note line over my head — the bowling note's twin, in the shop's green */
-  if (monNote && performance.now() - monNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(monNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(74,222,128,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#d9ffe6"; ctx.fillText(monNote, me.x, me.y - 135);
-  }
+  /* the note line over my head paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* the exit: the Arcade-style door at the south wall — the bowling exit's paint, word for word in the shop's gold */
   ctx.fillStyle = "#050914"; ctx.fillRect(MSEXIT.x - 6, MSROOM.h - 12, MSEXIT.w + 12, 12);
   ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
@@ -8083,18 +8164,7 @@ function drawMechShop(t) {
   ctx.save(); ctx.shadowColor = "rgba(255,94,156,0.8)"; ctx.shadowBlur = 18;
   ctx.fillStyle = "#ffe3ef"; ctx.fillText("🤖 MECH SHOP 🤖", MKROOM.w / 2, 92); ctx.restore();
   for (let i = 0; i < MKSLOTS.length; i++) drawMechSlot(MKSLOTS[i], i, t);
-  /* my buy note, floating over my head — monNote's bubble in the shop's pink. The box FITS the message (Jonathan 2026-11-04 — "fix the pop up message the square is not big enough"): the note wraps at 500px and the box grows a line at a time above my head, so the whole text always sits inside it, phone included — the one-line strip it replaces (34px tall, however long the sentence ran) let the long buy message spill past its edges. Every mechSay message rides this same bubble, so all of them inherit the fit */
-  if (mechNote && performance.now() - mechNoteAt < 4200) {
-    ctx.font = "600 21px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const words = mechNote.split(" "); let lines = [], line = "";
-    for (const wd of words) { if (line && ctx.measureText(line + " " + wd).width > 500) { lines.push(line); line = wd; } else line = line ? line + " " + wd : wd; }
-    if (line) lines.push(line);
-    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 36, bh = lines.length * 27 + 20;
-    const bx = me.x - bw / 2, by = me.y - 130 - bh;
-    ctx.fillStyle = "rgba(24,8,20,0.92)"; rr(bx, by, bw, bh, 10); ctx.fill();
-    ctx.strokeStyle = "#ff5e9c"; ctx.lineWidth = 1.5; rr(bx, by, bw, bh, 10); ctx.stroke();
-    ctx.fillStyle = "#ffe3ef"; lines.forEach((l, li) => ctx.fillText(l, me.x, by + 30 + li * 27));
-  }
+  /* my buy note paints in frame()'s front pass now (drawHeadNotes, after the actors): in here it sat in the scene pass and a mech form painted over it (Jonathan 2026-11-04, 23:40) */
   /* the exit door plate on the south wall — the monster plate's paint in pink */
   ctx.fillStyle = "#050914"; ctx.fillRect(MKEXIT.x - 6, MKROOM.h - 12, MKEXIT.w + 12, 12);
   ctx.save(); ctx.shadowColor = "rgba(255,94,156,0.55)"; ctx.shadowBlur = 12;
@@ -8112,8 +8182,10 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   if (isMe && kenMechForm) hero = KEN_MECH_HERO; /* the same landing for Dj Ken's gentleman mech on his own screen */
   if (isMe && roboMechForm) hero = ROBO_MECH_HERO; /* the same landing for the owner's dome mech on his own screen */
   if (isMe && neonMechForm) hero = NEON_MECH_HERO; /* the same landing for the owner's galaxy DJ mech on his own screen */
+  if (isMe && bbeMechForm) hero = BBE_MECH_HERO; /* the same landing for Big Boy Eater's piñata mech on his own screen */
   if (isMe && shopMechForm) hero = shopMechForm; /* the same landing for a Mech Shop form on its wearer's own screen */
-  gender = mechDrawGender(hero, gender); /* the mechs live on the male track whatever the wearer's picker gender — EXCEPT the forms that have female art now (king 75, dragon 77, the shop forms 84-87): those follow the wearer's gender, and the fallback below paints the male art while a female file is still loading */
+  gender = mechDrawGender(hero, gender); /* the mechs live on the male track whatever the wearer's picker gender — EXCEPT the forms that have female art now (dragon 77, the shop forms 84-87): those follow the wearer's gender, and the fallback below paints the male art while a female file is still loading */
+  const formHere = isFormHere(hero, gender); /* this actor's form state, read AFTER the gender rewrite and gender-aware (see FORM_COSTUME_CLASH): the sizing below reads it, never the bare isMechHero, so a clashed female costume stands at dog height in her own art while every real form — Big Boy Eater's included — stands at mech height in its */
   const baseImg = gender === "f" ? heroImgsF[hero] : heroImgs[hero];
   let img = tint ? (boxCpuTintImg(hero, tint) || baseImg) : baseImg; /* a tinted actor (the boxing CPU) draws its corner-coloured copy of the sprite; everyone else draws the sprite itself */
   if (!img && gender === "f" && (FEMALE_MISSING[hero] || hero > 70) && heroImgs[hero]) img = heroImgs[hero]; /* a hero with NO female file at all (the FEMALE_MISSING pair, and every special from 71 up — no female sticker exists for any of them) draws his male art in a female slot instead of the loading shadow forever: a female-pick owner reverted off his mech at a trenches chair wears hero 71, which has no female file, so his fighter never painted (fix, Jonathan 2026-11-03). A regular female hero whose sticker is still loading keeps the shadow below and paints when it lands */
@@ -8123,9 +8195,9 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
     ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
     ctx.strokeText(name, wx, wy - 104); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, wy - 104);
     ctx.restore(); return; }
-  const bobAmp = isMechHero(hero) ? 20 : 11; /* the mech's walking/running bop is stronger than the dog's so its steps read at its size (Jonathan 2026-10-31) — set at 26 first, then he asked for it reduced a tad but still noticeable: 20 for both walk and run (the same bounce serves both; running just cycles it faster) */
+  const bobAmp = formHere ? 20 : 11; /* the mech's walking/running bop is stronger than the dog's so its steps read at its size (Jonathan 2026-10-31) — set at 26 first, then he asked for it reduced a tad but still noticeable: 20 for both walk and run (the same bounce serves both; running just cycles it faster) */
   const bob = moving ? -Math.abs(Math.sin(t / 105 + phase)) * bobAmp : Math.sin(t / 620 + phase) * 1.4;
-  const H = isMechHero(hero) ? 216 : 96, W = H * (((img.naturalWidth || img.width) / (img.naturalHeight || img.height)) || 0.8); /* the aspect comes off the image ACTUALLY drawn, never off baseImg (fix, Jonathan 2026-11-03 — "the sprites are invisible in the game"): a tinted female CPU (every trenches CPU carries its team's tint) resolves img from boxCpuTintImg — a canvas built off the loaded MALE sprite — while baseImg reads the FEMALE cache, which on any client that never loaded that female sticker (a male-pick client has an empty female cache) is undefined. img was truthy, so the loading fallback above was skipped, and baseImg.naturalWidth threw — inside frame()'s actor pass, so the throw truncated EVERY frame at the first female CPU in y-sort order: that CPU, every actor below her (often the player's own fighter) and drawTrenchesOver never painted, while the room behind them drew fine. The width/height fallbacks cover the canvas case (a canvas has width/height, no naturalWidth) */ /* both mechs stand 216 (2.25x) — OnlineMoney's king mech is the DreadMech's exact size at the owner's corrected word (2026-10-31: "sorry 2.25") */ /* the mech stands 2.25x as tall as the dog (Jonathan 2026-10-31: built at 3x, corrected to 2x, then settled at 2.25x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
+  const H = formHere ? 216 : 96, W = H * (((img.naturalWidth || img.width) / (img.naturalHeight || img.height)) || 0.8); /* the aspect comes off the image ACTUALLY drawn, never off baseImg (fix, Jonathan 2026-11-03 — "the sprites are invisible in the game"): a tinted female CPU (every trenches CPU carries its team's tint) resolves img from boxCpuTintImg — a canvas built off the loaded MALE sprite — while baseImg reads the FEMALE cache, which on any client that never loaded that female sticker (a male-pick client has an empty female cache) is undefined. img was truthy, so the loading fallback above was skipped, and baseImg.naturalWidth threw — inside frame()'s actor pass, so the throw truncated EVERY frame at the first female CPU in y-sort order: that CPU, every actor below her (often the player's own fighter) and drawTrenchesOver never painted, while the room behind them drew fine. The width/height fallbacks cover the canvas case (a canvas has width/height, no naturalWidth) */ /* both mechs stand 216 (2.25x) — OnlineMoney's king mech is the DreadMech's exact size at the owner's corrected word (2026-10-31: "sorry 2.25") */ /* the mech stands 2.25x as tall as the dog (Jonathan 2026-10-31: built at 3x, corrected to 2x, then settled at 2.25x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
   if (isMe && fishState.mode && me.scene === "plaza") drawFishRod(wx, wy, flip, t); /* FISHING (PREVIEW, 2026-11-04): while I fish, my rod is in my hand — drawn BEFORE my sprite on purpose (Jonathan 2026-11-04, 21:15): the rod stays BEHIND me in depth, so my sprite overlaps it, never the other way round. Mine only, off my own client state: the presence record's shape is untouched, so no peer ever grows a field for it (and no peer's rod is drawn — the settled constraint) */
@@ -8967,14 +9039,7 @@ function drawTrack(t) {
     [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000].forEach((amt, k) => drawBtn(cx - 374 + (k % 6) * 126, by + Math.floor(k / 6) * 31, 118, 27, "BET " + amt.toLocaleString("en-US"), () => hrBet(amt), { fs: 18 }));
   }
   drawTableFx(t, "track");
-  /* the note line, the casino note's twin */
-  if (hrNote && performance.now() - hrNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(hrNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(hrNote, me.x, me.y - 135);
-  }
+  /* the note line paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* exit door */
   ctx.fillStyle = "#ffd76a"; rr(TREXIT.x, TREXIT.y, TREXIT.w, 10, 5); ctx.fill();
   ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffe9a8";
@@ -9217,14 +9282,7 @@ function drawPoolHall(t) {
   uiZones = [];
   for (let tt = 0; tt < 4; tt++) drawPhTable(tt, t);
   drawTableFx(t, "poolhall");
-  /* the note line, the casino note's twin */
-  if (phNote && performance.now() - phNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(phNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(phNote, me.x, me.y - 135);
-  }
+  /* the note line paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* exit doorway in the right wall (PREVIEW round 3): the theatre doorway's own look, exactly as the Arcade's Pool Hall door wears it — dark gap in the wall, gold wash, corner ticks, chevrons, and the gold sign plate hanging inside, reading ARCADE. It stands the same distance above this room's bottom border as the Arcade's door stands above the Arcade's */
   ctx.fillStyle = "#050914"; ctx.fillRect(PHROOM.w - 12, PHEXIT.y - PHEXIT.half, 12, PHEXIT.half * 2);
   const eg = ctx.createLinearGradient(PHROOM.w - 90, 0, PHROOM.w, 0);
@@ -10199,14 +10257,7 @@ function drawBowling(t) {
   for (let tt = 0; tt < 4; tt++) drawBowlLane(tt, t);
   drawBowlPanel(t);
   drawTableFx(t, "bowling");
-  /* the note line, the pool hall note's twin */
-  if (bowlNote && performance.now() - bowlNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
-    const w = ctx.measureText(bowlNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.88)"; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 34, 17); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(bowlNote, me.x, me.y - 135);
-  }
+  /* the note line paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   /* the exit: the Arcade-style door at the south wall — a dark gap at the wall's base and the gold floor plate reading EXIT, drawn last so no panel ever covers it */
   ctx.fillStyle = "#050914"; ctx.fillRect(BOWLEXIT.x - 6, BOWLROOM.h - 12, BOWLEXIT.w + 12, 12);
   ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.4)"; ctx.shadowBlur = 10;
@@ -11652,6 +11703,7 @@ function boxPhaseWatch() {
     if (kenMechForm) { kenMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "gold"); sfxSwap(); } /* the gentleman mech stays at the door too — Dj Ken steps into the ring as his hero, trailing GOLD smoke */
     if (roboMechForm) { roboMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "red"); sfxSwap(); } /* the dome mech stays at the door too — the owner steps into the ring as his robo-dog, trailing RED smoke */
     if (neonMechForm) { neonMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene, "purple"); sfxSwap(); } /* the galaxy DJ mech stays at the door too — the owner steps into the ring as his neon streetwear QI, trailing PURPLE smoke */
+    if (bbeMechForm) { bbeMechForm = false; mechCdUntil = 0; spawnSmoke(me.x, me.y, me.scene); sfxSwap(); } /* the piñata mech stays at the door too — Big Boy Eater steps into the ring as his piñata, trailing CYAN smoke */
     boxingBout = { seat: boxSeat };
     tblUpd("box/seats/" + boxSeat, { rdy: false });
     mySeatPos = null; /* off the chair, into the ring */
@@ -11752,9 +11804,9 @@ function boxSeatBeat() {
 function boxGloveHit(ax, ay, flip, side, ox, oy, oHero, oGender) {
   const s = flip ? 1 : -1;
   const gx = ax + s * 74, gy = ay - 58 + (side === "L" ? 0 : 40); /* full extension: the 40px rest + the 34px lunge, the draw's own numbers */
-  if (isMechHero(oHero)) oGender = "m"; /* drawPlayer forces the male track for the mechs — the test reads the same sprite the draw does */
+  if (isMechHero(oHero) && !FORM_COSTUME_CLASH[oHero]) oGender = "m"; /* drawPlayer forces the male track for the unclashed mechs — the test reads the same sprite the draw does. A clashed number (74/75/79/81/83/89) keeps the wearer's gender: on the female track it is a costume, and a costume fighter's body is the costume's */
   const img = oGender === "f" ? heroImgsF[oHero] : heroImgs[oHero];
-  const H = isMechHero(oHero) ? 216 : 96, W = H * ((img && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 0) || 0.8); /* drawPlayer's own height, and its width from the sprite's aspect (its 0.8 fallback included) */
+  const H = isFormHere(oHero, oGender) ? 216 : 96, W = H * ((img && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 0) || 0.8); /* drawPlayer's own height, and its width from the sprite's aspect (its 0.8 fallback included) */
   const nx = Math.max(ox - W / 2, Math.min(gx, ox + W / 2)), ny = Math.max(oy - H, Math.min(gy, oy)); /* the body rect's nearest point to the glove's centre */
   return (gx - nx) * (gx - nx) + (gy - ny) * (gy - ny) <= 27 * 27; /* the glove's drawn radius */
 }
@@ -11875,7 +11927,7 @@ function boxCpuFrame(dt) {
     S.nextAt = now + 50; /* the combo gap: the follow-up comes 50ms after the opener (Jonathan 2026-11-01: recovery set to 50ms at his word, following the same-day steps 200 → 150 → 100 → 50; 170ms before that) */
   }
   if (side === "L") S.lastL = now; else S.lastR = now;
-  const vHero = mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : shopMechForm ? shopMechForm : me.hero; /* my body as THIS screen draws it (drawPlayer's own isMe hero chain — a bout holds every form off, but the test reads the same hero the draw would) */
+  const vHero = mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : bbeMechForm ? BBE_MECH_HERO : shopMechForm ? shopMechForm : me.hero; /* my body as THIS screen draws it (drawPlayer's own isMe hero chain — a bout holds every form off, but the test reads the same hero the draw would) */
   const hit = boxGloveHit(S.x, S.y, S.flip, side, me.x, me.y, vHero, me.g); /* the CPU's swings answer to the same glove test as a human's (Jonathan 2026-11-01): closing inside the old 150 tape measure no longer guarantees a landing — the glove has to reach my sprite, and a swing over or under it finds air and is written as the miss it is */
   if (side === "L") tblUpd("box", { punchL: { by: cs, ts: srvNow(), hit: hit ? 1 : 0 } }); else tblUpd("box", { punchR: { by: cs, ts: srvNow(), hit: hit ? 1 : 0 } }); /* per-arm record — the follow-up never overwrites the opener's glove, shake or star */
   if (hit) {
@@ -12864,13 +12916,7 @@ function drawCasino(t) {
   drawTableFx(t, "casino");
   /* the corner palms (Jonathan 2026-10-31: "add the palm tree emojis back") — drawn LAST in the room, over everything else, at the same four corners they always stood in, a touch larger so they read clearly */
   ctx.font = "58px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌴", 92, 108); ctx.fillText("🌴", CASINOROOM.w - 92, 108); ctx.fillText("🌴", 92, CASINOROOM.h - 66); ctx.fillText("🌴", CASINOROOM.w - 92, CASINOROOM.h - 66);
-  if (casinoNote && performance.now() - casinoNoteAt < 4200) {
-    ctx.font = "700 20px 'Segoe UI',sans-serif";
-    const w = ctx.measureText(casinoNote).width + 30;
-    ctx.fillStyle = "rgba(8,10,24,0.93)"; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.8)"; ctx.lineWidth = 1.5; rr(me.x - w / 2, me.y - 158, w, 36, 18); ctx.stroke();
-    ctx.fillStyle = "#ffe9a8"; ctx.fillText(casinoNote, me.x, me.y - 133);
-  }
+  /* the casino note paints in frame()'s front pass now (drawHeadNotes, after the actors) — the same mech-cover fix as the Mech Shop's note (Jonathan 2026-11-04, 23:40) */
   ctx.restore();
 }
 
@@ -12995,7 +13041,10 @@ const FALL_PUMPKIN_SPOTS = [ /* [centreX, groundY, scale] — spread along each 
   [-214, 510, 0.62], [-172, 504, 0.88],
   /* the Mech Shop (MECH_B, base y2280; door −425..−335) — the same corner pairs at the same offsets (2026-11-04), clear of the door and its landing; the west pair stands in the gap toward the world's edge, the east pair in the gap toward the Monster Shop */
   [-664, 2294, 0.90], [-622, 2300, 0.60],
-  [-134, 2300, 0.62], [-92, 2294, 0.88]
+  [-134, 2300, 0.62], [-92, 2294, 0.88],
+  /* the Fishing Shop (FISH_B, base y1480; door −465..−375) — the Monster Shop's corner pairs at the same offsets (added at the owner's word 2026-11-04): a pair tucked at each base corner (west +36/+78, east −74/−32) and heights (outer base+14, inner base+20), clear of the door and its landing */
+  [-664, 1494, 0.90], [-622, 1500, 0.60],
+  [-214, 1500, 0.62], [-172, 1494, 0.88]
 ];
 const FALL_LEAF_SPOTS = [ /* [centreX, groundY, radius, seed] — drifts of fallen leaves: the four tree-side grounds the scarecrows held and the Horse Track corner, plus scatter along the walkway edges and building bases drawn from the pumpkin rows */
   [512, 1168, 64, 1], [2688, 1168, 64, 2], [3224, 556, 56, 5], /* the 618,1918 drift that backed the tree east of the Monster Shop painted over the shop's east windows once the building stood there — removed at the owner's word (2026-11-02); its east mirror at 2582,1918 sat on the Quantum Comics roof's NE corner once that building stood beneath it — removed at the owner's word (2026-11-02) too, the same night he had the Arcade roof checked: no drift sits on the Arcade roof (the 1470,545 drift is on the ground at its base) */
@@ -13289,6 +13338,13 @@ function renderFishPanel() {
     mid.appendChild(nm); mid.appendChild(wv); row.appendChild(mid);
     if (t === myRod + 1) { const b = document.createElement("button"); b.type = "button"; b.textContent = "Buy"; b.onclick = () => rodBuyAsk(t); row.appendChild(b); }
     list.appendChild(row); });
+  if (isOwnerAcct()) { /* the RESET ROD row (owner-only, Jonathan 2026-11-04): the Reset Speed button's twin, living with the rod rows it resets — it renders ONLY for the owner's account (no other account and no guest ever sees it), in the panel's own row dress, and rodReset refuses for anyone else regardless */
+    const row = document.createElement("div"); row.className = "fishrow";
+    const mid = document.createElement("div"); const nm = document.createElement("div"); nm.className = "fname"; nm.textContent = "🎣 Your rod";
+    const wv = document.createElement("div"); wv.className = "fworth"; wv.textContent = "Owner reset — back to the Basic Rod";
+    mid.appendChild(nm); mid.appendChild(wv); row.appendChild(mid);
+    const b = document.createElement("button"); b.type = "button"; b.id = "rodresetbtn"; b.textContent = Date.now() < rodResetArmUntil ? "⚠️ Tap again to reset your rod to Basic" : "Reset Rod"; b.onclick = () => rodReset(); row.appendChild(b);
+    list.appendChild(row); }
 }
 function openFishPanel() { renderFishPanel(); fishShopMsg(""); fishPanelOpen = true; $("fishpanel").style.display = "flex"; sfxClick(); }
 function closeFishPanel() { fishPanelOpen = false; const el = $("fishpanel"); if (el) el.style.display = "none"; }
@@ -13306,6 +13362,16 @@ function fishSellGo(i, n) { /* the sale itself, run only from confirmBuy: the st
   renderFishPanel();
 }
 function rodBuyAsk(tier) { if (tier !== myRod + 1) return; if (!acctUser) { fishShopMsg("🔒 Rod upgrades take an account — guests fish with the Basic Rod."); sfxBad(); return; } openBuyConfirm({ kind: "rod", tier: tier }, "🎣 Buy Rod?", ROD_DEFS[tier].name, ROD_DEFS[tier].price); } /* the standard buy confirmation: it names the rod and its exact price, and only CONFIRM runs the purchase */
+let rodResetArmUntil = 0;
+function rodReset() { /* RESET ROD (owner-only, Jonathan 2026-11-04): clears the OWNER's own rod tier back to Basic (0) and records it on his own users doc through fishSave → acctFishSave, the rod tier's own write, and nowhere else. The row never renders for anyone else, and this handler refuses for anyone else regardless. Two taps, the Reset Speed pattern exactly: the first tap arms the button for four seconds, the second does it */
+  if (!isOwnerAcct() || !acctUser) return;
+  const btn = $("rodresetbtn"), nowMs = Date.now();
+  if (nowMs > rodResetArmUntil) { rodResetArmUntil = nowMs + 4000; if (btn) btn.textContent = "⚠️ Tap again to reset your rod to Basic"; setTimeout(() => { if (Date.now() > rodResetArmUntil) { const b2 = $("rodresetbtn"); if (b2) b2.textContent = "Reset Rod"; } }, 4100); return; }
+  rodResetArmUntil = 0;
+  myRod = 0; fishSave();
+  renderFishPanel();
+  fishShopMsg("✓ Your rod is reset — back to the Basic Rod");
+}
 function spdBuyAsk() { const t = mySpd + 1; if (t > SPD_DEFS.length) return; if (!acctUser) { genText(me.x, me.y - 104, "🔒 Speed upgrades take an account", "#9db8d9"); sfxBad(); return; } openBuyConfirm({ kind: "speed", tier: t }, "⚡ Buy Speed?", "Crystal Speed ×" + SPD_DEFS[t - 1].mult, SPD_DEFS[t - 1].price); } /* the rod ask's twin at the Quantum Crystal: guests are refused in the open (there is no panel here — the refusal floats over the player, the fishing feedback's own way), and the standard confirmation names the tier and its exact price; only CONFIRM runs the purchase */
 function spdBuy(tier) { if (tier !== mySpd + 1) return; const def = SPD_DEFS[tier - 1]; if (!def) return;
   if (!isOwnerAcct()) { pullChips(); if (!profile || (profile.chips || 0) < def.price) { genText(me.x, me.y - 104, "Not enough chips — ×" + def.mult + " costs 🪙 " + def.price.toLocaleString("en-US"), "#ff9db0"); sfxBad(); return; } addChips(-def.price); } /* the rod buy's own discipline: the owner's account is never charged (his purchase is still recorded below), everyone else is debited exactly the price, only here on confirm */
@@ -13373,10 +13439,11 @@ function drawCastleBuilding(t) {
   bg.addColorStop(0, "#2b4a7d"); bg.addColorStop(1, "#182c55");
   ctx.fillStyle = bg; rr(b.x, b.y, b.w, b.h, 16); ctx.fill();
   ctx.strokeStyle = "rgba(140,230,255,0.8)"; ctx.lineWidth = 3; rr(b.x, b.y, b.w, b.h, 16); ctx.stroke();
-  function merlons(x0, x1, yTop) { /* one run of battlements: teeth 44 wide, gaps 36, marched from x0 — a run's callers pass mirrored spans so the teeth land symmetric */
+  function merlons(x0, x1, yTop, pitch) { /* one run of battlements: teeth 44 wide on an 80 pitch (gaps 36) unless the caller passes a tighter pitch, marched from x0 — a run's callers pass mirrored spans so the teeth land symmetric */
+    pitch = pitch || 80;
     ctx.fillStyle = "#33548c";
-    for (let mx = x0; mx + 44 <= x1; mx += 80) ctx.fillRect(mx, yTop, 44, 30);
-    ctx.fillStyle = "rgba(140,230,255,0.55)"; for (let mx = x0; mx + 44 <= x1; mx += 80) ctx.fillRect(mx, yTop, 44, 5);
+    for (let mx = x0; mx + 44 <= x1; mx += pitch) ctx.fillRect(mx, yTop, 44, 30);
+    ctx.fillStyle = "rgba(140,230,255,0.55)"; for (let mx = x0; mx + 44 <= x1; mx += pitch) ctx.fillRect(mx, yTop, 44, 5);
   }
   function spire(sx, sw, sh, col) { /* a faceted crystal spire, its base on the caller's line */
     const sg = ctx.createLinearGradient(sx, 0, sx + sw, 0);
@@ -13393,7 +13460,11 @@ function drawCastleBuilding(t) {
     tg.addColorStop(0, "#33548c"); tg.addColorStop(1, "#1d3560");
     ctx.fillStyle = tg; rr(tx, b.y - 120, 150, b.h + 120, 12); ctx.fill();
     ctx.strokeStyle = "rgba(140,230,255,0.8)"; ctx.lineWidth = 3; rr(tx, b.y - 120, 150, b.h + 120, 12); ctx.stroke();
-    merlons(tx + 5, tx + 145, b.y - 150);
+    /* the tower's teeth are TWO again (Jonathan 2026-11-05, 00:07 — "corner ones should not be like that, it should be 2 like before and be centered under triangle"): the three-teeth battlement the 23:59 fix put here is reverted on the corner towers ONLY — the keep's centred teeth and the 13-tooth parapet stay exactly as they are. The pair is the ORIGINAL pair (two 44 teeth on the standard 80 pitch, the 36 gap between them) shifted as a unit so the pair centres on the tower's own line: teeth at tx+13 and tx+93, the pair spanning tx+13..tx+137 with its centre — and its gap's centre — on tcx (tx+75), directly under the spire. The pre-23:59 march (tx+5 / tx+85) sat the pair 8px left of tcx */
+    for (const mtx of [tx + 13, tx + 93]) {
+      ctx.fillStyle = "#33548c"; ctx.fillRect(mtx, b.y - 150, 44, 30);
+      ctx.fillStyle = "rgba(140,230,255,0.55)"; ctx.fillRect(mtx, b.y - 150, 44, 5);
+    }
     ctx.save(); ctx.translate(0, b.y - 150); spire(tcx - 55, 110, 118, sgn < 0 ? "#7dd7ff" : "#c9a7ff"); ctx.restore();
     /* one diamond window centred on each tower on EACH row's baseline — the two aligned lines run unbroken across towers and wall alike */
     for (const wy of [250, 430]) {
@@ -13407,15 +13478,16 @@ function drawCastleBuilding(t) {
   /* the central tower: a raised keep on the centre line (300 wide, 90 above the roofline), battlements along its top, the tallest crystal spire, and the turning atom above all */
   ctx.fillStyle = "#2e4c80"; rr(cx - 150, b.y - 90, 300, b.h + 90, 12); ctx.fill();
   ctx.strokeStyle = "rgba(140,230,255,0.8)"; ctx.lineWidth = 3; rr(cx - 150, b.y - 90, 300, b.h + 90, 12); ctx.stroke();
-  merlons(cx - 140, cx + 140, b.y - 120);
+  /* the keep's teeth march centred on cx (Jonathan 2026-11-04, 23:59 — from his close-up of the spire: "Youre missing a rectangle under the triangle in the center" — two stones flanked a black gap under the triangle): the old march from cx−140 clipped the fourth tooth (cx+100 never drew), so the row ran three teeth, lopsided, its gap sitting under the spire. The march now runs cx−102 .. cx+102: teeth at cx−102, cx−22, cx+58 — the middle tooth centred on cx, directly under the spire */
+  merlons(cx - 102, cx + 102, b.y - 120);
   ctx.save(); ctx.translate(0, b.y - 120); spire(cx - 70, 140, 170, "#8ef2ff"); ctx.restore();
   ctx.save(); ctx.translate(cx, b.y - 316); ctx.rotate(t / 2600);
   ctx.strokeStyle = "rgba(56,225,255,0.9)"; ctx.lineWidth = 3;
   for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * Math.PI / 3); ctx.beginPath(); ctx.ellipse(0, 0, 44, 16, 0, 0, 7); ctx.stroke(); ctx.restore(); }
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.fill(); ctx.restore();
-  /* the parapet: a battlement band along the whole roofline between the towers, on the keep's own top edge */
+  /* the parapet: a battlement band along the whole roofline between the towers, on the keep's own top edge. The band itself is centred on cx, and the TEETH are centred on cx too — and since 23:59 there is a tooth standing ON the centre line (Jonathan 2026-11-04, from his close-up of the castle top: "Youre missing a rectangle under the triangle in the center": the centred row of 12 still left its middle GAP on cx, so the row became THIRTEEN teeth with the middle one centred under the spire). 13 teeth of 44 march at pitch 77 across cx−484 .. cx+484 — inside the band's own span, flush with the towers' inner faces — the seventh tooth at cx−22 .. cx+22. The two earlier states (the original march from b.x+140, centre 18px LEFT of cx; then the 23:38 centred 12 with the gap on cx) are in the hub backups if they are ever wanted back */
   ctx.fillStyle = "#2e4c80"; ctx.fillRect(b.x + 130, b.y - 12, b.w - 260, 16);
-  merlons(b.x + 140, b.x + b.w - 140, b.y - 42);
+  merlons(cx - 484, cx + 484, b.y - 42, 77);
   ctx.strokeStyle = "rgba(140,230,255,0.5)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x + 130, b.y + 4); ctx.lineTo(b.x + b.w - 130, b.y + 4); ctx.stroke();
   /* the name board — centred on cx, as it always was */
   ctx.fillStyle = "#101f42"; rr(cx - 340, b.y + 44, 680, 76, 12); ctx.fill();
@@ -13423,9 +13495,8 @@ function drawCastleBuilding(t) {
   ctx.font = "800 33px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(56,225,255,0.8)"; ctx.shadowBlur = 14;
   ctx.fillStyle = "#d9f6ff"; ctx.fillText("💎 CRYSTAL QUANTUM CASTLE", cx, b.y + 94); ctx.restore();
-  /* crystal windows: TWO aligned rows of glowing diamonds (baselines b.y+250 and b.y+430) on mirrored columns (cx ± 240 / ±380) — the casino window row's discipline, doubled. The ±520 columns are deliberately NOT in this loop: they land inside the corner towers, 39px from the towers' own windows, and read as a sloppy doubled window (caught on the v2 wide shot) — the towers carry those columns on the same baselines instead. The gatehouse's columns stay clear of both rows' centres — with one exception, noted in the loop: the lower row's ±240 pair came off at the owner's word (2026-11-04, 21:13) */
+  /* crystal windows: TWO aligned rows of glowing diamonds (baselines b.y+250 and b.y+430) on mirrored columns (cx ± 240 / ±380) — the casino window row's discipline, doubled. The ±520 columns are deliberately NOT in this loop: they land inside the corner towers, 39px from the towers' own windows, and read as a sloppy doubled window (caught on the v2 wide shot) — the towers carry those columns on the same baselines instead. The gatehouse's columns stay clear of both rows' centres. The lower row's ±240 pair came off at the owner's word (2026-11-04, 21:13) and went BACK at his word the same night (23:39 — from his screenshot of the front wall: "add 1 missing diamond here and on the other side too") — both rows now carry the full mirrored set, ±240 and ±380, no exceptions */
   for (const wy of [250, 430]) for (const off of [-380, -240, 240, 380]) {
-    if (wy === 430 && Math.abs(off) === 240) continue; /* the lower row's INNER pair is GONE (Jonathan 2026-11-04, 21:13 — from his close-up: the little diamonds sitting above the castle's front entrance door, flanking the central tower over the gatehouse, come off; the upper row's inner pair and both ±380 columns stay) */
     const wx = cx + off;
     ctx.save(); ctx.translate(wx, b.y + wy); ctx.rotate(Math.PI / 4);
     const pulse = 0.55 + 0.3 * Math.sin(t / 600 + wx * 0.05);
@@ -13483,6 +13554,10 @@ function drawFishingShopBuilding(t) {
   /* the windows: one aligned row, the casino window row's own height and measure, in the shop's blue — MIRRORED about the building's centre line, with the LEFT pair as the reference (owner fix + correction, 2026-11-04: the row read lopsided because the pairs were not mirrors — first the left pair was moved to match the right, then he reversed it: the LEFT two are the reference and do not move (0.14/0.32, centre −202/−101), and the RIGHT pair now sits at their exact mirror (0.68/0.86, centre +101/+202) — same heights, same spacing, like every other building's windows) */
   ctx.fillStyle = "rgba(42,127,212,0.35)";
   for (const fx of [0.14, 0.32, 0.68, 0.86]) { rr(b.x + b.w * fx - 28, b.y + 168, 56, 62, 6); ctx.fill(); }
+  /* the fish sign over the door (Jonathan 2026-11-04): the Sports Complex's sport-ball sign copied line for line — a dark disc (r31), a gold ring (#ffd76a, lineWidth 2.5) and the glyph centred inside at the same 34px — one circle on the building's centre line in the window row's centre gap, directly above the door, the sports balls' own spot: clear of the marquee above (ends b.y+126), of the inner windows either side (their facing edges sit 72.8 out from centre against the disc's 31) and of the door's glow below (starts FISHDOOR.y−6) */
+  ctx.globalAlpha = 1; ctx.fillStyle = "#06231a"; ctx.beginPath(); ctx.arc(cx, b.y + 199, 31, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, b.y + 199, 31, 0, 7); ctx.stroke();
+  ctx.font = "34px sans-serif"; ctx.fillText("🐠", cx, b.y + 210);
   /* the door */
   const dg = ctx.createLinearGradient(0, FISHDOOR.y, 0, FISHDOOR.y + 100);
   dg.addColorStop(0, "rgba(56,180,255,0.55)"); dg.addColorStop(1, "rgba(56,180,255,0)");
@@ -15481,7 +15556,7 @@ function frame(now) {
   if (sprinting && !wading && now - dustAt > 65) {
     dustAt = now;
     dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 14, y: me.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 });
-    if (mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm || neonMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's and the galaxy mech's running dust mirror it (regular dust — red is only the king mech's transform burst) */
+    if (mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm || neonMechForm || bbeMechForm) { for (let i = 0; i < 2; i++) dust.push({ x: me.x - vx * 12 + (Math.random() - 0.5) * 20, y: me.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: -vx * 26 + (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } /* the mech throws MORE smoke when it runs (Jonathan 2026-10-31): extra REGULAR dust puffs, bigger than the normal ones — the cyan smoke is only for the transform burst, not for running (his correction). The king mech's and the galaxy mech's running dust mirror it (regular dust — red is only the king mech's transform burst) */
   }
   if (wading && me.moving && now - splashAt > 130) { /* a step in the water throws droplets and a ring, walking or running */
     splashAt = now;
@@ -15724,8 +15799,8 @@ function frame(now) {
     /* the owner's ground line (the owner's fix, 2026-11-02): drawPlayer bottoms the hero sprite at owner.y + the hero's bob — so the follower rides the SAME bob (drawPlayer's own formula, fed the same phase/moving this actor's draw will use) and stands on the follow spot at the owner's own y: its bottom edge lands exactly on its owner's ground line, never floating on a wobble or an offset of its own */
     const oMoving = a === me ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
     const oPhase = a === me ? sprintPhase : a.bob * 7;
-    const oHero = a === me ? (mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : shopMechForm ? shopMechForm : a.hero) : a.hero;
-    const gbob = oMoving ? -Math.abs(Math.sin(now / 105 + oPhase)) * (isMechHero(oHero) ? 20 : 11) : Math.sin(now / 620 + oPhase) * 1.4;
+    const oHero = a === me ? (mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : bbeMechForm ? BBE_MECH_HERO : shopMechForm ? shopMechForm : a.hero) : a.hero;
+    const gbob = oMoving ? -Math.abs(Math.sin(now / 105 + oPhase)) * (isFormHere(oHero, a === me ? me.g : a.g) ? 20 : 11) : Math.sin(now / 620 + oPhase) * 1.4;
     let fx, fy;
     if (a === me) {
       const fkey = ms + "|" + me.scene;
@@ -15795,7 +15870,7 @@ function frame(now) {
     const aWading = (me.scene === "plaza" || me.scene === "rooftop") && inPoolWater(a.x, a.y, me.scene === "rooftop" ? ROOFPOOLW : undefined); /* a peer in the pool splashes and never kicks dust (PREVIEW) — the rooftop pool included, against its own water */
     if (!isMe && a.run && moving) {
       a.spr = (a.spr || 0) + dt * 4.8; phase = a.spr;
-      if (!aWading && now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); if (isMechHero(a.hero)) { for (let i = 0; i < 2; i++) dust.push({ x: a.x + (Math.random() - 0.5) * 20, y: a.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } } /* the room sees the mech's extra regular running smoke too (Jonathan 2026-10-31) — the king mech's included */
+      if (!aWading && now - (a.dustAt || 0) > 65) { a.dustAt = now; dust.push({ x: a.x + (Math.random() - 0.5) * 14, y: a.y - 2, r: 3 + Math.random() * 3, life: 0, max: 380 + Math.random() * 160, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); if (isFormHere(a.hero, a.g)) { for (let i = 0; i < 2; i++) dust.push({ x: a.x + (Math.random() - 0.5) * 20, y: a.y - 2, r: 5 + Math.random() * 4, life: 0, max: 460 + Math.random() * 180, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 12 }); } } /* the room sees the mech's extra regular running smoke too (Jonathan 2026-10-31) — the king mech's included */
     }
     if (!isMe && aWading && moving && now - (a.splashAt || 0) > 130) { /* a wading peer's steps splash on my screen too */
       a.splashAt = now;
@@ -15812,7 +15887,7 @@ function frame(now) {
     if (me.scene === "rooftop" && atRoofBoom(ROOFBOOM_R, a.x, a.y)) drawRoofBoom(decorT(now), ROOFBOOM_R); /* the rooftop's DJ, the club's own treatment: the booth repaints over a DJ standing in its strip */
     if (me.scene === "highrollers" && a.id === "hrc-clerk") drawHRCounterOverClerk(a); /* the clerk stands behind the service counter: its front paints over his lower body, the DJ booth's trick scoped to him alone (see drawHRCounterOverClerk) */ /* a DJ standing behind the booth: repaint the counter over their lower body so their head pokes up behind it. Actors are y-sorted, so anyone in FRONT of the booth has a larger y and is drawn after this — they paint over the booth as normal. Applies to my sprite and to remote players alike (a.x/a.y are the smoothed positions everyone sees) */
     if (me.scene === "fishshop" && a.id === "fishshop-qbot") drawFishCounterFront(); /* the Fishing Shop counter's front over Q-Bot — repainted HERE, immediately after Q-Bot's own draw and before every actor in front of him (the clerk's arrangement, moved 2026-11-04 22:28): it used to run in the over pass after ALL actors, so a player standing at the counter front inside Q-Bot's span was painted over by the counter front and read as stuck behind the desk. Now Q-Bot is the ONLY figure the repaint can ever cover: every player stands south of him (the FISHKEEPER block keeps feet at y 314+, his are at 262), sorts after him, and paints over the counter front in full */
-    const aSub = (me.scene === "plaza" || me.scene === "rooftop") ? poolSubmersion(a.x, a.y, isMe ? (mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : shopMechForm ? shopMechForm : a.hero) : a.hero, me.scene === "rooftop" ? ROOFPOOLW : undefined) : null; /* the local actor's a.hero is the BASE hero — the transform swap lives in drawPlayer and the presence writer (line 727), never in a.hero — so my own wading band resolves the effective hero here the same way, or it sizes small-dog while I stand there as a mech (Jonathan 2026-11-01) */
+    const aSub = (me.scene === "plaza" || me.scene === "rooftop") ? poolSubmersion(a.x, a.y, isMe ? (mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : bbeMechForm ? BBE_MECH_HERO : shopMechForm ? shopMechForm : a.hero) : a.hero, me.scene === "rooftop" ? ROOFPOOLW : undefined, isMe ? me.g : a.g) : null; /* the local actor's a.hero is the BASE hero — the transform swap lives in drawPlayer and the presence writer (line 727), never in a.hero — so my own wading band resolves the effective hero here the same way, or it sizes small-dog while I stand there as a mech (Jonathan 2026-11-01) */
     if (aSub && heroImgFor(a.hero, a.g)) { /* wading (PREVIEW): the sprite's lower half wears the water — a translucent band over exactly the submerged half (poolSubmersion), with the bright waterline ring sitting on the band's own top edge, the halfway cut. A sprite short of the edge thresholds paints nothing (Jonathan 2026-10-30) */
       ctx.fillStyle = "rgba(35,105,175,0.45)"; ctx.fillRect(a.x - aSub.hw, aSub.top, aSub.hw * 2, aSub.h); /* the band at the wearer's own width — the mech's is 2.25x the dog's (Jonathan 2026-10-31) */
       ctx.strokeStyle = "rgba(195,242,255,0.55)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(a.x, aSub.top, aSub.hw, 7.5 * (aSub.hw / 29), 0, 0, 7); ctx.stroke(); /* the surface line rings the sprite on its waterline, at the wearer's own width */
@@ -15825,6 +15900,7 @@ function frame(now) {
   /* the Fishing Shop counter's front is NO LONGER repainted here (2026-11-04 22:28): it moved into the actor loop, immediately after Q-Bot's own draw (drawFishCounterFront) — from this over pass it painted over PLAYERS standing at the counter front inside Q-Bot's span, and Jonathan's word is that only Q-Bot is ever behind that counter */
   if (me.scene === "dining") drawDiningWindowsFront(); /* the Dining Hall's windows paint HERE, over the actors (Jonathan 2026-11-04 21:30): in this room the windows are in front of players depth-wise — you walk behind the glass */
   drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
+  drawHeadNotes(); /* the over-my-head note bubbles paint here too, over the sprites — a buy note must never hide behind the (mech) player it belongs to (Jonathan 2026-11-04, 23:40) */
   ctx.restore();
   if (buyConfirmPend && !buyConfirmStillNear()) closeBuyConfirm(); /* walking away from the case or display takes the buy confirmation down with it — nothing bought, nothing debited */
   if (fishPanelOpen && !fishNearCounter()) closeFishPanel(); /* the Fishing Shop panel belongs to the counter, like the buy confirmation belongs to its case: walk away and it closes */
