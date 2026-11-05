@@ -946,7 +946,7 @@ const FEMALE_MISSING = { 38: 1, 40: 1 }; /* owner removal (2026-10-30): female 0
 const FEMALE_EXTRA = [71, 72, 73, 74, 75, 76, 78, 79, 80, 81, 82, 83, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97]; /* the Cosmic Husky FEMALE SHEET costumes (Jonathan 2026-11-04 \u2014 "add the ones from the sheet i sent you too as female sprites because they are not in the game"): his sheet's numbers 071-097 are the female track's OWN sequence, past the roster's 70. These 22 had no costume file in the game \u2014 cut from his sheet and uploaded as hub-heroes/female-NNN.webp, and they ride at the end of the female grid in sheet order. The sheet's other five numbers already HAD files and were never overwritten or given picker cells: 77 the dragon mech's female form, 84-87 the four shop mechs' female forms \u2014 form art, not costumes. The mech designs' female bases (71/72/74/75/76) are all costumes from this same sheet, 75 included. 75's costume joined a day later at his ruling (2026-11-05: "for females, 75 is the female version of the samurai mech"): female-075 was re-pointed to the sheet's Samurai, replacing the file the game had treated as the king mech's female form (in fact a byte-copy of the samurai form's own female art, still live at female-087); the king form draws its male art for every wearer now (mechDrawGender) */
 const FEMALE_EXTRA_NAMES = { 71: "Rogue", 72: "Safari", 73: "Safari Scarf", 74: "Doctor", 75: "Samurai", 76: "Dragon", 78: "Robot Suit", 79: "Queen", 80: "Leaf Druid", 81: "Blacksmith", 82: "Medal Athlete", 83: "Medal Athlete", 88: "Musketeer", 89: "Rainbow Cape", 90: "Checkered King", 91: "Jester", 92: "Ranger", 93: "Astronaut", 94: "Dino Costume", 95: "Rocket Racer", 96: "Crowned Knight", 97: "Atom Armour" }; /* his sheet's own labels */
 const FEMALE_TOTAL = 90; /* 68 roster cells + the 22 sheet costumes */
-function heroUrl(n, g) { return g === "f" ? "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffemale-" + String(n).padStart(3, "0") + ".webp?alt=media" : "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media"; }
+function heroUrl(n, g) { const u = g === "f" ? "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Ffemale-" + String(n).padStart(3, "0") + ".webp?alt=media" : "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media"; return (n === 77 || n === 84 || n === 85 || n === 86 || n === 87) ? u + "&v=2" : u; } /* the five shop-mech forms (77/84-87, both tracks) wear a version tag: their art was re-fitted whole on 2026-11-05 (the first prep cropped the figures' tops), and the tag makes every phone fetch the new files instead of its cached crops */
 function heroImgFor(n, g) { return g === "f" ? heroImgsF[n] : heroImgs[n]; }
 function makeHeroCell(n, nm, g) {
   g = g === "f" ? "f" : "m"; /* the special cells (71/73) never pass a gender \u2014 they are always the male stickers, in both modes */
@@ -2083,11 +2083,24 @@ let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
 /* the topbar shrink tiers (Jonathan 2026-10-31): on phones the header must never overflow — as the balance text grows, drawChips stamps bal1/bal2/bal3 on #topbar and the mobile CSS shrinks the title and pills to fit (the chips amount itself is never truncated). Desktop has no tier rules, so it is untouched. */
 function drawChips() { const el = $("chipspill"); if (!el) return; el.style.display = acctUser ? "" : "none"; const s = (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); el.textContent = "🪙 " + s; const tb = $("topbar"); if (tb) { const L = s.length; tb.classList.toggle("bal1", L >= 9 && L <= 13); tb.classList.toggle("bal2", L >= 14 && L <= 16); tb.classList.toggle("bal3", L >= 17); } }
 function acctMsg(t) { const m = $("acctmsg"); if (m) m.textContent = t || ""; }
+/* self-heal state (2026-11-05): whether the account's server record already holds a chips field, and whether the first-write create below is in flight. The database rules validate a FIRST chips write to exactly 1000 and every later write to a raise of at most 10B — so an account whose record has no chips yet (a session claim but no profile save ever landed) rejects acctSave's bundled update atomically, forever: the name/email never save, transfer credits never land, purchase debits never persist. acctChipsOnServer is set at sign-in reconcile from the same read pickChips judges, and kept current by pullChips/watchChips whenever they see a numeric server chips. */
+let acctChipsOnServer = false;
+let acctHealBusy = false; /* the lone {chips: 1000} create is in flight — the bundled save chains behind it, never blind alongside it */
 function acctSave() {
   if (!acctUser || !db || !profile) return;
   if (!acctLoaded) return; /* not yet reconciled with the account — writing now could clobber it */
   profile.chipsTs = Date.now(); /* this device's balance is current as of this save (post-reconciliation), so stamp it */
+  if (!acctChipsOnServer && !acctHealBusy) { acctHealChips(); return; } /* no server chips yet: the bundled update's chips value would fail the first-write rule and take the whole save down with it — create the field first (acctHealChips); this save lands chained behind the create */
   try { db.ref("hub/users/" + acctUser.uid).update({ name: profile.name, hero: profile.hero, gender: profile.gender === "f" ? "f" : "m", chips: typeof profile.chips === "number" ? profile.chips : 1000, chipsTs: profile.chipsTs, day: profile.day || "", email: acctUser.email || "", ts: Date.now() }); } catch (e) {} /* update, not set: the session claim lives under the same record and must survive profile saves */
+}
+function acctHealChips() {
+  acctHealBusy = true;
+  const fail = () => { acctHealBusy = false; }; /* the create did not land: acctChipsOnServer stays unset, so the next save retries the whole heal */
+  try {
+    const p = db.ref("hub/users/" + acctUser.uid).update({ chips: 1000 }); /* chips ALONE at exactly 1000 — the one first write the rules accept; nothing else rides this write */
+    const ok = () => { acctHealBusy = false; acctChipsOnServer = true; acctSave(); }; /* the field exists now: run the normal save, which reads the profile as it stands at this moment — its chips value is a legal move from 1000 (a raise of at most 10B, or a plain decrease) */
+    if (p && typeof p.then === "function") p.then(ok, fail); else ok();
+  } catch (e) { fail(); }
 }
 /* chips rule (Jonathan 2026-10-28, final form): the balance lives on the SERVER and nowhere else. At sign-in the server amount is the balance — a device's local copy NEVER raises it (logging in can never replenish). The amount only changes while playing (every change saves to the server the moment it happens), pullChips() re-reads the server amount when a game is about to be played, and watchChips() keeps the on-screen counter on the server amount live while signed in. The local figure is only ever used for a brand-new account that has no server balance yet. */
 function pickChips(lc, lt, sc, st) {
@@ -2100,6 +2113,7 @@ function pullChips() {
   db.ref("hub/users/" + acctUser.uid).once("value").then(s => {
     const d = s.val();
     if (d && typeof d.chips === "number" && profile) {
+      acctChipsOnServer = true; /* a numeric server chips: the field provably exists, no heal needed */
       profile.chips = d.chips;
       if (typeof d.chipsTs === "number") profile.chipsTs = d.chipsTs;
       try { localStorage.setItem(LS_KEY, JSON.stringify(profile)); } catch (e) {}
@@ -2116,6 +2130,7 @@ function watchChips() {
   acctWatchRef.on("value", s => {
     const d = s.val();
     if (!d || !profile || typeof d.chips !== "number") return;
+    acctChipsOnServer = true; /* a numeric server chips: the field provably exists, no heal needed */
     const tsIn = typeof d.chipsTs === "number" ? d.chipsTs : 0, tsMine = typeof profile.chipsTs === "number" ? profile.chipsTs : 0;
     if (d.chips !== profile.chips && tsIn > tsMine) {
       profile.chips = d.chips; profile.chipsTs = tsIn;
@@ -2354,6 +2369,7 @@ function initAuth() {
     acctUser = u || null; acctUi();
     if (!u) {
       acctLoaded = false;
+      acctChipsOnServer = false; acctHealBusy = false; /* the heal flag belongs to the signed-in account: a different account signing in on this page starts unjudged */
       loadStoreFromAccount(null); /* signed out: the store forgets the account's tier and backgrounds with everything else */
       loadMonstersFromAccount(null); /* signed out: the monster collection is forgotten with the rest of the account */
       loadMechsFromAccount(null); /* signed out: the mech unlocks are forgotten the same way, and the picker M's go with them */
@@ -2383,6 +2399,7 @@ function initAuth() {
         if (d && d.name && (!nameBlocked(d.name) || (u.email || "").toLowerCase() === OWNER_EMAIL)) {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
+          acctChipsOnServer = typeof d.chips === "number"; /* the heal flag judges from this same read: a numeric server chips means the field exists on the record */
           profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === ROBO_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === NEON_HERO) || ((u.uid === BBE_UID) && d.hero === BBE_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
@@ -2396,7 +2413,7 @@ function initAuth() {
           loadSpdFromAccount(d); /* and the speed tier off the same doc (the Crystal Room's upgrades persist with the account) */
           if (pk.local) acctSave(); /* the account had no amount yet (legacy record) — the local figure becomes its starting amount, once */
           claimSession(); watchChips(); watchTransfers();
-        } else if (!d) { acctLoaded = true; acctSave(); claimSession(); watchChips(); watchTransfers(); } /* first sign-in on this account: push this device's profile up as the starting point */
+        } else if (!d) { acctLoaded = true; acctChipsOnServer = false; acctSave(); claimSession(); watchChips(); watchTransfers(); } /* first sign-in on this account: push this device's profile up as the starting point — no record at all, so no chips field either: the first save heals (creates at 1000, then lands) */
         /* a server profile that can't be applied is left exactly as it is — a sign-in NEVER overwrites the account with this device's local defaults */
       } catch (e) {}
     }
