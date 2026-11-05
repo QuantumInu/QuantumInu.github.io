@@ -14158,7 +14158,7 @@ function fudSeedFromRec() { /* a new driver continues from the record, the Speed
     else { F.state = "patrol"; if (e.fa) { F.formAt = now - Math.max(0, sn - e.fa); F.formP = Math.min(1, Math.max(0, (now - F.formAt) / FUD_FORM_MS)); } }
   });
 }
-function fudElect() { /* the whistle, re-judged every second: the standing claim wins while its holder is a fresh plaza presence and the claim is under 6s old (the Speedway referee's takeover rules); otherwise the lowest-pid fresh plaza presence drives */
+function fudElect() { /* the whistle, re-judged every second: the standing claim wins while its holder is a fresh plaza presence and the claim is under 6s old (the Speedway referee's takeover rules). When the claim lapses, the seat no longer drops straight to the lowest pid (the 2026-11-05 freeze: the presence heartbeat runs on its own timer, so a backgrounded tab stays a fresh candidate while its render loop — the only place fudFrameTick runs — is stopped dead; it kept winning the old fallback, never published, never landed filed kills, and was re-elected every second forever). Now each candidate takes the whistle FOR ITSELF in pid-rank order as the claim's staleness grows: rank r (the candidates sorted by pid, rank 0 = lowest) seizes once the claim is over 6s + r×4s stale, the extra wait capped at 20s — rank 0 seizes the moment the claim lapses, exactly the old fallback; rank 1 first waits ~10s of proven silence from rank 0; and so on — so a frame-dead low pid now blocks the monsters for seconds, not forever. A fresh claim landing in the record stands everyone else down at the branch above, the seizer included, so two live clients never drive beyond a brief overlap */
   if (!entered) { fudAmDriver = false; return; }
   const cands = [];
   if (me.scene === "plaza") cands.push(myId);
@@ -14166,10 +14166,15 @@ function fudElect() { /* the whistle, re-judged every second: the standing claim
   const drv = fudRec && fudRec.drv;
   let driver = "";
   if (drv && drv.pid && cands.indexOf(drv.pid) >= 0 && srvNow() - (drv.ts || 0) < 6000) driver = drv.pid;
-  else if (cands.length) { cands.sort(); driver = cands[0]; }
+  else if (cands.length) {
+    cands.sort();
+    const rank = cands.indexOf(myId); /* my own rank among the candidates (−1 when I am not one of them — not in the plaza — and then I never seize) */
+    const stale = drv && drv.ts ? srvNow() - drv.ts : Infinity; /* no claim at all counts as stale forever: every rank's wait has long since passed, the first claim to land stands the rest down, and with no database the local drive is untouched */
+    if (rank >= 0 && stale > 6000 + Math.min(rank * 4000, 20000)) driver = myId;
+  }
   const was = fudAmDriver;
   fudAmDriver = !!driver && driver === myId;
-  if (fudAmDriver && !was) fudSeedFromRec();
+  if (fudAmDriver && !was) { fudSeedFromRec(); fudOnRec(); } /* on taking the whistle, run the record through fudOnRec once myself: a kill filed while the seat was empty or dead sits in rec.kill with no record change coming to wake fudOnRec on MY client, so without this pass it would sit unlanded until my first publish happened to echo back; fudOnRec's kill branch is guarded to the driver and its boom branch is seen-set locked, so the extra pass is a no-op when nothing is pending. The respawns need no extra hand: fudSeedFromRec arms a past-due ra as respawnAt = now, and the driver's own fudUpdate flips him back to patrol on the next frame */
 }
 setInterval(fudElect, 1000);
 function fudOnRec() { /* the record moved: booms land on every screen, and the driver lands filed kills */
