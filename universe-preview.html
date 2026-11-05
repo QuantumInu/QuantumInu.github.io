@@ -2032,6 +2032,14 @@ function collide(nx, ny) {
       if (m === dxl) nx = o.x - r; else if (m === dxr) nx = o.x + o.w + r; else if (m === dyt) ny = o.y - r; else ny = o.y + o.h + r;
     }
   }
+  if (me.scene === "plaza") { /* the moat's ROUNDED CORNERS clamp (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): MOAT_SOLIDS are trimmed out of the corner squares, so this clamp is the authority there and runs LAST — a centre near a corner may never rest closer than one body (r) to the drawn arc, set radially to exactly r from it, so the cut-off squares are honest walkable land and the water inside the arc stays solid with the same standoff every straight shore keeps */
+    for (const c of MOAT_CORNERS) {
+      if (nx > c.ox - r && nx < c.ox + MOAT_R + r && ny > c.oy - r && ny < c.oy + MOAT_R + r) {
+        const dx = nx - c.cx, dy = ny - c.cy, d = Math.hypot(dx, dy);
+        if (d < MOAT_R + r && d > 0.001) { nx = c.cx + dx / d * (MOAT_R + r); ny = c.cy + dy / d * (MOAT_R + r); }
+      }
+    }
+  }
   return { x: nx, y: ny };
 }
 /* ============ enter / change ============ */
@@ -13194,8 +13202,19 @@ const CASTLE_B = { x: 980, y: -1570, w: 1240, h: 880 }; /* the keep (REWORKED, o
 const CASTLEDOOR = { x: 1552, y: -730, w: 96, h: 34 }; /* on the bottom face (SOUTH, like every plaza building's), centred on the keep's own line (1552 + 48 = 1600) — the gym door's formula (B.y + B.h − 40 = −730), widened with the gatehouse that now frames it */
 const MOAT_OUT = { x: 470, y: -1910, w: 2260, h: 1560 }; /* the lake's outer edge (grown with the castle from 1540×1130 to 2260×1560): centred on 1600, its south shore still at −350 where the castle road's leg lands — the bridge, the road and every southern approach are exactly where they were */
 const ISLE = { x: 670, y: -1710, w: 1860, h: 1160 }; /* the castle island (grown from 1140×730 to 1860×1160): a 200-wide ring of water still runs between it and the outer shore on EVERY side — north −1910..−1710, south −550..−350, west 470..670, east 2530..2730 */
-const MOAT_SOLIDS = [{ x: 470, y: -1910, w: 2260, h: 200 }, { x: 470, y: -1710, w: 200, h: 1160 }, { x: 2530, y: -1710, w: 200, h: 1160 }, { x: 470, y: -550, w: 1050, h: 200 }, { x: 1680, y: -550, w: 1050, h: 200 }]; /* the water as five solids (plaza obstacles), grown to the new lake: the north strip, the west and east strips, and the south strip split by the drawbridge gap (x 1520..1680) — fishing keys off these (moatDist), so both shores and the bridge still fish exactly as before */
+const MOAT_SOLIDS = [{ x: 610, y: -1910, w: 1980, h: 200 }, { x: 470, y: -1770, w: 200, h: 1280 }, { x: 2530, y: -1770, w: 200, h: 1280 }, { x: 610, y: -550, w: 910, h: 200 }, { x: 1680, y: -550, w: 910, h: 200 }]; /* the water as five solids (plaza obstacles), grown to the new lake: the north strip, the west and east strips, and the south strip split by the drawbridge gap (x 1520..1680) — fishing keys off these (moatDist), so both shores and the bridge still fish exactly as before. ROUNDED CORNERS (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): the strips are trimmed out of the four outer corner squares and the west/east strips stretch to the corner arcs' ends (y −1770..−490) to cover the bands the north/south trims opened — the corner squares themselves are policed by collide()'s arc clamp and measured by moatDist()'s arc term, both off MOAT_CORNERS below, so drawn water is never walkable and the cut-off corner land never blocks. The strips' island-side edges are exactly where they always were */
 const BRIDGE = { x: 1520, y: -550, w: 160, h: 200 }; /* the drawbridge: 160 wide (the path width) on the castle's centre line, spanning the south water strip from the island's south shore (−550) to the moat's south shore (−350) */
+const MOAT_R = 140; /* the moat's outer corner radius (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): the banks run straight exactly where they always have; only the four OUTER corners arc at this radius. The island's inner shore stays square. ONE definition read by the drawing (drawCastleArea's rounded path), collide()'s arc clamp and moatDist()'s arc term, so the three can never disagree */
+const MOAT_CORNERS = [
+  { cx: MOAT_OUT.x + MOAT_R, cy: MOAT_OUT.y + MOAT_R, ox: MOAT_OUT.x, oy: MOAT_OUT.y },
+  { cx: MOAT_OUT.x + MOAT_OUT.w - MOAT_R, cy: MOAT_OUT.y + MOAT_R, ox: MOAT_OUT.x + MOAT_OUT.w - MOAT_R, oy: MOAT_OUT.y },
+  { cx: MOAT_OUT.x + MOAT_R, cy: MOAT_OUT.y + MOAT_OUT.h - MOAT_R, ox: MOAT_OUT.x, oy: MOAT_OUT.y + MOAT_OUT.h - MOAT_R },
+  { cx: MOAT_OUT.x + MOAT_OUT.w - MOAT_R, cy: MOAT_OUT.y + MOAT_OUT.h - MOAT_R, ox: MOAT_OUT.x + MOAT_OUT.w - MOAT_R, oy: MOAT_OUT.y + MOAT_OUT.h - MOAT_R }
+]; /* the four outer corners, NW NE SW SE: (cx, cy) is the arc's centre, (ox, oy) its square's outer corner */
+function moatInCornerCut(px, py) { /* the land the rounding cut away: inside a corner square but outside its arc — the plaza ground shows there, players walk there, and the water's sparkles stay off it */
+  for (const c of MOAT_CORNERS) { if (px > c.ox && px < c.ox + MOAT_R && py > c.oy && py < c.oy + MOAT_R && Math.hypot(px - c.cx, py - c.cy) > MOAT_R) return true; }
+  return false;
+}
 const CASTLEROOM = { w: 2600, h: 1700 }; /* the castle hall */
 const CASTLEEXIT = { x: CASTLEROOM.w / 2 - 62, y: CASTLEROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — MSEXIT's shape */
 const CASTLE_SOLIDS = [{ x: 1150, y: 270, w: 300, h: 100 }]; /* the throne dais at the hall's north end — kept under its old name as drawCastle's PAINT source only: it is an obstacle NOWHERE (obstacles() returns nothing for this room since Jonathan's word, 2026-11-04 21:37 — the stage's surface is walkable, players stand on it). The four crystal pedestals that stood with it were removed at the owner's word (2026-11-04 19:42, the "diamonds inside boxes"), solids and all, so the floor they stood on is open */
@@ -13281,7 +13300,7 @@ function fishPublish() { /* my own record: up while my rod is out, gone when it 
     try { const p = myFishRef.set({ scene: "plaza", rod: myRod, st: fishState.mode, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   }
 }
-function moatDist(x, y) { let bd = 1e18; for (const r of MOAT_SOLIDS) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } return bd; }
+function moatDist(x, y) { let bd = 1e18; for (const r of MOAT_SOLIDS) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } for (const c of MOAT_CORNERS) bd = Math.min(bd, Math.max(0, Math.hypot(x - c.cx, y - c.cy) - MOAT_R)); return bd; } /* distance to the nearest water's edge: the five solids for the straight shores, plus each rounded corner's arc term (distance to the arc centre minus the radius) so fishing range still measures off the DRAWN shore at the corners (ROUNDED CORNERS, 2026-11-05) */
 function nearMoat() { return me.scene === "plaza" && moatDist(me.x, me.y) <= 85; } /* standing at the lake's edge: on either shore or on the drawbridge, within a step of the water */
 function fishCancel() { fishState.mode = ""; fishPublish(); /* the rod goes away for the whole lake the moment it goes away for me */ }
 function startFishing() { if (!nearMoat() || fishState.mode) return; fishState.mode = "wait"; fishPublish(); /* peers see the rod from the cast's first frame */ fishState.castAt = performance.now(); fishState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, myRod); fishState.biteAt = fishState.castAt + fishState.waitMs; /* the basic bite wait is 4–9s random; every rod tier shrinks it ~15% */
@@ -13436,10 +13455,26 @@ function fishNearCounter() { return me.scene === "fishshop" && me.y > FISHCTR.y 
 function drawCastleArea(t) {
   const wg = ctx.createLinearGradient(0, MOAT_OUT.y, 0, MOAT_OUT.y + MOAT_OUT.h);
   wg.addColorStop(0, "#14457f"); wg.addColorStop(1, "#0d2c58");
-  ctx.fillStyle = wg; ctx.fillRect(MOAT_OUT.x, MOAT_OUT.y, MOAT_OUT.w, MOAT_OUT.h);
-  ctx.strokeStyle = "rgba(140,220,255,0.5)"; ctx.lineWidth = 3; ctx.strokeRect(MOAT_OUT.x, MOAT_OUT.y, MOAT_OUT.w, MOAT_OUT.h);
-  ctx.fillStyle = "rgba(190,240,255,0.20)"; /* light riding the water, kept off the island */
-  for (let i = 0; i < 46; i++) { const wxp = MOAT_OUT.x + 26 + hashN(i * 3.7) * (MOAT_OUT.w - 52), wyp = MOAT_OUT.y + 22 + hashN(i * 9.1) * (MOAT_OUT.h - 44); if (wxp > ISLE.x - 18 && wxp < ISLE.x + ISLE.w + 18 && wyp > ISLE.y - 18 && wyp < ISLE.y + ISLE.h + 18) continue; ctx.fillRect(wxp, wyp + Math.sin(t / 700 + i) * 2, 16, 2.5); } /* 46 sparkles now (was 30) — the rework's lake is half again as wide, so the light rides it at the same density */
+  ctx.fillStyle = wg; rr(MOAT_OUT.x, MOAT_OUT.y, MOAT_OUT.w, MOAT_OUT.h, MOAT_R); ctx.fill(); /* the water fills to a ROUNDED rect now (PREVIEW, Jonathan 2026-11-05 — "just round the corners"): the banks run straight exactly where they always have, only the four outer corners arc at MOAT_R and the plaza ground shows in the cut-off squares; the island's gold outline below stays square */
+  ctx.strokeStyle = "rgba(140,220,255,0.5)"; ctx.lineWidth = 3; rr(MOAT_OUT.x, MOAT_OUT.y, MOAT_OUT.w, MOAT_OUT.h, MOAT_R); ctx.stroke();
+  /* the water MOVES now — the plaza pool's own surface brought to the moat (Jonathan 2026-11-05): the pool's drawPlazaPool mechanism verbatim — broad light bands sliding slowly down the water and caustic dashes drifting across it on their own currents, breathing as they go, all on the water's own tenth-speed clock. It REPLACES the old sparkle dashes (fixed positions bobbing in place — a different water than the pool's). Clipped to the drawn water's rounded outline, inset 3 like the pool's own clip, so nothing ever spills onto the rounded corners' cut land; dashes and bands that cross the island or the drawbridge are covered by their own painting below, so the light reads as passing behind the land */
+  ctx.save(); rr(MOAT_OUT.x + 3, MOAT_OUT.y + 3, MOAT_OUT.w - 6, MOAT_OUT.h - 6, MOAT_R); ctx.clip();
+  const wt = t * 0.1; /* the water's own clock (the pool's own words): a TENTH of real time — the surface barely drifts, a lazy calm */
+  for (let b = 0; b < 9; b++) { /* broad bands of light sliding slowly down the water — the current under everything; nine here to the pool's three, the lake being five times as tall, so the bands ride it at about the pool's spacing */
+    const by = MOAT_OUT.y + (((wt / 11000) + b / 9) % 1) * (MOAT_OUT.h + 60) - 30;
+    const bg3 = ctx.createLinearGradient(0, by - 30, 0, by + 30);
+    bg3.addColorStop(0, "rgba(150,225,255,0)"); bg3.addColorStop(0.5, "rgba(150,225,255,0.075)"); bg3.addColorStop(1, "rgba(150,225,255,0)");
+    ctx.fillStyle = bg3; ctx.fillRect(MOAT_OUT.x + 3, by - 30, MOAT_OUT.w - 6, 60);
+  }
+  for (let i = 0; i < 160; i++) { /* caustic light dashes, each drifting across the surface on its own slow current, breathing as it goes — the pool's thirty, scaled up for a lake this size (its old sparkles scaled the same way, 30 to 46, when the lake grew) */
+    const drift = ((wt / (3000 + (i % 5) * 800)) + hashN(i * 1.71)) % 1;
+    const sx = MOAT_OUT.x + 16 + drift * (MOAT_OUT.w - 32);
+    const sy = MOAT_OUT.y + 14 + hashN(i * 3.13 + 7) * (MOAT_OUT.h - 28);
+    const tw = 0.10 + 0.17 * (0.5 + 0.5 * Math.sin(wt / 430 + i * 2.3));
+    ctx.fillStyle = "rgba(215,246,255," + tw + ")";
+    ctx.beginPath(); ctx.ellipse(sx, sy, 15 + (i % 4) * 7, 2.6, 0, 0, 7); ctx.fill();
+  }
+  ctx.restore();
   ctx.fillStyle = "#16294f"; ctx.fillRect(ISLE.x, ISLE.y, ISLE.w, ISLE.h); /* the island grounds */
   ctx.strokeStyle = "rgba(255,215,106,0.4)"; ctx.lineWidth = 2.5; ctx.strokeRect(ISLE.x, ISLE.y, ISLE.w, ISLE.h);
   ctx.fillStyle = "#6b4a2a"; ctx.fillRect(BRIDGE.x, BRIDGE.y, BRIDGE.w, BRIDGE.h); /* the drawbridge deck */
