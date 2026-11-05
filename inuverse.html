@@ -1085,7 +1085,7 @@ function publish(force) {
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
-document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) { publish(true); followRoomChat(me.scene, true); } }); /* CHAT (2026-11-05): a return from the background also re-follows the room's chat log — iOS kills the socket while the app sleeps, and what was said in the room meanwhile lands on return */
+document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) { publish(true); followRoomChat(me.scene, true); } }); /* CHAT (2026-11-05): a return from the background re-follows the room's chat log live — iOS kills the socket while the app sleeps; strict witness: the re-follow replays nothing said meanwhile, it only hears the room from the return on */
 /* all hub sound mutes while the tab/window is out of focus, and returns when it is focused again */
 function holdAudio() { audioHeld = true; try { if (!jukeAudio.paused) jukeAudio.pause(); } catch (e) {} try { engineStop(); } catch (e) {} }
 function releaseAudio() { audioHeld = false; }
@@ -2086,7 +2086,7 @@ function enterHub() {
   publish(true);
   poolBallListen(); /* the plaza is home: follow the pool's beach ball from the moment I step in */
   fishNetInit(); /* PEER RODS (2026-11-04): follow hub/fishing from the moment I step in, so a rod already out on the lake is on its owner's hand when I arrive */
-  followRoomChat(me.scene); /* CHAT (2026-11-05): follow this room's saved chat log from the moment I step in — its latest 60 load under the room's divider */
+  followRoomChat(me.scene); /* CHAT (2026-11-05): follow this room's chat log from the moment I step in — strict witness: only what arrives live while I stand here joins my log, under the room's divider */
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
@@ -6101,7 +6101,20 @@ $("sendtokamt").addEventListener("input", () => sendTokAmtFormat($("sendtokamt")
    One root cause of his report: the four rooms added 2026-11-04 (castle,
    dining, crystal, fishshop) were missing from ONLINE_ROOM_NAMES — every
    chat gate reads that table, so in those rooms nothing saved, nothing
-   showed, and no divider ever dropped. */
+   showed, and no divider ever dropped.
+   CORRECTED later the same day (Jonathan, watching the restored build:
+   "When I refresh page why am I seeing chat? Chat should be wiped if
+   refresh/every time I sign in" — "I'm going into the arcade and seeing
+   chat of shit that happened yesterday"): the replay itself was the
+   mistake. His final model: every room saves its history to your log
+   ONLY while you are standing in the room — the log holds only what
+   arrives LIVE in your presence, divided as you hear it; nothing is
+   ever replayed or caught up, not on entry, not on background return,
+   not even for messages sent earlier in the same session while you
+   were elsewhere. The stream lives only in page memory: page load,
+   refresh and sign-in all start from a blank log, guests identically.
+   The server-side saving above is unchanged — only the display-side
+   read narrowed, inside followRoomChat below. */
 const sessionLogRows = []; /* the one stream, in arrival order: {divider:"Plaza"} room titles and {scene, name, text, ts, key} messages */
 const loggedChatKeys = new Set();
 let logLastMsgScene = ""; /* the room of the newest message actually in the stream ("" = none yet) — a divider drops ahead of a message only when its room differs from this */
@@ -6118,7 +6131,7 @@ function trimSessionLog() {
   while (sessionLogRows.length > SESSION_LOG_CAP) { const old = sessionLogRows.shift(); if (old && old.key) loggedChatKeys.delete(old.key); }
 }
 function ensureLogDivider(scene) {
-  if (!ONLINE_ROOM_NAMES[scene] || scene === logLastMsgScene) return; /* a divider only ever rides in ahead of a message — room entry alone never calls this */
+  if (!ONLINE_ROOM_NAMES[scene] || scene === logLastMsgScene) return; /* dividers follow CONTENT, not footsteps (Jonathan 2026-11-05): a divider rides in only ahead of a message being logged, and only when the log's current last section is a different room — walking out of a room and back into silence adds nothing, the next message heard there continues under the section already open, and only an intervening section elsewhere earns it a fresh divider; room entry and the follow attach never call this */
   sessionLogRows.push({ divider: onlineRoomName(scene) });
   trimSessionLog();
   if ($("chatlog").style.display === "flex") renderLog();
@@ -6153,18 +6166,25 @@ function logPeerChat(id, name, chatId, text, scene) {
   if (emoteOf(text)) return; /* an EMOTE is not a message: it never lands in the chat log (Jonathan 2026-11-01) */
   saveChatMessage(scene, id, chatId, name, text);
 }
-/* ============ per-room server chat: the follow (restored 2026-11-05) ============
+/* ============ per-room server chat: the follow (restored 2026-11-05,
+   narrowed to strict witness later the same day) ============
    One subscription at a time, always on the room I'm standing in:
-   hub/tables/chatlog/<scene>, latest 60 by ts. The initial replay IS the
-   room's saved log loading on entry; the live children after it are the
-   room's new messages arriving on the server's own word, so a message
-   whose presence echo raced or was missed still lands. Everything funnels
-   into addChatLogMessage under saveChatMessage's own key (scene + ":" +
-   the record's key), so a message already witnessed live dedupes instead
-   of doubling. Switching rooms detaches the old follow before the new one
-   attaches — rooms never leak into each other — and a background return
-   re-follows the same room (refollow) to catch what was said while the
-   tab slept. */
+   hub/tables/chatlog/<scene>, latest 60 by ts. STRICT WITNESS
+   (Jonathan's final model): the follow stamps its attach moment
+   (followSince) and renders ONLY records stamped at or after it — the
+   child_added burst a fresh subscription fires for the room's saved
+   history is skipped wholesale, so nothing unwitnessed ever reaches
+   the log: no history on entry, nothing said in another room while I
+   was away, nothing from yesterday. What the follow is for is the live
+   children after the burst: a message landing in this room's log while
+   I stand here, on the server's own word, so one whose presence echo
+   raced or was missed still lands. Everything funnels into
+   addChatLogMessage under saveChatMessage's own key (scene + ":" +
+   the record's key), so a message already witnessed live dedupes
+   instead of doubling. Switching rooms detaches the old follow before
+   the new one attaches — rooms never leak into each other — and a
+   background return re-follows the same room (refollow) with a fresh
+   followSince: it replays nothing said while the tab slept. */
 let chatFollowRef = null, chatFollowScene = "";
 function followRoomChat(scene, refollow) {
   if (!db || !entered || !ONLINE_ROOM_NAMES[scene]) return;
@@ -6174,9 +6194,11 @@ function followRoomChat(scene, refollow) {
   try {
     const q = db.ref("hub/tables/chatlog/" + scene).orderByChild("ts").limitToLast(60);
     chatFollowRef = q;
+    const followSince = srvNow(); /* the witness line: only messages stamped at or after this instant count as heard — everything older is the room's saved history, which is never replayed into the log */
     q.on("child_added", snap => {
-      if (!snap || scene !== me.scene) return; /* a late replay from the room I just left never lands in the new room's stream */
+      if (!snap || scene !== me.scene) return; /* a late arrival from the room I just left never lands in the new room's stream */
       const v = snap.val(); if (!v || !v.text) return;
+      if ((Number(v.ts) || 0) < followSince) return; /* the attach burst (and any re-follow burst) is unwitnessed history — it never renders */
       if (emoteOf(v.text)) return; /* an emote is not a message on any path (Jonathan 2026-11-01) */
       addChatLogMessage(scene, v.name, v.text, Number(v.ts) || 0, scene + ":" + snap.key);
     });
@@ -15604,7 +15626,7 @@ function frame(now) {
   const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!entered) { drawStars(0, 0, 1); return; }
-  if (me.scene !== chatFollowScene) followRoomChat(me.scene); /* CHAT (2026-11-05): a room change re-follows chat — the old room's follow detaches, the new room's saved log loads under its divider, and everything already witnessed stays in the stream */
+  if (me.scene !== chatFollowScene) followRoomChat(me.scene); /* CHAT (2026-11-05): a room change re-follows chat — the old room's follow detaches, the new room follows live-only under its divider, and everything already witnessed stays in the stream */
   /* the voice mic assertion runs PER FRAME, not on the 800ms tick (Jonathan 2026-10-31: start the
      reconnection faster): a published mic track that died (a dropped connection's teardown, OS kill) is spotted
      within a frame and the healer replaces it; a healthy published track short-circuits the check.
