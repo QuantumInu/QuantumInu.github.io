@@ -282,9 +282,15 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #banpanel .monlist{flex:1 1 auto;min-height:0}
 #banpanel #bannedlist{flex:0 1 36%}
 #banpanel .monlist{overflow-x:hidden} /* the roster NEVER scrolls sideways (Jonathan 2026-11-05 — his phone showed a horizontal scrollbar through the rows, the third button cut off): roster rows are two-line blocks and anything wide wraps instead */
-#banpanel .banrow{flex-wrap:wrap} /* line 1: online dot + name; line 2 (.banrowsub): the IP on the left, the buttons on the right — or the buttons wrapped onto their own line when they can't share it */
-#banpanel .banrowsub{flex:1 1 100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
-#banpanel .banrowsub .banmeta{flex:0 1 auto;min-width:0}
+#banpanel .banrow{flex-wrap:wrap} /* line 1: online dot + name; line 2 (.banrowsub): the IP text on the left, the buttons on the right — ALWAYS on that one line, on desktop and on mobile alike (Jonathan 2026-11-05: "it should be like this on mobile too, if you have to shrink the line to make it fit, fine") */
+#banpanel .banrowsub{flex:1 1 100%;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0}
+#banpanel .banrowsub .banmeta{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* the IP text is the only thing that may ever give up room (its tail, never the IP itself first) — the buttons' line is never broken */
+#banpanel .banrowsub .banbtn{flex:0 0 auto;white-space:nowrap}
+/* SHRINK TIERS: line 2 never wraps — as the screen narrows, the IP text and the buttons shrink TOGETHER so the whole line still fits (sizes proven by probe-banbtn.js at 360/390/430/1280: the full IP + last-seen text and all three buttons share one line at every width; above 600px nothing changes, desktop renders exactly as before) */
+@media (max-width:600px){#banpanel .monpanel{padding:14px 10px}#banpanel .monrow{padding:7px 6px}#banpanel .banrowsub{gap:5px}#banpanel .banrowsub .banmeta{font-size:11px}#banpanel .banrowsub .banbtn{font-size:11.5px;padding:7px 8px}}
+@media (max-width:460px){#banpanel .banrowsub{gap:4px}#banpanel .banrowsub .banmeta{font-size:10px}#banpanel .banrowsub .banbtn{font-size:10.5px;padding:6px 6px}}
+@media (max-width:400px){#banpanel .banrowsub{gap:3px}#banpanel .banrowsub .banmeta{font-size:9px}#banpanel .banrowsub .banbtn{font-size:9.5px;padding:6px 5px}}
+@media (max-width:370px){#banpanel .banrowsub .banmeta{font-size:8.5px}#banpanel .banrowsub .banbtn{font-size:9px;padding:5px 4px}}
 #clogpanel .monpanel{height:100%}
 #clogpanel .monpanel h2,#clogpanel .monclose{flex:none}
 #clogpanel .monlist{flex:1 1 auto;min-height:0}
@@ -7551,7 +7557,7 @@ function renderBanPanel() {
     const nm = document.createElement("div"); nm.className = "monnm";
     nm.textContent = g.name + (g.pid === myId ? " (you)" : "");
     row.appendChild(nm);
-    const sub = document.createElement("div"); sub.className = "banrowsub"; /* line 2: IP left, buttons right (wrapping under when tight) — never one crammed line */
+    const sub = document.createElement("div"); sub.className = "banrowsub"; /* line 2: IP left, buttons right, ALWAYS one line — the shrink tiers in the CSS keep it fitting at phone widths */
     const meta = document.createElement("span"); meta.className = "banmeta"; meta.textContent = (g.ip || "—") + (g.ts ? " · last seen " + clogFmtTime(g.ts) : ""); sub.appendChild(meta);
     if (g.ip && g.pid !== myId) mkBtn(sub, "Ban IP", () => openBuyConfirm({ kind: "banip", key: escapeIpKey(g.ip), pid: g.pid, name: g.name }, "🚫 Ban IP?", g.name, 0, "Ban IP " + g.ip + " used by " + g.name));
     row.appendChild(sub);
