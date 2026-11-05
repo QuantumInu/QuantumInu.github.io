@@ -296,7 +296,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .fishrow button{margin-left:auto;flex:none}
 #catchpop{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:47;display:none;align-items:flex-start;justify-content:center;padding:16px 10px}
 #catchpop .monpanel{width:min(420px,96vw);text-align:center}
-#catchimg{width:150px;height:150px;object-fit:contain}
+#catchimg{width:150px;height:150px;object-fit:contain;align-self:center} /* centred in the popup (Jonathan 2026-11-04, 21:18 — from his catch-popup screenshot: the fish art sat LEFT of centre in the column panel while the text below it was centred; align-self centres the image box itself) */
 .buyconfname{margin:2px 0 0;font-size:19px;font-weight:800;color:#fff;text-align:center}
 .buyconfprice{margin:6px 0 4px;color:var(--gold);font-size:16px;font-weight:700;text-align:center}
 .buyconfgo{margin-top:8px;background:linear-gradient(135deg,#4ade80,#16a34a);border:none;color:#06280f;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit;width:100%}
@@ -324,7 +324,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <button type="button" class="chip" id="online" aria-expanded="false" aria-controls="onlinelist">👥 1 online</button>
   <span class="chip" id="chipspill" title="Your chips — saved with your profile, or with your account when signed in">🪙 1,000</span>
   <button class="chip" id="mutebtn" title="Sound on/off">🔊</button>
-  <button class="chip" id="changebtn">Change</button>
+  <button class="chip" id="changebtn">Menu</button>
 </div>
 <div id="stage">
   <canvas id="game"></canvas>
@@ -878,7 +878,7 @@ function monsterThemeTick(tick) {
   if (step % 4 === 0) tone(ch[[2, 3, 1, 2][step / 4]] * 4, 0, 2.4, "sine", 0.007); /* the greenhouse melody — a music box picking four soft notes per chord */
   if (step === 10) tone(ch[3] * 4, 0, 1.4, "sine", 0.0035); /* one soft sparkle late in the chord, light through the glass */
 }
-/* castle: C – F – G – Am — the CASTLE's own theme (Jonathan 2026-11-04: "a majestic, knightly theme for the castle", in the in-game sound style like every room theme, NOT a generated song file): noble brass-style swells (the rooms' own pad, swelling under a quiet sawtooth herald line), a MARCHING rhythm — a soft war-drum kick on every beat with a brush snap on the 2 and 4 — and a heroic hymn melody climbing the chord tones over each change, two bars per chord like the casino's changes. One theme for the whole castle: the throne room AND its two wings (dining, crystal) play it, room-scoped like every theme: startMusic plays it only while the scene is castle/dining/crystal, and leaving runs stopAllTones like every room change */
+/* castle: C – F – G – Am — the CASTLE's own theme (Jonathan 2026-11-04: "a majestic, knightly theme for the castle", in the in-game sound style like every room theme, NOT a generated song file): noble brass-style swells (the rooms' own pad, swelling under a quiet sawtooth herald line), a MARCHING rhythm — a soft war-drum kick on every beat with a brush snap on the 2 and 4 — and a heroic hymn melody climbing the chord tones over each change, two bars per chord like the casino's changes. One theme for the whole castle: the throne room AND its two wings (dining, crystal) play it, and the three scenes are ONE MUSIC ZONE (Jonathan 2026-11-04, 21:12 — the theme must NOT restart when switching rooms inside the castle): the four doors between the rooms (toDining, toCastleFromDining, toCrystal, toCastleFromCrystal) deliberately do NOT run stopAllTones, and the shared interval's tick never resets, so the playback — pad swell, herald root and hymn alike — runs continuously from room to room; it starts on entering the castle (toCastle, from the plaza, runs stopAllTones like every entry) and stops only when the player leaves the castle entirely (toPlazaFromCastle runs stopAllTones like every exit) */
 const CASTLE_CHORDS = [
   [130.8, 164.8, 196.0, 261.6], [87.3, 110.0, 130.8, 174.6],
   [98.0, 123.5, 146.8, 196.0], [110.0, 130.8, 164.8, 220.0]
@@ -921,7 +921,7 @@ function startMusic() {
     if (sc === "trenches") { trenchesThemeTick(tick); tick++; return; } /* Quantum Trenches has its OWN battle theme (Jonathan 2026-11-03) — it fell through to the default melody before this. Room-scoped like the rest: the interval reads the scene fresh every tick and toTrenches (like every room change) runs stopAllTones, so it starts on entry, stops on exit, can never stack or bleed into the plaza */
     if (sc === "mechshop") { mechThemeTick(tick); tick++; return; } /* the Mech Shop has its OWN mechanical theme (Jonathan 2026-11-04) — it fell through to the default melody before this. Room-scoped like the rest: the interval reads the scene fresh every tick and every room change runs stopAllTones, so it starts on entry, stops on exit, can never stack or bleed */
     if (sc === "monstershop") { monsterThemeTick(tick); tick++; return; } /* the Monster Shop has its OWN calm greenhouse theme (Jonathan 2026-11-04) — it fell through to the default melody before this. Room-scoped like the rest, same guarantees as the mech shop's line above */
-    if (sc === "castle" || sc === "dining" || sc === "crystal") { castleThemeTick(tick); tick++; return; } /* the Castle has its OWN majestic knightly theme (Jonathan 2026-11-04) — the throne room and both its wings (the Dining Hall and the Crystal Room) play it; it fell through to the default melody before this. Room-scoped like the rest, same guarantees as the mech shop's line above */
+    if (sc === "castle" || sc === "dining" || sc === "crystal") { castleThemeTick(tick); tick++; return; } /* the Castle has its OWN majestic knightly theme (Jonathan 2026-11-04) — the throne room and both its wings (the Dining Hall and the Crystal Room) play it; it fell through to the default melody before this. The three scenes are ONE music zone (21:12, see the theme's own note): the doors between them never stop the tones, so it plays continuously everywhere inside the castle and stops only on leaving it */
     if (sc === "casino" || sc === "highrollers" || sc === "chess") { casinoThemeTick(tick); tick++; return; } /* the High Rollers Club and the Chess Room play the Casino's own lounge jazz (Jonathan 2026-10-31) — rooms of the casino, through its side doors; before this they fell through to the default melody */
     tone(seq[tick % seq.length], 0, 0.5, "sine", 0.022);
     if (tick % 4 === 0) tone(seq[tick % seq.length] / 2, 0, 1.6, "triangle", 0.016);
@@ -1682,7 +1682,7 @@ const SPDDOOR = { x: 525, y: 470, w: 90, h: 34 };
 const TR_B = { x: -720, y: 170, w: 580, h: 320 }; /* 🔫 QUANTUM TRENCHES (PREVIEW build, Jonathan 2026-11-03; MOVED the same day at his word — "you have to build MORE SPACE to the west... so expand the plaza to the left of the speedway"): the paintball arena's building stands in the plaza's NEW WEST LAND (WORLD_X0 −800..0), LEFT of the Speedway in the Speedway's own row — its top on the row's own line (y 170) — with 370 of open lawn between its east wall (−300) and the Speedway's west wall (70) and 80 between its west wall and the plaza's new west edge. It first stood below the Speedway's west end for want of ground; the ground exists now. The Club's width (420), the Monster Shop's height (320) — a standard plaza building's measure. WIDENED ON THE EAST SIDE (Jonathan 2026-11-03 — "make trenches building wider on the right side so the spacing between it and the speedway building is same as spacing between speedway building and quantum arcade. Make sure door is still centered."): the Speedway↔Quantum Arcade gap measures 210 (the Arcade's west wall 1280 − the Speedway's east wall 1070), so the east wall moved −300 → −140 and the Trenches↔Speedway gap is the same 210; the west wall never moved (−720, still 80 off the plaza's west edge) and the width is 580 now. The facade keeps the SAME layout, just wider (his word the same hour): windows the same size on the same band, evenly spaced — a third window added in the middle rather than the pair dragged apart — and the door still centred (centre −430, see TRDOOR) */
 const TRDOOR = { x: -475, y: 450, w: 90, h: 34 }; /* its door, on the building's BOTTOM face (faces DOWN / south — the standing building rule), centred on x −430 — the widened building's own centre line (it was −510 before the 2026-11-03 widening): the gym door's own measurements, placed by the gym door's own formula (y = B.y + B.h − 40) */
 const TR_GROVE = [[-430, 1060, 0.9], [-690, 1090, 1.05], [-320, 1870, 1.05]]; /* the [-400, 1700] tree MOVED down and right to [-320, 1870] at Jonathan's word (2026-11-04): it stood just south of the bottom walkway west of Club Quantum with its crown over the path — the shift puts its crown clear of the walkway's south edge, nothing else moved. The [-620, 1960] tree CAME OUT the same day: the new Mech Shop building stands on its spot (MECH_B, x −700..−60, y 1960..2280) */ /* the new west land's wood (Jonathan 2026-11-03: "with trees below it for the empty space for now"): a scattered grove of the plaza's own quantum trees filling the land SOUTH of the Trenches building and its path — no grid, no two alike in size, none on the path, the door or the building. Drawn by drawPlaza's quantumTree with phases continuing the main grove's count; WALK-OVER decor like every other tree on this plaza (their trunks were solid for one build, TR_GROVE_SOLIDS — Jonathan 2026-11-03: "the trees you put I cant walk over them. Fix it." — the solids came out the same day). THREE trees came out at his word the same day: the one at (-120, 960) — the tree replanted there from (110, 800) when the continued purple path took its spot — stood just south of the Speedway branch's westward run with its canopy over the path band ("And remove the tree on the path"), and the two standing on the open lawn immediately west of the Monster Shop, at (-190, 1900) and (-350, 2140) ("And remove these 2 trees to the left of it"). FOUR more came out at his word later the same day: (-250, 1300) and (-560, 1360) — two of the three trees west of Club Quantum ("remove these 3 trees from the left of club quantum"; the third was the main grove's (78, 1380)) — and (-710, 2260) and (-130, 2300), the pair standing in the Monster Shop band's west extension, one with its trunk inside the band and one on its north edge ("by the left of monster shop remove the 2 trees in the path"). Six stand now. Two of the six stand in the bottom walkway's new west strip — (-110, 1560) inside it, (-740, 1620) on its south edge — left standing and flagged to Jonathan, not moved */
-const CASTLE_GROVE = [[-700,-1700,1.05],[-390,-1690,0.9],[-90,-1720,1.0],[-590,-1470,0.95],[-260,-1400,1.1],[-690,-1180,0.9],[-350,-1120,1.0],[-60,-1210,0.85],[-640,-880,1.05],[-300,-820,0.9],[-80,-900,1.0],[-560,-600,0.9],[-210,-570,1.05],[2880,-1740,1.0],[3180,-1760,0.9],[3520,-1720,1.05],[3860,-1730,0.95],[4140,-1700,1.0],[3050,-1460,1.1],[3400,-1390,0.9],[3750,-1480,1.0],[4080,-1410,0.9],[2900,-1150,0.95],[3260,-1080,1.05],[3620,-1170,0.9],[3980,-1100,1.0],[3120,-840,1.0],[3520,-790,0.9],[3900,-860,1.05],[4180,-800,0.9],[3300,-580,0.95],[3720,-550,1.0],[-470,-1300,1.0],[-140,-1330,0.9],[-600,-1030,1.1],[-160,-1010,0.95],[-430,-740,1.0],[-90,-720,0.9],[-380,-640,1.0],[2980,-720,1.0],[3350,-700,0.9],[3700,-730,1.05],[4060,-690,0.95],[3160,-540,1.0],[3560,-520,0.9],[3960,-545,1.05],[4240,-560,0.9]]; /* the GAP FILL (Jonathan 2026-11-04, 21:00 — from his look at the grounds snapshot: the LEFT band had a bare patch through its middle and the RIGHT band was bare at its BOTTOM): seven more west trees through the band's middle and lower-middle, eight more east trees across its bottom rows, appended like everything else in this pass so no existing tree moves or re-phases. Same scatter, same sizes range, same ground rules (bases north of the road band, crowns off the moat) */ /* the CASTLE GROUNDS WOOD (Jonathan 2026-11-04, 20:17-20:18): quantum trees filling BOTH side bands of the castle grounds — from the moat's edge all the way to the world's edge, west (x -800..470) and east (x 2730..4340), at the castle's latitude. Scattered like every grove on this plaza (no grid, no two alike in size), walk-over decor like every other tree, drawn by drawPlaza's quantumTree with phases continuing the groves' count. Every trunk base stays south-clear of the castle road (the horizontal road behind the Arcade runs along y -350 off both world edges — the southernmost bases sit at y -550/-570, north of the road's band) and every canopy stays off the moat water; the northernmost crowns stay inside the world's top edge (WORLD_Y0 -2010) */
+const CASTLE_GROVE = [[-620,-1700,0.86],[-180,-1700,1.05],[260,-1700,1.01],[-620,-1300,0.96],[-180,-1300,0.89],[260,-1300,1.04],[-620,-900,0.99],[-180,-900,0.92],[260,-900,1.01],[-620,-500,0.88],[-180,-500,1.04],[260,-500,0.88],[2900,-1700,0.98],[3340,-1700,0.92],[3780,-1700,1.02],[4220,-1700,0.91],[2900,-1300,0.88],[3340,-1300,1.04],[3780,-1300,1.04],[4220,-1300,0.9],[2900,-900,0.89],[3340,-900,0.94],[3780,-900,1.0],[4220,-900,0.94],[2900,-500,0.92],[3340,-500,1.05],[3780,-500,0.86],[4220,-500,0.9]]; /* the CASTLE GROUNDS WOOD, EVEN GRID (Jonathan 2026-11-04, 21:27 — after the 21:08 even-spread rework he saw the shot and ordered the spacing made EVEN: the loose grid's jitter came out, every gap is now the same): 28 trees on a REGULAR GRID over BOTH side bands — the columns stand exactly 440 apart and the rows exactly 400 apart, the SAME pitches on the left band (3 columns: -620, -180, 260) and the right band (4 columns: 2900, 3340, 3780, 4220) alike, on four SHARED rows (y -1700, -1300, -900, -500) that line up straight across the moat. Each tree keeps the scale its slot held in the loose grid. Drawn by drawPlaza's quantumTree with phases continuing the groves' count, walk-over decor like every other tree. The spread still REACHES every edge he named: the bottom of the right band, and the right (moat-side) edge and the bottom of the left band — the bottom row stands just above the purple road (its north edge -430; the bases sit at -500). Neighbouring bases are 400 (down a column) or 440 (along a row) apart, so no two crowns touch or overlap; every crown stays off the moat water (west band's moat-side crowns end ~104 clear of the west shore, the east band's ~70 clear of the east shore), inside the world's side edges, and below the world's top edge (WORLD_Y0 -2010) */
 const SWROOM = { w: 3600, h: 2400 };
 const SWEXIT = { x: SWROOM.w / 2 - 62, y: SWROOM.h - 58, w: 124, h: 44 };
 /* infield video monitors (Jonathan 2026-10-29): the lounge TVs' twin — one centred in each half of the infield grass, symmetric about the centre medallion, playing the Daily Life Racing feeds; same screen size as the lounge TVs (336x189, 16:9 for the landscape videos). Solid, like the lounge TVs — see obstacles() */
@@ -1895,7 +1895,7 @@ function obstacles() {
   if (me.scene === "gym") return [TN_NET, FIREPL, LGTV[0], LGTV[1], { x: LG.x + LG.w / 2 - 90, y: LG.y + 130, w: 180, h: 68 }];
   if (me.scene === "speedway") return [...SWTV, ...SWSTANDS]; /* on foot you can walk the whole arena — apron, track and infield; the ring clamp only bites while driving. The only solids are the infield monitors and the corner concession stands (Jonathan 2026-10-29); the benches stay walk-over scenery */
   if (me.scene === "fishshop") return [FISHCTR]; /* the Fishing Shop's counter across the top of the room is solid — Q-Bot stands behind it and you work the shop from its front */
-  if (me.scene === "castle") return [...CASTLE_SOLIDS]; /* the Crystal Castle's throne dais is solid in its hall (the four pedestals' solids left with their painting, 2026-11-04) */
+  if (me.scene === "castle") return []; /* the throne room has NO solids now (Jonathan 2026-11-04 21:37 — from his screenshot of the stage: "let players WALK ON TOP of it"): the throne dais — the long gold-bordered rectangle stage at the hall's north end — used to block movement like a solid; its surface is WALKABLE now, so a player can step up and stand/walk on the stage itself. The dais rect survives in CASTLE_SOLIDS purely as drawCastle's paint source; it is returned as an obstacle nowhere. (The four pedestals' solids left with their painting, 2026-11-04) */
   if (me.scene === "dining") return [...DINING_SOLIDS]; /* the dining hall's long table is its one solid */
   if (me.scene === "crystal") return [...CRYSTAL_SOLIDS]; /* the Quantum Crystal's plinth is solid — the centrepiece is walked around, never through */
   return [SCREEN, PEDESTAL];
@@ -8125,17 +8125,24 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   const H = isMechHero(hero) ? 216 : 96, W = H * (((img.naturalWidth || img.width) / (img.naturalHeight || img.height)) || 0.8); /* the aspect comes off the image ACTUALLY drawn, never off baseImg (fix, Jonathan 2026-11-03 — "the sprites are invisible in the game"): a tinted female CPU (every trenches CPU carries its team's tint) resolves img from boxCpuTintImg — a canvas built off the loaded MALE sprite — while baseImg reads the FEMALE cache, which on any client that never loaded that female sticker (a male-pick client has an empty female cache) is undefined. img was truthy, so the loading fallback above was skipped, and baseImg.naturalWidth threw — inside frame()'s actor pass, so the throw truncated EVERY frame at the first female CPU in y-sort order: that CPU, every actor below her (often the player's own fighter) and drawTrenchesOver never painted, while the room behind them drew fine. The width/height fallbacks cover the canvas case (a canvas has width/height, no naturalWidth) */ /* both mechs stand 216 (2.25x) — OnlineMoney's king mech is the DreadMech's exact size at the owner's corrected word (2026-10-31: "sorry 2.25") */ /* the mech stands 2.25x as tall as the dog (Jonathan 2026-10-31: built at 3x, corrected to 2x, then settled at 2.25x the same morning); the shadow ellipse takes its width from W, so the shadow scales with the form and matches it, as he asked; the name tag rides H the same way */
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
+  if (isMe && fishState.mode && me.scene === "plaza") drawFishRod(wx, wy, flip, t); /* FISHING (PREVIEW, 2026-11-04): while I fish, my rod is in my hand — drawn BEFORE my sprite on purpose (Jonathan 2026-11-04, 21:15): the rod stays BEHIND me in depth, so my sprite overlaps it, never the other way round. Mine only, off my own client state: the presence record's shape is untouched, so no peer ever grows a field for it (and no peer's rod is drawn — the settled constraint) */
   ctx.save(); ctx.translate(wx, wy - H / 2 + bob);
   if (flip) ctx.scale(-1, 1);
   ctx.drawImage(img, -W / 2, -H / 2, W, H);
   ctx.restore();
-  if (isMe && fishState.mode && me.scene === "plaza") drawFishRod(wx, wy, flip, t); /* FISHING (PREVIEW, 2026-11-04): while I fish, my rod is IN MY HAND — my current tier's art, a line out to a bobber on the water. Mine only, off my own client state: the presence record's shape is untouched, so no peer ever grows a field for it (and no peer's rod is drawn — the settled constraint) */
   ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   const ny = wy - H - 8 + bob;
   ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
   ctx.strokeText(name, wx, ny); ctx.fillStyle = isMe ? "#ffd76a" : "#eaf6ff"; ctx.fillText(name, wx, ny);
   ctx.restore();
   if (chat && chatAge < 5000) { const em = emoteOf(chat); if (em) drawEmote(wx, ny - 30, em, chatAge); else drawChatBubble(wx, ny - 26, chat); } /* an emote-marked chat draws as the bare emoji over the head; a typed message keeps its bubble exactly as before */
+  if (isMe && fishState.mode === "wait" && me.scene === "plaza") { /* the WAIT BAR (owner order 2026-11-04 21:19): a little horizontal bar UNDER me while a cast is out, draining with THIS cast's bite timer — full when the line lands, empty when the bite hits. It lives only in mode "wait", so it is gone the moment the bite/reel moment arrives. Mine only, like every fishing visual — peers never see it */
+    const rem = Math.max(0, Math.min(1, (fishState.biteAt - t) / Math.max(1, fishState.waitMs)));
+    const bw2 = 72, bx2 = wx - bw2 / 2, by2 = wy + 12;
+    ctx.fillStyle = "rgba(6,10,26,0.72)"; rr(bx2 - 2, by2 - 2, bw2 + 4, 10, 5); ctx.fill();
+    ctx.fillStyle = "rgba(56,225,255,0.28)"; rr(bx2, by2, bw2, 6, 3); ctx.fill();
+    if (rem > 0) { ctx.fillStyle = "#ffd76a"; rr(bx2, by2, bw2 * rem, 6, 3); ctx.fill(); }
+  }
 }
 let camX = 0, camY = 0, SCALE = 0.6;
 let vipCamOx = 0; /* the VIP overlook camera lean (PREVIEW, Jonathan 2026-10-31): eased extra camX while up against the balcony, so the club below comes into frame — a phone's view is narrower than the room, so without the lean the overlook never reaches its screen */
@@ -13040,7 +13047,7 @@ const MOAT_SOLIDS = [{ x: 470, y: -1910, w: 2260, h: 200 }, { x: 470, y: -1710, 
 const BRIDGE = { x: 1520, y: -550, w: 160, h: 200 }; /* the drawbridge: 160 wide (the path width) on the castle's centre line, spanning the south water strip from the island's south shore (−550) to the moat's south shore (−350) */
 const CASTLEROOM = { w: 2600, h: 1700 }; /* the castle hall */
 const CASTLEEXIT = { x: CASTLEROOM.w / 2 - 62, y: CASTLEROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — MSEXIT's shape */
-const CASTLE_SOLIDS = [{ x: 1150, y: 270, w: 300, h: 100 }]; /* the throne dais at the hall's north end — the four crystal pedestals that stood with it were removed at the owner's word (2026-11-04 19:42, the "diamonds inside boxes"), solids and all, so the floor they stood on is open */
+const CASTLE_SOLIDS = [{ x: 1150, y: 270, w: 300, h: 100 }]; /* the throne dais at the hall's north end — kept under its old name as drawCastle's PAINT source only: it is an obstacle NOWHERE (obstacles() returns nothing for this room since Jonathan's word, 2026-11-04 21:37 — the stage's surface is walkable, players stand on it). The four crystal pedestals that stood with it were removed at the owner's word (2026-11-04 19:42, the "diamonds inside boxes"), solids and all, so the floor they stood on is open */
 const CASTLE_DOOR_Y = CASTLEROOM.h / 2; /* 850: the MIDDLE of the hall's side walls — the west door leads to the Dining Hall, the east door to the Crystal Room (owner, 2026-11-04) */
 const DININGROOM = { w: 2500, h: 1500 }; /* the Royal Dining Hall, through the throne room's WEST door */
 const DINING_DOOR_Y = DININGROOM.h / 2; /* 750: the dining hall's return door stands in the MIDDLE of its EAST wall, meeting the throne room's west door */
@@ -13091,11 +13098,11 @@ function loadFishFromAccount(d) { /* sign-in (and sign-out, with null): the fish
 }
 fishLocalLoad();
 /* ---- fishing itself ---- */
-let fishState = { mode: "", biteAt: 0 }; /* "" on dry land, "wait" with the line out, "bite" inside the reel window — mine only, never published */
+let fishState = { mode: "", biteAt: 0, castAt: 0, waitMs: 0 }; /* "" on dry land, "wait" with the line out, "bite" inside the reel window — mine only, never published; castAt/waitMs time the wait bar under me while a cast is out */
 function moatDist(x, y) { let bd = 1e18; for (const r of MOAT_SOLIDS) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } return bd; }
 function nearMoat() { return me.scene === "plaza" && moatDist(me.x, me.y) <= 85; } /* standing at the lake's edge: on either shore or on the drawbridge, within a step of the water */
 function fishCancel() { fishState.mode = ""; }
-function startFishing() { if (!nearMoat() || fishState.mode) return; fishState.mode = "wait"; fishState.biteAt = performance.now() + (4000 + Math.random() * 5000) * Math.pow(0.85, myRod); /* the basic bite wait is 4–9s random; every rod tier shrinks it ~15% */
+function startFishing() { if (!nearMoat() || fishState.mode) return; fishState.mode = "wait"; fishState.castAt = performance.now(); fishState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, myRod); fishState.biteAt = fishState.castAt + fishState.waitMs; /* the basic bite wait is 4–9s random; every rod tier shrinks it ~15% */
   tone(280, 640, 0.18, "sine", 0.05); noiseBurst(0.12, "bandpass", 900, 480, 0.035); } /* the cast: a rising sweep and the line's soft splash */
 function fishTick(now) { /* the fishing clock, run on plaza frames beside the FUD clock: walking away (or leaving the plaza) puts the rod away; the bite opens a 1.6s reel window, then the fish is gone */
   if (!fishState.mode) return;
@@ -13103,13 +13110,12 @@ function fishTick(now) { /* the fishing clock, run on plaza frames beside the FU
   if (fishState.mode === "wait" && now >= fishState.biteAt) { fishState.mode = "bite"; tone(1180, 1180, 0.09, "square", 0.05); tone(1568, 1568, 0.13, "square", 0.05, 0.09); }
   else if (fishState.mode === "bite" && now > fishState.biteAt + 1600) { fishState.mode = ""; genText(me.x, me.y - 104, "It got away…", "#9db8d9"); }
 }
-function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-04 19:39), replacing the old tilt outright: the standard table IS the Quantum Rod's odds (they sum to 100); every lower rod scales EVERY fish's chance by a flat (tier+1)/6 of standard, and whatever percentage is left over is an EMPTY cast. Basic 1/6 (83.33% empty), Blue 2/6 (66.67%), Cosmic 3/6 (50%), Golden 4/6 (33.33%), Crystal 5/6 (16.67%), Quantum the full table — never empty */
+function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-04 21:23), superseding the sixths, the held per-point version AND the weighted pick: on a successful reel-in, EACH FISH ROLLS ITS OWN CHANCE, RAREST FIRST (Whale down to Shrimp), at the rod's percentage for that fish — the FISH_DEFS odds are the BASIC rod's percentages (Whale 1%, Leviathan 2%, … Shrimp 25%) and every rod upgrade adds +1 point to every fish (Quantum: Whale 6%, … Shrimp 30%). The first fish whose roll hits is the catch; if NONE of the ten rolls hit, the reel comes up EMPTY — a successful reel can still catch nothing, by the owner's word. The bite-window miss ("It got away") is a separate, earlier failure and stays exactly as it was */
   if (fishState.mode !== "bite") return;
   fishState.mode = "";
-  const scale = (myRod + 1) / 6;
-  let r = Math.random() * 100, idx = -1;
-  for (let i = 0; i < FISH_DEFS.length; i++) { r -= FISH_DEFS[i].odds * scale; if (r <= 0) { idx = i; break; } }
-  if (idx < 0) { genText(me.x, me.y - 104, "Nothing there…", "#9db8d9"); tone(300, 190, 0.22, "sine", 0.04); return; } /* the empty cast resolves as no catch, in the same flow and the same floating-text beat as a missed reel — the bite was water, the line comes back bare */
+  let idx = -1;
+  for (let i = FISH_DEFS.length - 1; i >= 0; i--) { if (Math.random() * 100 < FISH_DEFS[i].odds + myRod) { idx = i; break; } } /* FISH_DEFS run smallest→biggest, so walking the array backwards IS rarest-first */
+  if (idx < 0) { genText(me.x, me.y - 104, "Nothing there…", "#9db8d9"); tone(300, 190, 0.22, "sine", 0.04); return; } /* the empty reel: all ten rolls missed — same floating-text beat as a missed bite */
   myFish[idx] = (myFish[idx] || 0) + 1; fishSave();
   sfxCoin(); genBurst(me.x, me.y - 46, false);
   $("catchimg").src = FISH_URL(idx);
@@ -13117,16 +13123,11 @@ function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-
   $("catchworth").textContent = "Worth 🪙 " + FISH_DEFS[idx].worth.toLocaleString("en-US") + " — it's in your Fish Inventory";
   $("catchpop").style.display = "flex";
 }
-function drawFishRod(wx, wy, flip, t) { /* my rod in my hand (drawPlayer's hook): the current tier's art tilted toward my facing, a line out to a bobber riding the water at my feet — the bobber dips and dances when the bite is on */
+function drawFishRod(wx, wy, flip, t) { /* my rod in my hand (drawPlayer's hook, called BEFORE my sprite so the rod stays BEHIND me in depth — Jonathan 2026-11-04, 21:15). ONLY the rod sprite is drawn (21:14, his word from his fishing screenshot: the cast/line animation and the bobber are GONE — a long line ran up from the rod; the sprite itself is exactly as it was). The sprite FLIPS with my facing (21:15, his explicit order for the rod): facing right is the art's own orientation, angled up to the right; facing left mirrors it horizontally */
   const im = rodImg(myRod); if (!im || !im.complete || !im.naturalWidth) return;
   const dir = flip ? -1 : 1, hx = wx + dir * 24, hy = wy - 48;
   const RH = 128, RW = RH * (im.naturalWidth / im.naturalHeight);
-  ctx.save(); ctx.translate(hx, hy); ctx.rotate(dir * 0.30); ctx.drawImage(im, -RW / 2, -RH + 18, RW, RH); ctx.restore();
-  const tipX = hx + dir * 74, tipY = hy - 100;
-  const bx = wx + dir * 106, by = wy + 2 + (fishState.mode === "bite" ? 4 + Math.sin(t / 55) * 2.2 : Math.sin(t / 300) * 1.5);
-  ctx.strokeStyle = "rgba(230,245,255,0.75)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.quadraticCurveTo((tipX + bx) / 2, Math.min(tipY, by) - 26, bx, by); ctx.stroke();
-  ctx.fillStyle = "#ff5e3c"; ctx.beginPath(); ctx.arc(bx, by, 4.5, 0, 7); ctx.fill();
-  ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(bx, by - 2.5, 4.5, Math.PI, 0); ctx.fill();
+  ctx.save(); ctx.translate(hx, hy); ctx.scale(dir, 1); ctx.rotate(0.30); ctx.drawImage(im, -RW / 2, -RH + 18, RW, RH); ctx.restore();
 }
 /* ---- the Fish Inventory (a menu for everyone, under Monster Collection in the account box): every fish owned, stacked with its count, its worth shown. View-only — selling happens at the Fishing Shop ---- */
 function renderFishInv() {
@@ -13210,6 +13211,7 @@ function startRodAnim(from, to) {
   const sp = $("evospark"); if (sp) sp.innerHTML = "";
   $("evooverlay").style.display = "flex";
   sfxEvoRise();
+  rodAnim.sndEnd = AC ? AC.currentTime + 3.016 : 0; /* SOUND SYNC (Jonathan 2026-11-04 21:25 — "the rod upgrade animation finishes before the sound effect finishes so fix that"): the show now ends on the AUDIO clock, not just the wall clock. Measured off the code itself: sfxEvoRise's 18 notes (each 0.16s, starts stepping max(0.09, 0.24 − i·0.009)) put its last note's start at 2.856s and its tail — tone()'s gain reaches silence exactly at start + dur — at 3.016s from the show's start; sfxEvoReveal's longest pieces (the two 0.4s sines at +0.4 offset) ring 0.80s past the burst. sndEnd is that last sounding moment ON THE AUDIO CONTEXT'S OWN CLOCK (the clock the notes were actually scheduled against), so any start latency the device puts on the audio is waited out by the picture too; the tick also folds the reveal's tail in at the burst. The tier still lands in endRodAnim, when the show ends */
   requestAnimationFrame(rodAnimTick);
 }
 function rodAnimTick() {
@@ -13217,7 +13219,7 @@ function rodAnimTick() {
   const a = rodAnim, el = performance.now() - a.t0, im = $("evoimg");
   if (el < 1200) { const p = el / 1200; const jx = (Math.random() - 0.5) * (4 + p * 14), jy = (Math.random() - 0.5) * (4 + p * 9); const white = Math.floor(el / Math.max(55, 240 - p * 185)) % 2 === 0; im.style.filter = white ? "brightness(0) invert(1)" : ""; im.style.transform = "translate(" + jx.toFixed(1) + "px," + jy.toFixed(1) + "px)"; requestAnimationFrame(rodAnimTick); }
   else if (el < 1900) { if (!a.swapped) { a.swapped = true; im.src = ROD_URL(a.to); } const p = (el - 1200) / 700; im.style.filter = "brightness(0)"; im.style.transform = "scale(" + (1 + p * 0.18).toFixed(3) + ")"; requestAnimationFrame(rodAnimTick); }
-  else if (el < 3600) { if (!a.burst) { a.burst = true; im.style.filter = ""; im.style.transform = "scale(1.18)"; $("evotext").textContent = "🎉 Your rod transformed into the " + ROD_DEFS[a.to].name + "!"; spawnEvoSparkles(); sfxEvoReveal(); } requestAnimationFrame(rodAnimTick); }
+  else if (el < 3600 || (AC && AC.currentTime < (a.sndEnd || 0))) { if (!a.burst) { a.burst = true; im.style.filter = ""; im.style.transform = "scale(1.18)"; $("evotext").textContent = "🎉 Your rod transformed into the " + ROD_DEFS[a.to].name + "!"; spawnEvoSparkles(); sfxEvoReveal(); if (AC) a.sndEnd = Math.max(a.sndEnd || 0, AC.currentTime + 0.8); } requestAnimationFrame(rodAnimTick); } /* the reveal phase HOLDS past 3600ms until the audio clock passes sndEnd — picture and sound finish together, the sound never cut and never left playing under a closed overlay (the sync note at startRodAnim) */
   else endRodAnim();
 }
 function endRodAnim() { if (!rodAnim) return; const a = rodAnim; rodAnim = null; $("evooverlay").style.display = "none"; myRod = a.to; fishSave(); } /* the new tier lands NOW — after the show, in the evolution's own order */
@@ -13226,10 +13228,10 @@ function toCastle() { stopAllTones(); me.scene = "castle"; voiceReset(); me.x = 
 function toPlazaFromCastle() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = 1600; me.y = CASTLE_B.y + CASTLE_B.h + 60; sfxChime(); publish(true); } /* back out onto the island yard below the door, on the castle's own centre line — bottom + 60 like every other building's exit landing, on the drawbridge's own line, clear of the door trigger's south edge */
 function toFishShop() { stopAllTones(); me.scene = "fishshop"; voiceReset(); me.x = FISHROOM.w / 2; me.y = FISHROOM.h - 170; sfxChime(); publish(true); pullChips(); for (let t = 0; t < 6; t++) rodImg(t); for (let i = 0; i < 10; i++) fishImg(i); } /* in through the bottom-face door, landing inside by the exit plate — the bowling entry's pattern; the visit preloads the rod and fish art so the displays and panels never pop in */
 function toPlazaFromFishShop() { stopAllTones(); me.scene = "plaza"; voiceReset(); me.x = FISH_B.x + FISH_B.w / 2; me.y = FISH_B.y + FISH_B.h + 60; sfxChime(); publish(true); } /* back out onto the walkway below the door, on the building's own centre line (−420) — bottom + 60, clear of the door trigger's south edge */
-function toDining() { stopAllTones(); me.scene = "dining"; voiceReset(); me.x = DININGROOM.w - 150; me.y = DINING_DOOR_Y; sfxChime(); publish(true); } /* through the throne room's WEST door into the Dining Hall — landing just inside the hall's own east door, the toChess landing pattern (owner, 2026-11-04) */
-function toCastleFromDining() { stopAllTones(); me.scene = "castle"; voiceReset(); me.x = 150; me.y = CASTLE_DOOR_Y; sfxChime(); publish(true); } /* back through the dining hall's east door — landing just inside the throne room's west door */
-function toCrystal() { stopAllTones(); me.scene = "crystal"; voiceReset(); me.x = 150; me.y = CRYSTAL_DOOR_Y; sfxChime(); publish(true); } /* through the throne room's EAST door into the Crystal Room — landing just inside the crystal room's own west door */
-function toCastleFromCrystal() { stopAllTones(); me.scene = "castle"; voiceReset(); me.x = CASTLEROOM.w - 150; me.y = CASTLE_DOOR_Y; sfxChime(); publish(true); } /* back through the crystal room's west door — landing just inside the throne room's east door */
+function toDining() { me.scene = "dining"; voiceReset(); me.x = DININGROOM.w - 150; me.y = DINING_DOOR_Y; sfxChime(); publish(true); } /* through the throne room's WEST door into the Dining Hall — landing just inside the hall's own east door, the toChess landing pattern (owner, 2026-11-04). NO stopAllTones here, deliberately (Jonathan 2026-11-04, 21:12): the castle's three rooms are ONE MUSIC ZONE — the theme must play straight through this door, never stopping or restarting; it stops only when the player leaves the castle entirely (toPlazaFromCastle keeps its stopAllTones) */
+function toCastleFromDining() { me.scene = "castle"; voiceReset(); me.x = 150; me.y = CASTLE_DOOR_Y; sfxChime(); publish(true); } /* back through the dining hall's east door — landing just inside the throne room's west door. No stopAllTones: one castle music zone (see toDining) */
+function toCrystal() { me.scene = "crystal"; voiceReset(); me.x = 150; me.y = CRYSTAL_DOOR_Y; sfxChime(); publish(true); } /* through the throne room's EAST door into the Crystal Room — landing just inside the crystal room's own west door. No stopAllTones: one castle music zone (see toDining) */
+function toCastleFromCrystal() { me.scene = "castle"; voiceReset(); me.x = CASTLEROOM.w - 150; me.y = CASTLE_DOOR_Y; sfxChime(); publish(true); } /* back through the crystal room's west door — landing just inside the throne room's east door. No stopAllTones: one castle music zone (see toDining) */
 function fishNearCounter() { return me.scene === "fishshop" && me.y > FISHCTR.y + FISHCTR.h + 6 && me.y < FISHCTR.y + FISHCTR.h + 175 && me.x > FISHCTR.x - 40 && me.x < FISHCTR.x + FISHCTR.w + 40; } /* standing at the counter's front, where Q-Bot serves — the shop prompt's spot */
 /* ---- the painting: the castle grounds on the plaza ---- */
 function drawCastleArea(t) {
@@ -13305,8 +13307,9 @@ function drawCastleBuilding(t) {
   ctx.font = "800 33px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(56,225,255,0.8)"; ctx.shadowBlur = 14;
   ctx.fillStyle = "#d9f6ff"; ctx.fillText("💎 CRYSTAL QUANTUM CASTLE", cx, b.y + 94); ctx.restore();
-  /* crystal windows: TWO aligned rows of glowing diamonds (baselines b.y+250 and b.y+430) on mirrored columns (cx ± 240 / ±380) — the casino window row's discipline, doubled. The ±520 columns are deliberately NOT in this loop: they land inside the corner towers, 39px from the towers' own windows, and read as a sloppy doubled window (caught on the v2 wide shot) — the towers carry those columns on the same baselines instead. The gatehouse's columns stay clear of both rows' centres */
+  /* crystal windows: TWO aligned rows of glowing diamonds (baselines b.y+250 and b.y+430) on mirrored columns (cx ± 240 / ±380) — the casino window row's discipline, doubled. The ±520 columns are deliberately NOT in this loop: they land inside the corner towers, 39px from the towers' own windows, and read as a sloppy doubled window (caught on the v2 wide shot) — the towers carry those columns on the same baselines instead. The gatehouse's columns stay clear of both rows' centres — with one exception, noted in the loop: the lower row's ±240 pair came off at the owner's word (2026-11-04, 21:13) */
   for (const wy of [250, 430]) for (const off of [-380, -240, 240, 380]) {
+    if (wy === 430 && Math.abs(off) === 240) continue; /* the lower row's INNER pair is GONE (Jonathan 2026-11-04, 21:13 — from his close-up: the little diamonds sitting above the castle's front entrance door, flanking the central tower over the gatehouse, come off; the upper row's inner pair and both ±380 columns stay) */
     const wx = cx + off;
     ctx.save(); ctx.translate(wx, b.y + wy); ctx.rotate(Math.PI / 4);
     const pulse = 0.55 + 0.3 * Math.sin(t / 600 + wx * 0.05);
@@ -13317,7 +13320,11 @@ function drawCastleBuilding(t) {
   /* the GATEHOUSE: a block standing proud of the south face (240 wide, centred on cx, its top 210 above the keep's base), battlements on its top, the door centred in it, and a banner hanging on EACH side of the door — mirrored, like everything else here */
   ctx.fillStyle = "#2e4c80"; rr(cx - 120, base - 210, 240, 210, 10); ctx.fill();
   ctx.strokeStyle = "rgba(140,230,255,0.85)"; ctx.lineWidth = 3; rr(cx - 120, base - 210, 240, 210, 10); ctx.stroke();
-  merlons(cx - 110, cx + 110, base - 240);
+  /* the gatehouse's three merlon teeth stand on the BANNERS' lines (Jonathan 2026-11-04, 21:10 — from his close-up of the castle front: the teeth's bright top strips read as three blue lines above the gatehouse, and the right one sat off-centre over the right banner): the outer teeth are centred over the banners (tooth centres on the banner centre lines, cx ± 88) and the middle tooth is centred between them on cx itself. Drawn tooth by tooth because the shared merlons() march (44-wide teeth every 80 from the span's start) lands the right tooth at cx + 72 and the middle at cx - 8 — same teeth, same colours, only these three segments move */
+  for (const mtx of [cx - 110, cx - 22, cx + 66]) {
+    ctx.fillStyle = "#33548c"; ctx.fillRect(mtx, base - 240, 44, 30);
+    ctx.fillStyle = "rgba(140,230,255,0.55)"; ctx.fillRect(mtx, base - 240, 44, 5);
+  }
   for (const sgn of [-1, 1]) {
     const bx2 = cx + sgn * 88; /* the banner's centre line: 88 out from the centre on each side, its pole on the gatehouse top */
     ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(bx2, base - 232); ctx.lineTo(bx2, base - 176); ctx.stroke();
@@ -13501,7 +13508,7 @@ function drawDining(t) {
   ctx.strokeStyle = "rgba(255,215,106,0.07)"; ctx.lineWidth = 2;
   for (let gx = 0; gx <= W; gx += 110) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke(); }
   for (let gy = 0; gy <= H; gy += 110) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
-  ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, W - 8, H - 8);
+  ctx.strokeStyle = "#38e1ff"; ctx.lineWidth = 6; ctx.strokeRect(4, 4, W - 8, H - 8); /* the BORDER in the castle's own cyan (Jonathan 2026-11-04 21:34): the hall's purple outline came out — this room's border now matches the throne room's and the Crystal Room's border colour exactly, #38e1ff being the outer stroke both of those rooms share; only the colour changed, the 6px weight and the inner line are the hall's own as before */
   ctx.strokeStyle = "rgba(255,215,106,0.45)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, W - 36, H - 36);
   ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(255,215,106,0.8)"; ctx.shadowBlur = 18;
@@ -13550,12 +13557,7 @@ function drawDining(t) {
     ctx.fillStyle = "#8a5a1e"; ctx.beginPath(); ctx.arc(bx, cy + 4, 21, 0.15 * Math.PI, 0.85 * Math.PI); ctx.fill();
     const fruit = ["#ff5a5a", "#7ee787", "#a855f7", "#ffd76a", "#ff9f43"]; for (let fi = 0; fi < 5; fi++) { ctx.fillStyle = fruit[fi]; ctx.beginPath(); ctx.arc(bx - 13 + fi * 6.5, cy - 3 - (fi % 2) * 5, 6, 0, 7); ctx.fill(); } }
   /* the ring chandeliers are GONE from this room (owner trim, 2026-11-04 19:44: all ring-with-diamond ornaments out of the dining room, same as the throne room) — the candelabra down the runner are the table's lights now */
-  /* arched windows glowing along the south wall — three, evenly spaced about the centre */
-  for (const wx of [cx, cx - 560, cx + 560]) {
-    const wg = ctx.createLinearGradient(0, H - 206, 0, H - 50); wg.addColorStop(0, "rgba(140,230,255,0.30)"); wg.addColorStop(1, "rgba(140,230,255,0.06)");
-    ctx.fillStyle = wg; rr(wx - 60, H - 206, 120, 156, 42); ctx.fill();
-    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2.5; rr(wx - 60, H - 206, 120, 156, 42); ctx.stroke();
-    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(wx, H - 196); ctx.lineTo(wx, H - 60); ctx.moveTo(wx - 52, H - 128); ctx.lineTo(wx + 52, H - 128); ctx.stroke(); }
+  /* the arched windows are NOT painted here any more (Jonathan 2026-11-04 21:30 — "make the windows be in front of players in the dining hall", depth-wise): they moved to drawDiningWindowsFront, painted in frame()'s over pass AFTER the actors, so a player standing at the south wall passes BEHIND the glass. The painting itself is unchanged — same three windows, same spots, same glass */
   /* crystal dressing: formations in the corners, plants flanking the fields, sconces on the side walls */
   drawCrystalClusterAt(150, 246, false); drawCrystalClusterAt(W - 150, 246, false);
   drawCrystalClusterAt(150, H - 54, false); drawCrystalClusterAt(W - 150, H - 54, false);
@@ -13564,6 +13566,14 @@ function drawDining(t) {
   /* the door back to the throne room, in the MIDDLE of the east wall */
   drawSideDoorAt(W, DINING_DOOR_Y, 1, "💎 THRONE ROOM");
   ctx.restore();
+}
+function drawDiningWindowsFront() { /* the Dining Hall's arched windows, painted in frame()'s OVER pass (after every actor) inside the same camera transform — the Fishing Shop counter front's arrangement (Jonathan 2026-11-04 21:30: the windows stand IN FRONT OF players depth-wise in this room, so you walk behind the glass). The paint is drawDining's own window block moved verbatim: three windows along the south wall, evenly spaced about the centre, the same glass gradient, gold frame and white muntin cross — only WHEN they paint changed, nothing about how they look */
+  const W = DININGROOM.w, H = DININGROOM.h, cx = W / 2;
+  for (const wx of [cx, cx - 560, cx + 560]) {
+    const wg = ctx.createLinearGradient(0, H - 206, 0, H - 50); wg.addColorStop(0, "rgba(140,230,255,0.30)"); wg.addColorStop(1, "rgba(140,230,255,0.06)");
+    ctx.fillStyle = wg; rr(wx - 60, H - 206, 120, 156, 42); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2.5; rr(wx - 60, H - 206, 120, 156, 42); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(wx, H - 196); ctx.lineTo(wx, H - 60); ctx.moveTo(wx - 52, H - 128); ctx.lineTo(wx + 52, H - 128); ctx.stroke(); }
 }
 /* ---- the painting: the Crystal Room (PREVIEW, 2026-11-04) — through the throne room's EAST door. THE QUANTUM CRYSTAL spins at the room's exact centre on its plinth (the plinth's rect is the room's solid): layered facets turning slowly, shards in orbit, rings breathing on the floor around it — crystal theme throughout, everything mirrored about the centre, and the throne room's door back in the middle of the west wall ---- */
 function drawCrystal(t) {
@@ -13595,6 +13605,12 @@ function drawCrystal(t) {
   drawCrystalClusterAt(150, 246, true); drawCrystalClusterAt(W - 150, 246, true);
   drawCrystalClusterAt(150, H - 54, false); drawCrystalClusterAt(W - 150, H - 54, false);
   drawCrystalClusterAt(cx, H - 54, false);
+  /* arched windows along the south wall (owner, 2026-11-04 21:31): FOUR, standing in the two gaps between the bottom field's three spike clusters (left x 150, middle cx, right W-150) — two in each gap, evenly placed at the gap's third points (483/817 and their mirrors 1483/1817, symmetric about the centre line like everything else in this room). The Dining Hall's own windows, same measure and same paint: 120 wide × 156 tall on the same baseline (top H-206, foot H-50), the same glass gradient, gold frame and white muntin cross */
+  for (const wx of [483, 817, 1483, 1817]) {
+    const wg = ctx.createLinearGradient(0, H - 206, 0, H - 50); wg.addColorStop(0, "rgba(140,230,255,0.30)"); wg.addColorStop(1, "rgba(140,230,255,0.06)");
+    ctx.fillStyle = wg; rr(wx - 60, H - 206, 120, 156, 42); ctx.fill();
+    ctx.strokeStyle = "rgba(255,215,106,0.65)"; ctx.lineWidth = 2.5; rr(wx - 60, H - 206, 120, 156, 42); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(wx, H - 196); ctx.lineTo(wx, H - 60); ctx.moveTo(wx - 52, H - 128); ctx.lineTo(wx + 52, H - 128); ctx.stroke(); }
   drawChandelierAt(cx - 480, cy - 330, 40, t, 0.9); drawChandelierAt(cx + 480, cy - 330, 40, t, 2.3);
   drawChandelierAt(cx - 480, cy + 330, 40, t, 3.7); drawChandelierAt(cx + 480, cy + 330, 40, t, 5.1);
   drawCrystalPlantAt(250, 470); drawCrystalPlantAt(250, 1030); drawCrystalPlantAt(W - 250, 470); drawCrystalPlantAt(W - 250, 1030);
@@ -13633,10 +13649,10 @@ function drawFishShop(t) {
   ctx.strokeStyle = "rgba(42,127,212,0.35)"; ctx.lineWidth = 2; ctx.strokeRect(18, 18, FISHROOM.w - 36, FISHROOM.h - 36);
   ctx.font = "800 46px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   ctx.save(); ctx.shadowColor = "rgba(42,127,212,0.6)"; ctx.shadowBlur = 16;
-  ctx.fillStyle = "#1763ac"; ctx.fillText("🎣 FISHING SHOP", FISHROOM.w / 2, 92); ctx.restore();
+  ctx.fillStyle = "#1763ac"; ctx.fillText("🎣 FISHING SHOP", FISHROOM.w / 2, 76); ctx.restore(); /* the title nudged UP A LITTLE (Jonathan 2026-11-04 21:40 — from his screenshot inside the shop): baseline 92 → 76, a touch more air between the heading and the rod wall under it; only the heading's position moved */
   /* the rod wall: all six rods on display along the back wall, basic to quantum. CONTAINED — TWICE over (owner feedback, 2026-11-04, then again at 19:27: "the rods must NOT go past the counter"): the first pass fit the rods inside panels ending at y 204, but the panels' feet sat just 6px above the counter's top edge (210), so on a real screen the display still read as resting on / crossing the counter line. NOW the whole display is RAISED with open daylight under it: panels y 100..196 (a 14px gap of bare wall above the counter), each rod FIT inside a smaller box (≤96 wide × ≤58 tall, centred at ry+28) so the lowest any rod pixel can reach is y 165 — 45px of clear wall between the rods and the counter — and the tier labels sit inside the panels above their bottom edge. Nothing in this display touches, crosses, or hangs past the counter: rods, panels and labels all end above y 196, the counter starts at 210 */
   for (let ti = 0; ti < 6; ti++) { const im = rodImg(ti); const rx = 330 + ti * 348, ry = 108;
-    ctx.fillStyle = "rgba(255,255,255,0.65)"; rr(rx - 62, ry - 8, 124, 96, 8); ctx.fill();
+    ctx.fillStyle = "#000000"; rr(rx - 62, ry - 8, 124, 96, 8); ctx.fill(); /* the rod squares' backgrounds are BLACK (Jonathan 2026-11-04 21:26 — from his screenshot of the rod wall): the pale glass fill came out, the panels are solid black now; the blue stroke stays */
     ctx.strokeStyle = "rgba(42,127,212,0.4)"; ctx.lineWidth = 1.5; rr(rx - 62, ry - 8, 124, 96, 8); ctx.stroke();
     if (im && im.complete && im.naturalWidth) { const sc = Math.min(96 / im.naturalWidth, 58 / im.naturalHeight), rw = im.naturalWidth * sc, rh = im.naturalHeight * sc; ctx.drawImage(im, rx - rw / 2, ry + 28 - rh / 2, rw, rh); } /* fit-to-panel, shrunk: the rod's whole art — shaft, line and lure — inside the panel's upper box, its bottom at most ry+57 = y 165 */
     ctx.font = "700 14px 'Segoe UI',sans-serif"; ctx.fillStyle = myRod >= ti ? "#1d9e57" : "#5a84ad"; ctx.textAlign = "center";
@@ -13656,8 +13672,10 @@ function drawFishShop(t) {
     ctx.fillStyle = "#2a5f8f"; rr(dx - 14, dy + 40, 28, 26, 4); ctx.fill(); /* the stand's stem */
     ctx.fillStyle = "#1763ac"; rr(dx - 64, dy + 64, 128, 24, 6); ctx.fill(); /* the pedestal */
     ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.5; rr(dx - 64, dy + 64, 128, 24, 6); ctx.stroke();
-    ctx.font = "700 14px 'Segoe UI',sans-serif"; ctx.fillStyle = "#0d2c4a"; ctx.textAlign = "center";
-    ctx.fillText(FISH_DEFS[di].name, dx, dy + 108); /* its name, on the floor line under its stand — every dome labelled, the whole collection on show */
+    ctx.font = "700 17px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffffff"; ctx.textAlign = "center";
+    ctx.fillText(FISH_DEFS[di].name, dx, dy + 108); /* its name, on the floor line under its stand — WHITE and a bit bigger (Jonathan 2026-11-04 21:25 — the dark navy was unreadable on the black floor): 14px navy out, 17px white in */
+    ctx.font = "700 15px 'Segoe UI',sans-serif";
+    ctx.fillText("Worth " + FISH_DEFS[di].worth.toLocaleString("en-US"), dx, dy + 130); /* its sell value directly under the name (Jonathan 2026-11-04 21:29 — "under the fish name say 'worth X'", "X each"): the def's own worth, comma-formatted, in the label's own white bold style a step smaller */
   }
   drawFishCounter();
   /* the exit door plate on the south wall — MSEXIT's paint in the shop's blue */
@@ -13915,10 +13933,14 @@ function drawPlaza(t) {
   ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   /* the CASTLE ROAD (PREVIEW, 2026-11-04): behind the Arcade a purple path runs horizontally, straight off both edges of the world — its south edge flush with the arcade's north wall — and a matching 160-wide leg climbs from it north to the castle moat's south shore, where the drawbridge lands. Painted as its own rects in the union's own colours (pathRect), with the plaza's own lamps along it at the house pitch and offset */
-  pathRect(WORLD_X0, -30, WORLD.w - WORLD_X0, 160);
-  pathRect(1520, -350, 160, 320);
+  /* the road and its leg as ONE union outline (Jonathan 2026-11-04, 21:14 — from his screenshot of the path in front of the castle: the join must be SMOOTH): the two pathRects above each stroked their own four sides, so the road's top edge and the leg's bottom edge both painted a line straight across the leg's mouth where they meet — a visible step at the junction. Now one trace around the outside of the T: one fill, the outer edge only, the leg's sides running unbroken into the road's north edge, the same 160 width flowing through the junction, and nothing drawn across the mouth */
+  ctx.fillStyle = "rgba(88,40,160,0.32)";
+  ctx.beginPath();
+  ctx.moveTo(WORLD_X0, -30); ctx.lineTo(1520, -30); ctx.lineTo(1520, -350); ctx.lineTo(1680, -350); ctx.lineTo(1680, -30); ctx.lineTo(WORLD.w, -30); ctx.lineTo(WORLD.w, 130); ctx.lineTo(WORLD_X0, 130); ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   for (let lx = -680; lx <= 4280; lx += 240) lamp(lx, -58); /* the band's north-edge lamp row, the bottom walkway's own 240 pitch at the 28px edge offset, running the road's full width */
-  lamp(1492, -140); lamp(1708, -140); lamp(1492, -290); lamp(1708, -290); /* flanking the climb to the moat at the leg's own edges ± 28 */
+  lamp(1492, -290); lamp(1708, -290); /* flanking the climb to the moat at the leg's own edges ± 28 — the leg's BOTTOM pair (1492/1708 at y −140, the pair further down the leg toward the road junction) came out at Jonathan's word (2026-11-04 21:34); only the top pair, up by the moat, stays */
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
   /* spinning atom at the centre of the roundabout (Jonathan 2026-10-29): the Sports Complex
      center-court atom (see drawGym) scaled up ~1.4x to sit inside the spawn circle — a soft
@@ -15682,6 +15704,7 @@ function frame(now) {
   drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
   if (me.scene === "plaza") drawFudFx(now); /* the FUD explosions (PREVIEW) paint with the player fx, over the sprites, inside this same camera pass */
   if (me.scene === "fishshop") drawFishCounterFront(); /* the Fishing Shop counter's front, repainted over Q-Bot's lower body so he reads as staff behind the desk — the High Rollers clerk's own trick, clipped to his own span so no player is ever painted over */
+  if (me.scene === "dining") drawDiningWindowsFront(); /* the Dining Hall's windows paint HERE, over the actors (Jonathan 2026-11-04 21:30): in this room the windows are in front of players depth-wise — you walk behind the glass */
   drawSeatBetOverlay(); /* seat bet displays paint here too, over the sprites — a bet must never hide behind the player it belongs to (Jonathan 2026-10-31) */
   ctx.restore();
   if (buyConfirmPend && !buyConfirmStillNear()) closeBuyConfirm(); /* walking away from the case or display takes the buy confirmation down with it — nothing bought, nothing debited */
