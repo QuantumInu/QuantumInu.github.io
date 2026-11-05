@@ -29,6 +29,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #chatin:focus{border-color:var(--cyan)}
 #sendbtn{background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:700;border-radius:999px;padding:0 20px;font-size:15px;cursor:pointer}
 @media (max-width:520px){ #chatbar{gap:5px} #sendbtn{padding:0 13px;font-size:14px} #chatin{padding:11px 12px} }
+#prompt.reelflash{color:#000;animation:reelflash .5s steps(1,end) infinite}@keyframes reelflash{0%,100%{background:#ff2a1a}50%{background:#ffd21f}} /* REEL-IN FLASH (Jonathan 2026-11-05): inside the 1.6s bite window the prompt button flashes red/yellow with black text — scoped to the .reelflash class alone, which the prompt chain holds on only while fishState.mode === "bite"; the moment the window ends the class drops and the button is its normal gradient self again, size untouched */
 #prompt{position:absolute;left:50%;transform:translateX(-50%);bottom:70px;z-index:20;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800;font-size:11px;border:none;border-radius:999px;padding:8px 4px;cursor:pointer;box-shadow:0 4px 22px rgba(56,225,255,.45);display:none;width:88px;height:48px;box-sizing:border-box;white-space:normal;text-align:center;line-height:1.3;align-items:center;justify-content:center} /* ONE FIXED SIZE - OPTION B (Jonathan 2026-11-04, "B, even if the text has to be 2 lines"): a single steady 88x48 box in every scene on every screen - the widest CENTRED box that clears both phone controls at the smallest width (at 360px the joystick right edge is x=136 and RUN left edge is x=258, so a centred box may span at most 88px; it clears both at 360/390/430 and on desktop, measured - zero overlap). The longest labels were shortened to fit it in at most two lines at 11px (the mode switch, PLAY, the shop buys at "🪙 100M", the mech spin, the training pen and the service counter); every other label is word-for-word what it was. The size never depends on the label, the scene or the viewport, and the small-screen media query does not restyle it. CENTRING FIX (later 2026-11-04, Jonathan's phone screenshot: the Safari buy text wrapped to a third line and sat off-centre under block layout): the shown state is FLEX - the prompt chain sets display:flex - with align-items and justify-content centred, so a 1- or 2-line label sits dead centre on both axes in every browser, iOS included; the mech buy label also drops its second "Mech" ("Buy Safari 🪙 100M") so it keeps its 2-line fit under iOS's wider font rendering - the plaque and the buy confirmation popup still carry the full design name and the full price */
 #joy{position:absolute;left:18px;bottom:76px;width:118px;height:118px;border-radius:50%;border:2px solid rgba(56,225,255,.35);background:rgba(10,20,40,.35);z-index:15;display:none}
 #joystick{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(56,225,255,.5);transform:translate(-50%,-50%)}
@@ -1084,7 +1085,7 @@ function publish(force) {
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
-document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) publish(true); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) { publish(true); followRoomChat(me.scene, true); } }); /* CHAT (2026-11-05): a return from the background also re-follows the room's chat log — iOS kills the socket while the app sleeps, and what was said in the room meanwhile lands on return */
 /* all hub sound mutes while the tab/window is out of focus, and returns when it is focused again */
 function holdAudio() { audioHeld = true; try { if (!jukeAudio.paused) jukeAudio.pause(); } catch (e) {} try { engineStop(); } catch (e) {} }
 function releaseAudio() { audioHeld = false; }
@@ -2085,6 +2086,7 @@ function enterHub() {
   publish(true);
   poolBallListen(); /* the plaza is home: follow the pool's beach ball from the moment I step in */
   fishNetInit(); /* PEER RODS (2026-11-04): follow hub/fishing from the moment I step in, so a rod already out on the lake is on its owner's hand when I arrive */
+  followRoomChat(me.scene); /* CHAT (2026-11-05): follow this room's saved chat log from the moment I step in — its latest 60 load under the room's divider */
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
@@ -5919,7 +5921,7 @@ function nearSlot() { if (me.scene !== "casino") return -1; for (let i = 0; i < 
 /* ============ online list ============ */
 /* Everyone online comes from the same presence actors the world renders: peers (kept fresh by the presence snapshot's 45-second rule) plus me once I have entered. Q-Bot is excluded (Jonathan: "Exclude the bots") — neither of his presence records (plaza or Watchtower HQ) is listed or counted, so the roster and the Online button count people only and always agree. The list and the chat box are mutually exclusive: the list only opens while chat is closed, and opening chat closes the list. */
 const ONLINE_ROOM_ORDER = ["plaza", "arcade", "theatre", "club", "vip", "hq", "casino", "gym", "speedway", "track"];
-const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena", bowling: "Quantum Bowling", rooftop: "The Rooftop", monstershop: "Monster Shop", comics: "Quantum Comics", mechshop: "Mech Shop", trenches: "Quantum Trenches" };
+const ONLINE_ROOM_NAMES = { plaza: "Plaza", arcade: "Arcade", theatre: "Theatre", club: "Club Quantum", vip: "VIP Lounge", hq: "Watchtower HQ", casino: "Casino", gym: "Sports Complex", speedway: "Speedway", track: "Horse Track", poolhall: "Pool Hall", highrollers: "High Rollers Club", chess: "Chess Room", boxing: "Boxing Arena", bowling: "Quantum Bowling", rooftop: "The Rooftop", monstershop: "Monster Shop", comics: "Quantum Comics", mechshop: "Mech Shop", trenches: "Quantum Trenches", castle: "Crystal Quantum Castle", dining: "Dining Hall", crystal: "Crystal Room", fishshop: "Fishing Shop" };
 let onlineSig = "";
 function onlineRoomName(scene) { return ONLINE_ROOM_NAMES[scene] || scene || "Plaza"; }
 function chatBoxOpen() { const log = $("chatlog"); return !!((log && log.style.display === "flex") || document.activeElement === chatIn); }
@@ -6088,13 +6090,25 @@ $("sendtokamt").addEventListener("input", () => sendTokAmtFormat($("sendtokamt")
    session + chat id so every client writes the same message once — only the
    read/replay that used to reload stored history on login and room entry is
    gone. Token-transfer notes stay local to the receiving player and are
-   never saved publicly. */
+   never saved publicly.
+   RESTORED 2026-11-05 (Jonathan: "I definitely can't see the chat — it
+   isn't saving", said in the Crystal Room): the read is back —
+   followRoomChat follows the CURRENT room's server log (latest 60 by ts)
+   from the moment the room is entered, merging it into this same stream:
+   saved messages land under the room's divider, witnessed messages are
+   never wiped by a room change, and a return from the background
+   re-follows the room so anything said while the tab slept lands too.
+   One root cause of his report: the four rooms added 2026-11-04 (castle,
+   dining, crystal, fishshop) were missing from ONLINE_ROOM_NAMES — every
+   chat gate reads that table, so in those rooms nothing saved, nothing
+   showed, and no divider ever dropped. */
 const sessionLogRows = []; /* the one stream, in arrival order: {divider:"Plaza"} room titles and {scene, name, text, ts, key} messages */
 const loggedChatKeys = new Set();
 let logLastMsgScene = ""; /* the room of the newest message actually in the stream ("" = none yet) — a divider drops ahead of a message only when its room differs from this */
 const SESSION_LOG_CAP = 300; /* the stream keeps the newest 300 rows (dividers + messages), so a long session can't grow the panel without bound */
 function chatRoomLog(scene) { return sessionLogRows.filter(r => !r.divider && r.scene === scene); } /* read-only view kept for the token-note checks: the messages this session's stream holds for one room */
 function resetSessionLog() {
+  unfollowRoomChat(); /* the chat follow dies with the session — the next sign-in re-follows whatever room it lands in */
   sessionLogRows.length = 0;
   loggedChatKeys.clear();
   logLastMsgScene = "";
@@ -6138,6 +6152,39 @@ function saveChatMessage(scene, id, chatId, name, text) {
 function logPeerChat(id, name, chatId, text, scene) {
   if (emoteOf(text)) return; /* an EMOTE is not a message: it never lands in the chat log (Jonathan 2026-11-01) */
   saveChatMessage(scene, id, chatId, name, text);
+}
+/* ============ per-room server chat: the follow (restored 2026-11-05) ============
+   One subscription at a time, always on the room I'm standing in:
+   hub/tables/chatlog/<scene>, latest 60 by ts. The initial replay IS the
+   room's saved log loading on entry; the live children after it are the
+   room's new messages arriving on the server's own word, so a message
+   whose presence echo raced or was missed still lands. Everything funnels
+   into addChatLogMessage under saveChatMessage's own key (scene + ":" +
+   the record's key), so a message already witnessed live dedupes instead
+   of doubling. Switching rooms detaches the old follow before the new one
+   attaches — rooms never leak into each other — and a background return
+   re-follows the same room (refollow) to catch what was said while the
+   tab slept. */
+let chatFollowRef = null, chatFollowScene = "";
+function followRoomChat(scene, refollow) {
+  if (!db || !entered || !ONLINE_ROOM_NAMES[scene]) return;
+  if (chatFollowRef && chatFollowScene === scene && !refollow) return;
+  if (chatFollowRef) { try { chatFollowRef.off(); } catch (e) {} chatFollowRef = null; chatFollowScene = ""; }
+  chatFollowScene = scene;
+  try {
+    const q = db.ref("hub/tables/chatlog/" + scene).orderByChild("ts").limitToLast(60);
+    chatFollowRef = q;
+    q.on("child_added", snap => {
+      if (!snap || scene !== me.scene) return; /* a late replay from the room I just left never lands in the new room's stream */
+      const v = snap.val(); if (!v || !v.text) return;
+      if (emoteOf(v.text)) return; /* an emote is not a message on any path (Jonathan 2026-11-01) */
+      addChatLogMessage(scene, v.name, v.text, Number(v.ts) || 0, scene + ":" + snap.key);
+    });
+  } catch (e) { chatFollowRef = null; chatFollowScene = ""; }
+}
+function unfollowRoomChat() {
+  if (chatFollowRef) { try { chatFollowRef.off(); } catch (e) {} chatFollowRef = null; }
+  chatFollowScene = "";
 }
 function logChat(name, text) {
   addChatLogMessage(me.scene, name, text, Date.now(), "local:" + Date.now() + ":" + Math.random(), true);
@@ -15557,6 +15604,7 @@ function frame(now) {
   const dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!entered) { drawStars(0, 0, 1); return; }
+  if (me.scene !== chatFollowScene) followRoomChat(me.scene); /* CHAT (2026-11-05): a room change re-follows chat — the old room's follow detaches, the new room's saved log loads under its divider, and everything already witnessed stays in the stream */
   /* the voice mic assertion runs PER FRAME, not on the 800ms tick (Jonathan 2026-10-31: start the
      reconnection faster): a published mic track that died (a dropped connection's teardown, OS kill) is spotted
      within a frame and the healer replaces it; a healthy published track short-circuits the check.
@@ -15957,6 +16005,7 @@ function frame(now) {
   if (buyConfirmPend && !buyConfirmStillNear()) closeBuyConfirm(); /* walking away from the case or display takes the buy confirmation down with it — nothing bought, nothing debited */
   if (fishPanelOpen && !fishNearCounter()) closeFishPanel(); /* the Fishing Shop panel belongs to the counter, like the buy confirmation belongs to its case: walk away and it closes */
   const cab = nearestCabinet();
+  promptBtn.classList.toggle("reelflash", me.scene === "plaza" && fishState.mode === "bite"); /* REEL-IN FLASH: the class rides the bite state alone — set here ahead of the chain every frame, so it is on exactly while the button reads "🎣 Reel in!" and off the same frame the window ends (caught, missed or cancelled) */
   if (me.scene === "gym") { promptBtn.style.display = "none"; promptAction = null; }
   else if (me.scene === "speedway" && myCar >= 0) { promptBtn.style.display = "flex"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => { if (swRaceMode() === "race" && swRaceSeat >= 0) swRaceStandUp(); else stepOutOfCar(false); }; } /* RACE mode: GET OUT is a race stand-up — the seat (and any stake's fate) follows the race rules in the race block */
   else if (me.scene === "speedway" && swNearModeSpot()) { promptBtn.style.display = "flex"; promptBtn.textContent = swRaceMode() === "race" ? "🏁 RACE switch" : "🏁 FREE DRIVE switch"; promptAction = () => swToggleMode(); } /* the MODE SWITCH (Jonathan 2026-11-04): the standard bottom prompt button — the same one used to buy stuff — offered ONLY at the plate spot left of the exit door, and only on foot (in a car, GET OUT owns the button; near cars nothing changes). The label names the CURRENT shared mode; tapping flips it for the whole track */
