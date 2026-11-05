@@ -6517,6 +6517,7 @@ let myMons = {}; /* my collection: line -> highest stage owned (1..3), loaded fr
 let myMonSel = ""; /* my follower pick: "<line>-<stage>", "" = none — saved on the account doc as monsel */
 let monOut = false; /* session-only: whether my monster is currently out following me (its pick rides my presence as mon) */
 let monFol = { key: "", x: 0, y: 0 }; /* my follower's eased position on my own screen — keyed by pick + scene, so a change snaps it to my side */
+const peerMonFol = new Map(); /* every REMOTE player's follower's eased position on my screen, keyed by peer id, each entry keyed inside by pick + scene — the monFol treatment mirrored per peer (Jonathan 2026-11-05): a remote's monster trails its owner exactly like mine trails me, instead of riding a glued offset */
 let monAll = false; /* the OWNER's unlock-all toggle (his order, 2026-11-02): his account doc carries it as monAll; while it is on, his EFFECTIVE collection (monEffMons / monEffStage) is every line at stage 3 — display and selection read the effective map, while buys, evolutions and saves keep writing the REAL myMons underneath; the switch's LOCK tap is the one exception: it wipes the real map too (his order, later the same day) */
 const MON_STAGE_SCALE = [0, 1, 1.62, 2.25]; /* a monster's draw scale by stage, relative to stage 1 (the owner's word, 2026-11-02): stage 1 at the follower's quarter scale (natural × 0.25), stage 2 at 1.62× that (× 0.405), stage 3 at 2.25× that (× 0.5625) — followers and case displays share this one table */
 function monEffMons() { if (monAll && isOwnerAcct()) { const o = {}; for (const l of MON_LINES) o[l] = 3; return o; } return myMons; } /* the effective collection for DISPLAY and SELECTION: the owner's toggle-on map, or the real map itself (the same object — every other account's reads are the real map's, byte for byte) */
@@ -15913,7 +15914,8 @@ function frame(now) {
   if (me.scene === "plaza") { fudFrameTick(now); fishTick(now); for (let fi = 0; fi < FUDS.length; fi++) { const F = FUDS[fi]; if (F.state === "patrol") actors.push({ isFud: true, id: "fud-" + fi, x: F.x, y: F.y, fud: F }); } } /* the FUD monsters (PREVIEW): their shared clock ticks here (fudFrameTick — the driver simulates, everyone else follows the record), and the living ones join the same y-sort by their feet — a destroyed one simply isn't pushed, so he vanishes from the world until his respawn */
   if (me.scene === "monstershop") actors.push({ id: "monshop-qbot", x: MONQBOT.x, y: MONQBOT.y, tx: MONQBOT.x, ty: MONQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the TRAINING PEN's Q-Bot (PREVIEW): the guards' fourth post — he stands INSIDE the pen in the Monster Shop and works the evolutions (the Train prompt keys off his spot, MONQBOT). Room furniture like his twins: NOT the live NPC, no presence record, never counted online */
   if (me.scene === "fishshop") actors.push({ id: "fishshop-qbot", x: FISHQBOT.x, y: FISHQBOT.y, tx: FISHQBOT.x, ty: FISHQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the FISHING SHOP's Q-Bot (PREVIEW, 2026-11-04): the guards' fifth post — he stands BEHIND the shop's counter across the top of the room and works the shop (the Fishing Shop prompt keys off the counter, fishNearCounter). Room furniture like his twins: NOT the live NPC (the plaza Q-Bot is untouched), no presence record, never counted online; the counter's front is repainted over his lower body in the over pass (drawFishCounterFront), the High Rollers clerk's own trick */
-  /* the monster followers (PREVIEW): one pseudo-actor per player in the room whose monster is out — mine from my own pick while monOut is on, everyone else's from their presence mon field. They join the actors BEFORE the sort, so each follower layers with the room exactly like a player standing at its feet, and the loop's isMon branch paints them. Mine eases after me (monFol); a remote's rides a trailing offset behind its owner's smoothed position, opposite their facing */
+  /* the monster followers (PREVIEW): one pseudo-actor per player in the room whose monster is out — mine from my own pick while monOut is on, everyone else's from their presence mon field. They join the actors BEFORE the sort, so each follower layers with the room exactly like a player standing at its feet, and the loop's isMon branch paints them. Mine eases after me (monFol); a remote's eases after its owner the same way (peerMonFol), off the owner's smoothed position, opposite their facing */
+  const monSeen = new Set(); /* the peer ids whose follower eased in this pass — the prune after the loop reads it */
   for (const a of actors) {
     const ms = a === me ? (monOut ? myMonSel : "") : (a.mon || "");
     const pr = ms ? monParse(ms) : null;
@@ -15930,9 +15932,18 @@ function frame(now) {
       monFol.x += ((me.x + (me.flip ? -95 : 95)) - monFol.x) * Math.min(1, dt * 5);
       monFol.y += (me.y - monFol.y) * Math.min(1, dt * 5);
       fx = monFol.x; fy = monFol.y;
-    } else { fx = a.x + (a.flip ? -95 : 95); fy = a.y; } /* a remote's follower is a pure offset off its owner's smoothed spot — no travel state of its own, so a presence mon appearing, vanishing or changing stage lands it beside its owner on that very frame (the presence handler already bursts its smoke there) */
+    } else {
+      const pkey = ms + "|" + a.scene;
+      let pf = peerMonFol.get(a.id);
+      if (!pf || pf.key !== pkey) { pf = { key: pkey, x: a.x + (a.flip ? -95 : 95), y: a.y }; peerMonFol.set(a.id, pf); } /* a remote's monster appearing, changing pick or stage, or its owner changing room: the follower POPS IN at the follow spot beside its owner (the presence handler already bursts its smoke there) — the local follower's own pop-in rule, so it never flies in from my position, the map edge, or the last room's coordinates */
+      pf.x += ((a.x + (a.flip ? -95 : 95)) - pf.x) * Math.min(1, dt * 5);
+      pf.y += (a.y - pf.y) * Math.min(1, dt * 5);
+      fx = pf.x; fy = pf.y;
+      monSeen.add(a.id);
+    }
     actors.push({ isMon: true, id: "monfol-" + (a === me ? "me" : a.id), x: fx, y: fy, line: pr.line, stage: pr.stage, oHero, oG: isMechHero(oHero) ? "m" : (a === me ? me.g : a.g), flip: !!a.flip, bob: a === me ? 0 : (a.bob || 0), gbob }); /* oHero/oG ride along so drawMonFollower can anchor the monster's visible feet to its owner's (the measured feet fix) — the gender mirrors drawPlayer's own pick, mech forms included */
   }
+  for (const pid of peerMonFol.keys()) if (!monSeen.has(pid)) peerMonFol.delete(pid); /* a peer who left the room, or whose monster went back in, leaves no stale ease state behind */
   if (me.scene === "boxing" && boxState && boxState.mode === "pc" && (boxState.phase === "fight" || boxState.phase === "done")) { /* the boxing CPU (Jonathan 2026-11-01): a synthetic actor like the guards — the dread dog tinted to its corner (seat 0 red, seat 1 blue), drawn through this same pass so he sorts and renders like a fighter. The HOST pushes its own simulation (no lag); every other screen eases boxCpuVis toward the record's cpu node at the peers' own rate. No presence record, never a person online */
     const cs = boxCpuSeatOf(boxState), tgt = boxState.cpu;
     if (cs >= 0 && tgt && typeof tgt.x === "number") {
