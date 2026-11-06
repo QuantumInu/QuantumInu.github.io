@@ -108,6 +108,22 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #swlights .swl.grn{background:#2eff7a;border-color:#a7ffc4;box-shadow:0 0 18px #2eff7a}
 #swcountnum{font-weight:900;font-size:92px;line-height:1;color:#fff;text-shadow:0 4px 0 #b34700,0 0 34px rgba(255,140,40,.65);letter-spacing:2px}
 #swcount.go #swcountnum{color:#2eff7a;text-shadow:0 4px 0 #0d5c2a,0 0 34px rgba(46,255,122,.7)}
+#cvhud{position:absolute;top:8px;left:8px;right:8px;z-index:16;display:none;flex-direction:column;gap:4px;background:rgba(24,6,26,.88);border:2px solid rgba(255,105,180,.55);border-radius:12px;padding:6px 10px;box-shadow:0 6px 26px rgba(0,0,0,.5);pointer-events:none;font-size:13.5px} /* the CARNIVAL HUD (PREVIEW, 2026-11-06): the Speedway HUD's shape in carnival pink — shown while seated at a carnival game (a booth chair or a free-drive bumper car). Title + live status on one row; the bet panel rides inside it during the bet phase. cvSyncHud feeds it off the carnival records, so every screen reads the same state */
+#cvhud .swtoprow{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px}
+#cvhudtitle{font-weight:800;color:#ff9fd0;white-space:nowrap}
+#cvhudstatus{color:#ffe3f1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cvbet{display:none;flex-direction:column;gap:5px;width:100%;pointer-events:auto;border-top:1px solid rgba(255,105,180,.3);padding-top:5px}
+#cvbet .trbethead{display:flex;align-items:center;gap:10px}
+#cvbet .trbettitle{font-weight:800;color:#ff9fd0}
+#cvbet .trbetstatus{color:#ffd3e8;font-weight:700;font-size:12.5px}
+#cvbetamts{display:flex;flex-wrap:wrap;gap:5px}
+#cvbetamts .cvamt{padding:5px 9px;border-radius:8px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:13px;cursor:pointer}
+#cvbetamts .cvamt.on{border-color:var(--gold);background:rgba(255,215,106,.18);color:#ffd76a}
+#cvbetamts .cvamt.lock{opacity:.45;cursor:default}
+#cvbet .trbetrow{display:flex;gap:6px}
+#cvready{flex:1;padding:7px 10px;border-radius:9px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+#cvready.on{border-color:#51e07a;background:rgba(81,224,122,.16);color:#7CFC9A}
+#cvhudhint{font-size:11.5px;color:#f3b8d8;font-weight:700}
 #trready.on{border-color:#7CFC9A;background:rgba(124,252,154,.22);color:#7CFC9A}
 #trready:disabled{opacity:.45;cursor:default}
 #logbtn{flex:none;align-self:center;width:46px;height:46px;border-radius:50%;border:1px solid rgba(56,225,255,.4);background:rgba(5,10,24,.88);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
@@ -408,6 +424,15 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
       <div id="swbetamts"></div>
       <div class="trbetrow"><button id="swready">READY</button></div>
     </div>
+  </div>
+  <div id="cvhud">
+    <div class="swtoprow"><span id="cvhudtitle">🎪 CARNIVAL</span><span id="cvhudstatus"></span></div>
+    <div id="cvbet">
+      <div class="trbethead"><span class="trbettitle" id="cvbettitle">🎰 MATCH BET</span><span class="trbetstatus" id="cvbetstatus"></span></div>
+      <div id="cvbetamts"></div>
+      <div class="trbetrow"><button id="cvready">READY</button></div>
+    </div>
+    <div id="cvhudhint"></div>
   </div>
   <div id="swcount"><div id="swlights"><span class="swl"></span><span class="swl"></span><span class="swl"></span></div><div id="swcountnum">3</div></div>
   <div id="trwinpop"></div>
@@ -735,6 +760,7 @@ const GAMES = [
 ["QI Quantum Lander","qi-quantum-lander.html","qi-quantum-lander.jpg"]];
 /* the site's full song library: [slug, title, artist, genre, seconds] */
 const SONGS = [
+  ["alliance-reforged","Alliance Reforged","Phat Boi J","Rock",286],
 ["quantum-trenches","Quantum Trenches","Phat Boi J","Rap",222],
 ["qi-is-my-gasoline","QI Is My Gasoline","Phat Boi J","Techno",351],
 ["night-shift","Night Shift","Phat Boi J","Rap",251],
@@ -1576,7 +1602,7 @@ if (db) db.ref("hub/tables/hrcmusic").on("value", s => { hrcState = s.val(); syn
 if (db) db.ref("hub/tables/boxmusic").on("value", s => { boxMusState = s.val(); syncJuke(); updateJukePanel(); }); /* the Boxing Arena's boom-box song — hrcmusic's listener, mirrored */
 /* ============ player / world ============ */
 const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south. PREVIEW (2026-10-30): the plaza grows RIGHT by 1140 for the Quantum Horse Track building east of the Sports Complex and the swimming pool east of the casino — again, nothing existing moved, the ground just extends east. PREVIEW (2026-11-03): the plaza grows WEST by 800 for Quantum Trenches (Jonathan: "build MORE SPACE to the west... expand the plaza to the left of the speedway") — the first westward growth, taken the other way from the eastern one: the origin stays exactly where it has always been and the west edge moves out to WORLD_X0, so again NOT ONE existing coordinate in the plaza moved; the ground simply extends west */
-const WORLD_X0 = -800; /* the plaza's WEST edge (2026-11-03): every plaza x lives in [WORLD_X0, WORLD.w]. Only two mechanics read this edge — the plaza movement clamp in collide() and the plaza follow camera in frame(); everything else in the plaza is painted and checked off its own constants, which all stand east of the old edge, untouched */
+const WORLD_X0 = -6100; /* the plaza's WEST edge (2026-11-03, −800; CARNIVAL EXPANSION PREVIEW 2026-11-06: grown west again the same way, to −5640 — the origin and every existing coordinate stay exactly where they have always been, the ground simply extends west past the Trenches for the Carnival row and its bumper arena, whose west wall (−5560) stands the house 80 off the new edge, the Trenches' own measure. ARENA RESIZE, later the same day (Jonathan: "make the arena for bumper cars bigger"): grown west once more to −6100, the same way — the arena's west wall moved out to −5920 and now stands 180 off the new edge, walk-around room on its west side too): every plaza x lives in [WORLD_X0, WORLD.w]. Only two mechanics read this edge — the plaza movement clamp in collide() and the plaza follow camera in frame(); everything else in the plaza is painted and checked off its own constants */
 const WORLD_Y0 = -2010; /* the plaza's NORTH edge (PREVIEW, 2026-11-04): the Crystal Quantum Castle territory — the world grows UP the same way it grew west, the origin unmoved and not one existing coordinate shifted. Only the same two mechanics read this edge — the plaza movement clamp in collide() and the plaza follow camera in frame(); everything else in the new land is painted and checked off its own constants (CASTLE_B, MOAT_OUT, ISLE below). Grew from −1580 to −2010 in the castle rework (owner feedback, 2026-11-04: "the castle has to look a lot bigger, and the moat too") — the bigger moat's north shore needed the room */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
 const me = { name: "", hero: 0, g: "m", scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
@@ -2008,7 +2034,7 @@ const booths = [];
 [600, 880, 1160, 1440].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); }); /* the booth columns ride DOWN the walls as one arrangement (Jonathan 2026-11-01): both side columns shifted 80 lower together (rows were 520/800/1080), and the pair that used to sit inset by the entrance (420,1470) and (CLUBROOM.w-630,1470) now form each column's FOURTH row — aligned with its column at x 56 / CLUBROOM.w-266, one row-pitch (280) below the last row, so the whole pattern keeps the rows' own spacing (190 booth + 90 gap) all the way down, the last gap landing 90 above the floor edge. Nothing else in the club moved */
 function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : me.scene === "rooftop" ? ROOFROOM : me.scene === "monstershop" ? MSROOM : me.scene === "comics" ? COMROOM : me.scene === "mechshop" ? MKROOM : me.scene === "trenches" ? TRROOM : me.scene === "castle" ? CASTLEROOM : me.scene === "fishshop" ? FISHROOM : me.scene === "woodshop" ? WOODROOM : me.scene === "dining" ? DININGROOM : me.scene === "crystal" ? CRYSTALROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B, MON_B, COM_B, TR_B, MECH_B, FISH_B, WOOD_B, CASTLE_B, ...MOAT_COLLIDE]; /* FISH_B: the Fishing Shop, west of Club Quantum on the walkway — solid like the rest, its bottom-face door excepted. CASTLE_B + MOAT_SOLIDS: the Crystal Castle's keep and its moat water (PREVIEW, 2026-11-04) — the water is SOLID here, unlike the plaza pool: the drawbridge is the only crossing, and fishing happens from its edges */ /* MECH_B: the Mech Shop, west of the Monster Shop on the same row — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the new west grove's trees stand OFF this list on purpose (Jonathan 2026-11-03: "the trees you put I cant walk over them. Fix it."): the grove is walk-over decor exactly like the plaza's own trees — TR_GROVE_SOLIDS was removed from the obstacles the day it went in */ /* COM_B: Quantum Comics, on the lawn south of the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* MON_B: the Monster Shop, below the club across the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
+  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B, MON_B, COM_B, TR_B, MECH_B, FISH_B, WOOD_B, CASTLE_B, ...MOAT_COLLIDE, ...CV_SOLIDS]; /* CV_SOLIDS (CARNIVAL PREVIEW, 2026-11-06): the carnival booths' bodies, the CARNIVAL sign's two posts, the bumper arena's barrier walls (its east wall split around the entrance gap) and the ferris wheel's platform — appended at the end of this list, every existing entry untouched */ /* FISH_B: the Fishing Shop, west of Club Quantum on the walkway — solid like the rest, its bottom-face door excepted. CASTLE_B + MOAT_SOLIDS: the Crystal Castle's keep and its moat water (PREVIEW, 2026-11-04) — the water is SOLID here, unlike the plaza pool: the drawbridge is the only crossing, and fishing happens from its edges */ /* MECH_B: the Mech Shop, west of the Monster Shop on the same row — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the new west grove's trees stand OFF this list on purpose (Jonathan 2026-11-03: "the trees you put I cant walk over them. Fix it."): the grove is walk-over decor exactly like the plaza's own trees — TR_GROVE_SOLIDS was removed from the obstacles the day it went in */ /* COM_B: Quantum Comics, on the lawn south of the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* MON_B: the Monster Shop, below the club across the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
@@ -6891,6 +6917,605 @@ function comNearStand() { if (me.scene !== "comics") return -1; let best = -1, b
 function openComic(n) { sfxChime(); window.open("https://quantuminuofficial.com/comics/quantum-inu-" + n + ".html", "_blank"); } /* QUANTUM COMICS (PREVIEW): a filled stand opens its issue's page in a new tab — playCabinet's own pattern */
 const comImgs = {}; /* the lazy cover cache — monImg's pattern */
 function comImg(n) { let im = comImgs[n]; if (!im) { im = new Image(); im.src = "assets/comics/issue-" + n + "/card.jpg"; comImgs[n] = im; } return im; }
+/* ================================================================
+   🎪 CARNIVAL EXPANSION (PREVIEW build, Jonathan 2026-11-06) — the plaza's far west end, past
+   the Trenches, on the new land (WORLD_X0 −5640; −6100 after the same-day arena resize). Reading right→left from the Trenches: the
+   CARNIVAL sign over the extended purple path, then three midway booths on the trenches row —
+   💦 Water Gun Target Race, 🏀 Basketball Hoops, 🎯 Ball Toss — four chairs each on frontage
+   aprons, then the Bumper Car Arena at the far west (eight cars), and the Ferris Wheel at the
+   end of a spur path dropping south below Ball Toss. Every booth runs the
+   hub's established table rails, no new systems: the shared record lives at
+   hub/tables/carnival/..., seats carry the trenches seat shape, bets ride the trenches ladder
+   with the match-bet rule (the first staker sets the table's amount; anyone may re-pick only
+   while the only staker), debited at the tap, frozen past a READY gate, the winner paid
+   exactly 2× their own bet, empty chairs filled by PC players at the bell, a mid-round stand
+   forfeiting its stake, the last seat leaving resetting the table, and a held win claimed
+   through hub/transfers so it lands even if the winner has signed out before it pays.
+   BUMPER CARS ARE FREE DRIVE ONLY (Jonathan's word, 2026-11-06): players only, no PC cars —
+   and no race at all: no mode plate, no betting, no referee. Anyone, guest included, walks in
+   through the path-width entrance and hops into a parked car; the only records are the cars
+   themselves at hub/tables/carnival/bccars/<i>. The Ferris Wheel's angle is a pure function
+   of Date.now() on
+   every screen — no sync record at all; riders board and step off ONLY at the bottom and are
+   locked in for the full turn. The presence record gains NO new field: a seated player
+   publishes their chair, a driver their car, a rider their cabin, and every screen draws
+   them there.
+   ================================================================ */
+const CV_GAMES = {
+  wg: { name: "Water Gun Race", icon: "💦", x: -2400, col: "#37b6ff", col2: "#0f6fb8" },
+  bb: { name: "Basketball Hoops", icon: "🏀", x: -3320, col: "#ff8a3c", col2: "#c2540d" },
+  bt: { name: "Ball Toss", icon: "🎯", x: -4240, col: "#ff5d7a", col2: "#b81f42" },
+}; /* the three booths on the trenches row, east→west in Jonathan's order: Water Gun first past the Trenches, Ball Toss last before the arena. Each body is 840 wide (the trenches footprint's own module) standing with its back on the row line y170, exactly like TR_B */
+const CV_CHAIRS = {}; for (const g in CV_GAMES) CV_CHAIRS[g] = [0, 1, 2, 3].map(i => ({ x: CV_GAMES[g].x + 150 + i * 180, y: 580 })); /* four chairs per booth on its frontage apron (apron top y490, branch band 670..830 — the chairs stand between, facing the counter), the casino tables' four-seat module carried to the midway */
+const CV_ARENA = { x: -5920, y: 170, w: 1560, h: 1240 }; /* the bumper arena at the far west: 1560x1240 (ENLARGED 2026-11-06 at Jonathan's word — "make the arena for bumper cars bigger" — grown WEST and SOUTH only: the east wall (−4360) and the booth row line (y170) never moved, and its east wall's split is the entrance gap at y670..830 — exactly the branch path's band, flush with the purple top and bottom, no border drawn over the path) */
+const CV_BC_BOUNDS = { x0: -5870, y0: 224, x1: -4410, y1: 1356 }; /* where car CENTRES may roam: the arena inset by its barrier (26) and a car's half (~24) — follows CV_ARENA: the west and south numbers grew with the resize, the east and north are exactly what they were */
+const CV_BC_CARS = ["#e33b3b", "#3b6fe3", "#f2c531", "#35c24a", "#9b4de3", "#f2762e", "#ff6fb5", "#23232e"]; /* the eight car colours (Jonathan 2026-11-06): the Speedway's red/blue/yellow/green, then purple, orange, pink, black */
+const CV_BC_PARK = i => ({ x: CV_ARENA.x + 26 + (i + 0.5) * (CV_ARENA.w - 52) / 8, y: 330, hd: Math.PI / 2 }); /* the cars park in a line along the arena's north edge, noses south, ready to walk into — the eight centres divide the inside width (wall face to wall face) into eight equal bays with one car centred in each, so the row runs uniform end to end, every car clear of the border (Jonathan 2026-11-06: "make sure all cars fit within border evenly on the top") */
+const CV_WHEEL = { x: -3820, y: 1750, r: 540 }; /* the ferris wheel at the spur's end, below Ball Toss: centre (−3820,1750), rim radius 540, one full turn every 40 seconds */
+const CV_WHEEL_MS = 40000;
+const CV_SPUR = { x: -3900, w: 160 }; /* the spur path's span: 160 wide (the plaza path module), painted from the branch's south edge (y830) down to the wheel platform */
+const CV_WHEEL_SPOT = { x: -3820, y: 2428 }; /* where a boarder stands: on the platform, on the wheel's own centre line */
+const CV_SOLIDS = [
+  { x: CV_GAMES.wg.x, y: 170, w: 840, h: 320 }, { x: CV_GAMES.bb.x, y: 170, w: 840, h: 320 }, { x: CV_GAMES.bt.x, y: 170, w: 840, h: 320 },
+  { x: -1166, y: 636, w: 28, h: 34 }, { x: -822, y: 636, w: 28, h: 34 },
+  { x: CV_ARENA.x, y: CV_ARENA.y, w: 26, h: CV_ARENA.h }, { x: CV_ARENA.x, y: CV_ARENA.y, w: CV_ARENA.w, h: 26 }, { x: CV_ARENA.x, y: CV_ARENA.y + CV_ARENA.h - 26, w: CV_ARENA.w, h: 26 }, { x: CV_ARENA.x + CV_ARENA.w - 26, y: CV_ARENA.y, w: 26, h: 500 }, { x: CV_ARENA.x + CV_ARENA.w - 26, y: 830, w: 26, h: CV_ARENA.y + CV_ARENA.h - 830 },
+  { x: -3950, y: 2400, w: 260, h: 44 }, { x: -4136, y: 2384, w: 32, h: 60 }, { x: -3536, y: 2384, w: 32, h: 60 },
+]; /* the carnival's collision, appended to the plaza obstacle list: the three booth bodies (backs on the row line), the CARNIVAL sign's two posts (standing on the lawn at the path's north edge — the board itself hangs overhead and never blocks), the arena's barrier walls with the east wall split around the entrance gap, and the wheel's platform and support feet. The wheel's disc is deliberately NOT an obstacle: it turns up in the air and its riders are carried by the cabin stomp, not by walking */
+const CVK = { wg: "cvwg", bb: "cvbb", bt: "cvbt" }; /* claim-key prefixes — the trenches "tr"/speedway "sw" pattern: a win or refund claim's key is prefix + roundId + seat, so a payout can only ever land once */
+let cvState = { wg: null, bb: null, bt: null }; /* the three booth records, hub/tables/carnival/<game> */
+let cvCarRecs = {}; /* the eight car records, hub/tables/carnival/bccars/<i> {x,y,hd,v,drv,drvName,ts} */
+let cvWheelRecs = {}; /* the wheel claims, hub/tables/carnival/wheel/<pid> {cabin,name,ts} — who is in which cabin; the wheel's MOTION never comes from here, only from Date.now() */
+let cvSeatGame = null, cvSeatIdx = -1; /* my carnival seat: a booth key ("wg"/"bb"/"bt") plus the chair index (bumper drivers hold no seat — cvCar is theirs) */
+let cvCar = -1, cvMyCarPos = null, cvMyCarVel = { x: 0, y: 0 }, cvMyHd = Math.PI / 2, cvLastCarPub = 0; /* my bumper car and its local physics — the record is stomped from these, exactly the Speedway's arrangement */
+let cvCarVis = []; /* every car's drawn position on MY screen, eased toward its record (the speedway's swCarVis) */
+let cvRide = -1; /* my ferris cabin index, or −1 on foot */
+let cvHooked = false; /* the carnival listeners/intervals start lazily on my first plaza frame — the trenches lazy-hook pattern (trHookIntervals) carried over */
+let cvNoteTxt = "", cvNoteAt = 0; /* my carnival HUD's note line — trNote's pattern */
+let cvLeftSeat = null; /* {g, i, at} — the reclaim guard (the trenches trLeftSeat): a seat I just left is not silently re-adopted after a hiccup */
+let cvTossAimOn = false; /* ball toss: my aim sweep is running */
+let cvMyProg = 0, cvSprayWriteAt = 0, cvSfxAt = 0; /* water gun: my fill, accumulated locally while I spray and written to my prog leaf throttled (the shooter's own client writes their own score — the pool/bowling pattern) */
+let cvLastShotAt = 0; /* basketball: my shot rate limit */
+let cvDoneSeen = {}, cvPhaseSeen = {}; /* fx watchers: banners and bells fire once per record event per client */
+let cvPcTimers = {}; /* the host's PC shot/throw clocks, keyed game+seat — PC bodies live in the record; only their pacing lives here */
+let cvLastTick = 0, cvStandBtn = null;
+function cvPath(g) { return "carnival/" + g; }
+function cvGameState(g) { return cvState[g]; }
+function cvHash(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; } /* the speedway PC-pace hash: the same round seeds the same PC on every screen the host shows it to */
+function cvFreshSeats(st) { if (!st || !st.seats) return []; const now = Date.now(); return Object.keys(st.seats).map(Number).filter(i => st.seats[i] && st.seats[i].pid && now - (st.seats[i].ts || 0) < 25000).sort((a, b) => a - b); } /* the trenches freshness rule: a seat lives while its 4-second heartbeat is under 25 seconds old */
+function cvMySeatIn(st) { if (!st || !st.seats) return -1; for (const k in st.seats) if (st.seats[k] && st.seats[k].pid === myId) return +k; return -1; }
+function cvNote(t) { cvNoteTxt = t; cvNoteAt = Date.now(); cvSyncHud(); }
+/* ---- the carnival refund net: armRefundOD's exact shape, keyed off the carnival records
+   (rfStateFor knows only the older games, so the carnival keeps its own two wrappers over the
+   same hub/transfers claim path and the same refundODArmed registry seatOD cancels through) ---- */
+function cvRfKey(g, st, idx) { return CVK[g] + ((st && st.roundId) || 0) + "-" + idx + "rf"; }
+function cvArmRefund(g, idx) {
+  if (!acctUser) return; const st = cvGameState(g); if (!st) return;
+  const key = cvRfKey(g, st, idx);
+  refundODArmed["carnival/" + g + "/" + idx] = key;
+  try { db.ref("hub/transfers/" + acctUser.uid + "/c_" + key).onDisconnect().set({ amt: 0, label: CV_GAMES[g].name + " stake refund", key, ts: firebase.database.ServerValue.TIMESTAMP }); } catch (e) {}
+} /* armed at every stake, exactly like the tables: if this client vanishes mid-bet-phase, the disconnect itself writes the claim and the generic transfers watcher pays it on any later sign-in */
+function cvCancelRefund(g, idx) {
+  const key = refundODArmed["carnival/" + g + "/" + idx]; if (!key) return;
+  delete refundODArmed["carnival/" + g + "/" + idx];
+  if (!acctUser) return;
+  try { db.ref("hub/transfers/" + acctUser.uid + "/c_" + key).onDisconnect().cancel(); } catch (e) {}
+} /* the round left the bet phase (or the stake was refunded in person): the net comes down */
+function cvClaimRefund(g, st, idx, amt, why) { if (amt > 0) writeClaim(claimUid(st.seats[idx]), cvRfKey(g, st, idx), amt, why); } /* a refund paid to a player who is not here to take it in person (a staked sleeper) rides the claim path with the very key their own net armed */
+function cvFrozenRefund(g, st) { const bets = (st && st.bets) || {}; for (const k in bets) if (bets[k] && bets[k].a > 0) writeClaim(bets[k].u, cvRfKey(g, st, k), bets[k].a, "Carnival round void — stake refunded"); } /* a round abandoned past the bell pays every frozen stake back through claims — the speedway void's own rule */
+
+/* ---- sitting, betting, ready, standing: the trenches flow, booth by booth ---- */
+function cvNearChair() {
+  if (cvSeatGame || cvCar >= 0 || cvRide >= 0) return { g: null, i: -1 };
+  for (const g in CV_GAMES) { const st = cvState[g]; if (!st || st.phase !== "sit") continue; for (let i = 0; i < 4; i++) { const c = CV_CHAIRS[g][i]; if (Math.hypot(me.x - c.x, me.y - c.y) < 105) { const s = st.seats && st.seats[i]; if (s && s.pid && Date.now() - (s.ts || 0) < 25000) continue; return { g, i }; } } }
+  return { g: null, i: -1 };
+} /* a free chair at a booth whose table is in its bet phase, within prompt reach — chairs open only between rounds, so a round is never joined mid-play */
+function cvTrySit(g, i) {
+  const st = cvState[g]; if (!st || st.phase !== "sit") { genText(me.x, me.y - 130, "⏳ That game is mid-round — chairs open when it resets", "#ffb3c8"); return; }
+  if (cvSeatGame || cvCar >= 0 || cvRide >= 0) return;
+  const occ = st.seats && st.seats[i];
+  if (occ && occ.pid && Date.now() - (occ.ts || 0) < 25000) { if (occ.pid !== myId) genText(me.x, me.y - 130, "That chair is taken", "#ffb3c8"); return; }
+  tblSet(cvPath(g) + "/seats/" + i, { pid: myId, acct: acctUser ? acctUser.uid : "", name: me.name, hero: me.hero || 0, ts: Date.now(), bet: 0, rdy: false });
+  seatOD("carnival/" + g, i, true);
+  cvSeatGame = g; cvSeatIdx = i; cvLeftSeat = null;
+  const c = CV_CHAIRS[g][i]; mySeatPos = { x: c.x, y: c.y }; me.x = c.x; me.y = c.y;
+  sfxClick(); cvNote("You sat at the " + CV_GAMES[g].name + ". Match the table's bet, then hit READY — empty chairs fill with PCs at the bell."); cvSyncHud();
+} /* the trenches sit, chair for chair: the seat record is the trenches shape (a guest may sit — they just cannot bet, and a seated guest holds the gate, the trenches rule Jonathan carried over), mySeatPos pins me to the chair so every screen's presence draws me in it, and seatOD arms the hub's orphan-seat net */
+function cvBet(amt) {
+  const g = cvSeatGame; if (!g) return; const st = cvGameState(g); if (!st || st.phase !== "sit") return;
+  const i = cvSeatIdx; const s = st.seats && st.seats[i]; if (!s || s.pid !== myId) return;
+  if (!acctUser) { cvNote("🔒 Betting takes an account — guests can sit and watch, but the gate waits on bettors."); sfxBad(); return; }
+  const setAmt = st.betAmt || 0;
+  const stakers = cvFreshSeats(st).filter(k => (st.seats[k].bet || 0) > 0);
+  const sole = stakers.length === 0 || (stakers.length === 1 && stakers[0] === i);
+  if (setAmt > 0 && amt !== setAmt && !sole) { cvNote("🔒 The table's bet is set at 🪙 " + setAmt.toLocaleString("en-US") + " — match it, or wait for the next round to set your own."); sfxBad(); return; }
+  if (amt === (s.bet || 0) && setAmt === amt) return;
+  pullChips();
+  const cur = (profile && profile.chips) || 0;
+  if (amt > (s.bet || 0) && cur < amt - (s.bet || 0)) { cvNote("Not enough chips for a 🪙 " + amt.toLocaleString("en-US") + " bet."); sfxBad(); return; }
+  if ((s.bet || 0) > 0) { addChips(s.bet); cvCancelRefund(g, i); } /* a re-pick refunds the old stake first (the tables' own rule), so a tap can never double-charge */
+  if (amt > 0) { addChips(-amt); cvArmRefund(g, i); } /* the stake leaves at the tap and the disconnect net arms over it */
+  const upd = {}; upd["seats/" + i + "/bet"] = amt; upd["seats/" + i + "/rdy"] = false;
+  if (!setAmt || sole) upd.betAmt = amt;
+  tblUpd(cvPath(g), upd); sfxClick(); cvSyncHud();
+} /* the trenches bet, verbatim in shape: match-bet lock, debit at tap, READY revoked by any re-pick. It serves the three booths. */
+function cvReady() {
+  const g = cvSeatGame; if (!g) return; const st = cvGameState(g); if (!st || st.phase !== "sit") return;
+  const i = cvSeatIdx; const s = st.seats && st.seats[i]; if (!s || s.pid !== myId) return;
+  if (!(s.bet > 0)) { cvNote("Place your bet first — the round starts the moment every bettor is READY."); sfxBad(); return; }
+  const upd = {}; upd["seats/" + i + "/rdy"] = true; tblUpd(cvPath(g), upd); sfxClick(); cvSyncHud();
+}
+function cvStand() {
+  const g = cvSeatGame; if (!g) return; const i = cvSeatIdx; const st = cvState[g];
+  cvSeatGame = null; cvSeatIdx = -1; cvLeftSeat = { g, i, at: Date.now() }; mySeatPos = null; cvTossAimOn = false;
+  if (st) {
+    const s = st.seats && st.seats[i];
+    if (s && s.pid === myId) {
+      if (st.phase === "sit" && (s.bet || 0) > 0 && acctUser) { addChips(s.bet); cvCancelRefund(g, i); } /* a bet-phase stand refunds in person, on the spot */
+      else if (st.phase !== "sit" && st.bets && st.bets[i]) cvNote("You stood mid-round — a frozen stake rides without you and is forfeited.");
+    }
+    tblSet(cvPath(g) + "/seats/" + i, null);
+  }
+  seatOD("carnival/" + g, i, false);
+  const c = CV_CHAIRS[g][i]; me.x = c.x; me.y = c.y + 74; sfxClick(); cvSyncHud();
+} /* the casino stand, booth edition: off the chair to the apron in front of it, stake back in hand if the bell has not rung */
+function cvSettleWatch(g, st) {
+  if (!st) return;
+  const myI = cvMySeatIn(st);
+  if (st.phase !== "sit" && myI >= 0) cvCancelRefund(g, myI); /* past the bell my net is down — the frozen stake now rides the record, not my connection */
+  const prevPhase = cvPhaseSeen[g]; cvPhaseSeen[g] = st.phase;
+  if (st.phase === "count" && prevPhase === "sit" && cvSeatGame === g) { tone(880, 880, 0.12, "square", 0.10); cvMyProg = (st.prog && st.prog[cvSeatIdx]) || 0; } /* the bell, on my screen because I am seated here */
+  if (st.phase === "play" && prevPhase === "count" && cvSeatGame === g) tone(1320, 1320, 0.16, "square", 0.10);
+  if (st.phase === "done" && st.results && cvDoneSeen[g] !== st.doneTs) {
+    cvDoneSeen[g] = st.doneTs;
+    if (myI >= 0 && st.results[myI] != null) settleOnce(CVK[g] + st.roundId + "-" + myI, st.results[myI] || 0); /* MY win, claimed off the record the host wrote — settleOnce inside addChips pays it exactly once */
+    const near = cvSeatGame === g || Math.hypot(me.x - (CV_GAMES[g].x + 420), me.y - 330) < 1250;
+    if (near) {
+      const wk = st.win; const wname = wk == null ? "" : (String(wk).indexOf("pc") === 0 ? "🤖 PC" : ((st.seats && st.seats[wk] && st.seats[wk].name) || "A player"));
+      if (wk != null && String(wk).indexOf("pc") === 0) fxText = { txt: "🤖 PC TAKES THE " + CV_GAMES[g].name.toUpperCase() + " — THE POT IS LOST", col: "#ff9d7a", at: performance.now(), big: true };
+      else if (wk != null && +wk === myI && cvSeatGame === g) { fxText = { txt: "🏆 YOU WIN THE " + CV_GAMES[g].name.toUpperCase() + "! +🪙 " + ((st.results[myI] || 0)).toLocaleString("en-US"), col: "#ffd76a", at: performance.now(), big: true }; sfxCheer(); }
+      else if (wk != null) fxText = { txt: CV_GAMES[g].icon + " " + wname + " WINS THE " + CV_GAMES[g].name.toUpperCase() + "!", col: "#ffd76a", at: performance.now(), big: true };
+    }
+  }
+} /* the trenches/speedway settle watch, booth edition: refund net down past the bell, the bell tones for the seated, the winner's claim settled once off the results map, and the banner shown to the seated and the nearby — not the whole plaza */
+
+/* ---- the booth host: the trenches host tick, one per booth. The lowest fresh seat's client
+   referees; record creation and the empty-table reset run on any plaza screen, exactly as the
+   trenches record is created by whoever is in the room. All round state lives in the record,
+   so a host leaving mid-round hands the whistle to the next seat without losing the round ---- */
+function cvHostTick(g) {
+  const st = cvState[g];
+  if (!st || typeof st !== "object" || !st.phase) { tblSet(cvPath(g), { phase: "sit", roundId: newRoundId(), betAmt: 0, seats: {}, ts: Date.now() }); return; }
+  const fresh = cvFreshSeats(st);
+  if (!fresh.length) {
+    if (st.phase !== "sit" || st.betAmt || st.bets || st.pcs || st.prog || st.scores || st.results) { /* the last seat is gone: void whatever was frozen and reset the table on the spot (the hub's table-reset rule) */
+      if (st.bets) cvFrozenRefund(g, st);
+      tblSet(cvPath(g), { phase: "sit", roundId: newRoundId(), betAmt: 0, seats: {}, ts: Date.now() });
+    }
+    return;
+  }
+  if (cvMySeatIn(st) !== fresh[0]) return; /* I host this booth only while I hold its lowest live seat */
+  const now = srvNow();
+  if (st.phase === "sit") {
+    for (const i of Object.keys(st.seats || {}).map(Number)) { const s = st.seats[i]; if (s && (s.bet || 0) > 0 && !fresh.includes(i)) { cvClaimRefund(g, st, i, s.bet, CV_GAMES[g].name + " stake refund — seat timed out"); const u = {}; u["seats/" + i + "/bet"] = 0; u["seats/" + i + "/rdy"] = false; tblUpd(cvPath(g), u); } } /* a staked sleeper is refunded through claims before the gate can read them — the trenches sleeper rule */
+    const bettors = fresh.filter(i => (st.seats[i].bet || 0) > 0);
+    if (bettors.length && bettors.every(i => st.seats[i].rdy)) {
+      const bets = {}; for (const i of bettors) bets[i] = { a: st.seats[i].bet, u: claimUid(st.seats[i]), n: st.seats[i].name || "" };
+      const pcs = {}; const prog = {}, scores = {}, balls = {};
+      for (const i of bettors) { prog[i] = 0; scores[i] = 0; balls[i] = 0; }
+      for (let i = 0; i < 4; i++) if (!fresh.includes(i)) { const sk = cvHash(st.roundId + g + i); pcs[i] = { s: 0.8 + sk * 0.2 }; prog["pc" + i] = 0; scores["pc" + i] = 0; balls["pc" + i] = 0; } /* PC FILL (Jonathan, confirmed 2026-11-06): every chair no live player holds is filled by a PC at the bell, seeded off the round id so the field is the same on every screen. A PC win means the human stakes are lost — the speedway's own pot rule */
+      tblUpd(cvPath(g), { phase: "count", bets, pcs, prog: g === "wg" ? prog : null, scores: g === "wg" ? null : scores, balls: g === "bt" ? balls : null, countTs: now + 3000, results: null, win: null });
+    }
+  } else if (st.phase === "count" && now >= (st.countTs || 0)) {
+    tblUpd(cvPath(g), { phase: "play", startTs: now, endTs: now + (g === "wg" ? 30000 : g === "bb" ? 45000 : 75000) });
+  } else if (st.phase === "play") {
+    if (now > (st.endTs || 0) + 4000) cvFinishRound(g); /* the sim tick calls the finish the moment a round truly ends; this is only the backstop if the host's sim stalled */
+  } else if (st.phase === "done" && now > (st.doneTs || 0) + 5500) {
+    const upd = { phase: "sit", roundId: newRoundId(), betAmt: 0, bets: null, pcs: null, prog: null, scores: null, balls: null, results: null, win: null };
+    for (const i of Object.keys(st.seats || {})) { upd["seats/" + i + "/bet"] = 0; upd["seats/" + i + "/rdy"] = false; }
+    tblUpd(cvPath(g), upd); /* the recycle: the chairs stay sat in, every stake and ready clears, a fresh round id arms the next claims */
+  }
+}
+function cvMetric(g, st, key) { return g === "wg" ? ((st.prog && st.prog[key]) || 0) : ((st.scores && st.scores[key]) || 0); }
+function cvFinishRound(g) {
+  const st = cvState[g]; if (!st || st.phase !== "play") return;
+  const bets = st.bets || {};
+  const fresh = cvFreshSeats(st);
+  const players = Object.keys(bets).filter(k => fresh.includes(+k)).map(k => ({ key: k, seat: +k, pc: false })).concat(Object.keys(st.pcs || {}).map(k => ({ key: "pc" + k, seat: +k, pc: true }))); /* only a bettor still IN their chair can win — a mid-round stand forfeited, so their frozen score is not even in the running (their results line below still writes, at 0) */
+  let win = null, best = -1;
+  for (const p of players) { const m = cvMetric(g, st, p.key); if (m > best) { best = m; win = p; } } /* highest metric takes it; a tie falls to the earliest seat in the list — deterministic on every screen that reads the same record */
+  const results = {}; const claims = [];
+  for (const k of Object.keys(bets)) { const amt = win && !win.pc && win.seat === +k ? bets[k].a * 2 : 0; results[k] = amt; if (amt > 0) claims.push({ u: bets[k].u, key: CVK[g] + st.roundId + "-" + k, amt, label: CV_GAMES[g].icon + " " + CV_GAMES[g].name + " win" }); }
+  if (claims.length) writeClaims(claims); /* exactly 2× the winner's own bet, through the held-claims path; a PC win writes no claims at all — the pot is simply lost */
+  tblUpd(cvPath(g), { phase: "done", win: win ? win.key : null, results, doneTs: srvNow() });
+}
+/* ---- the booth play itself. A human player's own client writes their own leaves (the
+   pool/bowling pattern: the shooter's client scores the shooter); the host simulates the PCs
+   into the same leaves and calls every finish, so the record alone decides the round ---- */
+function cvAmPlayer(g) { const st = cvState[g]; return !!(st && st.phase === "play" && cvSeatGame === g && st.bets && st.bets[cvSeatIdx]); }
+function cvShoot() {
+  if (!cvAmPlayer("bb")) return;
+  const now = Date.now(); if (now - cvLastShotAt < 650) return; cvLastShotAt = now;
+  const v = cvMeterVal(cvSeatIdx);
+  const pts = Math.abs(v) <= 0.16 ? 3 : Math.abs(v) <= 0.45 ? 2 : 0; /* the sweet spot at the meter's peak pays 3, a near pass 2, a wild one nothing */
+  const st = cvState.bb; const upd = {}; upd["scores/" + cvSeatIdx] = ((st.scores && st.scores[cvSeatIdx]) || 0) + pts; upd.shots = { k: String(cvSeatIdx), ts: srvNow(), pts };
+  tblUpd(cvPath("bb"), upd);
+  if (pts === 3) { tone(920, 1380, 0.12, "sine", 0.10); } else if (pts === 2) tone(760, 760, 0.10, "sine", 0.09); else tone(180, 120, 0.12, "sawtooth", 0.06);
+}
+function cvMeterVal(idx) { const ph = ((srvNow() / 1400) + (idx || 0) * 0.37) % 2; return ph < 1 ? ph * 2 - 1 : 3 - ph * 2; } /* the shot meter: a triangle wave on the SHARED server clock, phased per chair, so the meter I time is the meter every screen draws over my chair */
+function cvTossAim() { const ph = ((srvNow() / 1300) + (cvSeatIdx || 0) * 0.29) % 2; return ph < 1 ? ph * 2 - 1 : 3 - ph * 2; }
+function cvTossPts(a) { const m = Math.abs(a); return m < 0.08 ? 100 : m < 0.22 ? 50 : m < 0.38 ? 30 : m < 0.55 ? 20 : m < 0.75 ? 10 : 0; } /* the board's rings: the CENTER hole is the tightest window on the sweep and pays the most — the holes widen and cheapen outward */
+function cvTossTap() {
+  if (!cvAmPlayer("bt")) return;
+  const st = cvState.bt; const used = (st.balls && st.balls[cvSeatIdx]) || 0;
+  if (!cvTossAimOn) { if (used >= 6) { cvNote("You're out of balls — the round plays out."); return; } cvTossAimOn = true; tone(660, 660, 0.06, "sine", 0.07); return; } /* first tap: the sweep starts (its position rides the shared clock, so it cannot be paused or nudged locally) */
+  cvTossAimOn = false;
+  if (used >= 6) return;
+  const a = cvTossAim(); const pts = cvTossPts(a);
+  const upd = {}; upd["scores/" + cvSeatIdx] = ((st.scores && st.scores[cvSeatIdx]) || 0) + pts; upd["balls/" + cvSeatIdx] = used + 1; upd.throws = { k: String(cvSeatIdx), ts: srvNow(), pts, a: +a.toFixed(2) };
+  tblUpd(cvPath("bt"), upd);
+  noiseBurst(0.10, "bandpass", 900, 500, 0.05); if (pts >= 50) { tone(1180, 1180, 0.12, "sine", 0.10); } else if (pts > 0) tone(840, 840, 0.08, "sine", 0.08); else tone(200, 140, 0.10, "sawtooth", 0.05);
+} /* six balls a player; the release reads the sweep where it stands at the tap — timing, not aim assist */
+function cvSimTick() {
+  if (!entered || me.scene !== "plaza") return;
+  for (const g of ["wg", "bb", "bt"]) {
+    const st = cvState[g]; if (!st || st.phase !== "play") continue;
+    if (cvMySeatIn(st) !== cvFreshSeats(st)[0]) continue; /* only the host's client runs the PCs and calls finishes */
+    const now = srvNow(); const upd = {}; let dirty = false;
+    for (const pk of Object.keys(st.pcs || {})) {
+      const key = "pc" + pk; const pc = st.pcs[pk]; const tk = g + key;
+      if (g === "wg") { const rate = 15.4 * (0.80 + 0.18 * (pc.s || 0.9)); const cur = (st.prog && st.prog[key]) || 0; if (cur < 100) { upd["prog/" + key] = Math.min(100, +(cur + rate * 0.2).toFixed(1)); upd["spray/" + key] = now; dirty = true; } }
+      else if (g === "bb") { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; const iv = 1.9 + cvHash(st.roundId + key) * 0.9; if (cvPcTimers[tk] >= iv) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const mk = cvHash(st.roundId + key + "s" + n) < 0.42 + 0.2 * (pc.s || 0.9); const pts = mk ? (cvHash(st.roundId + key + "p" + n) < 0.25 ? 3 : 2) : 0; upd["scores/" + key] = ((st.scores && st.scores[key]) || 0) + pts; upd.shots = { k: key, ts: now, pts }; dirty = true; } }
+      else { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; if (cvPcTimers[tk] >= 3.4 && ((st.balls && st.balls[key]) || 0) < 6) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const a = (cvHash(st.roundId + key + "a" + n) - 0.5) * (1.5 - 0.5 * (pc.s || 0.9)); const pts = cvTossPts(a); upd["scores/" + key] = ((st.scores && st.scores[key]) || 0) + pts; upd["balls/" + key] = ((st.balls && st.balls[key]) || 0) + 1; upd.throws = { k: key, ts: now, pts, a: +a.toFixed(2) }; dirty = true; } }
+    }
+    if (dirty) tblUpd(cvPath(g), upd);
+    /* the finish lines: the water race ends the moment a tank fills (or the clock dies); basketball ends on its clock; ball toss ends when every ball is thrown (or the clock dies) */
+    let over = now >= (st.endTs || Infinity);
+    if (g === "wg") { for (const k in (st.prog || {})) if ((st.prog[k] || 0) >= 100 || (upd["prog/" + k] || 0) >= 100) over = true; }
+    if (g === "bt") { const keys = Object.keys(st.bets || {}).concat(Object.keys(st.pcs || {}).map(k => "pc" + k)); if (keys.length && keys.every(k => (((st.balls || {})[k] || 0) + (upd["balls/" + k] ? 1 : 0)) >= 6)) over = true; }
+    if (over) cvFinishRound(g);
+  }
+}
+
+/* ================================================================
+   🚗 BUMPER CARS — FREE DRIVE ONLY (Jonathan's word, 2026-11-06): players only, no PC cars,
+   and no race at all — no mode plate, no seats, no bets, no rounds, no referee. Anyone,
+   guest included, walks in through the path-width entrance and hops into a free car and
+   just drives; the prompt's GET OUT steps them out at the car's side. Car records live at
+   hub/tables/carnival/bccars/<i>; my own client's physics step below owns my car and
+   stomps my presence from it, the stepSpeedway pattern.
+   ================================================================ */
+function cvCarDrawPos(i) {
+  if (i === cvCar && cvMyCarPos) return cvMyCarPos;
+  const rec = cvCarRecs[i];
+  if (rec && rec.x != null && Date.now() - (rec.ts || 0) < 25000) { let v = cvCarVis[i]; if (!v) v = cvCarVis[i] = { x: rec.x, y: rec.y, hd: rec.hd || Math.PI / 2 }; v.x += (rec.x - v.x) * 0.4; v.y += (rec.y - v.y) * 0.4; v.hd = rec.hd || Math.PI / 2; return v; }
+  return CV_BC_PARK(i);
+} /* a car's drawn spot: mine from my own physics, a peer's eased toward its record, an unclaimed one on the park line */
+function cvBcGetIn(i) {
+  const rec = cvCarRecs[i]; const p = (rec && rec.x != null && Date.now() - (rec.ts || 0) < 25000) ? { x: rec.x, y: rec.y, hd: rec.hd || Math.PI / 2 } : CV_BC_PARK(i);
+  cvCar = i; cvMyCarPos = { x: p.x, y: p.y }; cvMyHd = p.hd; cvMyCarVel = { x: 0, y: 0 }; cvLastCarPub = 0;
+  tblSet("carnival/bccars/" + i, { x: Math.round(p.x), y: Math.round(p.y), hd: +cvMyHd.toFixed(3), v: 0, drv: myId, drvName: me.name, ts: Date.now() });
+  me.x = p.x; me.y = p.y; sfxClick();
+} /* claiming the wheel of car i: the drv leaf names me (a fresh drv is what "taken" means arena-wide), and my step takes the car from wherever it stands */
+function cvBcDriveFree(i) {
+  const rec = cvCarRecs[i]; if (rec && rec.drv && Date.now() - (rec.ts || 0) < 25000 && rec.drv !== myId) return;
+  cvBcGetIn(i); cvNote("🏁 FREE DRIVE — no bets, no scoring, just drive. The prompt's GET OUT parks you."); cvSyncHud();
+} /* FREE DRIVE: walk in, drive off. No seat, no stake, no referee — the guest-friendly mode the Speedway's free drive set the pattern for */
+function cvCarExit() {
+  if (cvCar < 0) return; const i = cvCar;
+  tblSet("carnival/bccars/" + i + "/drv", null); tblSet("carnival/bccars/" + i + "/drvName", null); /* the car stays where it stopped, unclaimed — the next walker takes it from there, and once its record ages out every screen draws it back on the park line */
+  const p = cvMyCarPos || CV_BC_PARK(i);
+  cvCar = -1; cvMyCarPos = null; cvMyCarVel = { x: 0, y: 0 };
+  me.x = Math.max(CV_BC_BOUNDS.x0 + 4, Math.min(CV_BC_BOUNDS.x1 - 4, p.x));
+  me.y = Math.max(CV_BC_BOUNDS.y0 + 4, Math.min(CV_BC_BOUNDS.y1 - 6, p.y + 74));
+  sfxClick(); cvSyncHud();
+} /* GET OUT: the Speedway's stepOutOfCar — release the drv claim, then step out beside the car, still inside the arena */
+function cvDriveStep(dt, ix, iy) {
+  if (me.scene !== "plaza") return;
+  if (cvCar < 0) { /* on foot inside the arena, walking into a free car IS getting in — checked here, on the step's own footing; a taken car is simply skipped, so a refusal never spams */
+    if (me.x > CV_ARENA.x && me.x < CV_ARENA.x + CV_ARENA.w && me.y > CV_ARENA.y && me.y < CV_ARENA.y + CV_ARENA.h) {
+      for (let i = 0; i < 8; i++) {
+        const rec = cvCarRecs[i]; if (rec && rec.drv && Date.now() - (rec.ts || 0) < 25000) continue;
+        const rp = cvCarDrawPos(i);
+        if (Math.hypot(me.x - rp.x, me.y - rp.y) < 56) { cvBcDriveFree(i); break; }
+      }
+    }
+    return;
+  }
+  if (!cvMyCarPos) return;
+  let mx = ix, myy = iy;
+  const mag = Math.hypot(mx, myy); const ACC = 1500, TOP = 430;
+  if (mag > 0.01) {
+    const tx = (mx / mag) * TOP * Math.min(1, mag), ty = (myy / mag) * TOP * Math.min(1, mag);
+    const dvx = tx - cvMyCarVel.x, dvy = ty - cvMyCarVel.y, dl = Math.hypot(dvx, dvy), mxa = ACC * dt;
+    if (dl > 0) { const s = Math.min(1, mxa / dl); cvMyCarVel.x += dvx * s; cvMyCarVel.y += dvy * s; }
+    if (Math.hypot(cvMyCarVel.x, cvMyCarVel.y) > 12) cvMyHd = Math.atan2(cvMyCarVel.y, cvMyCarVel.x);
+  } else {
+    const sp = Math.hypot(cvMyCarVel.x, cvMyCarVel.y); const ns = Math.max(0, sp - 900 * dt);
+    if (sp > 0) { cvMyCarVel.x *= ns / sp; cvMyCarVel.y *= ns / sp; }
+  }
+  cvMyCarPos.x += cvMyCarVel.x * dt; cvMyCarPos.y += cvMyCarVel.y * dt;
+  const B = CV_BC_BOUNDS; /* the barrier: clamp and bounce at 0.85 with a thud — the wall hit the spec asks for */
+  if (cvMyCarPos.x < B.x0) { cvMyCarPos.x = B.x0; if (cvMyCarVel.x < 0) { if (Math.abs(cvMyCarVel.x) > 140) cvThud(); cvMyCarVel.x = -cvMyCarVel.x * 0.85; } }
+  if (cvMyCarPos.x > B.x1) { cvMyCarPos.x = B.x1; if (cvMyCarVel.x > 0) { if (Math.abs(cvMyCarVel.x) > 140) cvThud(); cvMyCarVel.x = -cvMyCarVel.x * 0.85; } }
+  if (cvMyCarPos.y < B.y0) { cvMyCarPos.y = B.y0; if (cvMyCarVel.y < 0) { if (Math.abs(cvMyCarVel.y) > 140) cvThud(); cvMyCarVel.y = -cvMyCarVel.y * 0.85; } }
+  if (cvMyCarPos.y > B.y1) { cvMyCarPos.y = B.y1; if (cvMyCarVel.y > 0) { if (Math.abs(cvMyCarVel.y) > 140) cvThud(); cvMyCarVel.y = -cvMyCarVel.y * 0.85; } }
+  for (let j = 0; j < 8; j++) { /* car on car: push mine out of the overlap and trade the shove — the other driver's own client resolves their side off my record, the speedway de-penetration split */
+    if (j === cvCar) continue;
+    const op = cvCarDrawPos(j); const dx = cvMyCarPos.x - op.x, dy = cvMyCarPos.y - op.y; const d = Math.hypot(dx, dy);
+    if (d < 92 && d > 0.01) {
+      const push = 92 - d; cvMyCarPos.x += (dx / d) * push; cvMyCarPos.y += (dy / d) * push;
+      const rel = ((cvMyCarVel.x * dx) + (cvMyCarVel.y * dy)) / d;
+      if (rel < 0) { cvMyCarVel.x -= 1.6 * rel * (dx / d); cvMyCarVel.y -= 1.6 * rel * (dy / d); if (rel < -120 && Date.now() - cvSfxAt > 90) { cvSfxAt = Date.now(); tone(105, 60, 0.10, "square", 0.10); noiseBurst(0.05, "lowpass", 500, 200, 0.08); } }
+    }
+  }
+  me.x = cvMyCarPos.x; me.y = cvMyCarPos.y; /* the stomp: publish() runs after the scene steps, so my presence carries the car — every other screen draws me in it with no actor-pass change */
+  if (cvMyCarVel.x < -8) me.flip = true; else if (cvMyCarVel.x > 8) me.flip = false;
+  if (Date.now() - cvLastCarPub > 120) { cvLastCarPub = Date.now(); tblSet("carnival/bccars/" + cvCar, { x: Math.round(cvMyCarPos.x), y: Math.round(cvMyCarPos.y), hd: +cvMyHd.toFixed(3), v: Math.round(Math.hypot(cvMyCarVel.x, cvMyCarVel.y)), drv: myId, drvName: me.name, ts: Date.now() }); }
+}
+function cvThud() { if (Date.now() - cvSfxAt > 90) { cvSfxAt = Date.now(); tone(85, 50, 0.10, "square", 0.10); noiseBurst(0.05, "lowpass", 420, 180, 0.09); } }
+
+/* ================================================================
+   🎡 FERRIS WHEEL — the angle is a pure function of Date.now(): wheelAng = (now mod 40s)
+   mapped onto a full turn, cabin i rides at ang + i·(2π/8), pivot = centre + R·(sin, cos) so
+   angle 0 is the BOTTOM. Because every screen computes the same angle from the same clock,
+   the wheel needs NO position sync at all — the only record is the claim list (who sits in
+   which cabin). Boarding and stepping off are gated on MY OWN cabin being inside the bottom
+   window (angular distance to 0 under 0.30 rad) and the cabin being unclaimed; while I ride,
+   cvTick stomps my position onto my cabin every frame — input is ignored, there is no exit
+   prompt above the window, and I am locked in for the full turn exactly as ordered.
+   ================================================================ */
+function cvWheelAng() { return (Date.now() % CV_WHEEL_MS) / CV_WHEEL_MS * Math.PI * 2; }
+function cvWheelPivot(i) { const a = cvWheelAng() + i * Math.PI / 4; return { x: CV_WHEEL.x + CV_WHEEL.r * Math.sin(a), y: CV_WHEEL.y + CV_WHEEL.r * Math.cos(a) }; }
+function cvWheelCabinPos(i) { const p = cvWheelPivot(i); const sw = Math.sin(Date.now() / 900 + i * 1.7) * 6; return { x: p.x + sw, y: p.y + 62 }; } /* the cabin hangs 62 below its pivot and swings a touch — the same hang and swing on every screen, from the same clock */
+function cvWheelAtBottom(i) { let d = (cvWheelAng() + i * Math.PI / 4) % (Math.PI * 2); if (d < 0) d += Math.PI * 2; if (d > Math.PI) d = Math.PI * 2 - d; return d < 0.30; }
+function cvWheelCabinFree(i) { for (const pid in cvWheelRecs) { const r = cvWheelRecs[pid]; if (pid !== myId && r && r.cabin === i && Date.now() - (r.ts || 0) < 25000) return false; } return true; }
+function cvNearWheel() {
+  if (cvRide >= 0 || cvSeatGame || cvCar >= 0) return -1;
+  if (Math.hypot(me.x - CV_WHEEL_SPOT.x, me.y - CV_WHEEL_SPOT.y) > 130) return -1;
+  for (let i = 0; i < 8; i++) if (cvWheelAtBottom(i) && cvWheelCabinFree(i)) return i;
+  return -1;
+} /* the boarding offer exists only while a cabin is IN the window and empty — the prompt chain reads this, so the offer itself can never appear early */
+function cvWheelBoard() {
+  const i = cvNearWheel(); if (i < 0) return;
+  cvRide = i;
+  db.ref("hub/tables/carnival/wheel/" + myId).set({ cabin: i, name: me.name, ts: Date.now() });
+  try { db.ref("hub/tables/carnival/wheel/" + myId).onDisconnect().remove(); } catch (e) {}
+  const cp = cvWheelCabinPos(i); me.x = cp.x; me.y = cp.y; sfxChime();
+}
+function cvWheelExit() {
+  if (cvRide < 0 || !cvWheelAtBottom(cvRide)) return; /* the gate itself, a second time: even a stale prompt cannot let me out above the window */
+  try { db.ref("hub/tables/carnival/wheel/" + myId).onDisconnect().cancel(); } catch (e) {}
+  db.ref("hub/tables/carnival/wheel/" + myId).remove();
+  cvRide = -1; me.x = CV_WHEEL_SPOT.x; me.y = CV_WHEEL_SPOT.y + 6; sfxClick();
+}
+/* ---- the carnival's lazy wiring and clocks ---- */
+function cvEnsure() {
+  if (cvHooked) return; cvHooked = true;
+  for (const g of ["wg", "bb", "bt"]) db.ref("hub/tables/carnival/" + g).on("value", sn => { cvState[g] = sn.val(); cvSettleWatch(g, cvState[g]); });
+  db.ref("hub/tables/carnival/bccars").on("value", sn => { cvCarRecs = sn.val() || {}; });
+  db.ref("hub/tables/carnival/wheel").on("value", sn => { cvWheelRecs = sn.val() || {}; });
+  const amts = document.getElementById("cvbetamts");
+  if (amts && !amts.children.length) for (const a of TRBETS) { const b = document.createElement("button"); b.className = "cvamt"; b.textContent = a.toLocaleString("en-US"); b.onclick = () => cvBet(a); amts.appendChild(b); } /* the bet ladder buttons are the trenches TRBETS, poured into the carnival panel once, labelled the trenches panel's own way */
+  const rb = document.getElementById("cvready"); if (rb) rb.onclick = () => cvReady();
+  const hud = document.getElementById("cvhud");
+  if (hud && !cvStandBtn) { cvStandBtn = document.createElement("button"); cvStandBtn.textContent = "🚪 Stand"; cvStandBtn.style.cssText = "pointer-events:auto;margin-left:auto;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:2px 10px;font-weight:800;cursor:pointer"; cvStandBtn.onclick = () => cvStand(); hud.querySelector(".swtoprow").appendChild(cvStandBtn); } /* the stand-up button rides the HUD's top row: during basketball/ball-toss play the prompt button belongs to the game, so the forfeit-stand needs its own door */
+  setInterval(() => { cvHostTick("wg"); cvHostTick("bb"); cvHostTick("bt"); }, 900); /* one host clock for the three booths — the trenches 900ms host beat */
+  setInterval(cvSeatBeatAll, 4000);
+  setInterval(cvSimTick, 200);
+  setInterval(cvSyncHud, 250);
+}
+function cvSeatBeatAll() {
+  if (!entered) return;
+  if (cvSeatGame) {
+    const g = cvSeatGame; const st = cvGameState(g);
+    if (st && st.seats && st.seats[cvSeatIdx] && st.seats[cvSeatIdx].pid === myId) { const u = {}; u["seats/" + cvSeatIdx + "/ts"] = Date.now(); tblUpd(cvPath(g), u); }
+    else if (st) { cvSeatGame = null; cvSeatIdx = -1; mySeatPos = null; } /* my seat record is gone (a reset took it): my local sit goes with it */
+  }
+  if (cvCar >= 0 && cvMyCarPos) tblSet("carnival/bccars/" + cvCar, { x: Math.round(cvMyCarPos.x), y: Math.round(cvMyCarPos.y), hd: +cvMyHd.toFixed(3), v: Math.round(Math.hypot(cvMyCarVel.x, cvMyCarVel.y)), drv: myId, drvName: me.name, ts: Date.now() }); /* the drv claim heartbeats with the car record itself, still or moving */
+  if (cvRide >= 0) db.ref("hub/tables/carnival/wheel/" + myId).update({ ts: Date.now() }).catch(() => {});
+}
+function cvTick(now) {
+  if (!entered || me.scene !== "plaza") { cvLastTick = now; return; }
+  cvEnsure();
+  const dt = Math.min(0.05, Math.max(0.001, (now - (cvLastTick || now)) / 1000)); cvLastTick = now;
+  /* reclaim after a reload: my fresh seat, car or cabin is adopted back (the trenches reclaim), unless I just left it on purpose */
+  if (!cvSeatGame && cvCar < 0 && cvRide < 0) {
+    let adopted = false;
+    for (const g of ["wg", "bb", "bt"]) { const st = cvState[g]; const mi = st ? cvMySeatIn(st) : -1; if (mi >= 0 && Date.now() - (st.seats[mi].ts || 0) < 25000 && !(cvLeftSeat && cvLeftSeat.g === g && cvLeftSeat.i === mi && Date.now() - cvLeftSeat.at < 600000)) { cvSeatGame = g; cvSeatIdx = mi; const c = CV_CHAIRS[g][mi]; mySeatPos = { x: c.x, y: c.y }; seatOD("carnival/" + g, mi, true); adopted = true; break; } }
+    if (!adopted && cvWheelRecs[myId] && Date.now() - (cvWheelRecs[myId].ts || 0) < 25000) cvRide = cvWheelRecs[myId].cabin;
+  }
+  /* water gun: while I hold the spray, my tank fills locally at the race's rate and my client writes its own prog leaf (throttled) — the host only reads it back for the finish */
+  if (cvSeatGame === "wg") {
+    const st = cvState.wg;
+    if (st && st.phase === "play" && st.bets && st.bets[cvSeatIdx]) {
+      const rp = (st.prog && st.prog[cvSeatIdx]) || 0; if (rp > cvMyProg) cvMyProg = rp;
+      const spraying = keys.has(" ") || holdMouse;
+      if (spraying && rp < 100) { /* the guard reads the RECORD, not my local fill: the local value caps at exactly 100, and a guard on it would skip the very write that publishes the full tank whenever the 200ms throttle had not fired on the crossing frame — the tank must keep publishing until the record itself shows 100 */
+        cvMyProg = Math.min(100, cvMyProg + 15.4 * dt * (0.97 + 0.05 * Math.sin(now / 90)));
+        if (now - cvSprayWriteAt > 200) { cvSprayWriteAt = now; const u = {}; u["prog/" + cvSeatIdx] = +cvMyProg.toFixed(1); u["spray/" + cvSeatIdx] = srvNow(); tblUpd(cvPath("wg"), u); }
+        if (now - cvSfxAt > 130) { cvSfxAt = now; noiseBurst(0.05, "bandpass", 2600, 1800, 0.03); } /* the spray's hiss rides AFTER the state write — a sound fault must never starve the tank */
+      }
+    }
+  }
+  /* the ride: my cabin's position IS my position — input is ignored, the stomp runs every frame */
+  if (cvRide >= 0) { const cp = cvWheelCabinPos(cvRide); me.x = cp.x; me.y = cp.y; }
+}
+/* ---- the carnival HUD: fed entirely off the records by cvSyncHud, so my screen and every
+   other screen agree. It shows while I sit at a booth or drive a bumper car ---- */
+function cvStandings(g, st) {
+  const parts = [];
+  const name = k => String(k).indexOf("pc") === 0 ? "🤖 PC" : ((st.seats && st.seats[k] && st.seats[k].name) || "Player");
+  const keys = Object.keys(st.bets || {}).concat(Object.keys(st.pcs || {}).map(k => "pc" + k));
+  for (const k of keys) { const m = cvMetric(g, st, k); parts.push(name(k) + " " + (g === "wg" ? Math.floor(m) + "%" : m)); }
+  return parts.join(" · ");
+}
+function cvSyncHud() {
+  const hud = document.getElementById("cvhud"); if (!hud) return;
+  const title = document.getElementById("cvhudtitle"), status = document.getElementById("cvhudstatus"), bet = document.getElementById("cvbet"), hint = document.getElementById("cvhudhint");
+  const g = cvSeatGame; const driving = cvCar >= 0;
+  if (!g && !driving) { hud.style.display = "none"; return; }
+  hud.style.display = "flex";
+  if (cvStandBtn) cvStandBtn.style.display = g ? "" : "none";
+  let gameName = "", st = null;
+  if (g) { gameName = CV_GAMES[g].icon + " " + CV_GAMES[g].name; st = cvState[g]; }
+  else { gameName = "🚗 Bumper Cars — FREE DRIVE"; }
+  title.textContent = gameName;
+  const note = Date.now() - cvNoteAt < 4500 ? cvNoteTxt : "";
+  let s = "";
+  if (!g && driving) s = "Free drive — no bets, no scoring. Bounce around; the prompt's GET OUT parks you.";
+  else if (st) {
+    const myS = st.seats && st.seats[cvSeatIdx];
+    if (st.phase === "sit") {
+      const setAmt = st.betAmt || 0;
+      s = (myS && myS.bet > 0 ? "Your bet: 🪙 " + myS.bet.toLocaleString("en-US") + (myS.rdy ? " — READY ✓" : " — hit READY when set") : setAmt > 0 ? "Table bet is 🪙 " + setAmt.toLocaleString("en-US") + " — match it below, then READY" : "Set the table's bet below, then READY") + " · Seated: " + cvFreshSeats(st).length + " · empty chairs fill with PCs at the bell";
+    } else if (st.phase === "count") s = "🔔 Round starts in " + Math.max(1, Math.ceil(((st.countTs || 0) - srvNow()) / 1000)) + "…";
+    else if (st.phase === "play") {
+      if (g === "wg") s = "💦 HOLD SPACE or hold TOUCH to spray — first tank to 100% wins! · " + cvStandings(g, st);
+      else if (g === "bb") s = "🏀 SHOOT (prompt or F) at the meter's peak — most points wins! · " + cvStandings(g, st);
+      else if (g === "bt") s = "🎯 THROW starts the sweep, tap again to release — center hole = 100! · " + cvStandings(g, st);
+      s += " · ⏱ " + Math.max(0, Math.ceil(((st.endTs || 0) - srvNow()) / 1000)) + "s";
+    } else if (st.phase === "done") {
+      const wk = st.win; s = wk == null ? "Round over." : (String(wk).indexOf("pc") === 0 ? "🤖 PC won — the pot is lost." : ((st.seats && st.seats[wk] && st.seats[wk].name) || "A player") + " wins" + (myS && st.results && st.results[cvSeatIdx] ? " · you take 🪙 " + (st.results[cvSeatIdx]).toLocaleString("en-US") : "") + "!");
+    }
+  }
+  status.textContent = note || s;
+  const showBet = !!g && !!st && st.phase === "sit";
+  bet.style.display = showBet ? "flex" : "none";
+  if (showBet) {
+    const bt2 = document.getElementById("cvbettitle"); const bs = document.getElementById("cvbetstatus"); const myS = st.seats && st.seats[cvSeatIdx];
+    bt2.textContent = (st.betAmt || 0) > 0 ? "Table bet 🪙 " + (st.betAmt).toLocaleString("en-US") : "Set the table's bet";
+    bs.textContent = myS && myS.bet > 0 ? "Your stake: 🪙 " + myS.bet.toLocaleString("en-US") + (myS.rdy ? " · READY ✓ (re-picking un-readies you)" : " · not ready yet") : "Tap an amount to stake it — debited now, refunded if you stand before the bell";
+    document.querySelectorAll(".cvamt").forEach(b => { b.classList.toggle("sel", myS && +b.textContent.replace(/[^0-9]/g, "") === (myS.bet || 0)); });
+    const rb = document.getElementById("cvready"); if (rb) { rb.classList.toggle("go", !!(myS && myS.rdy)); rb.textContent = myS && myS.rdy ? "✓ READY" : "READY"; }
+  }
+  hint.textContent = g === "wg" ? "Chairs fill with PCs at the bell · winner takes exactly 2× their own bet · standing mid-round forfeits" : driving ? "Free drive — no bets, no scoring, just drive · GET OUT steps you out beside the car" : "Winner takes exactly 2× their own bet · empty chairs fill with PCs at the bell · standing mid-round forfeits";
+}
+
+/* ---- the carnival's paint. drawCarnival runs inside drawPlaza's ground pass (booths, arena,
+   cars, wheel, sign posts); drawCarnivalOver runs in frame()'s over pass so the sign's board
+   hangs OVER the path and players walk under it. Cars and cabins are drawn here, in the ground
+   pass, and the actor pass then draws each driver/rider's sprite at the position their own
+   client published — in the car, in the cabin — with no actor-pass change at all ---- */
+function cvBulb(x, y, r, k, t) { const cols = ["#ffd76a", "#ff6fb5", "#7ae0ff", "#b6ff7a"]; ctx.fillStyle = cols[((k + Math.floor(t / 420)) % 4 + 4) % 4]; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
+function drawCarnival(t) {
+  /* the spur path: from the branch's south edge down to the wheel platform, in the path's own colours */
+  ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fillRect(CV_SPUR.x, 830, CV_SPUR.w, 1570);
+  ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(CV_SPUR.x + 1, 830); ctx.lineTo(CV_SPUR.x + 1, 2400); ctx.moveTo(CV_SPUR.x + CV_SPUR.w - 1, 830); ctx.lineTo(CV_SPUR.x + CV_SPUR.w - 1, 2400); ctx.stroke(); /* the spur wears the path union's own fill and edge, painted as its own rect the castle road's way — it joins the branch's south edge without a step */
+  for (const ly of [1010, 1330, 1650, 1970, 2290]) for (const lx of [CV_SPUR.x - 16, CV_SPUR.x + CV_SPUR.w + 16]) { ctx.fillStyle = "#3a2b52"; ctx.fillRect(lx - 3, ly - 16, 6, 26); ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(lx, ly - 20, 6, 0, 7); ctx.fill(); }
+  /* the wheel platform */
+  ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(-3820, 2450, 190, 16, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "#8a6a42"; rr(-3950, 2400, 260, 44, 6); ctx.fill(); ctx.strokeStyle = "#5e452a"; ctx.lineWidth = 2; for (let x = -3924; x < -3690; x += 26) { ctx.beginPath(); ctx.moveTo(x, 2402); ctx.lineTo(x, 2442); ctx.stroke(); }
+  ctx.fillStyle = "#ffd76a"; ctx.font = "bold 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎡 FERRIS WHEEL", -3820, 2470);
+  /* the ferris wheel: supports, rim, spokes, bulbs, cabins — all from the shared clock */
+  ctx.strokeStyle = "#3a2b52"; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(CV_WHEEL.x, CV_WHEEL.y); ctx.lineTo(-4120, 2408); ctx.moveTo(CV_WHEEL.x, CV_WHEEL.y); ctx.lineTo(-3520, 2408); ctx.stroke();
+  ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(-3955, 2150); ctx.lineTo(-3685, 2150); ctx.stroke();
+  const wa = cvWheelAng();
+  ctx.strokeStyle = "rgba(255,215,106,.75)"; ctx.lineWidth = 5; ctx.beginPath(); for (let i = 0; i < 8; i++) { const p = cvWheelPivot(i); ctx.moveTo(CV_WHEEL.x, CV_WHEEL.y); ctx.lineTo(p.x, p.y); } ctx.stroke();
+  ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, CV_WHEEL.r, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, CV_WHEEL.r - 40, 0, 7); ctx.stroke();
+  for (let k = 0; k < 24; k++) { const a = wa + k * Math.PI / 12; cvBulb(CV_WHEEL.x + CV_WHEEL.r * Math.sin(a), CV_WHEEL.y + CV_WHEEL.r * Math.cos(a), 6, k, t); }
+  const cabCols = ["#e33b3b", "#3b6fe3", "#f2c531", "#35c24a", "#9b4de3", "#f2762e", "#ff6fb5", "#e8e4da"];
+  for (let i = 0; i < 8; i++) {
+    const p = cvWheelPivot(i); const cp = cvWheelCabinPos(i);
+    ctx.strokeStyle = "#9a93ad"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(cp.x, cp.y - 30); ctx.stroke();
+    ctx.fillStyle = cabCols[i]; ctx.beginPath(); ctx.moveTo(cp.x - 47, cp.y - 28); ctx.lineTo(cp.x + 47, cp.y - 28); ctx.lineTo(cp.x + 34, cp.y - 12); ctx.lineTo(cp.x - 34, cp.y - 12); ctx.closePath(); ctx.fill();
+    rr(cp.x - 42, cp.y - 14, 84, 56, 9); ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "rgba(210,240,255,.92)"; rr(cp.x - 29, cp.y - 5, 58, 25, 5); ctx.fill();
+  }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, 30, 0, 7); ctx.fill(); ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = "#7a5200"; ctx.font = "26px 'Segoe UI',sans-serif"; ctx.fillText("★", CV_WHEEL.x, CV_WHEEL.y + 9);
+  if ([0, 1, 2, 3, 4, 5, 6, 7].some(i => cvWheelAtBottom(i))) { ctx.strokeStyle = "rgba(255,215,106," + (0.5 + 0.3 * Math.sin(t / 240)) + ")"; ctx.lineWidth = 3; ctx.setLineDash([8, 7]); ctx.beginPath(); ctx.arc(CV_WHEEL_SPOT.x, CV_WHEEL_SPOT.y, 34, 0, 7); ctx.stroke(); ctx.setLineDash([]); } /* the boarding ring breathes while a cabin is in the window */
+  /* the sign posts (the board itself paints in the over pass) */
+  for (const px of [-1166, -822]) { for (let b = 0; b < 4; b++) { ctx.fillStyle = b % 2 ? "#fff7ea" : "#e33b3b"; ctx.fillRect(px, 640 + b * 10, 28, 10); } ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(px + 14, 634, 8, 0, 7); ctx.fill(); }
+  /* the booths */
+  for (const g in CV_GAMES) { const G = CV_GAMES[g]; const bx = G.x; const st = cvState[g];
+    ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(bx + 420, 500, 450, 20, 0, 0, 7); ctx.fill();
+    for (let k = 0; k < 14; k++) { ctx.fillStyle = k % 2 ? "#fff7ea" : G.col; ctx.fillRect(bx + k * 60, 170, 60, 76); }
+    ctx.fillStyle = "#241433"; rr(bx + 70, 184, 700, 48, 10); ctx.fill(); ctx.strokeStyle = G.col; ctx.lineWidth = 3; ctx.stroke();
+    for (let k = 0; k < 15; k++) cvBulb(bx + 86 + k * 47, 190, 4, k, t), cvBulb(bx + 86 + k * 47, 226, 4, k + 2, t);
+    ctx.fillStyle = "#ffd76a"; ctx.font = "bold 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText(G.icon + " " + G.name.toUpperCase(), bx + 420, 217);
+    ctx.fillStyle = "#f7ead2"; ctx.fillRect(bx, 246, 840, 184);
+    ctx.strokeStyle = "rgba(120,90,40,.18)"; ctx.lineWidth = 2; for (let x = bx + 120; x < bx + 840; x += 120) { ctx.beginPath(); ctx.moveTo(x, 248); ctx.lineTo(x, 428); ctx.stroke(); }
+    for (let i = 0; i < 4; i++) { const cx = CV_CHAIRS[g][i].x;
+      let key = null, pcHere = false;
+      if (st && st.phase !== "sit" && st.phase) { if (st.bets && st.bets[i]) key = String(i); else if (st.pcs && st.pcs[i]) { key = "pc" + i; pcHere = true; } }
+      if (g === "wg") {
+        ctx.fillStyle = "#dceeff"; rr(cx - 72, 262, 144, 158, 10); ctx.fill(); ctx.strokeStyle = G.col2; ctx.lineWidth = 3; ctx.stroke();
+        const prog = key ? ((st.prog && st.prog[key]) || 0) : 0;
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, 322, 40, 0, 7); ctx.fill();
+        if (prog > 0) { ctx.save(); ctx.beginPath(); ctx.arc(cx, 322, 40, 0, 7); ctx.clip(); ctx.fillStyle = "rgba(55,182,255,.8)"; ctx.fillRect(cx - 40, 362 - 80 * prog / 100, 80, 80 * prog / 100); ctx.restore(); }
+        ctx.strokeStyle = "#e33b3b"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, 322, 29, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, 322, 17, 0, 7); ctx.stroke();
+        ctx.fillStyle = "#e33b3b"; ctx.beginPath(); ctx.arc(cx, 322, 6, 0, 7); ctx.fill();
+        ctx.fillStyle = "#12395e"; ctx.font = "bold 14px 'Segoe UI',sans-serif"; ctx.fillText(key ? Math.floor(prog) + "%" : "—", cx, 412);
+        if (key && st.spray && srvNow() - (st.spray[key] || 0) < 700) { ctx.strokeStyle = "rgba(140,220,255,.85)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(cx, 436); ctx.quadraticCurveTo(cx + Math.sin(t / 60 + i) * 7, 385, cx, 330); ctx.stroke(); ctx.fillStyle = "rgba(190,235,255,.9)"; for (let d = 0; d < 3; d++) { ctx.beginPath(); ctx.arc(cx + Math.sin(t / 50 + d * 2 + i) * 12, 330 + (d * 13), 3.5, 0, 7); ctx.fill(); } }
+        ctx.fillStyle = G.col2; rr(cx - 12, 436, 24, 16, 4); ctx.fill(); ctx.fillStyle = "#12395e"; ctx.fillRect(cx - 3, 424, 6, 14);
+      } else if (g === "bb") {
+        ctx.fillStyle = "#fff"; rr(cx - 54, 258, 108, 78, 6); ctx.fill(); ctx.strokeStyle = "#e8762c"; ctx.lineWidth = 4; ctx.stroke();
+        ctx.strokeStyle = "#e8762c"; ctx.lineWidth = 3; ctx.strokeRect(cx - 21, 282, 42, 32);
+        ctx.strokeStyle = "#f2762e"; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(cx, 344, 17, 5, 0, 0, 7); ctx.stroke();
+        ctx.strokeStyle = "rgba(90,90,90,.65)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(cx - 15, 347); ctx.lineTo(cx - 7, 376); ctx.moveTo(cx + 15, 347); ctx.lineTo(cx + 7, 376); ctx.moveTo(cx - 7, 376); ctx.lineTo(cx + 7, 376); ctx.stroke();
+        const sc = key ? ((st.scores && st.scores[key]) || 0) : 0;
+        ctx.fillStyle = "#7a2d00"; ctx.font = "bold 17px 'Segoe UI',sans-serif"; ctx.fillText(key ? String(sc) : "—", cx, 328);
+        if (key) { const v = cvMeterVal(i); ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#e33b3b"); grd.addColorStop(0.42, "#f2c531"); grd.addColorStop(0.5, "#35c24a"); grd.addColorStop(0.58, "#f2c531"); grd.addColorStop(1, "#e33b3b"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + v * 48 - 2, 381, 4, 18); } /* every chair's meter paints — all from the shared clock, so a spectator reads the same sweep the shooter times */
+        if (st && st.shots && st.shots.k === key && key) { const age = srvNow() - (st.shots.ts || 0); if (age >= 0 && age < 550) { const f = age / 550; const by = f < 0.6 ? 428 - (f / 0.6) * 88 : 340 + ((f - 0.6) / 0.4) * 46; ctx.fillStyle = "#f2762e"; ctx.beginPath(); ctx.arc(cx, by, 10, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(90,40,0,.6)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(cx - 10, by); ctx.lineTo(cx + 10, by); ctx.stroke(); } }
+      } else {
+        ctx.fillStyle = "#2b2140"; rr(cx - 76, 258, 152, 152, 10); ctx.fill(); ctx.strokeStyle = G.col; ctx.lineWidth = 3; ctx.stroke();
+        const holes = [[0, 0, 16, "#ffd76a"]]; for (let hI = 0; hI < 6; hI++) { const ha = hI * Math.PI / 3 + Math.PI / 6; holes.push([Math.cos(ha) * 48, Math.sin(ha) * 48, 12, G.col]); }
+        for (const h of holes) { ctx.fillStyle = "#12081f"; ctx.beginPath(); ctx.arc(cx + h[0], 334 + h[1], h[2], 0, 7); ctx.fill(); ctx.strokeStyle = h[3]; ctx.lineWidth = 2.5; ctx.stroke(); }
+        const sc = key ? ((st.scores && st.scores[key]) || 0) : 0;
+        ctx.fillStyle = "#fff"; ctx.font = "bold 15px 'Segoe UI',sans-serif"; ctx.fillText(key ? String(sc) : "—", cx, 428);
+        if (st && st.throws && st.throws.k === key && key) { const age = srvNow() - (st.throws.ts || 0); if (age >= 0 && age < 900) { const pts = st.throws.pts || 0; const hole = pts >= 100 ? holes[0] : holes[1 + (pts >= 50 ? 0 : pts >= 30 ? 1 : pts >= 20 ? 2 : pts >= 10 ? 3 : 4)]; ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx + hole[0], 334 + hole[1], 7, 0, 7); ctx.fill(); ctx.strokeStyle = G.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx + hole[0], 334 + hole[1], 11 + Math.sin(age / 60) * 1.5, 0, 7); ctx.stroke(); } }
+        if (key === String(cvSeatIdx) && cvSeatGame === "bt" && cvTossAimOn) { const a = cvTossAim(); ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#666"); grd.addColorStop(0.46, "#f2c531"); grd.addColorStop(0.5, "#ffd76a"); grd.addColorStop(0.54, "#f2c531"); grd.addColorStop(1, "#666"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + a * 48 - 2, 381, 4, 18); }
+      }
+    }
+    ctx.fillStyle = G.col2; ctx.fillRect(bx - 8, 430, 856, 60); ctx.fillStyle = G.col; ctx.fillRect(bx - 8, 430, 856, 8);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 15px 'Segoe UI',sans-serif";
+    if (st && st.phase === "play") ctx.fillText(cvStandings(g, st), bx + 420, 467);
+    else if (st && st.phase === "done" && st.win != null) ctx.fillText("🏆 " + (String(st.win).indexOf("pc") === 0 ? "🤖 PC WINS — POT LOST" : ((st.seats && st.seats[st.win] && st.seats[st.win].name) || "WINNER") + " WINS!"), bx + 420, 467);
+    else ctx.fillText(g === "wg" ? "FIRST TANK TO 100% WINS — HOLD YOUR SPRAY!" : g === "bb" ? "MOST POINTS WINS — TIME THE METER!" : "CENTER HOLE = 100 — SIX BALLS EACH!", bx + 420, 467);
+    for (let i = 0; i < 4; i++) { const c = CV_CHAIRS[g][i];
+      ctx.fillStyle = G.col2; rr(c.x - 27, c.y - 46, 54, 15, 6); ctx.fill();
+      ctx.fillStyle = G.col; ctx.beginPath(); ctx.ellipse(c.x, c.y, 30, 10, 0, 0, 7); ctx.fill();
+      if (st && st.pcs && st.phase !== "sit" && st.pcs[i] && !(st.bets && st.bets[i])) { ctx.font = "22px 'Segoe UI',sans-serif"; ctx.fillText("🤖", c.x, c.y - 14); ctx.font = "bold 10px 'Segoe UI',sans-serif"; ctx.fillStyle = "#fff"; ctx.fillText("PC", c.x, c.y + 26); } /* a PC's chair carries its robot — PCs have no bodies, so the chair itself wears the marker */
+    }
+  }
+  /* the bumper arena */
+  const A = CV_ARENA;
+  ctx.fillStyle = "#2e2a3d"; rr(A.x, A.y, A.w, A.h, 30); ctx.fill();
+  ctx.fillStyle = "#383350"; rr(A.x + 26, A.y + 26, A.w - 52, A.h - 52, 22); ctx.fill();
+  ctx.strokeStyle = "rgba(255,215,106,.4)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(A.x + A.w / 2, A.y + A.h / 2, 90, 0, 7); ctx.stroke();
+  ctx.font = "44px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎪", A.x + A.w / 2, A.y + A.h / 2 + 15);
+  const seg = (x1, y1, x2, y2, off) => { const L = Math.hypot(x2 - x1, y2 - y1); const n = Math.max(1, Math.round(L / 110)); for (let k = 0; k < n; k++) { ctx.strokeStyle = CV_BC_CARS[(k + off) % 8]; ctx.lineWidth = 24; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n); ctx.lineTo(x1 + (x2 - x1) * (k + 1) / n, y1 + (y2 - y1) * (k + 1) / n); ctx.stroke(); } };
+  seg(A.x + 13, A.y + 30, A.x + 13, A.y + A.h - 30, 0); seg(A.x + 30, A.y + 13, A.x + A.w - 30, A.y + 13, 2); seg(A.x + 30, A.y + A.h - 13, A.x + A.w - 30, A.y + A.h - 13, 4);
+  seg(A.x + A.w - 13, A.y + 30, A.x + A.w - 13, 670, 6); seg(A.x + A.w - 13, 830, A.x + A.w - 13, A.y + A.h - 30, 7); /* the east barrier in two runs — the entrance gap between them is exactly the path band, y670..830, flush with the purple top and bottom */
+  for (const [cx2, cy2, k] of [[A.x + 13, A.y + 13, 0], [A.x + A.w - 13, A.y + 13, 1], [A.x + 13, A.y + A.h - 13, 2], [A.x + A.w - 13, A.y + A.h - 13, 3]]) cvBulb(cx2, cy2, 9, k, t);
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.moveTo(-4406, 711); ctx.lineTo(-4378, 725); ctx.lineTo(-4406, 739); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(-4406, 761); ctx.lineTo(-4378, 775); ctx.lineTo(-4406, 789); ctx.closePath(); ctx.fill(); /* the two entrance arrows, centred as a pair on the path band's own centre, y750 */
+  /* the cars */
+  for (let i = 0; i < 8; i++) {
+    const p = cvCarDrawPos(i); const hd = i === cvCar ? cvMyHd : (cvCarVis[i] ? cvCarVis[i].hd : ((cvCarRecs[i] && cvCarRecs[i].hd) || Math.PI / 2));
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 48, 15, 0, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(hd);
+    ctx.fillStyle = CV_BC_CARS[i]; rr(-46, -27, 92, 54, 14); ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "rgba(0,0,0,.28)"; rr(33, -27, 13, 54, 6); ctx.fill(); rr(-46, -27, 13, 54, 6); ctx.fill();
+    ctx.fillStyle = "rgba(190,232,255,.9)"; rr(2, -19, 20, 38, 5); ctx.fill();
+    ctx.fillStyle = "rgba(0,0,0,.32)"; rr(-19, -16, 17, 32, 5); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.font = "bold 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText(String(i + 1), -8, 5);
+    ctx.restore();
+  }
+}
+function drawCarnivalOver(t) {
+  /* the CARNIVAL board hangs over the path (posts at x −1166 and −822 on the lawn edge): painted
+     here, over the actors, so walking the path takes you UNDER the sign — the fair's front door */
+  ctx.save();
+  ctx.shadowColor = "rgba(255,111,181,.55)"; ctx.shadowBlur = 22;
+  ctx.fillStyle = "#241433"; rr(-1180, 552, 400, 108, 14); ctx.fill();
+  ctx.shadowBlur = 0; ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 4; rr(-1180, 552, 400, 108, 14); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,215,106,.7)"; ctx.lineWidth = 2; rr(-1168, 564, 376, 84, 10); ctx.stroke();
+  for (let k = 0; k < 12; k++) { cvBulb(-1152 + k * 34, 560, 5, k, t); cvBulb(-1152 + k * 34, 652, 5, k + 3, t); }
+  ctx.fillStyle = "#ffd76a"; ctx.font = "bold 42px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎪 CARNIVAL", -980, 622);
+  ctx.restore();
+}
+
 /* ================================================================
    🔫 QUANTUM TRENCHES (PREVIEW build, Jonathan 2026-11-03) — the paintball arena through the door
    in the plaza's new west land, left of the Speedway. Five chairs west (🔴 RED) and five east (🔵 BLUE);
@@ -13790,7 +14415,7 @@ function acctSpdSave() { if (!acctUser || !db) return; try { db.ref("hub/users/"
 function loadSpdFromAccount(d) { mySpd = (d && typeof d.spd === "number" && d.spd >= 0 && d.spd <= 2) ? Math.floor(d.spd) : 0; } /* sign-in lands the saved tier; sign-out (null) forgets it back to guest pace */
 const FISH_B = { x: -700, y: 1180, w: 560, h: 300 }; /* the Fishing Shop: NEXT TO THE CLUB — the Club's own measure (560 wide, 300 tall), west of it on the same row, its bottom on the bottom walkway's north edge (1480) exactly like the Club's, fronting the same path and lamps */
 const FISHDOOR = { x: -465, y: 1440, w: 90, h: 34 }; /* on the bottom face, centred on the building's centre line (−420) — the gym door's shape and formula */
-const FISHROOM = { w: 2400, h: 1500 }; /* the shop interior */
+const FISHROOM = { w: 2400, h: 2100 }; /* the shop interior — GREW DOWNWARD (Jonathan, 2026-11-06): on tall portrait screens the camera's view ran taller than the room's 1500 and the space background showed past the top and bottom edges; h 1500 → 2100 grows the room down from the same top, so every interior position measured from the top (counter, rod wall, domes, Q-Bot) is unmoved and only the .h-derived pieces ride along — the exit plate (h−58), the entry landing (h−170), the collide clamp and exit check, the floor fill, tile loops and wall strokes. WOODROOM grew the same day by the same measure */
 const FISHEXIT = { x: FISHROOM.w / 2 - 62, y: FISHROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — MSEXIT's shape */
 const FISHCTR = { x: 268, y: 210, w: 1864, h: 74 }; /* the counter across the TOP of the room (Jonathan's design, 2026-11-04): solid, with Q-Bot behind it — WIDENED at his word (2026-11-04 19:55) so its ends line up with the rod display above it: the outermost rod panels span x 268..2132 (centres 330 and 2070, 124 wide), and the counter now runs exactly edge to edge with them, 268..2132, its centre still the room's 1200 */
 const FISHKEEPER = { x: 0, y: 0, w: FISHROOM.w, h: FISHCTR.y + FISHCTR.h }; /* the KEEPER ZONE behind the counter, walled off (Jonathan 2026-11-04 22:11, from his screenshot inside the shop — "dont let the player go behind this blue counter thing in depth in the shop"): FISHCTR alone spans only the rod display's width (x 268..2132), so a walker could slip around either end and stand behind the counter, in Q-Bot's zone under the rod wall. This rect runs the room's FULL width from the north wall down to the counter's bottom edge (y 284), so the counter band and the whole keeper zone behind it are one solid — you stop at the counter's front line anywhere along the room (feet rest at y 314, the collide standoff south of 284), exactly where fishNearCounter already reads a customer. Nothing else lives north of the counter but Q-Bot, and he is an actor — collide never moves him, so his post is untouched. The fish domes (baselines y 600 / 1010) and the exit plate stay in the open customer floor, south of the line */
@@ -14532,7 +15157,7 @@ function drawFishCounterFront() { /* the counter's front over Q-Bot's lower body
 /* ============ WOODCUTTING (PREVIEW, Jonathan 2026-11-05): fishing's twin, grown on trees — walk up to ANY tree in the outdoor world, get a 🪓 Chop prompt, stand still chopping (axe in hand like the rod, swinging up and down), land the 1.6s finish window and the tree FALLS for everyone for 30 seconds (shared state at hub/tables/trees, nothing stands meanwhile — no stump, Jonathan 2026-11-05) and a log lands in your Log Inventory. Every stat is fishing's: the same wait (4–9s × 0.85^tier), the same sixths roll over the 600 field, the same worths and prices — with ONE change, the EMPTY-ROLL RULE (Jonathan, 2026-11-05): a finished chop never comes up empty, whatever would have missed comes out as a Pine Log. GUESTS CANNOT CHOP (Jonathan, 2026-11-05): the Chop tap answers with the account refusal, the speed shop's open-world pattern. The store stands in the LEFT CASTLE GROVE where the (-180,-500) tree stood (that tree is out of the registry — the building is its replacement), door on the SOUTH face, a 160-wide purple spur running from the castle road straight up to its door with lamps, and a roof no other building has: stacked LOG COURSES with sawn ends under a ridge beam, a chopping block and axe on top. Inside (scene "woodshop", the fishshop's measure) the Fishing Shop's layout mirrored in wood tones on a floor that went BEIGE at the build and BLACK at his word the same evening (2026-11-05 — the fishing shop's own #07090d fill): counter across the top with Q-Bot behind it, the axe wall where the rod wall is, the ten logs on timber racks where the fish domes are. Logs + axe tier live on the hub/users account doc like {fish, rod} (guests keep theirs on-device, though a guest never earns one). The presence record's shape is UNTOUCHED — chopping rides hub/woodcutting/<pid> exactly like rods ride hub/fishing ============ */
 const WOOD_B = { x: -460, y: -770, w: 560, h: 300 }; /* the Woodcutting Store: the Fishing Shop's own measure (560 wide, 300 tall), standing in the left castle grove centred on x -180 — the felled-for-good tree's own line — its bottom (-470) 30 south of the grove's bottom row line (-500) so the flanking (-620,-500) and (260,-500) trees stand beside its front corners, its top (-770) 130 clear of the -900 row */
 const WOODDOOR = { x: -225, y: -510, w: 90, h: 34 }; /* on the bottom face (SOUTH, the standing building rule), centred on the building's centre line (-180) — the gym door's shape and formula (B.y + B.h - 40) */
-const WOODROOM = { w: 2400, h: 1500 }; /* the store interior — FISHROOM's measure */
+const WOODROOM = { w: 2400, h: 2100 }; /* the store interior — FISHROOM's measure, grown downward with it (Jonathan, 2026-11-06): h 1500 → 2100, everything inside measured from the top unmoved, only the .h-derived exit plate, landing, clamps and floor/wall draws ride along */
 const WOODEXIT = { x: WOODROOM.w / 2 - 62, y: WOODROOM.h - 58, w: 124, h: 44 }; /* the exit floor plate at the south wall — FISHEXIT's shape */
 const WOODCTR = { x: 268, y: 210, w: 1864, h: 74 }; /* the counter across the TOP of the room — FISHCTR's own rect, so its ends line up with the axe display above it the same way */
 const WOODKEEPER = { x: 0, y: 0, w: WOODROOM.w, h: WOODCTR.y + WOODCTR.h }; /* the KEEPER ZONE behind the counter, walled off at full room width — FISHKEEPER's twin, so nobody slips around the counter's ends into Q-Bot's zone */
@@ -15104,7 +15729,7 @@ function drawPlaza(t) {
   ctx.lineTo(-800, 1480); ctx.lineTo(CX - D, 1480);
   ctx.arc(CX, 1560, 205, Math.atan2(-80, -D), Math.atan2(-D, -80));
   /* the Speedway branch (2026-10-29): the gym branch mirrored — same height off the main walkway, the other way, with its apron up to the orange door. PREVIEW (2026-11-03): the branch now runs on WEST past the Speedway's apron across the plaza's new west land to QUANTUM TRENCHES' apron (−510..−350, the door's centre line −430 ± 80, the speedway apron's own measure) — one unbroken outline: west along the branch's south edge, up the trenches apron, across its top, down to the branch's north edge, east along it to the speedway apron, up and across and down, then east home — the gym/horse-track side's two-aprons-in-sequence trace, mirrored. The apron first stood at −590..−430 (centre −510); when the building widened east the same day the door's centre moved to −430 and the apron moved the same 80 east with it, so it still stands centred on the door */
-  ctx.lineTo(1520, 830); ctx.lineTo(-510, 830); ctx.lineTo(-510, 460); ctx.lineTo(-350, 460); ctx.lineTo(-350, 670); ctx.lineTo(490, 670); ctx.lineTo(490, 460); ctx.lineTo(650, 460); ctx.lineTo(650, 670); ctx.lineTo(1520, 670);
+  ctx.lineTo(1520, 830); ctx.lineTo(-4360, 830); ctx.lineTo(-4360, 670); ctx.lineTo(-4240, 670); ctx.lineTo(-4240, 490); ctx.lineTo(-3400, 490); ctx.lineTo(-3400, 670); ctx.lineTo(-3320, 670); ctx.lineTo(-3320, 490); ctx.lineTo(-2480, 490); ctx.lineTo(-2480, 670); ctx.lineTo(-2400, 670); ctx.lineTo(-2400, 490); ctx.lineTo(-1560, 490); ctx.lineTo(-1560, 670); ctx.lineTo(-510, 670); ctx.lineTo(-510, 460); ctx.lineTo(-350, 460); ctx.lineTo(-350, 670); ctx.lineTo(490, 670); ctx.lineTo(490, 460); ctx.lineTo(650, 460); ctx.lineTo(650, 670); ctx.lineTo(1520, 670); /* the CARNIVAL EXTENSION (PREVIEW, 2026-11-06): the branch runs on WEST from the Trenches apron across the new carnival land to the bumper arena's east wall (−4360) — the south edge's west vertex moved along its own line (y 830), exactly the 2026-11-03 walkway extension's move — and the return along the north edge (670) now climbs a full-frontage apron (top on the booths' front line, 490) in front of each carnival booth in turn: Ball Toss (−4240..−3400), Basketball (−3320..−2480), Water Gun (−2400..−1560), then the Trenches apron itself (−510..−350 up to 460), traced in the return direction but painting the identical outline it always painted, and the Speedway apron and everything east of it are byte-for-byte the trace they were */
   ctx.lineTo(1520, 510); ctx.closePath();
   /* the Comics island's own boundary, drawn as a SEPARATE subpath wound against the main outline, so the one fill leaves it lawn and no bridge segment is ever stroked across the path (Jonathan 2026-11-02 — see the note at the band's south edge above): down the leg's east edge to a SQUARE corner on the band's north edge — the quarter-circle arc that used to round this turn (centre 1900, 2140, r 120) is GONE at his word the same night ("it has a circle curve on the path next to the building when it turns on the left"; "the path is not smooth on left side of the building") — the leg now turns into the band with the plaza's own normal square turn, the Monster Shop leg's landing exactly — then east along the band's north edge to Quantum Bowling's spur, up the spur's west edge, and west along the walkway's south edge to close */
   ctx.moveTo(2020, 1640); ctx.lineTo(2020, 2260); ctx.lineTo(2765, 2260); ctx.lineTo(2765, 1640); ctx.closePath();
@@ -15161,6 +15786,8 @@ function drawPlaza(t) {
   lamp(1152, 1900); lamp(1368, 1900); lamp(1152, 2140); lamp(1368, 2140); /* flanking the up-leg at the same 240 pitch and 28px offset, spread along the climb — slid east with the leg (2026-11-03): 1152 = 1180 − 28, 1368 = 1340 + 28 */
   lamp(-538, 580); lamp(-322, 580); /* QUANTUM TRENCHES (PREVIEW): its apron's flank pair — the Speedway apron's own pair (472/668 at y 580) carried west to the new apron: −538 = −510 − 28, −322 = −350 + 28, the house 28px offset. The pair first stood at −618/−402 (the apron's first position); they moved the same 80 east when the widening centred the door at −430 */
   lamp(240, 642); lamp(0, 642); lamp(-240, 642); lamp(240, 858); lamp(0, 858); lamp(-240, 858); /* the Speedway branch's own lamp rows (642/858 — its edges at the 28px offset) continued WEST across the new land from the speedway pair at 840, at the bottom walkway's 240 pitch, running to the trenches apron */
+  for (let lx = -480; lx >= -4080; lx -= 240) { lamp(lx, 642); lamp(lx, 858); } /* the CARNIVAL branch's lamp rows (PREVIEW, 2026-11-06): the same two rows at the same 240 pitch and 28px offset, running on west from the trenches stretch across the whole carnival frontage to the bumper arena */
+  lamp(-2428, 580); lamp(-1532, 580); lamp(-3348, 580); lamp(-2452, 580); lamp(-4268, 580); lamp(-3372, 580); /* the carnival booths' apron flank pairs: the Trenches apron's own pair (−538/−322 at y 580) repeated at each booth apron's edges (apron edge ± 28) — Water Gun (−2400..−1560), Basketball (−3320..−2480), Ball Toss (−4240..−3400) */
   /* Quantum Comics' own lamps (PREVIEW, Jonathan 2026-11-02): BOTH of the leg's flanks at the Monster Shop leg's own pitch and offset (edge ± 28) — when the leg stood at 1740 its west flank was lit by the HQ portal spur's lamps at 1752, which stood on its west rim; when the building and leg were scooted east the leg got its own west pair, the Monster Shop leg's arrangement. The band's south edge at the bottom walkway's 240 pitch and 28 offset, continuing the Monster Shop band's row west of it; and one lamp on the island lawn fronting the band east of the building, centred on the lawn that remains there (2672 — midway between the building's east wall, 2580, and the bowling spur's west edge, 2765) — the bowling band's north lamps' own arrangement. (That island lamp came out at the 2026-11-03 centring — see the note at its line below.) */
   lamp(1832, 1900); lamp(1832, 2140); lamp(2048, 1900); lamp(2048, 2140);
   lamp(1940, 2448); lamp(2180, 2448); lamp(2420, 2448); lamp(2660, 2448);
@@ -15271,7 +15898,7 @@ function drawPlaza(t) {
     ctx.font = "800 31px 'Segoe UI',sans-serif"; ctx.fillStyle = "rgba(207,234,255,0.75)";
     ctx.fillText("COMING SOON", b.x + b.w / 2, b.y + b.h / 2 + 34);
   }
-  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawBowlingBuilding(t); drawMonsterShopBuilding(t); drawMechShopBuilding(t); drawComicsBuilding(t); drawTrenchesBuilding(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
+  drawClubBuilding(t); drawCasinoBuilding(t); drawSportsBuilding(t); drawSpeedwayBuilding(t); drawTrackBuilding(t); drawBowlingBuilding(t); drawMonsterShopBuilding(t); drawMechShopBuilding(t); drawComicsBuilding(t); drawTrenchesBuilding(t); drawCarnival(t); drawPlazaPool(t); drawPoolBall(t); drawPortal(PORTAL.x, PORTAL.y, t, "Portal To Quantum Watchtower HQ"); /* no Pool Hall building on the plaza any more (PREVIEW round 2) — the hall is a room off the Arcade, and the west lawn is open again */
   /* the arcade building (bigger, with towers, awning and a roof star) */
   const b = BUILDING;
   ctx.font = "30px sans-serif"; ctx.textAlign = "center"; ctx.fillText("⭐", b.x + b.w / 2, b.y - 18);
@@ -16604,6 +17231,7 @@ function frame(now) {
   }
   if (me.scene === "gym") stepSports(dt);
   if (me.scene === "plaza") stepPoolBall(dt);
+  if (me.scene === "plaza") cvDriveStep(dt, drvIn.x, drvIn.y); /* the CARNIVAL bumper cars (PREVIEW, 2026-11-06): my bumper car's physics step, on the Speedway step's own footing — it runs after the walk integration and stomps me.x/me.y from my car exactly as stepSpeedway does, and self-gates to an empty no-op whenever I am not in a bumper car */
   if (me.scene === "rooftop") stepRoofBall(dt);
   if (me.scene === "speedway") stepSpeedway(dt, drvIn.x, drvIn.y);
   if (me.scene === "track") hrGallopTick(); /* the gallop runs on every client in the room while the race runs */
@@ -16770,7 +17398,7 @@ function frame(now) {
   if (me.scene === "highrollers") actors.push({ id: "hrc-clerk", x: HRCTR.x + HRCTR.w + 34, y: HRCTR.y + HRCTR.h / 2 + 24, tx: HRCTR.x + HRCTR.w + 34, ty: HRCTR.y + HRCTR.h / 2 + 24, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* Q-Bot the CLERK (Jonathan 2026-11-01): the guards' third post — he stands BEHIND the service counter in the strip the DJ works from, centred on the counter BY EYE — anchored 24px BELOW its midpoint (y 1619, not 1595): the sprite anchors at its feet and draws upward, so at the exact midpoint he read as sitting high on the counter; the nudge is Jonathan's word (2026-11-01, "move Q bot down a bit so he looks more centered"). The over-clerk repaint clips from his own y, so its band follows the nudge and the counter front still overlaps his lower body exactly as before. Facing the room (flip true, like his casino twin at the right-wall door). Drawn through this same actor pass at the standard hero height; the pass repaints the counter's front over his lower body (drawHRCounterOverClerk) so he reads as staff behind the desk. Room furniture like his twins: NOT the live NPC, no presence record, never counted online, never speaks or moves */
   if (me.scene === "casino") actors.push({ id: "hrc-guard", x: CASINOROOM.w - 128, y: CASINODOORS_Y + 6, tx: CASINOROOM.w - 128, ty: CASINODOORS_Y + 6, hero: 72, name: "Q-Bot", flip: true, bob: 0, run: false, chat: "", chatId: 0 }); /* the High Rollers door guard (Jonathan 2026-10-31): the club guard's twin at the casino's right-wall door — the same drawn Q-Bot figure (NOT the live NPC, who never moves for this), the same 128px-inset post mirrored beside his door, his carpet and ⭐ VIP lettering painted by drawCasino — with ONE difference: he faces the OTHER WAY (flip true; the club guard's is false). Room furniture like his twin: no presence record, never counted online, no speech bubble of his own */
   if (me.scene === "plaza") { const dst = monShopDinoState(decorT(now)); actors.push({ isDino: true, id: "monshop-dino", x: dst.x, y: dst.y, dst }); } /* the shop Dino joins the sort by his FEET (his state's y), exactly like a monster follower — the pass below paints him in y order among the players */
-  if (me.scene === "plaza") { fudFrameTick(now); fishTick(now); chopTick(now); popMoveTick(); for (let fi = 0; fi < FUDS.length; fi++) { const F = FUDS[fi]; if (F.state === "patrol") actors.push({ isFud: true, id: "fud-" + fi, x: F.x, y: F.y, fud: F }); } } /* the FUD monsters (PREVIEW): their shared clock ticks here (fudFrameTick — the driver simulates, everyone else follows the record), and the living ones join the same y-sort by their feet — a destroyed one simply isn't pushed, so he vanishes from the world until his respawn */
+  if (me.scene === "plaza") { fudFrameTick(now); fishTick(now); chopTick(now); popMoveTick(); cvTick(now); for (let fi = 0; fi < FUDS.length; fi++) { const F = FUDS[fi]; if (F.state === "patrol") actors.push({ isFud: true, id: "fud-" + fi, x: F.x, y: F.y, fud: F }); } } /* the FUD monsters (PREVIEW): their shared clock ticks here (fudFrameTick — the driver simulates, everyone else follows the record), and the living ones join the same y-sort by their feet — a destroyed one simply isn't pushed, so he vanishes from the world until his respawn */
   if (me.scene === "monstershop") actors.push({ id: "monshop-qbot", x: MONQBOT.x, y: MONQBOT.y, tx: MONQBOT.x, ty: MONQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the TRAINING PEN's Q-Bot (PREVIEW): the guards' fourth post — he stands INSIDE the pen in the Monster Shop and works the evolutions (the Train prompt keys off his spot, MONQBOT). Room furniture like his twins: NOT the live NPC, no presence record, never counted online */
   if (me.scene === "woodshop") actors.push({ id: "woodshop-qbot", x: WOODQBOT.x, y: WOODQBOT.y, tx: WOODQBOT.x, ty: WOODQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the WOODCUTTING STORE's Q-Bot (2026-11-05): the guards' sixth post — he stands BEHIND the store's counter across the top of the room and works the store (the Woodcutting Store prompt keys off the counter, woodNearCounter). Room furniture like his twins: NOT the live NPC, no presence record, never counted online; the counter's front is repainted over his lower body in the actor pass (drawWoodCounterFront) */
   if (me.scene === "fishshop") actors.push({ id: "fishshop-qbot", x: FISHQBOT.x, y: FISHQBOT.y, tx: FISHQBOT.x, ty: FISHQBOT.y, hero: 72, name: "Q-Bot", flip: false, bob: 0, run: false, chat: "", chatId: 0 }); /* the FISHING SHOP's Q-Bot (PREVIEW, 2026-11-04): the guards' fifth post — he stands BEHIND the shop's counter across the top of the room and works the shop (the Fishing Shop prompt keys off the counter, fishNearCounter). Room furniture like his twins: NOT the live NPC (the plaza Q-Bot is untouched), no presence record, never counted online; the counter's front is repainted over his lower body in the over pass (drawFishCounterFront), the High Rollers clerk's own trick */
@@ -16890,6 +17518,7 @@ function frame(now) {
     if (speakingNow.has(isMe ? myId : a.id) || (!isMe && a.mic)) { ctx.globalAlpha = 1; ctx.font = "18px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎤", a.x, a.y + 24); }
   }
   if (me.scene === "trenches") drawTrenchesOver(now); /* QUANTUM TRENCHES: the guns in team neon, health/armor bars, muzzle flashes, explosions and the countdown paint over the fighters, inside this same camera pass */
+  if (me.scene === "plaza") drawCarnivalOver(now); /* the CARNIVAL sign's board (PREVIEW, 2026-11-06) paints HERE, over the actors, on the trenches over-pass's own footing: the board hangs over the path and players walk UNDER it — its posts paint in the ground pass with everything else */
   drawGenFx(dt); /* player fx (the send-tokens receive burst and "+🪙" text) paint in every scene, over the sprites, inside this same camera pass */
   if (me.scene === "plaza") drawFudFx(now); /* the FUD explosions (PREVIEW) paint with the player fx, over the sprites, inside this same camera pass */
   /* the Fishing Shop counter's front is NO LONGER repainted here (2026-11-04 22:28): it moved into the actor loop, immediately after Q-Bot's own draw (drawFishCounterFront) — from this over pass it painted over PLAYERS standing at the counter front inside Q-Bot's span, and Jonathan's word is that only Q-Bot is ever behind that counter */
@@ -16913,6 +17542,13 @@ function frame(now) {
   else if (me.scene === "plaza" && chopState.mode === "wait") { promptBtn.style.display = "flex"; promptBtn.textContent = "🪓 Chopping…"; promptAction = () => chopCancel(); } /* the axe is swinging and the wait bar is draining; tapping again rests the axe and walks away empty */
   else if (me.scene === "plaza" && nearMoat()) { promptBtn.style.display = "flex"; promptBtn.textContent = "🎣 Fish"; promptAction = () => startFishing(); } /* stand at the castle lake's edge and the prompt offers the cast */
   else if (me.scene === "plaza" && nearTree() >= 0) { promptBtn.style.display = "flex"; promptBtn.textContent = "🪓 Chop"; promptAction = () => startChopping(); } /* WOODCUTTING (2026-11-05): stand next to any standing tree in the outdoor world and the prompt offers the chop — it sits AFTER the lake in the chain, so the water's own Fish prompt keeps its spots where the two reaches overlap */
+  else if (me.scene === "plaza" && cvRide >= 0) { if (cvWheelAtBottom(cvRide)) { promptBtn.style.display = "flex"; promptBtn.textContent = "🎡 Step off"; promptAction = () => cvWheelExit(); } else { promptBtn.style.display = "none"; promptAction = null; } } /* the CARNIVAL FERRIS WHEEL (PREVIEW, 2026-11-06): while I ride, the ONLY prompt the wheel ever offers is Step off — and only while my own cabin is inside the bottom boarding window. Elevated, there is no prompt at all: I cannot get out mid-turn, exactly as ordered */
+  else if (me.scene === "plaza" && cvCar >= 0) { promptBtn.style.display = "flex"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => cvCarExit(); } /* the CARNIVAL bumper cars: GET OUT, the Speedway's own driving prompt carried to the arena — it releases my car and steps me out at its side */
+  else if (me.scene === "plaza" && cvSeatGame && cvGameState(cvSeatGame) && cvGameState(cvSeatGame).phase === "play" && cvSeatGame === "bb") { promptBtn.style.display = "flex"; promptBtn.textContent = "🏀 SHOOT"; promptAction = () => cvShoot(); } /* BASKETBALL in the play phase: the prompt button IS the shot — time it against the meter over my chair (F fires it too, through this same handler) */
+  else if (me.scene === "plaza" && cvSeatGame && cvGameState(cvSeatGame) && cvGameState(cvSeatGame).phase === "play" && cvSeatGame === "bt") { promptBtn.style.display = "flex"; promptBtn.textContent = cvTossAimOn ? "🎯 RELEASE!" : "🎯 THROW"; promptAction = () => cvTossTap(); } /* BALL TOSS in the play phase: first tap starts the aim sweep, second tap releases the ball where the sweep stands */
+  else if (me.scene === "plaza" && cvSeatGame) { promptBtn.style.display = "flex"; promptBtn.textContent = "🚪 Stand up"; promptAction = () => cvStand(); } /* seated at a carnival booth chair: the casino seat prompt's own words. In the bet phase a standing stake comes back in person; past the bell it forfeits (cvStand runs the game's own release) */
+  else if (me.scene === "plaza" && cvNearWheel() >= 0) { promptBtn.style.display = "flex"; promptBtn.textContent = "🎡 Ride the Ferris Wheel"; promptAction = () => cvWheelBoard(); } /* the wheel's boarding offer: cvNearWheel only ever returns a cabin that is inside the bottom window AND empty, so the offer exists exactly when boarding is possible */
+  else if (me.scene === "plaza" && cvNearChair().g) { const nc = cvNearChair(); promptBtn.style.display = "flex"; promptBtn.textContent = "🪑 Sit — " + CV_GAMES[nc.g].name; promptAction = () => cvTrySit(nc.g, nc.i); } /* a carnival booth's free chair while its table is in the bet phase: the casino sit prompt's shape, one per booth */
   else if (me.scene === "fishshop" && fishNearCounter()) { promptBtn.style.display = "flex"; promptBtn.textContent = "🛒 Fishing Shop"; promptAction = () => openFishPanel(); } /* the FISHING SHOP (PREVIEW, 2026-11-04): walk up to the counter where Q-Bot stands and the prompt opens the shop — sell fish, upgrade rods */
   else if (me.scene === "woodshop" && woodNearCounter()) { promptBtn.style.display = "flex"; promptBtn.textContent = "🛒 Woodcutting Store"; promptAction = () => openWoodPanel(); } /* the WOODCUTTING STORE (2026-11-05): walk up to the counter where Q-Bot stands and the prompt opens the store — sell logs, upgrade axes */
   else if (me.scene === "crystal" && spdNearCrystal()) { promptBtn.style.display = "flex"; if (mySpd >= SPD_DEFS.length) { promptBtn.textContent = "⚡ MAX SPEED ×1.5 ✓"; promptAction = () => { genText(me.x, me.y - 104, "⚡ MAX SPEED ×1.5", "#8ee6ff"); sfxClick(); }; } else { const sd = SPD_DEFS[mySpd]; promptBtn.textContent = "⚡ Speed ×" + sd.mult + " 🪙 " + shortAmt(sd.price); promptAction = () => spdBuyAsk(); /* the pill speaks SHORT money (Jonathan 2026-11-05): the full "2,000,000,000" was wider than the button and spilled outside it — the label now reads "1B" / "2B"; sd.price itself is untouched, so the charge and the confirm popup's exact price are exactly as before */ } } /* the CRYSTAL ROOM's speed shop (owner feature, 2026-11-04): stand at the Quantum Crystal and the standard prompt button offers the NEXT tier by name and exact price; at max tier it shows the owned state instead of a price */
