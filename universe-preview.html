@@ -2543,6 +2543,13 @@ function escMenuToggle() {
   else $("changebtn").onclick();
 }
 window.addEventListener("keydown", e => { if (e.key === "Escape" && !e.repeat) escMenuToggle(); }, true);
+/* ============ F key = the blue prompt button (Jonathan 2026-11-06 — "add F as an interaction button that you can use to activate things instead of pressing the blue button... every time it pops up, like a key bind"): F is a second route to the very button — it runs promptBtn's own onclick, the ONE trigger path taps use (that handler fires promptAction), never a parallel action of its own. It fires only while a prompt is actually up: the frame chain shows the button (display:flex) with a promptAction set in the same breath, and hides it (display:none, promptAction null) when there is nothing to press — no prompt showing, no fire. Only in the game (entered). Never while typing: with any input, textarea or contenteditable focused (the chat box, the name field) F is just the letter f. Capture phase like Escape above, because the chat box stops keydown propagation; a held key's auto-repeat is ignored, so one press is at most one activation; Ctrl/Cmd/Alt+F stay the browser's own shortcuts. */
+window.addEventListener("keydown", e => {
+  if ((e.key !== "f" && e.key !== "F") || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !entered) return;
+  const tg = e.target;
+  if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
+  if (promptBtn.style.display === "flex" && promptAction && typeof promptBtn.onclick === "function") promptBtn.onclick();
+}, true);
 /* ============ input ============ */
 const cv = $("game"), ctx = cv.getContext("2d");
 /* ============ GRAPHICS levels (Jonathan 2026-10-30) ============
@@ -16034,7 +16041,7 @@ function drawHQ(t) {
     ctx.strokeStyle = "rgba(255,93,143,0.65)"; ctx.lineWidth = 2; traceU(st); ctx.stroke();
     const cols = ["#ff5d8f", "#ffd76a", "#38e1ff", "#a855f7", "#7dff8a"];
     for (let k = 0; k < 16; k++) {
-      const bx = st.sx + 52 + k * 27, by = st.sy + 370;
+      const bx = st.sx + 57.5 + k * 27, by = st.sy + 370; /* the top bar's light row CENTRED on the panel (Jonathan 2026-11-06 — "center the top bar in the HQ, its too much to the left"): the row used to start at +52, putting its centre 5.5px left of the panel's centre (+260); +57.5 centres the row's span (57.5..462.5) exactly on it. The panel, the desk frame, the side columns and the chairs were already centred and are untouched */
       const on = ((Math.floor(t / 240) + k + si * 3) % 5) < 2;
       ctx.save();
       ctx.fillStyle = cols[(k + si) % cols.length];
