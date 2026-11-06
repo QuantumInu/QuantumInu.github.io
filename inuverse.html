@@ -2157,16 +2157,13 @@ function enterHubInner() {
   if (nameBlocked(raw) && !isOwnerAcct()) return;
   if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ You're already signed in in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
-  const todayStr = new Date().toLocaleDateString("en-CA");
-  let startChips = 1000, lastDay = todayStr, dailyBonus = false;
+  let startChips = 1000, lastDay = "";
   if (profile && typeof profile.chips === "number") {
-    startChips = profile.chips; lastDay = profile.day || todayStr;
-    if (lastDay !== todayStr) { startChips += 1000; lastDay = todayStr; dailyBonus = true; } /* the daily bonus (Jonathan 2026-11-03): 1,000 chips on the first entry of a new day, up from 100 — credited by my own client into my own balance on the same save path as always */
+    startChips = profile.chips; lastDay = profile.day || ""; /* the stored day value is carried through untouched so the profile shape (and acctSave's payload) stays exactly as before — but the DAILY BONUS IS GONE (removed at Jonathan's word 2026-11-06): nothing compares the day, nothing credits on it, its chat line went with it, so day is now a dead field on the account record */
   }
   profile = { name: nm, hero: pickedHero, gender: pickedGender, muted, code: false, chips: startChips, chipsTs: Date.now(), day: lastDay };
   localStorage.setItem(LS_KEY, JSON.stringify(profile));
   acctSave(); drawChips();
-  if (dailyBonus) logChat("🪙 Daily bonus", "+1,000 chips — welcome back!"); /* the bonus announces itself in my OWN chat log only (logChat is local-only, the transfer-note way) and only on the day it actually lands — a same-day re-entry stays silent */
   if (lockBeat) clearInterval(lockBeat);
   lockBeat = setInterval(() => { try { localStorage.setItem("qh-tab-lock", JSON.stringify({ id: tabId, ts: Date.now() })); } catch (e) {} }, 3000);
   const heroPickChanged = pickedHero !== me.hero; /* the picker's verdict, read BEFORE the new base lands: a different base chosen while a mech form is up is the switch that used to strand the transform (Jonathan 2026-11-01) */
