@@ -1506,7 +1506,7 @@ function startSwVideos() {
 }
 function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
-const jukeAudio = new Audio(); jukeAudio.preload = "auto";
+const jukeAudio = new Audio(); jukeAudio.crossOrigin = "anonymous"; jukeAudio.preload = "auto";
 /* iOS Safari ignores .volume on media elements, so the club's 20% (Jonathan 2026-10-30: set to 20% after a brief stop at 25%, up from the 5% set earlier the same day) runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
 let jukeGain = null;
 function jukeWireGain() {
@@ -1541,7 +1541,7 @@ function syncJuke() {
   const key = st.idx + "@" + st.ts;
   if (jukeAudio.dataset.k !== key) {
     jukeAudio.dataset.k = key;
-    jukeAudio.src = "assets/music/" + SONGS[st.idx][0] + ".mp3";
+    jukeAudio.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/music%2F" + SONGS[st.idx][0] + ".mp3?alt=media";
     jukeApplyVol();
     jukeAudio.onloadedmetadata = () => {
       const pos = (Date.now() - (st.ts || Date.now())) / 1000;
@@ -2034,7 +2034,7 @@ const booths = [];
 [600, 880, 1160, 1440].forEach(y => { booths.push({ x: 56, y, w: 210, h: 190 }); booths.push({ x: CLUBROOM.w - 266, y, w: 210, h: 190 }); }); /* the booth columns ride DOWN the walls as one arrangement (Jonathan 2026-11-01): both side columns shifted 80 lower together (rows were 520/800/1080), and the pair that used to sit inset by the entrance (420,1470) and (CLUBROOM.w-630,1470) now form each column's FOURTH row — aligned with its column at x 56 / CLUBROOM.w-266, one row-pitch (280) below the last row, so the whole pattern keeps the rows' own spacing (190 booth + 90 gap) all the way down, the last gap landing 90 above the floor edge. Nothing else in the club moved */
 function sceneDims() { return me.scene === "plaza" ? WORLD : me.scene === "arcade" ? ROOM : me.scene === "club" ? CLUBROOM : me.scene === "vip" ? VIPROOM : me.scene === "track" ? TRACKROOM : me.scene === "poolhall" ? PHROOM : me.scene === "hq" ? HQROOM : me.scene === "casino" ? CASINOROOM : me.scene === "gym" ? GYMROOM : me.scene === "speedway" ? SWROOM : me.scene === "highrollers" ? HRROOM : me.scene === "chess" ? CHESSROOM : me.scene === "boxing" ? BOXROOM : me.scene === "bowling" ? BOWLROOM : me.scene === "rooftop" ? ROOFROOM : me.scene === "monstershop" ? MSROOM : me.scene === "comics" ? COMROOM : me.scene === "mechshop" ? MKROOM : me.scene === "trenches" ? TRROOM : me.scene === "castle" ? CASTLEROOM : me.scene === "fishshop" ? FISHROOM : me.scene === "woodshop" ? WOODROOM : me.scene === "dining" ? DININGROOM : me.scene === "crystal" ? CRYSTALROOM : TH; }
 function obstacles() {
-  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B, MON_B, COM_B, TR_B, MECH_B, FISH_B, WOOD_B, CASTLE_B, ...MOAT_COLLIDE, ...CV_SOLIDS]; /* CV_SOLIDS (CARNIVAL PREVIEW, 2026-11-06): the carnival booths' bodies, the CARNIVAL sign's two posts, the bumper arena's barrier walls (its east wall split around the entrance gap) and the ferris wheel's platform — appended at the end of this list, every existing entry untouched */ /* FISH_B: the Fishing Shop, west of Club Quantum on the walkway — solid like the rest, its bottom-face door excepted. CASTLE_B + MOAT_SOLIDS: the Crystal Castle's keep and its moat water (PREVIEW, 2026-11-04) — the water is SOLID here, unlike the plaza pool: the drawbridge is the only crossing, and fishing happens from its edges */ /* MECH_B: the Mech Shop, west of the Monster Shop on the same row — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the new west grove's trees stand OFF this list on purpose (Jonathan 2026-11-03: "the trees you put I cant walk over them. Fix it."): the grove is walk-over decor exactly like the plaza's own trees — TR_GROVE_SOLIDS was removed from the obstacles the day it went in */ /* COM_B: Quantum Comics, on the lawn south of the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* MON_B: the Monster Shop, below the club across the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
+  if (me.scene === "plaza") return [{ x: BUILDING.x, y: BUILDING.y + 30, w: BUILDING.w, h: BUILDING.h - 30 }, CLUB, SIL_R, GYM_B, SPD_B, HR_B, BOWL_B, MON_B, COM_B, TR_B, MECH_B, FISH_B, WOOD_B, CASTLE_B, ...MOAT_COLLIDE, ...CV_SOLIDS, ...BEACH_COLLIDE]; /* CV_SOLIDS (CARNIVAL PREVIEW, 2026-11-06): the carnival booths' bodies, the CARNIVAL sign's two posts, the bumper arena's barrier walls (its east wall split around the entrance gap) and the ferris wheel's platform — appended at the end of this list, every existing entry untouched. BEACH_COLLIDE (2026-11-06, appended after it): the beach shoreline water's collision copies — the water is solid like the moat's, its north edges inset 30 so feet land on the drawn shoreline (see the constants at CV_SPUR) */ /* FISH_B: the Fishing Shop, west of Club Quantum on the walkway — solid like the rest, its bottom-face door excepted. CASTLE_B + MOAT_SOLIDS: the Crystal Castle's keep and its moat water (PREVIEW, 2026-11-04) — the water is SOLID here, unlike the plaza pool: the drawbridge is the only crossing, and fishing happens from its edges */ /* MECH_B: the Mech Shop, west of the Monster Shop on the same row — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the new west grove's trees stand OFF this list on purpose (Jonathan 2026-11-03: "the trees you put I cant walk over them. Fix it."): the grove is walk-over decor exactly like the plaza's own trees — TR_GROVE_SOLIDS was removed from the obstacles the day it went in */ /* COM_B: Quantum Comics, on the lawn south of the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* MON_B: the Monster Shop, below the club across the bottom walkway — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* BOWL_B: Quantum Bowling, below the pool — solid like the rest, its bottom-face door excepted (the trigger below runs before obstacle resolution, the gym door's own arrangement) */ /* the ARCADE's entry rides 30px lower than BUILDING's own top (PREVIEW round 7, Jonathan 2026-10-30): the Sports Complex treatment — GYM_B's obstacle starts at its FACADE top while its roof band paints 34px ABOVE it, so collide's 30px standoff sets the feet exactly on the gym's facade line (170). The arcade's facade top IS its roof line (its whole body paints from BUILDING.y; its towers sit past the sides, its star above the middle), so its obstacle starts 30px into the body and the same standoff sets the feet exactly on BUILDING.y (130) — no earlier stop, no overlap past it. BUILDING itself is untouched (the drawing, the door zone, the theatre landings all read it as before). HR_B: the horse track building — the swimming pool is deliberately NOT here at all: open water and deck, walked through, not around. (The Pool Hall's plaza building stood here until PREVIEW round 2 — the hall is a room off the Arcade now, so the west lawn is open ground again) */
   if (me.scene === "vip") return [VIPBAR, JUKE]; /* the little bar and the jukebox (PREVIEW round 3) — round 2's slot machines and the DJ booth's front slab are both gone from this room */
   if (me.scene === "track") return [TRACKFIELD, ...HRFENCE, HRT]; /* the fenced track grounds, the fence loop on the field's edges, then the betting table — the loop is closed, so no gap anywhere lets a player past it onto the oval. The fence resolves BEFORE the table on purpose: the table's north edge stands only 21px south of the fence line (less than a player's width), and resolving the table first let the pair sandwich a walker and pop them through the fence into the field's edge — fence-first, the walker always comes to rest pressed against the fence or the table, never inside either */
   if (me.scene === "poolhall") return [...PHT]; /* the four pool tables are solid in their room, exactly as the casino tables are in theirs */
@@ -6954,10 +6954,13 @@ const CV_BC_PARK = i => ({ x: CV_ARENA.x + 26 + (i + 0.5) * (CV_ARENA.w - 52) / 
 const CV_WHEEL = { x: -3820, y: 1750, r: 540 }; /* the ferris wheel at the spur's end, below Ball Toss: centre (−3820,1750), rim radius 540, one full turn every 40 seconds */
 const CV_WHEEL_MS = 40000;
 const CV_SPUR = { x: -3900, w: 160 }; /* the spur path's span: 160 wide (the plaza path module), painted from the branch's south edge (y830) down to the wheel platform */
+const BEACH_SAND = { x: WORLD_X0, y: 830, w: -800 - WORLD_X0, h: WORLD.h - 830 }; /* THE BEACH (PREVIEW, Jonathan 2026-11-06): beige sand over the whole southwest ground — from the carnival games road's south edge (y830, the branch band's own bottom line) south to the world's edge, and from the world's west edge east to x −800, the line where the plaza's purple paths END on the west side (the bottom walkway and the Monster Shop band both run out at −800, in front of the Fishing Shop and the Monster Shop). The sand NEVER crosses north of the games road anywhere, never touches the booths row (y170..490 stands on its lawn as always), and never covers the plaza's normal grounds east of −800. The bumper arena and the Ferris wheel stand on it (the arena paints its own floor over the sand; the wheel's grounds ARE the beach); the purple spur crosses it to the wheel platform like a boardwalk, painted over it by the path pass */
+const BEACH_WATER = [{ x: WORLD_X0, y: 2444, w: -4136 - WORLD_X0, h: WORLD.h - 2444 }, { x: -3504, y: 2444, w: -800 + 3504, h: WORLD.h - 2444 }]; /* the SHORELINE water (Jonathan 2026-11-06: "make a shoreline too with some water at the bottom, where you can fish also"): a band of animated water along the bottom of the beach, its north edge (y2444) the shoreline — the sand runs right down to it and the water runs off the world's south edge. TWO spans with a sand spit between them (x −4136..−3504): the Ferris platform (−3950..−3690, y2400..2444) and its support feet stand on that spit, so the boarding spot (−3820, 2428) sits 316 from the nearest water — outside fishing reach, and the wheel's Ride prompt keeps its spot exactly as before. The water's top edge stands 30 BELOW the platform's bottom edge line (2444), so the platform's feet never touch it */
+const BEACH_COLLIDE = [{ x: WORLD_X0, y: 2474, w: -4136 - WORLD_X0, h: WORLD.h - 2474 }, { x: -3504, y: 2474, w: -800 + 3504, h: WORLD.h - 2474 }]; /* the beach water's COLLISION copies (plaza obstacles, appended in obstacles()): each span's NORTH edge starts 30px into the water (y2474 against the drawn 2444) — the moat's own MOAT_COLLIDE treatment — so collide()'s r=30 standoff lands the feet exactly ON the drawn shoreline: you walk the sand right down to the water's edge and no further, the moat shores' feel word for word. The spans' side edges are exact copies (the moat's west/east strip precedent); the south and west edges are the world's own edges, which the world clamps already police */
 const CV_WHEEL_SPOT = { x: -3820, y: 2428 }; /* where a boarder stands: on the platform, on the wheel's own centre line */
 const CV_SOLIDS = [
   { x: CV_GAMES.wg.x, y: 170, w: 840, h: 320 }, { x: CV_GAMES.bb.x, y: 170, w: 840, h: 320 }, { x: CV_GAMES.bt.x, y: 170, w: 840, h: 320 },
-  { x: -1166, y: 636, w: 28, h: 34 }, { x: -822, y: 636, w: 28, h: 34 },
+  { x: -1326, y: 636, w: 28, h: 34 }, { x: -982, y: 636, w: 28, h: 34 },
   { x: CV_ARENA.x, y: CV_ARENA.y, w: 26, h: CV_ARENA.h }, { x: CV_ARENA.x, y: CV_ARENA.y, w: CV_ARENA.w, h: 26 }, { x: CV_ARENA.x, y: CV_ARENA.y + CV_ARENA.h - 26, w: CV_ARENA.w, h: 26 }, { x: CV_ARENA.x + CV_ARENA.w - 26, y: CV_ARENA.y, w: 26, h: 500 }, { x: CV_ARENA.x + CV_ARENA.w - 26, y: 830, w: 26, h: CV_ARENA.y + CV_ARENA.h - 830 },
   { x: -3950, y: 2400, w: 260, h: 44 }, { x: -4136, y: 2384, w: 32, h: 60 }, { x: -3536, y: 2384, w: 32, h: 60 },
 ]; /* the carnival's collision, appended to the plaza obstacle list: the three booth bodies (backs on the row line), the CARNIVAL sign's two posts (standing on the lawn at the path's north edge — the board itself hangs overhead and never blocks), the arena's barrier walls with the east wall split around the entrance gap, and the wheel's platform and support feet. The wheel's disc is deliberately NOT an obstacle: it turns up in the air and its riders are carried by the cabin stomp, not by walking */
@@ -6973,7 +6976,7 @@ let cvHooked = false; /* the carnival listeners/intervals start lazily on my fir
 let cvNoteTxt = "", cvNoteAt = 0; /* my carnival HUD's note line — trNote's pattern */
 let cvLeftSeat = null; /* {g, i, at} — the reclaim guard (the trenches trLeftSeat): a seat I just left is not silently re-adopted after a hiccup */
 let cvTossAimOn = false; /* ball toss: my aim sweep is running */
-let cvMyProg = 0, cvSprayWriteAt = 0, cvSfxAt = 0; /* water gun: my fill, accumulated locally while I spray and written to my prog leaf throttled (the shooter's own client writes their own score — the pool/bowling pattern) */
+let cvMyProg = 0, cvSprayWriteAt = 0, cvSfxAt = 0; /* water gun: my latest tank fill as my own client wrote it — per-tap now (cvSprayTap), never accumulated per frame (the shooter's own client writes their own score — the pool/bowling pattern) */
 let cvLastShotAt = 0; /* basketball: my shot rate limit */
 let cvDoneSeen = {}, cvPhaseSeen = {}; /* fx watchers: banners and bells fire once per record event per client */
 let cvPcTimers = {}; /* the host's PC shot/throw clocks, keyed game+seat — PC bodies live in the record; only their pacing lives here */
@@ -7103,7 +7106,7 @@ function cvHostTick(g) {
       const pcs = {}; const prog = {}, scores = {}, balls = {};
       for (const i of bettors) { prog[i] = 0; scores[i] = 0; balls[i] = 0; }
       for (let i = 0; i < 4; i++) if (!fresh.includes(i)) { const sk = cvHash(st.roundId + g + i); pcs[i] = { s: 0.8 + sk * 0.2 }; prog["pc" + i] = 0; scores["pc" + i] = 0; balls["pc" + i] = 0; } /* PC FILL (Jonathan, confirmed 2026-11-06): every chair no live player holds is filled by a PC at the bell, seeded off the round id so the field is the same on every screen. A PC win means the human stakes are lost — the speedway's own pot rule */
-      tblUpd(cvPath(g), { phase: "count", bets, pcs, prog: g === "wg" ? prog : null, scores: g === "wg" ? null : scores, balls: g === "bt" ? balls : null, countTs: now + 3000, results: null, win: null });
+      tblUpd(cvPath(g), { phase: "count", bets, pcs, prog: g === "wg" ? prog : null, scores: g === "wg" ? null : scores, balls: balls, countTs: now + 3000, results: null, win: null }); /* the attempts leaf (balls) now serves ALL THREE booths: ball toss's throws, basketball's shots and the water gun's sprays each count on it — basketball and water gun cap at TEN (Jonathan 2026-11-06) */
     }
   } else if (st.phase === "count" && now >= (st.countTs || 0)) {
     tblUpd(cvPath(g), { phase: "play", startTs: now, endTs: now + (g === "wg" ? 30000 : g === "bb" ? 45000 : 75000) });
@@ -7134,14 +7137,36 @@ function cvFinishRound(g) {
 function cvAmPlayer(g) { const st = cvState[g]; return !!(st && st.phase === "play" && cvSeatGame === g && st.bets && st.bets[cvSeatIdx]); }
 function cvShoot() {
   if (!cvAmPlayer("bb")) return;
-  const now = Date.now(); if (now - cvLastShotAt < 650) return; cvLastShotAt = now;
-  const v = cvMeterVal(cvSeatIdx);
-  const pts = Math.abs(v) <= 0.16 ? 3 : Math.abs(v) <= 0.45 ? 2 : 0; /* the sweet spot at the meter's peak pays 3, a near pass 2, a wild one nothing */
-  const st = cvState.bb; const upd = {}; upd["scores/" + cvSeatIdx] = ((st.scores && st.scores[cvSeatIdx]) || 0) + pts; upd.shots = { k: String(cvSeatIdx), ts: srvNow(), pts };
+  const now = Date.now(); if (now - cvLastShotAt < 650) return;
+  const st = cvState.bb; const used = (st.balls && st.balls[cvSeatIdx]) || 0;
+  if (used >= 10) { cvNote("You're out of shots — the round plays out."); return; } /* TEN SHOTS EACH (Jonathan 2026-11-06): the balls leaf counts attempts for basketball now, humans and PCs alike */
+  cvLastShotAt = now;
+  const v = cvMeterVal(cvSeatIdx); /* THE SLIDER (Jonathan 2026-11-06): the release reads the SAME sweep value the booth draws over my chair. Centredness decides the make — accuracy = 1 − |release| (the bar's halfwidth is 1): dead centre near-certain, the extremes near-zero, smooth all the way across */
+  const acc = 1 - Math.abs(v);
+  const mk = Math.random() < cvAccP(acc);
+  const pts = mk ? (acc >= 0.8 ? 3 : 2) : 0; /* a make pays 2, a dead-centre make 3 — the scoring display's own numbers, now riding on the slider's roll. Most makes wins the round */
+  const upd = {}; upd["scores/" + cvSeatIdx] = ((st.scores && st.scores[cvSeatIdx]) || 0) + pts; upd["balls/" + cvSeatIdx] = used + 1; upd.shots = { k: String(cvSeatIdx), ts: srvNow(), pts, mk: mk ? 1 : 0, v: +v.toFixed(2) };
   tblUpd(cvPath("bb"), upd);
   if (pts === 3) { tone(920, 1380, 0.12, "sine", 0.10); } else if (pts === 2) tone(760, 760, 0.10, "sine", 0.09); else tone(180, 120, 0.12, "sawtooth", 0.06);
 }
 function cvMeterVal(idx) { const ph = ((srvNow() / 1400) + (idx || 0) * 0.37) % 2; return ph < 1 ? ph * 2 - 1 : 3 - ph * 2; } /* the shot meter: a triangle wave on the SHARED server clock, phased per chair, so the meter I time is the meter every screen draws over my chair */
+function cvGunVal(idx) { const ph = ((srvNow() / 1200) + (idx || 0) * 0.41) % 2; return ph < 1 ? ph * 2 - 1 : 3 - ph * 2; } /* the water gun's sweep: the same shared-clock triangle on its own beat, phased per chair — the marker the booth draws over each tank is the exact value a SPRAY tap reads */
+function cvAccP(acc) { return 0.02 + 0.97 * Math.pow(Math.max(0, Math.min(1, acc)), 1.5); } /* centredness -> make probability, smooth across the whole bar: dead centre ≈ 0.99, halfway out ≈ 0.36, the extremes ≈ 0.02 */
+function cvPcRelease(g, key, pc, n) { const e = cvHash(g + key + "r" + n) + cvHash(g + key + "q" + n) - 1; const v = e * (1.3 - 0.65 * (pc.s || 0.9)); return Math.max(-1, Math.min(1, v)); } /* a PC's simulated release on the shared slider: two hashes sum to a centre-heavy error spread, tightened by the PC's skill — skilled but never perfect, and the same release on every screen the host shows it to */
+let cvLastSprayAt = 0;
+function cvSprayTap() {
+  if (!cvAmPlayer("wg")) return;
+  const now = Date.now(); if (now - cvLastSprayAt < 450) return;
+  const st = cvState.wg; const used = (st.balls && st.balls[cvSeatIdx]) || 0;
+  if (used >= 10) { cvNote("You're out of sprays — the round plays out."); return; } /* TEN SPRAYS EACH (Jonathan 2026-11-06): a spray is a single RELEASE on the sweep now, not a hold */
+  cvLastSprayAt = now;
+  const v = cvGunVal(cvSeatIdx); const acc = 1 - Math.abs(v);
+  const fill = +(2 + 28 * Math.pow(acc, 1.7)).toFixed(1); /* the fill scales with the release's centredness: a dead-centre spray dumps ~30 into the tank, a wild one a ~2 trickle */
+  cvMyProg = Math.min(100, ((st.prog && st.prog[cvSeatIdx]) || 0) + fill);
+  const u = {}; u["prog/" + cvSeatIdx] = +cvMyProg.toFixed(1); u["spray/" + cvSeatIdx] = srvNow(); u["balls/" + cvSeatIdx] = used + 1;
+  tblUpd(cvPath("wg"), u);
+  noiseBurst(0.09, "bandpass", 2600, 1800, 0.04); if (acc >= 0.8) tone(1180, 1180, 0.10, "sine", 0.08); else if (acc >= 0.45) tone(840, 840, 0.07, "sine", 0.06);
+} /* the water gun's trigger (Jonathan 2026-11-06): the shooter's own client scores the shooter, pool-pattern — the fill lands on my prog leaf, the burst stamps the spray leaf the booth draw animates the stream from, and my spray count rides the balls leaf beside basketball's shot count */
 function cvTossAim() { const ph = ((srvNow() / 1300) + (cvSeatIdx || 0) * 0.29) % 2; return ph < 1 ? ph * 2 - 1 : 3 - ph * 2; }
 function cvTossPts(a) { const m = Math.abs(a); return m < 0.08 ? 100 : m < 0.22 ? 50 : m < 0.38 ? 30 : m < 0.55 ? 20 : m < 0.75 ? 10 : 0; } /* the board's rings: the CENTER hole is the tightest window on the sweep and pays the most — the holes widen and cheapen outward */
 function cvTossTap() {
@@ -7163,8 +7188,8 @@ function cvSimTick() {
     const now = srvNow(); const upd = {}; let dirty = false;
     for (const pk of Object.keys(st.pcs || {})) {
       const key = "pc" + pk; const pc = st.pcs[pk]; const tk = g + key;
-      if (g === "wg") { const rate = 15.4 * (0.80 + 0.18 * (pc.s || 0.9)); const cur = (st.prog && st.prog[key]) || 0; if (cur < 100) { upd["prog/" + key] = Math.min(100, +(cur + rate * 0.2).toFixed(1)); upd["spray/" + key] = now; dirty = true; } }
-      else if (g === "bb") { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; const iv = 1.9 + cvHash(st.roundId + key) * 0.9; if (cvPcTimers[tk] >= iv) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const mk = cvHash(st.roundId + key + "s" + n) < 0.42 + 0.2 * (pc.s || 0.9); const pts = mk ? (cvHash(st.roundId + key + "p" + n) < 0.25 ? 3 : 2) : 0; upd["scores/" + key] = ((st.scores && st.scores[key]) || 0) + pts; upd.shots = { k: key, ts: now, pts }; dirty = true; } }
+      if (g === "wg") { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; const usedPc = (st.balls && st.balls[key]) || 0; const cur = (st.prog && st.prog[key]) || 0; if (cvPcTimers[tk] >= 1.5 + cvHash(st.roundId + key) * 0.9 && usedPc < 10 && cur < 100) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const v = cvPcRelease(g, key, pc, n); const fill = +(2 + 28 * Math.pow(1 - Math.abs(v), 1.7)).toFixed(1); upd["prog/" + key] = Math.min(100, +(cur + fill).toFixed(1)); upd["spray/" + key] = now; upd["balls/" + key] = usedPc + 1; dirty = true; } } /* PC sprays are RELEASES on the same slider: a centre-heavy simulated release per pull, its fill from the very centredness formula the humans get — ten pulls each, counted on the balls leaf */
+      else if (g === "bb") { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; const iv = 1.9 + cvHash(st.roundId + key) * 0.9; const usedPc = (st.balls && st.balls[key]) || 0; if (cvPcTimers[tk] >= iv && usedPc < 10) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const v = cvPcRelease(g, key, pc, n); const acc = 1 - Math.abs(v); const mk = cvHash(st.roundId + key + "s" + n) < cvAccP(acc); const pts = mk ? (acc >= 0.8 ? 3 : 2) : 0; upd["scores/" + key] = ((st.scores && st.scores[key]) || 0) + pts; upd["balls/" + key] = usedPc + 1; upd.shots = { k: key, ts: now, pts, mk: mk ? 1 : 0, v: +v.toFixed(2) }; dirty = true; } } /* PC shots are releases too: the same slider maths off a simulated release, so a PC's makes cluster near the centre exactly like a player's — ten shots each, counted on the same leaf */
       else { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; if (cvPcTimers[tk] >= 3.4 && ((st.balls && st.balls[key]) || 0) < 6) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const a = (cvHash(st.roundId + key + "a" + n) - 0.5) * (1.5 - 0.5 * (pc.s || 0.9)); const pts = cvTossPts(a); upd["scores/" + key] = ((st.scores && st.scores[key]) || 0) + pts; upd["balls/" + key] = ((st.balls && st.balls[key]) || 0) + 1; upd.throws = { k: key, ts: now, pts, a: +a.toFixed(2) }; dirty = true; } }
     }
     if (dirty) tblUpd(cvPath(g), upd);
@@ -7172,6 +7197,7 @@ function cvSimTick() {
     let over = now >= (st.endTs || Infinity);
     if (g === "wg") { for (const k in (st.prog || {})) if ((st.prog[k] || 0) >= 100 || (upd["prog/" + k] || 0) >= 100) over = true; }
     if (g === "bt") { const keys = Object.keys(st.bets || {}).concat(Object.keys(st.pcs || {}).map(k => "pc" + k)); if (keys.length && keys.every(k => (((st.balls || {})[k] || 0) + (upd["balls/" + k] ? 1 : 0)) >= 6)) over = true; }
+    if (g === "wg" || g === "bb") { const keys = Object.keys(st.bets || {}).concat(Object.keys(st.pcs || {}).map(k => "pc" + k)); if (keys.length && keys.every(k => (((st.balls || {})[k] || 0) + (upd["balls/" + k] ? 1 : 0)) >= 10)) over = true; } /* TEN EACH (Jonathan 2026-11-06): when every participant has spent their ten shots / ten sprays the round is over, clock or no clock — a participant who never fires holds it to its clock, never past it */
     if (over) cvFinishRound(g);
   }
 }
@@ -7184,12 +7210,14 @@ function cvSimTick() {
    hub/tables/carnival/bccars/<i>; my own client's physics step below owns my car and
    stomps my presence from it, the stepSpeedway pattern.
    ================================================================ */
+function cvCarOfDriver(pid) { if (!pid) return -1; for (let i = 0; i < 8; i++) { const rec = cvCarRecs[i]; if (rec && rec.drv === pid && Date.now() - (rec.ts || 0) < 25000) return i; } return -1; } /* which bumper car a player drives, read off the bccars records themselves — the drv leaf plus the arena's own 25s freshness, the swCarOfDriver pattern carried to the carnival. The presence record gains NO field for this: a driver's own client stamps his car record, and every other screen derives his seat from it */
 function cvCarDrawPos(i) {
   if (i === cvCar && cvMyCarPos) return cvMyCarPos;
   const rec = cvCarRecs[i];
   if (rec && rec.x != null && Date.now() - (rec.ts || 0) < 25000) { let v = cvCarVis[i]; if (!v) v = cvCarVis[i] = { x: rec.x, y: rec.y, hd: rec.hd || Math.PI / 2 }; v.x += (rec.x - v.x) * 0.4; v.y += (rec.y - v.y) * 0.4; v.hd = rec.hd || Math.PI / 2; return v; }
+  cvCarVis[i] = null; /* the reset: once the record ages out the car is PARKED — its eased pose is dropped outright, so no stale position or heading can survive into the parked draw */
   return CV_BC_PARK(i);
-} /* a car's drawn spot: mine from my own physics, a peer's eased toward its record, an unclaimed one on the park line */
+} /* a car's drawn spot: mine from my own physics, a peer's eased toward its record, an unclaimed one RESET on the park line — exactly on its bay AND heading vertical nose-south (CV_BC_PARK's hd, Math.PI/2), the way the cars spawn: all eight in a row along the top inside border (Jonathan 2026-11-06: resets always vertical, in a row) */
 function cvBcGetIn(i) {
   const rec = cvCarRecs[i]; const p = (rec && rec.x != null && Date.now() - (rec.ts || 0) < 25000) ? { x: rec.x, y: rec.y, hd: rec.hd || Math.PI / 2 } : CV_BC_PARK(i);
   cvCar = i; cvMyCarPos = { x: p.x, y: p.y }; cvMyHd = p.hd; cvMyCarVel = { x: 0, y: 0 }; cvLastCarPub = 0;
@@ -7202,7 +7230,7 @@ function cvBcDriveFree(i) {
 } /* FREE DRIVE: walk in, drive off. No seat, no stake, no referee — the guest-friendly mode the Speedway's free drive set the pattern for */
 function cvCarExit() {
   if (cvCar < 0) return; const i = cvCar;
-  tblSet("carnival/bccars/" + i + "/drv", null); tblSet("carnival/bccars/" + i + "/drvName", null); /* the car stays where it stopped, unclaimed — the next walker takes it from there, and once its record ages out every screen draws it back on the park line */
+  tblSet("carnival/bccars/" + i + "/drv", null); tblSet("carnival/bccars/" + i + "/drvName", null); /* the car stays where it stopped, unclaimed — the next walker takes it from there, and once its record ages out every screen resets it onto the park line: in its bay, vertical nose-south, exactly as it spawned */
   const p = cvMyCarPos || CV_BC_PARK(i);
   cvCar = -1; cvMyCarPos = null; cvMyCarVel = { x: 0, y: 0 };
   me.x = Math.max(CV_BC_BOUNDS.x0 + 4, Math.min(CV_BC_BOUNDS.x1 - 4, p.x));
@@ -7223,7 +7251,7 @@ function cvDriveStep(dt, ix, iy) {
   }
   if (!cvMyCarPos) return;
   let mx = ix, myy = iy;
-  const mag = Math.hypot(mx, myy); const ACC = 1500, TOP = 430;
+  const mag = Math.hypot(mx, myy); const ACC = 1500, TOP = 550; /* TOP 430 -> 550 (Jonathan 2026-11-06: "make bumper cars a little faster", ~+28% — acceleration, deceleration and steering untouched) */
   if (mag > 0.01) {
     const tx = (mx / mag) * TOP * Math.min(1, mag), ty = (myy / mag) * TOP * Math.min(1, mag);
     const dvx = tx - cvMyCarVel.x, dvy = ty - cvMyCarVel.y, dl = Math.hypot(dvx, dvy), mxa = ACC * dt;
@@ -7268,13 +7296,14 @@ function cvWheelAng() { return (Date.now() % CV_WHEEL_MS) / CV_WHEEL_MS * Math.P
 function cvWheelPivot(i) { const a = cvWheelAng() + i * Math.PI / 4; return { x: CV_WHEEL.x + CV_WHEEL.r * Math.sin(a), y: CV_WHEEL.y + CV_WHEEL.r * Math.cos(a) }; }
 function cvWheelCabinPos(i) { const p = cvWheelPivot(i); const sw = Math.sin(Date.now() / 900 + i * 1.7) * 6; return { x: p.x + sw, y: p.y + 62 }; } /* the cabin hangs 62 below its pivot and swings a touch — the same hang and swing on every screen, from the same clock */
 function cvWheelAtBottom(i) { let d = (cvWheelAng() + i * Math.PI / 4) % (Math.PI * 2); if (d < 0) d += Math.PI * 2; if (d > Math.PI) d = Math.PI * 2 - d; return d < 0.30; }
-function cvWheelCabinFree(i) { for (const pid in cvWheelRecs) { const r = cvWheelRecs[pid]; if (pid !== myId && r && r.cabin === i && Date.now() - (r.ts || 0) < 25000) return false; } return true; }
+function cvWheelCabinFree(i) { let n = 0; for (const pid in cvWheelRecs) { const r = cvWheelRecs[pid]; if (pid !== myId && r && r.cabin === i && Date.now() - (r.ts || 0) < 25000) n++; } return n < 2; } /* TWO riders to a cabin (Jonathan 2026-11-06 — the cabins are wider now): a cabin is full at two claims, not one */
+function cvWheelRiderOf(pid) { const r = cvWheelRecs[pid]; return (r && Date.now() - (r.ts || 0) < 25000 && typeof r.cabin === "number") ? r.cabin : -1; } /* which cabin a player rides, read off the wheel claims — the bccars drv derivation's twin: the presence record gains NO field for riding */
 function cvNearWheel() {
   if (cvRide >= 0 || cvSeatGame || cvCar >= 0) return -1;
   if (Math.hypot(me.x - CV_WHEEL_SPOT.x, me.y - CV_WHEEL_SPOT.y) > 130) return -1;
   for (let i = 0; i < 8; i++) if (cvWheelAtBottom(i) && cvWheelCabinFree(i)) return i;
   return -1;
-} /* the boarding offer exists only while a cabin is IN the window and empty — the prompt chain reads this, so the offer itself can never appear early */
+} /* the boarding offer exists only while a cabin is IN the window and not full (two riders to a cabin now) — the prompt chain reads this, so the offer itself can never appear early */
 function cvWheelBoard() {
   const i = cvNearWheel(); if (i < 0) return;
   cvRide = i;
@@ -7324,19 +7353,7 @@ function cvTick(now) {
     for (const g of ["wg", "bb", "bt"]) { const st = cvState[g]; const mi = st ? cvMySeatIn(st) : -1; if (mi >= 0 && Date.now() - (st.seats[mi].ts || 0) < 25000 && !(cvLeftSeat && cvLeftSeat.g === g && cvLeftSeat.i === mi && Date.now() - cvLeftSeat.at < 600000)) { cvSeatGame = g; cvSeatIdx = mi; const c = CV_CHAIRS[g][mi]; mySeatPos = { x: c.x, y: c.y }; seatOD("carnival/" + g, mi, true); adopted = true; break; } }
     if (!adopted && cvWheelRecs[myId] && Date.now() - (cvWheelRecs[myId].ts || 0) < 25000) cvRide = cvWheelRecs[myId].cabin;
   }
-  /* water gun: while I hold the spray, my tank fills locally at the race's rate and my client writes its own prog leaf (throttled) — the host only reads it back for the finish */
-  if (cvSeatGame === "wg") {
-    const st = cvState.wg;
-    if (st && st.phase === "play" && st.bets && st.bets[cvSeatIdx]) {
-      const rp = (st.prog && st.prog[cvSeatIdx]) || 0; if (rp > cvMyProg) cvMyProg = rp;
-      const spraying = keys.has(" ") || holdMouse;
-      if (spraying && rp < 100) { /* the guard reads the RECORD, not my local fill: the local value caps at exactly 100, and a guard on it would skip the very write that publishes the full tank whenever the 200ms throttle had not fired on the crossing frame — the tank must keep publishing until the record itself shows 100 */
-        cvMyProg = Math.min(100, cvMyProg + 15.4 * dt * (0.97 + 0.05 * Math.sin(now / 90)));
-        if (now - cvSprayWriteAt > 200) { cvSprayWriteAt = now; const u = {}; u["prog/" + cvSeatIdx] = +cvMyProg.toFixed(1); u["spray/" + cvSeatIdx] = srvNow(); tblUpd(cvPath("wg"), u); }
-        if (now - cvSfxAt > 130) { cvSfxAt = now; noiseBurst(0.05, "bandpass", 2600, 1800, 0.03); } /* the spray's hiss rides AFTER the state write — a sound fault must never starve the tank */
-      }
-    }
-  }
+  /* water gun: NO hold-to-spray any more (Jonathan 2026-11-06) — a spray is a single release on the booth's sweep, fired from the prompt button through cvSprayTap, so this tick fills nothing for the water race */
   /* the ride: my cabin's position IS my position — input is ignored, the stomp runs every frame */
   if (cvRide >= 0) { const cp = cvWheelCabinPos(cvRide); me.x = cp.x; me.y = cp.y; }
 }
@@ -7370,8 +7387,8 @@ function cvSyncHud() {
       s = (myS && myS.bet > 0 ? "Your bet: 🪙 " + myS.bet.toLocaleString("en-US") + (myS.rdy ? " — READY ✓" : " — hit READY when set") : setAmt > 0 ? "Table bet is 🪙 " + setAmt.toLocaleString("en-US") + " — match it below, then READY" : "Set the table's bet below, then READY") + " · Seated: " + cvFreshSeats(st).length + " · empty chairs fill with PCs at the bell";
     } else if (st.phase === "count") s = "🔔 Round starts in " + Math.max(1, Math.ceil(((st.countTs || 0) - srvNow()) / 1000)) + "…";
     else if (st.phase === "play") {
-      if (g === "wg") s = "💦 HOLD SPACE or hold TOUCH to spray — first tank to 100% wins! · " + cvStandings(g, st);
-      else if (g === "bb") s = "🏀 SHOOT (prompt or F) at the meter's peak — most points wins! · " + cvStandings(g, st);
+      if (g === "wg") s = "💦 SPRAY (prompt or F) at the sweep's centre — 10 sprays each, fullest tank wins! · " + cvStandings(g, st);
+      else if (g === "bb") s = "🏀 SHOOT (prompt or F) at the meter's heart — 10 shots each, most makes wins! · " + cvStandings(g, st);
       else if (g === "bt") s = "🎯 THROW starts the sweep, tap again to release — center hole = 100! · " + cvStandings(g, st);
       s += " · ⏱ " + Math.max(0, Math.ceil(((st.endTs || 0) - srvNow()) / 1000)) + "s";
     } else if (st.phase === "done") {
@@ -7385,48 +7402,92 @@ function cvSyncHud() {
     const bt2 = document.getElementById("cvbettitle"); const bs = document.getElementById("cvbetstatus"); const myS = st.seats && st.seats[cvSeatIdx];
     bt2.textContent = (st.betAmt || 0) > 0 ? "Table bet 🪙 " + (st.betAmt).toLocaleString("en-US") : "Set the table's bet";
     bs.textContent = myS && myS.bet > 0 ? "Your stake: 🪙 " + myS.bet.toLocaleString("en-US") + (myS.rdy ? " · READY ✓ (re-picking un-readies you)" : " · not ready yet") : "Tap an amount to stake it — debited now, refunded if you stand before the bell";
-    document.querySelectorAll(".cvamt").forEach(b => { b.classList.toggle("sel", myS && +b.textContent.replace(/[^0-9]/g, "") === (myS.bet || 0)); });
-    const rb = document.getElementById("cvready"); if (rb) { rb.classList.toggle("go", !!(myS && myS.rdy)); rb.textContent = myS && myS.rdy ? "✓ READY" : "READY"; }
+    document.querySelectorAll(".cvamt").forEach(b => { b.classList.toggle("on", myS && +b.textContent.replace(/[^0-9]/g, "") === (myS.bet || 0)); }); /* the SELECTED bet STAYS LIT (Jonathan 2026-11-06): the class is the carnival stylesheet's own .cvamt.on gold — the sync used to toggle "sel"/"go", class names this panel's CSS never defined, so a chosen bet and a pressed READY never lit at all. Now it mirrors the Trenches panel's behaviour (its .tramt.sel stake, its #trready.on READY): my amount holds its gold until I re-pick or the round starts, and READY holds its green (.on) once I'm readied */
+    const rb = document.getElementById("cvready"); if (rb) { rb.classList.toggle("on", !!(myS && myS.rdy)); rb.textContent = myS && myS.rdy ? "✓ READY" : "READY"; }
   }
   hint.textContent = g === "wg" ? "Chairs fill with PCs at the bell · winner takes exactly 2× their own bet · standing mid-round forfeits" : driving ? "Free drive — no bets, no scoring, just drive · GET OUT steps you out beside the car" : "Winner takes exactly 2× their own bet · empty chairs fill with PCs at the bell · standing mid-round forfeits";
 }
 
+/* ---- THE BEACH's paint (PREVIEW, Jonathan 2026-11-06): drawBeach runs inside drawPlaza's ground
+   pass immediately before drawCarnival — the sand and its shoreline water go down UNDER the
+   carnival (booths, arena, wheel) and under the plaza's path pass, which paints the purple spur
+   across the sand to the wheel platform like a boardwalk. The sand itself is ONE flat beige over
+   BEACH_SAND with a whisper of deterministic grain (the plaza ground sparkle's pattern), then the
+   FADES: where the purple path ends, it melts into the beige instead of stopping on a hard line —
+   the path's own translucent purple (its exact fill, rgba(88,40,160)) laid over the sand and
+   thinning to nothing, southward off the games road's south edge across the sand's whole purple
+   frontage (x −4360..−800), and westward off the path network's west end at x −800 on the two
+   latitudes where purple actually ends there (the bottom walkway 1480..1640 and the Monster Shop
+   band 2260..2420). Everywhere else the sand's edges meet plain lawn and keep the flat style.
+   The WATER is the moat's own animated surface (drawCastleArea's mechanism verbatim): the same
+   blue gradient, nine broad light bands sliding on the water's tenth-speed clock, 160 caustic
+   dashes drifting and breathing, clipped to the drawn water — here clipped to BOTH shoreline
+   spans at once, so the dashes read as one sea across the platform's sand spit ---- */
+function drawBeach(t) {
+  const S = BEACH_SAND;
+  ctx.fillStyle = "#e7cf9d"; ctx.fillRect(S.x, S.y, S.w, S.h); /* the sand: one flat beige, the site's flat style */
+  for (let i = 0; i < 650; i++) { /* a whisper of grain in the sand, deterministic (hashN — the ground sparkle's own pattern), in a darker and a paler tone */
+    const gx = S.x + hashN(i * 1.37 + 5) * S.w, gy = S.y + hashN(i * 2.91 + 11) * S.h;
+    ctx.fillStyle = i % 2 ? "rgba(146,110,52,0.13)" : "rgba(255,248,224,0.13)";
+    ctx.fillRect(gx, gy, 3, 3);
+  }
+  const fg = ctx.createLinearGradient(0, 830, 0, 892); /* the fade off the games road's south edge: full path-purple at the purple, gone 62px into the sand */
+  fg.addColorStop(0, "rgba(88,40,160,0.34)"); fg.addColorStop(1, "rgba(88,40,160,0)");
+  ctx.fillStyle = fg; ctx.fillRect(-4360, 830, 3560, 62);
+  for (const band of [[1480, 1640], [2260, 2420]]) { /* the fades off the path network's west end: westward off x −800 at the two path latitudes, the walkway's and the band's */
+    const hg = ctx.createLinearGradient(-800, 0, -876, 0);
+    hg.addColorStop(0, "rgba(88,40,160,0.34)"); hg.addColorStop(1, "rgba(88,40,160,0)");
+    ctx.fillStyle = hg; ctx.fillRect(-876, band[0], 76, band[1] - band[0]);
+  }
+  for (const W of BEACH_WATER) { /* the water's body: the moat's own blue gradient, span by span */
+    const wg2 = ctx.createLinearGradient(0, W.y, 0, W.y + W.h);
+    wg2.addColorStop(0, "#14457f"); wg2.addColorStop(1, "#0d2c58");
+    ctx.fillStyle = wg2; ctx.fillRect(W.x, W.y, W.w, W.h);
+  }
+  ctx.save(); ctx.beginPath(); for (const W of BEACH_WATER) ctx.rect(W.x + 3, W.y + 3, W.w - 6, W.h - 6); ctx.clip(); /* the moat's inset-3 clip, over both spans at once */
+  const wt = t * 0.1; /* the water's own clock: a TENTH of real time, the pool's and moat's own words */
+  for (let b = 0; b < 9; b++) { /* broad bands of light sliding slowly down the water — nine, the moat's count */
+    const by = 2444 + (((wt / 11000) + b / 9) % 1) * (89 + 60) - 30;
+    const bg3 = ctx.createLinearGradient(0, by - 30, 0, by + 30);
+    bg3.addColorStop(0, "rgba(150,225,255,0)"); bg3.addColorStop(0.5, "rgba(150,225,255,0.075)"); bg3.addColorStop(1, "rgba(150,225,255,0)");
+    ctx.fillStyle = bg3; ctx.fillRect(WORLD_X0 + 3, by - 30, -800 - WORLD_X0 - 6, 60);
+  }
+  for (let i = 0; i < 160; i++) { /* caustic light dashes drifting across the surface on their own slow currents, breathing as they go — 160, the moat's count, spread over the whole shoreline (the platform's spit is clipped out, so no dash ever paints on sand) */
+    const drift = ((wt / (3000 + (i % 5) * 800)) + hashN(i * 1.71)) % 1;
+    const sx = WORLD_X0 + 16 + drift * (-800 - WORLD_X0 - 32);
+    const sy = 2444 + 14 + hashN(i * 3.13 + 7) * (89 - 28);
+    const tw = 0.10 + 0.17 * (0.5 + 0.5 * Math.sin(wt / 430 + i * 2.3));
+    ctx.fillStyle = "rgba(215,246,255," + tw + ")";
+    ctx.beginPath(); ctx.ellipse(sx, sy, 15 + (i % 4) * 7, 2.6, 0, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+  ctx.strokeStyle = "rgba(140,220,255,0.5)"; ctx.lineWidth = 3; /* the shoreline's bright lip, the moat's own waterline stroke, along each span's north edge where sand meets water */
+  for (const W of BEACH_WATER) { ctx.beginPath(); ctx.moveTo(W.x, W.y + 1); ctx.lineTo(W.x + W.w, W.y + 1); ctx.stroke(); }
+}
 /* ---- the carnival's paint. drawCarnival runs inside drawPlaza's ground pass (booths, arena,
-   cars, wheel, sign posts); drawCarnivalOver runs in frame()'s over pass so the sign's board
-   hangs OVER the path and players walk under it. Cars and cabins are drawn here, in the ground
-   pass, and the actor pass then draws each driver/rider's sprite at the position their own
-   client published — in the car, in the cabin — with no actor-pass change at all ---- */
+   cars, the wheel's groundworks, sign posts); drawCarnivalOver runs in frame()'s over pass so
+   the sign's board hangs OVER the path and players walk under it — and the wheel's turning
+   assembly paints there too (the wheel IN FRONT of the players, Jonathan 2026-11-06), its
+   riders drawn seated inside their cabins by the over pass itself. Cars still paint in the
+   ground pass, and the actor pass draws each DRIVER's sprite at the position their own client
+   published, in the car ---- */
 function cvBulb(x, y, r, k, t) { const cols = ["#ffd76a", "#ff6fb5", "#7ae0ff", "#b6ff7a"]; ctx.fillStyle = cols[((k + Math.floor(t / 420)) % 4 + 4) % 4]; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
 function drawCarnival(t) {
-  /* the spur path: from the branch's south edge down to the wheel platform, in the path's own colours */
-  ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fillRect(CV_SPUR.x, 830, CV_SPUR.w, 1570);
-  ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(CV_SPUR.x + 1, 830); ctx.lineTo(CV_SPUR.x + 1, 2400); ctx.moveTo(CV_SPUR.x + CV_SPUR.w - 1, 830); ctx.lineTo(CV_SPUR.x + CV_SPUR.w - 1, 2400); ctx.stroke(); /* the spur wears the path union's own fill and edge, painted as its own rect the castle road's way — it joins the branch's south edge without a step */
+  /* the spur path itself is painted by the plaza path union in drawPlaza (Jonathan 2026-11-06): traced INTO that outline — down its east side, across its foot, up its west side — so no seam line crosses its mouth where it leaves the branch's south edge, the castle road's treatment. Only the spur's own lamps paint here */
   for (const ly of [1010, 1330, 1650, 1970, 2290]) for (const lx of [CV_SPUR.x - 16, CV_SPUR.x + CV_SPUR.w + 16]) { ctx.fillStyle = "#3a2b52"; ctx.fillRect(lx - 3, ly - 16, 6, 26); ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(lx, ly - 20, 6, 0, 7); ctx.fill(); }
   /* the wheel platform */
   ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(-3820, 2450, 190, 16, 0, 0, 7); ctx.fill();
   ctx.fillStyle = "#8a6a42"; rr(-3950, 2400, 260, 44, 6); ctx.fill(); ctx.strokeStyle = "#5e452a"; ctx.lineWidth = 2; for (let x = -3924; x < -3690; x += 26) { ctx.beginPath(); ctx.moveTo(x, 2402); ctx.lineTo(x, 2442); ctx.stroke(); }
   ctx.fillStyle = "#ffd76a"; ctx.font = "bold 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎡 FERRIS WHEEL", -3820, 2470);
-  /* the ferris wheel: supports, rim, spokes, bulbs, cabins — all from the shared clock */
+  /* the ferris wheel's GROUNDWORKS: the platform (painted above), the support legs and their crossbar — the ground the wheel stands on. The turning assembly itself (spokes, rim, bulbs, hub, cabins and their riders) paints in the OVER pass now (cvDrawWheelOver, called from drawCarnivalOver): the wheel stands IN FRONT of the players (Jonathan 2026-11-06) */
   ctx.strokeStyle = "#3a2b52"; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(CV_WHEEL.x, CV_WHEEL.y); ctx.lineTo(-4120, 2408); ctx.moveTo(CV_WHEEL.x, CV_WHEEL.y); ctx.lineTo(-3520, 2408); ctx.stroke();
   ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(-3955, 2150); ctx.lineTo(-3685, 2150); ctx.stroke();
-  const wa = cvWheelAng();
-  ctx.strokeStyle = "rgba(255,215,106,.75)"; ctx.lineWidth = 5; ctx.beginPath(); for (let i = 0; i < 8; i++) { const p = cvWheelPivot(i); ctx.moveTo(CV_WHEEL.x, CV_WHEEL.y); ctx.lineTo(p.x, p.y); } ctx.stroke();
-  ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, CV_WHEEL.r, 0, 7); ctx.stroke();
-  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, CV_WHEEL.r - 40, 0, 7); ctx.stroke();
-  for (let k = 0; k < 24; k++) { const a = wa + k * Math.PI / 12; cvBulb(CV_WHEEL.x + CV_WHEEL.r * Math.sin(a), CV_WHEEL.y + CV_WHEEL.r * Math.cos(a), 6, k, t); }
-  const cabCols = ["#e33b3b", "#3b6fe3", "#f2c531", "#35c24a", "#9b4de3", "#f2762e", "#ff6fb5", "#e8e4da"];
-  for (let i = 0; i < 8; i++) {
-    const p = cvWheelPivot(i); const cp = cvWheelCabinPos(i);
-    ctx.strokeStyle = "#9a93ad"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(cp.x, cp.y - 30); ctx.stroke();
-    ctx.fillStyle = cabCols[i]; ctx.beginPath(); ctx.moveTo(cp.x - 47, cp.y - 28); ctx.lineTo(cp.x + 47, cp.y - 28); ctx.lineTo(cp.x + 34, cp.y - 12); ctx.lineTo(cp.x - 34, cp.y - 12); ctx.closePath(); ctx.fill();
-    rr(cp.x - 42, cp.y - 14, 84, 56, 9); ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = "rgba(210,240,255,.92)"; rr(cp.x - 29, cp.y - 5, 58, 25, 5); ctx.fill();
-  }
-  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, 30, 0, 7); ctx.fill(); ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 3; ctx.stroke();
-  ctx.fillStyle = "#7a5200"; ctx.font = "26px 'Segoe UI',sans-serif"; ctx.fillText("★", CV_WHEEL.x, CV_WHEEL.y + 9);
   if ([0, 1, 2, 3, 4, 5, 6, 7].some(i => cvWheelAtBottom(i))) { ctx.strokeStyle = "rgba(255,215,106," + (0.5 + 0.3 * Math.sin(t / 240)) + ")"; ctx.lineWidth = 3; ctx.setLineDash([8, 7]); ctx.beginPath(); ctx.arc(CV_WHEEL_SPOT.x, CV_WHEEL_SPOT.y, 34, 0, 7); ctx.stroke(); ctx.setLineDash([]); } /* the boarding ring breathes while a cabin is in the window */
-  /* the sign posts (the board itself paints in the over pass) */
-  for (const px of [-1166, -822]) { for (let b = 0; b < 4; b++) { ctx.fillStyle = b % 2 ? "#fff7ea" : "#e33b3b"; ctx.fillRect(px, 640 + b * 10, 28, 10); } ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(px + 14, 634, 8, 0, 7); ctx.fill(); }
+  /* the sign's TALL LEGS (Jonathan 2026-11-06): the two striped corner posts grown full height —
+     each runs in the posts' own red/white bands from the raised board's bottom corners (384) down
+     to the ground line the posts have always stood on (680), a gold bulb perched on top of each at
+     the board's bottom corner. The board itself paints in the over pass */
+  for (const px of [-1326, -982]) { for (let b = 0, ly = 384; ly < 680; b++, ly += 10) { ctx.fillStyle = b % 2 ? "#fff7ea" : "#e33b3b"; ctx.fillRect(px, ly, 28, Math.min(10, 680 - ly)); } ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(px + 14, 378, 8, 0, 7); ctx.fill(); }
   /* the booths */
   for (const g in CV_GAMES) { const G = CV_GAMES[g]; const bx = G.x; const st = cvState[g];
     ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(bx + 420, 500, 450, 20, 0, 0, 7); ctx.fill();
@@ -7447,6 +7508,7 @@ function drawCarnival(t) {
         ctx.strokeStyle = "#e33b3b"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, 322, 29, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, 322, 17, 0, 7); ctx.stroke();
         ctx.fillStyle = "#e33b3b"; ctx.beginPath(); ctx.arc(cx, 322, 6, 0, 7); ctx.fill();
         ctx.fillStyle = "#12395e"; ctx.font = "bold 14px 'Segoe UI',sans-serif"; ctx.fillText(key ? Math.floor(prog) + "%" : "—", cx, 412);
+        if (key) { const v = cvGunVal(i); ctx.fillStyle = "#2b2140"; rr(cx - 56, 267, 112, 10, 5); ctx.fill(); const grd = ctx.createLinearGradient(cx - 56, 0, cx + 56, 0); grd.addColorStop(0, "#e33b3b"); grd.addColorStop(0.42, "#f2c531"); grd.addColorStop(0.5, "#37b6ff"); grd.addColorStop(0.58, "#f2c531"); grd.addColorStop(1, "#e33b3b"); ctx.fillStyle = grd; rr(cx - 56, 267, 112, 10, 5); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + v * 52 - 2, 264, 4, 16); } /* the water gun's SWEEP (Jonathan 2026-11-06): every live chair's marker rides cvGunVal on the shared clock — the exact value a SPRAY tap reads on that chair — with the blue heart at the centre where a release fills the most */
         if (key && st.spray && srvNow() - (st.spray[key] || 0) < 700) { ctx.strokeStyle = "rgba(140,220,255,.85)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(cx, 436); ctx.quadraticCurveTo(cx + Math.sin(t / 60 + i) * 7, 385, cx, 330); ctx.stroke(); ctx.fillStyle = "rgba(190,235,255,.9)"; for (let d = 0; d < 3; d++) { ctx.beginPath(); ctx.arc(cx + Math.sin(t / 50 + d * 2 + i) * 12, 330 + (d * 13), 3.5, 0, 7); ctx.fill(); } }
         ctx.fillStyle = G.col2; rr(cx - 12, 436, 24, 16, 4); ctx.fill(); ctx.fillStyle = "#12395e"; ctx.fillRect(cx - 3, 424, 6, 14);
       } else if (g === "bb") {
@@ -7457,14 +7519,29 @@ function drawCarnival(t) {
         const sc = key ? ((st.scores && st.scores[key]) || 0) : 0;
         ctx.fillStyle = "#7a2d00"; ctx.font = "bold 17px 'Segoe UI',sans-serif"; ctx.fillText(key ? String(sc) : "—", cx, 328);
         if (key) { const v = cvMeterVal(i); ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#e33b3b"); grd.addColorStop(0.42, "#f2c531"); grd.addColorStop(0.5, "#35c24a"); grd.addColorStop(0.58, "#f2c531"); grd.addColorStop(1, "#e33b3b"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + v * 48 - 2, 381, 4, 18); } /* every chair's meter paints — all from the shared clock, so a spectator reads the same sweep the shooter times */
-        if (st && st.shots && st.shots.k === key && key) { const age = srvNow() - (st.shots.ts || 0); if (age >= 0 && age < 550) { const f = age / 550; const by = f < 0.6 ? 428 - (f / 0.6) * 88 : 340 + ((f - 0.6) / 0.4) * 46; ctx.fillStyle = "#f2762e"; ctx.beginPath(); ctx.arc(cx, by, 10, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(90,40,0,.6)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(cx - 10, by); ctx.lineTo(cx + 10, by); ctx.stroke(); } }
+        if (st && st.shots && st.shots.k === key && key) { const age = srvNow() - (st.shots.ts || 0); if (age >= 0 && age < 880) { /* THE THROWN BALL (Jonathan 2026-11-06): a real flight, not a pop — the ball leaves the shooter's hands below the counter, arcs to the rim on a curve the RELEASE value bends (the same v the slider scored), then drops through the net on a make or bounces off the rim on a miss. The bounce side rides the event's own timestamp, so every screen flies the same ball */
+          const mk = st.shots.mk != null ? (st.shots.mk ? 1 : 0) : ((st.shots.pts || 0) > 0 ? 1 : 0), rv = st.shots.v || 0; /* mk rides the event; a pre-slider event falls back to its points */
+          const x0 = cx, y0 = 516, xc = cx + rv * 40, yc = 170, x1 = cx, y1 = 346;
+          let bx2, by2;
+          if (age < 560) { const f = age / 560, u = 1 - f; bx2 = u * u * x0 + 2 * u * f * xc + f * f * x1; by2 = u * u * y0 + 2 * u * f * yc + f * f * y1; }
+          else { const f = (age - 560) / 320; if (mk) { bx2 = x1 + Math.sin(f * 9) * 3 * (1 - f); by2 = y1 + f * f * 52; } else { const dir = ((st.shots.ts || 0) % 2 === 0) ? -1 : 1; bx2 = x1 + dir * (10 + f * 34); by2 = y1 - Math.sin(Math.min(1, f * 1.15) * Math.PI) * 14 + f * f * 74; } }
+          ctx.fillStyle = "#f2762e"; ctx.beginPath(); ctx.arc(bx2, by2, 10, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(90,40,0,.6)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(bx2 - 10, by2); ctx.lineTo(bx2 + 10, by2); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, by2 + 10); ctx.stroke(); } }
       } else {
         ctx.fillStyle = "#2b2140"; rr(cx - 76, 258, 152, 152, 10); ctx.fill(); ctx.strokeStyle = G.col; ctx.lineWidth = 3; ctx.stroke();
         const holes = [[0, 0, 16, "#ffd76a"]]; for (let hI = 0; hI < 6; hI++) { const ha = hI * Math.PI / 3 + Math.PI / 6; holes.push([Math.cos(ha) * 48, Math.sin(ha) * 48, 12, G.col]); }
         for (const h of holes) { ctx.fillStyle = "#12081f"; ctx.beginPath(); ctx.arc(cx + h[0], 334 + h[1], h[2], 0, 7); ctx.fill(); ctx.strokeStyle = h[3]; ctx.lineWidth = 2.5; ctx.stroke(); }
         const sc = key ? ((st.scores && st.scores[key]) || 0) : 0;
         ctx.fillStyle = "#fff"; ctx.font = "bold 15px 'Segoe UI',sans-serif"; ctx.fillText(key ? String(sc) : "—", cx, 428);
-        if (st && st.throws && st.throws.k === key && key) { const age = srvNow() - (st.throws.ts || 0); if (age >= 0 && age < 900) { const pts = st.throws.pts || 0; const hole = pts >= 100 ? holes[0] : holes[1 + (pts >= 50 ? 0 : pts >= 30 ? 1 : pts >= 20 ? 2 : pts >= 10 ? 3 : 4)]; ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx + hole[0], 334 + hole[1], 7, 0, 7); ctx.fill(); ctx.strokeStyle = G.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx + hole[0], 334 + hole[1], 11 + Math.sin(age / 60) * 1.5, 0, 7); ctx.stroke(); } }
+        if (st && st.throws && st.throws.k === key && key) { const age = srvNow() - (st.throws.ts || 0); if (age >= 0 && age < 950) { /* THE TOSSED BALL (Jonathan 2026-11-06): a visible throw — the ball leaves the thrower's hands below the counter, arcs to the board on a curve the release value (a) steers, drops INTO the hole it scored (and rings it), or strikes the board's face and bounces off on a miss. Every screen flies the same ball off the same event */
+          const pts = st.throws.pts || 0, a = st.throws.a || 0;
+          const scored = pts > 0;
+          const hole = pts >= 100 ? holes[0] : holes[1 + (pts >= 50 ? 0 : pts >= 30 ? 1 : pts >= 20 ? 2 : pts >= 10 ? 3 : 4)];
+          const tx2 = scored ? cx + hole[0] : cx + Math.max(-64, Math.min(64, a * 68)), ty2 = scored ? 334 + hole[1] : 334 + (a >= 0 ? 26 : -26) * Math.min(1, Math.abs(a) + 0.35);
+          let bx3, by3, br2 = 7;
+          if (age < 540) { const f = age / 540, u = 1 - f; const xc2 = cx + a * 46, yc2 = 196; bx3 = u * u * cx + 2 * u * f * xc2 + f * f * tx2; by3 = u * u * 516 + 2 * u * f * yc2 + f * f * ty2; }
+          else if (scored) { const f = (age - 540) / 410; bx3 = tx2; by3 = ty2 + f * 5; br2 = 7 - f * 3; ctx.strokeStyle = G.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx2, ty2, 11 + Math.sin(age / 60) * 1.5, 0, 7); ctx.stroke(); }
+          else { const f = (age - 540) / 410; bx3 = tx2 + a * 26 * f; by3 = ty2 + f * f * 96; }
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx3, by3, br2, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(20,8,31,.55)"; ctx.lineWidth = 1.4; ctx.stroke(); } }
         if (key === String(cvSeatIdx) && cvSeatGame === "bt" && cvTossAimOn) { const a = cvTossAim(); ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#666"); grd.addColorStop(0.46, "#f2c531"); grd.addColorStop(0.5, "#ffd76a"); grd.addColorStop(0.54, "#f2c531"); grd.addColorStop(1, "#666"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + a * 48 - 2, 381, 4, 18); }
       }
     }
@@ -7472,7 +7549,7 @@ function drawCarnival(t) {
     ctx.fillStyle = "#fff"; ctx.font = "bold 15px 'Segoe UI',sans-serif";
     if (st && st.phase === "play") ctx.fillText(cvStandings(g, st), bx + 420, 467);
     else if (st && st.phase === "done" && st.win != null) ctx.fillText("🏆 " + (String(st.win).indexOf("pc") === 0 ? "🤖 PC WINS — POT LOST" : ((st.seats && st.seats[st.win] && st.seats[st.win].name) || "WINNER") + " WINS!"), bx + 420, 467);
-    else ctx.fillText(g === "wg" ? "FIRST TANK TO 100% WINS — HOLD YOUR SPRAY!" : g === "bb" ? "MOST POINTS WINS — TIME THE METER!" : "CENTER HOLE = 100 — SIX BALLS EACH!", bx + 420, 467);
+    else ctx.fillText(g === "wg" ? "FULLEST TANK WINS — TIME YOUR SPRAYS!" : g === "bb" ? "MOST MAKES WINS — TIME THE METER!" : "CENTER HOLE = 100 — SIX BALLS EACH!", bx + 420, 467);
     for (let i = 0; i < 4; i++) { const c = CV_CHAIRS[g][i];
       ctx.fillStyle = G.col2; rr(c.x - 27, c.y - 46, 54, 15, 6); ctx.fill();
       ctx.fillStyle = G.col; ctx.beginPath(); ctx.ellipse(c.x, c.y, 30, 10, 0, 0, 7); ctx.fill();
@@ -7485,15 +7562,14 @@ function drawCarnival(t) {
   ctx.fillStyle = "#383350"; rr(A.x + 26, A.y + 26, A.w - 52, A.h - 52, 22); ctx.fill();
   ctx.strokeStyle = "rgba(255,215,106,.4)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(A.x + A.w / 2, A.y + A.h / 2, 90, 0, 7); ctx.stroke();
   ctx.font = "44px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎪", A.x + A.w / 2, A.y + A.h / 2 + 15);
-  const seg = (x1, y1, x2, y2, off) => { const L = Math.hypot(x2 - x1, y2 - y1); const n = Math.max(1, Math.round(L / 110)); for (let k = 0; k < n; k++) { ctx.strokeStyle = CV_BC_CARS[(k + off) % 8]; ctx.lineWidth = 24; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n); ctx.lineTo(x1 + (x2 - x1) * (k + 1) / n, y1 + (y2 - y1) * (k + 1) / n); ctx.stroke(); } };
-  seg(A.x + 13, A.y + 30, A.x + 13, A.y + A.h - 30, 0); seg(A.x + 30, A.y + 13, A.x + A.w - 30, A.y + 13, 2); seg(A.x + 30, A.y + A.h - 13, A.x + A.w - 30, A.y + A.h - 13, 4);
-  seg(A.x + A.w - 13, A.y + 30, A.x + A.w - 13, 670, 6); seg(A.x + A.w - 13, 830, A.x + A.w - 13, A.y + A.h - 30, 7); /* the east barrier in two runs — the entrance gap between them is exactly the path band, y670..830, flush with the purple top and bottom */
+  const seg = (x1, y1, x2, y2, off) => { const L = Math.hypot(x2 - x1, y2 - y1); const n = Math.max(1, Math.round(L / 110)); for (let k = 0; k < n; k++) { ctx.strokeStyle = CV_BC_CARS[(k + off) % 8]; ctx.lineWidth = 24; ctx.lineCap = "butt"; ctx.beginPath(); ctx.moveTo(x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n); ctx.lineTo(x1 + (x2 - x1) * (k + 1) / n, y1 + (y2 - y1) * (k + 1) / n); ctx.stroke(); } }; /* the border sits FULLY INSIDE the arena (Jonathan 2026-11-06): each run is centred 12 in from its edge, so the 24-wide stroke's outer edge is FLUSH with the arena's edge and never spills past it — no border on the purple path — and the caps are SQUARE (butt), so every colour section is exactly its equal share of the run: L divided into n identical lengths, no rounded overlaps fattening the joints */
+  seg(A.x + 12, A.y + 30, A.x + 12, A.y + A.h - 30, 0); seg(A.x + 30, A.y + 12, A.x + A.w - 30, A.y + 12, 2); seg(A.x + 30, A.y + A.h - 12, A.x + A.w - 30, A.y + A.h - 12, 4);
+  seg(A.x + A.w - 12, A.y + 30, A.x + A.w - 12, 670, 6); seg(A.x + A.w - 12, 830, A.x + A.w - 12, A.y + A.h - 30, 7); /* the east barrier in two runs — the entrance gap between them is exactly the path band, y670..830, flush with the purple top and bottom, the border ending dead on those edges and never touching the path */
   for (const [cx2, cy2, k] of [[A.x + 13, A.y + 13, 0], [A.x + A.w - 13, A.y + 13, 1], [A.x + 13, A.y + A.h - 13, 2], [A.x + A.w - 13, A.y + A.h - 13, 3]]) cvBulb(cx2, cy2, 9, k, t);
   ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.moveTo(-4406, 711); ctx.lineTo(-4378, 725); ctx.lineTo(-4406, 739); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(-4406, 761); ctx.lineTo(-4378, 775); ctx.lineTo(-4406, 789); ctx.closePath(); ctx.fill(); /* the two entrance arrows, centred as a pair on the path band's own centre, y750 */
   /* the cars */
   for (let i = 0; i < 8; i++) {
-    const p = cvCarDrawPos(i); const hd = i === cvCar ? cvMyHd : (cvCarVis[i] ? cvCarVis[i].hd : ((cvCarRecs[i] && cvCarRecs[i].hd) || Math.PI / 2));
-    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 48, 15, 0, 0, 7); ctx.fill();
+    const p = cvCarDrawPos(i); const hd = i === cvCar ? cvMyHd : (p.hd != null ? p.hd : Math.PI / 2); /* the heading rides WITH the drawn spot: my own physics heading for my car, the eased record heading for a driven peer, CV_BC_PARK's vertical for a parked car — a stale record heading can never rotate a parked car. And the cars cast NO shadow: the dark ellipse that used to paint under each car here is gone (Jonathan 2026-11-06) */
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(hd);
     ctx.fillStyle = CV_BC_CARS[i]; rr(-46, -27, 92, 54, 14); ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = "rgba(0,0,0,.28)"; rr(33, -27, 13, 54, 6); ctx.fill(); rr(-46, -27, 13, 54, 6); ctx.fill();
@@ -7503,17 +7579,59 @@ function drawCarnival(t) {
     ctx.restore();
   }
 }
+function cvDrawWheelOver(t) {
+  /* THE WHEEL IN FRONT (Jonathan 2026-11-06): the turning assembly — spokes, rim, bulbs, hub and
+     the cabins WITH their riders — paints in the over pass, so the wheel stands IN FRONT of the
+     players: walk behind it and it covers you. A rider is drawn seated INSIDE his cabin here (the
+     actor pass skips riders entirely — see the frame loop — so this is the only place a rider
+     paints). The platform, the support legs, their crossbar and the boarding ring stay in the
+     ground pass: they're the ground the wheel stands on. Cabins are WIDER now (112 against the
+     old 84) so TWO riders sit side by side in one */
+  const wa = cvWheelAng();
+  ctx.strokeStyle = "rgba(255,215,106,.75)"; ctx.lineWidth = 5; ctx.beginPath(); for (let i = 0; i < 8; i++) { const p = cvWheelPivot(i); ctx.moveTo(CV_WHEEL.x, CV_WHEEL.y); ctx.lineTo(p.x, p.y); } ctx.stroke();
+  ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 13; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, CV_WHEEL.r, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, CV_WHEEL.r - 40, 0, 7); ctx.stroke();
+  for (let k = 0; k < 24; k++) { const a = wa + k * Math.PI / 12; cvBulb(CV_WHEEL.x + CV_WHEEL.r * Math.sin(a), CV_WHEEL.y + CV_WHEEL.r * Math.cos(a), 6, k, t); }
+  const cabCols = ["#e33b3b", "#3b6fe3", "#f2c531", "#35c24a", "#9b4de3", "#f2762e", "#ff6fb5", "#23232e"]; /* the eighth cabin is BLACK, the bumper car 8's own black (Jonathan 2026-11-06) */
+  for (let i = 0; i < 8; i++) {
+    const p = cvWheelPivot(i); const cp = cvWheelCabinPos(i);
+    ctx.strokeStyle = "#9a93ad"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(cp.x, cp.y - 34); ctx.stroke();
+    ctx.fillStyle = cabCols[i]; ctx.beginPath(); ctx.moveTo(cp.x - 62, cp.y - 32); ctx.lineTo(cp.x + 62, cp.y - 32); ctx.lineTo(cp.x + 48, cp.y - 14); ctx.lineTo(cp.x - 48, cp.y - 14); ctx.closePath(); ctx.fill();
+    rr(cp.x - 56, cp.y - 16, 112, 58, 9); ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "rgba(210,240,255,.92)"; rr(cp.x - 44, cp.y - 7, 88, 26, 5); ctx.fill();
+    /* this cabin's riders, seated side by side: the claims sorted by pid give every screen the same seats. Each rider's sprite is drawn at his seat, then the cabin's front panel is repainted over his legs — the counter-clerk trick — so head and shoulders ride in the window's light */
+    const riders = Object.keys(cvWheelRecs).filter(pid => { const r = cvWheelRecs[pid]; return r && r.cabin === i && Date.now() - (r.ts || 0) < 25000; }).sort();
+    riders.forEach((pid, ri) => {
+      const off = (ri - (riders.length - 1) / 2) * 54, sx = cp.x + off;
+      const isMe2 = pid === myId; const pr = isMe2 ? null : peers.get(pid);
+      let hero, gnd, nm;
+      if (isMe2) { hero = (mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : bbeMechForm ? BBE_MECH_HERO : shopMechForm ? shopMechForm : me.hero); gnd = me.g; nm = me.name; }
+      else { if (!pr) return; hero = pr.hero; gnd = pr.g || "m"; nm = pr.name || ""; }
+      const img = heroImgFor(hero, gnd) || heroImgs[hero]; if (!img || !img.complete || !img.naturalWidth) return;
+      const SH = 68, SW = SH * ((img.naturalWidth / img.naturalHeight) || 0.8);
+      ctx.drawImage(img, sx - SW / 2, cp.y + 38 - SH, SW, SH);
+      ctx.font = "700 12px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.save(); ctx.lineJoin = "round"; ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.75)"; ctx.strokeText(nm, sx, cp.y - 42); ctx.fillStyle = isMe2 ? "#ffd76a" : "#eaf6ff"; ctx.fillText(nm, sx, cp.y - 42); ctx.restore();
+    });
+    if (riders.length) { ctx.fillStyle = cabCols[i]; rr(cp.x - 56, cp.y + 12, 112, 30, 9); ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 2; rr(cp.x - 56, cp.y + 12, 112, 30, 9); ctx.stroke(); ctx.fillStyle = "rgba(255,255,255,.20)"; ctx.fillRect(cp.x - 56, cp.y + 12, 112, 3); }
+  }
+  ctx.fillStyle = "#ffd76a"; ctx.beginPath(); ctx.arc(CV_WHEEL.x, CV_WHEEL.y, 30, 0, 7); ctx.fill(); ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = "#7a5200"; ctx.font = "26px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("★", CV_WHEEL.x, CV_WHEEL.y + 9);
+}
 function drawCarnivalOver(t) {
-  /* the CARNIVAL board hangs over the path (posts at x −1166 and −822 on the lawn edge): painted
-     here, over the actors, so walking the path takes you UNDER the sign — the fair's front door */
+  /* the CARNIVAL board hangs over the path on its two tall legs (at x −1326 and −982, painted in
+     the ground pass): the board is CENTRED on x −1140 — the middle of the gap between the Water
+     Gun booth's east edge (−1560) and the Trenches building's west edge (−720) — and RAISED until
+     its centre (y 330) sits at the Trenches building's own centre height (Jonathan 2026-11-06).
+     Painted here, over the actors, so walking the path takes you UNDER the sign — the fair's front door */
   ctx.save();
   ctx.shadowColor = "rgba(255,111,181,.55)"; ctx.shadowBlur = 22;
-  ctx.fillStyle = "#241433"; rr(-1180, 552, 400, 108, 14); ctx.fill();
-  ctx.shadowBlur = 0; ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 4; rr(-1180, 552, 400, 108, 14); ctx.stroke();
-  ctx.strokeStyle = "rgba(255,215,106,.7)"; ctx.lineWidth = 2; rr(-1168, 564, 376, 84, 10); ctx.stroke();
-  for (let k = 0; k < 12; k++) { cvBulb(-1152 + k * 34, 560, 5, k, t); cvBulb(-1152 + k * 34, 652, 5, k + 3, t); }
-  ctx.fillStyle = "#ffd76a"; ctx.font = "bold 42px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎪 CARNIVAL", -980, 622);
+  ctx.fillStyle = "#241433"; rr(-1340, 276, 400, 108, 14); ctx.fill();
+  ctx.shadowBlur = 0; ctx.strokeStyle = "#ff6fb5"; ctx.lineWidth = 4; rr(-1340, 276, 400, 108, 14); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,215,106,.7)"; ctx.lineWidth = 2; rr(-1328, 288, 376, 84, 10); ctx.stroke();
+  for (let k = 0; k < 12; k++) { cvBulb(-1312 + k * 34, 284, 5, k, t); cvBulb(-1312 + k * 34, 376, 5, k + 3, t); }
+  ctx.fillStyle = "#ffd76a"; ctx.font = "bold 42px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillText("🎪 CARNIVAL", -1140, 346);
   ctx.restore();
+  cvDrawWheelOver(t); /* the Ferris wheel's turning assembly paints here too, over the actors — the wheel in front (Jonathan 2026-11-06) */
 }
 
 /* ================================================================
@@ -14484,7 +14602,7 @@ function fishPublish() { /* my own record: up while my rod is out, gone when it 
     try { const p = myFishRef.set({ scene: "plaza", rod: myRod, st: fishState.mode, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   }
 }
-function moatDist(x, y) { let bd = 1e18; for (const r of MOAT_SOLIDS) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } for (const c of MOAT_CORNERS) bd = Math.min(bd, Math.max(0, Math.hypot(x - c.cx, y - c.cy) - MOAT_R)); return bd; } /* distance to the nearest water's edge: the five solids for the straight shores, plus each rounded corner's arc term (distance to the arc centre minus the radius) so fishing range still measures off the DRAWN shore at the corners (ROUNDED CORNERS, 2026-11-05) */
+function moatDist(x, y) { let bd = 1e18; for (const r of MOAT_SOLIDS) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } for (const r of BEACH_WATER) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } for (const c of MOAT_CORNERS) bd = Math.min(bd, Math.max(0, Math.hypot(x - c.cx, y - c.cy) - MOAT_R)); return bd; } /* distance to the nearest FISHABLE water's edge: the moat's five solids for its straight shores, each rounded corner's arc term (distance to the arc centre minus the radius) so fishing range still measures off the DRAWN shore at the corners (ROUNDED CORNERS, 2026-11-05) — and, since 2026-11-06, the BEACH shoreline's two water spans (BEACH_WATER, at the carnival constants): the beach joined THIS shore set, so nearMoat(), startFishing(), the Fish prompt and the catch popup's chain all reach it with no second system — same 85px reach, same rod tiers and sixths odds, same accounts-only gate, same hub/fishing record for the peers' rods. A beach cast faces SOUTH by construction: the shoreline is the world's south edge and the angler stands on the sand north of it. The Ferris platform's sand spit keeps the boarding spot (−3820, 2428) 316 from the nearest span — outside this reach — so the wheel's Ride prompt is never shadowed by a Fish offer */
 function nearMoat() { return me.scene === "plaza" && moatDist(me.x, me.y) <= 85; } /* standing at the lake's edge: on either shore or on the drawbridge, within a step of the water */
 function fishCancel() { fishState.mode = ""; fishPublish(); /* the rod goes away for the whole lake the moment it goes away for me */ }
 function startFishing() { if (!nearMoat() || fishState.mode) return;
@@ -15711,6 +15829,7 @@ function drawPlaza(t) {
     ctx.fillStyle = "rgba(88,40,160,0.32)"; ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
   }
+  drawBeach(t); /* THE BEACH (PREVIEW, 2026-11-06): the sand + shoreline water paint HERE, with the ground itself — BEFORE the path union below, so the union's purple paints over the sand wherever a path crosses it: the Ferris spur rides the sand to the wheel platform like a boardwalk, and the branch band, the bottom walkway and the Monster Shop band all end at their west line (−800) with the beach's purple fade laid under their edge. The carnival's own painting (drawCarnival, in the buildings line below) then stands the booths, arena and wheel on the sand */
   /* paths + roundabout as ONE union shape (theatre-carpet style): one fill, outer edge only */
   const D = Math.sqrt(205 * 205 - 80 * 80); /* 188.7 — where the bars meet the circle */
   ctx.beginPath();
@@ -15729,7 +15848,7 @@ function drawPlaza(t) {
   ctx.lineTo(-800, 1480); ctx.lineTo(CX - D, 1480);
   ctx.arc(CX, 1560, 205, Math.atan2(-80, -D), Math.atan2(-D, -80));
   /* the Speedway branch (2026-10-29): the gym branch mirrored — same height off the main walkway, the other way, with its apron up to the orange door. PREVIEW (2026-11-03): the branch now runs on WEST past the Speedway's apron across the plaza's new west land to QUANTUM TRENCHES' apron (−510..−350, the door's centre line −430 ± 80, the speedway apron's own measure) — one unbroken outline: west along the branch's south edge, up the trenches apron, across its top, down to the branch's north edge, east along it to the speedway apron, up and across and down, then east home — the gym/horse-track side's two-aprons-in-sequence trace, mirrored. The apron first stood at −590..−430 (centre −510); when the building widened east the same day the door's centre moved to −430 and the apron moved the same 80 east with it, so it still stands centred on the door */
-  ctx.lineTo(1520, 830); ctx.lineTo(-4360, 830); ctx.lineTo(-4360, 670); ctx.lineTo(-4240, 670); ctx.lineTo(-4240, 490); ctx.lineTo(-3400, 490); ctx.lineTo(-3400, 670); ctx.lineTo(-3320, 670); ctx.lineTo(-3320, 490); ctx.lineTo(-2480, 490); ctx.lineTo(-2480, 670); ctx.lineTo(-2400, 670); ctx.lineTo(-2400, 490); ctx.lineTo(-1560, 490); ctx.lineTo(-1560, 670); ctx.lineTo(-510, 670); ctx.lineTo(-510, 460); ctx.lineTo(-350, 460); ctx.lineTo(-350, 670); ctx.lineTo(490, 670); ctx.lineTo(490, 460); ctx.lineTo(650, 460); ctx.lineTo(650, 670); ctx.lineTo(1520, 670); /* the CARNIVAL EXTENSION (PREVIEW, 2026-11-06): the branch runs on WEST from the Trenches apron across the new carnival land to the bumper arena's east wall (−4360) — the south edge's west vertex moved along its own line (y 830), exactly the 2026-11-03 walkway extension's move — and the return along the north edge (670) now climbs a full-frontage apron (top on the booths' front line, 490) in front of each carnival booth in turn: Ball Toss (−4240..−3400), Basketball (−3320..−2480), Water Gun (−2400..−1560), then the Trenches apron itself (−510..−350 up to 460), traced in the return direction but painting the identical outline it always painted, and the Speedway apron and everything east of it are byte-for-byte the trace they were */
+  ctx.lineTo(1520, 830); ctx.lineTo(-3740, 830); ctx.lineTo(-3740, 2400); ctx.lineTo(-3900, 2400); ctx.lineTo(-3900, 830); ctx.lineTo(-4360, 830); ctx.lineTo(-4360, 670); ctx.lineTo(-4240, 670); ctx.lineTo(-4240, 490); ctx.lineTo(-3400, 490); ctx.lineTo(-3400, 670); ctx.lineTo(-3320, 670); ctx.lineTo(-3320, 490); ctx.lineTo(-2480, 490); ctx.lineTo(-2480, 670); ctx.lineTo(-2400, 670); ctx.lineTo(-2400, 490); ctx.lineTo(-1560, 490); ctx.lineTo(-1560, 670); ctx.lineTo(-510, 670); ctx.lineTo(-510, 460); ctx.lineTo(-350, 460); ctx.lineTo(-350, 670); ctx.lineTo(490, 670); ctx.lineTo(490, 460); ctx.lineTo(650, 460); ctx.lineTo(650, 670); ctx.lineTo(1520, 670); /* the CARNIVAL EXTENSION (PREVIEW, 2026-11-06): the branch runs on WEST from the Trenches apron across the new carnival land to the bumper arena's east wall (−4360) — the south edge's west vertex moved along its own line (y 830), exactly the 2026-11-03 walkway extension's move — and the return along the north edge (670) now climbs a full-frontage apron (top on the booths' front line, 490) in front of each carnival booth in turn: Ball Toss (−4240..−3400), Basketball (−3320..−2480), Water Gun (−2400..−1560), then the Trenches apron itself (−510..−350 up to 460), traced in the return direction but painting the identical outline it always painted, and the Speedway apron and everything east of it are byte-for-byte the trace they were. THE FERRIS SPUR (Jonathan 2026-11-06, from his screenshot of the seam where the spur leaves the branch): the run west along the south edge (830) no longer runs straight across the spur's mouth — it detours down the spur's east side (−3740), across its foot at the wheel platform (2400) and back up its west side (−3900), the castle road's union treatment, so no line is ever drawn across the spur where it meets the branch and the two read as one continuous purple shape */
   ctx.lineTo(1520, 510); ctx.closePath();
   /* the Comics island's own boundary, drawn as a SEPARATE subpath wound against the main outline, so the one fill leaves it lawn and no bridge segment is ever stroked across the path (Jonathan 2026-11-02 — see the note at the band's south edge above): down the leg's east edge to a SQUARE corner on the band's north edge — the quarter-circle arc that used to round this turn (centre 1900, 2140, r 120) is GONE at his word the same night ("it has a circle curve on the path next to the building when it turns on the left"; "the path is not smooth on left side of the building") — the leg now turns into the band with the plaza's own normal square turn, the Monster Shop leg's landing exactly — then east along the band's north edge to Quantum Bowling's spur, up the spur's west edge, and west along the walkway's south edge to close */
   ctx.moveTo(2020, 1640); ctx.lineTo(2020, 2260); ctx.lineTo(2765, 2260); ctx.lineTo(2765, 1640); ctx.closePath();
@@ -15786,8 +15905,8 @@ function drawPlaza(t) {
   lamp(1152, 1900); lamp(1368, 1900); lamp(1152, 2140); lamp(1368, 2140); /* flanking the up-leg at the same 240 pitch and 28px offset, spread along the climb — slid east with the leg (2026-11-03): 1152 = 1180 − 28, 1368 = 1340 + 28 */
   lamp(-538, 580); lamp(-322, 580); /* QUANTUM TRENCHES (PREVIEW): its apron's flank pair — the Speedway apron's own pair (472/668 at y 580) carried west to the new apron: −538 = −510 − 28, −322 = −350 + 28, the house 28px offset. The pair first stood at −618/−402 (the apron's first position); they moved the same 80 east when the widening centred the door at −430 */
   lamp(240, 642); lamp(0, 642); lamp(-240, 642); lamp(240, 858); lamp(0, 858); lamp(-240, 858); /* the Speedway branch's own lamp rows (642/858 — its edges at the 28px offset) continued WEST across the new land from the speedway pair at 840, at the bottom walkway's 240 pitch, running to the trenches apron */
-  for (let lx = -480; lx >= -4080; lx -= 240) { lamp(lx, 642); lamp(lx, 858); } /* the CARNIVAL branch's lamp rows (PREVIEW, 2026-11-06): the same two rows at the same 240 pitch and 28px offset, running on west from the trenches stretch across the whole carnival frontage to the bumper arena */
-  lamp(-2428, 580); lamp(-1532, 580); lamp(-3348, 580); lamp(-2452, 580); lamp(-4268, 580); lamp(-3372, 580); /* the carnival booths' apron flank pairs: the Trenches apron's own pair (−538/−322 at y 580) repeated at each booth apron's edges (apron edge ± 28) — Water Gun (−2400..−1560), Basketball (−3320..−2480), Ball Toss (−4240..−3400) */
+  for (let lx = -480; lx >= -1440; lx -= 240) { lamp(lx, 642); lamp(lx, 858); } /* the CARNIVAL branch's lamp rows (PREVIEW, 2026-11-06): the same two rows at the same 240 pitch and 28px offset, running on west from the trenches stretch — BUT ONLY across the open stretch (to −1440, short of the Water Gun): the lamps that stood on in front of the three booths and in the gaps between them (lx −1680..−4080) CAME OUT at Jonathan's word the same day (his phone screenshots: lamps between the games and a row in front of the booth fronts) */
+  /* the carnival booths' apron flank lamps (PREVIEW, 2026-11-06): the Trenches apron's own pair (−538/−322 at y 580) was repeated at each booth apron's edges (apron edge ± 28) — Water Gun (−2400..−1560), Basketball (−3320..−2480), Ball Toss (−4240..−3400) — and ALL SIX CAME OUT at Jonathan's word the same day (lamps in the spaces between the games, then his screenshot of the last one): −2428 and −2452 stood in the Water Gun↔Basketball gap, −3348 and −3372 in the Basketball↔Ball Toss gap, −4268 in the Ball Toss↔arena gap, and the Water Gun's EAST flank (−1532, 580) — kept through the first pass as it stood in open stretch — followed at his word, so no apron flank lamp stands at any booth now */
   /* Quantum Comics' own lamps (PREVIEW, Jonathan 2026-11-02): BOTH of the leg's flanks at the Monster Shop leg's own pitch and offset (edge ± 28) — when the leg stood at 1740 its west flank was lit by the HQ portal spur's lamps at 1752, which stood on its west rim; when the building and leg were scooted east the leg got its own west pair, the Monster Shop leg's arrangement. The band's south edge at the bottom walkway's 240 pitch and 28 offset, continuing the Monster Shop band's row west of it; and one lamp on the island lawn fronting the band east of the building, centred on the lawn that remains there (2672 — midway between the building's east wall, 2580, and the bowling spur's west edge, 2765) — the bowling band's north lamps' own arrangement. (That island lamp came out at the 2026-11-03 centring — see the note at its line below.) */
   lamp(1832, 1900); lamp(1832, 2140); lamp(2048, 1900); lamp(2048, 2140);
   lamp(1940, 2448); lamp(2180, 2448); lamp(2420, 2448); lamp(2660, 2448);
@@ -17486,7 +17605,8 @@ function frame(now) {
     if (a.isFud) { drawFudAt(a.fud, now); continue; } /* a FUD monster (PREVIEW): sprite only, no name plate, no chat — he is an enemy, layered by his feet like everyone else */
     if (a.isMon) { drawMonFollower(a, now); continue; } /* a monster follower (PREVIEW): no name plate, no chat, no shadow ring of its own beyond its sprite's — it just trails its owner, facing the owner's way */
     if (me.scene === "speedway" && (isMe ? myCar >= 0 : swCarOfDriver(a.id) >= 0)) continue; /* drivers render inside their cars (drawn with the track, name tags included), never as loose sprites */
-    const moving = isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7);
+    if (me.scene === "plaza" && (isMe ? cvRide >= 0 : cvWheelRiderOf(a.id) >= 0)) continue; /* FERRIS RIDERS render seated inside their cabins in the over pass (cvDrawWheelOver — the wheel paints IN FRONT now), never as loose sprites: mine reads off cvRide, a peer's cabin off the wheel claims via cvWheelRiderOf, never off a presence field */
+    const moving = (isMe ? me.moving : (Math.abs(a.tx - a.x) + Math.abs(a.ty - a.y) > 7)) && !(me.scene === "plaza" && (isMe ? cvCar >= 0 : cvCarOfDriver(a.id) >= 0)); /* BUMPER CARS (Jonathan 2026-11-06): NO walking animation on top of a bumper car — a driver sits SEATED AND STILL in the car while it moves. The gate sits on this one moving flag, which is everything the walk cycle reads: it feeds drawPlayer's bob (the leg cycle) and the run-phase/dust block just below, so both stop together. Mine reads off cvCar; a PEER's seat is derived on the spot from the bccars records (cvCarOfDriver — the record carrying his pid, fresh), never from a presence field, which stays field-locked. The frame a driver steps out, both sources clear and his normal walking animation resumes on the spot */
     let phase = isMe ? sprintPhase : a.bob * 7;
     const aWading = (me.scene === "plaza" || me.scene === "rooftop") && inPoolWater(a.x, a.y, me.scene === "rooftop" ? ROOFPOOLW : undefined); /* a peer in the pool splashes and never kicks dust (PREVIEW) — the rooftop pool included, against its own water */
     if (!isMe && a.run && moving) {
@@ -17544,6 +17664,7 @@ function frame(now) {
   else if (me.scene === "plaza" && nearTree() >= 0) { promptBtn.style.display = "flex"; promptBtn.textContent = "🪓 Chop"; promptAction = () => startChopping(); } /* WOODCUTTING (2026-11-05): stand next to any standing tree in the outdoor world and the prompt offers the chop — it sits AFTER the lake in the chain, so the water's own Fish prompt keeps its spots where the two reaches overlap */
   else if (me.scene === "plaza" && cvRide >= 0) { if (cvWheelAtBottom(cvRide)) { promptBtn.style.display = "flex"; promptBtn.textContent = "🎡 Step off"; promptAction = () => cvWheelExit(); } else { promptBtn.style.display = "none"; promptAction = null; } } /* the CARNIVAL FERRIS WHEEL (PREVIEW, 2026-11-06): while I ride, the ONLY prompt the wheel ever offers is Step off — and only while my own cabin is inside the bottom boarding window. Elevated, there is no prompt at all: I cannot get out mid-turn, exactly as ordered */
   else if (me.scene === "plaza" && cvCar >= 0) { promptBtn.style.display = "flex"; promptBtn.textContent = "🚪 GET OUT"; promptAction = () => cvCarExit(); } /* the CARNIVAL bumper cars: GET OUT, the Speedway's own driving prompt carried to the arena — it releases my car and steps me out at its side */
+  else if (me.scene === "plaza" && cvSeatGame && cvGameState(cvSeatGame) && cvGameState(cvSeatGame).phase === "play" && cvSeatGame === "wg") { promptBtn.style.display = "flex"; promptBtn.textContent = "💦 SPRAY"; promptAction = () => cvSprayTap(); } /* WATER GUN in the play phase: the prompt button IS the trigger — one tap, one spray, filled by where the booth's sweep stands (F fires it too, through this same handler) */
   else if (me.scene === "plaza" && cvSeatGame && cvGameState(cvSeatGame) && cvGameState(cvSeatGame).phase === "play" && cvSeatGame === "bb") { promptBtn.style.display = "flex"; promptBtn.textContent = "🏀 SHOOT"; promptAction = () => cvShoot(); } /* BASKETBALL in the play phase: the prompt button IS the shot — time it against the meter over my chair (F fires it too, through this same handler) */
   else if (me.scene === "plaza" && cvSeatGame && cvGameState(cvSeatGame) && cvGameState(cvSeatGame).phase === "play" && cvSeatGame === "bt") { promptBtn.style.display = "flex"; promptBtn.textContent = cvTossAimOn ? "🎯 RELEASE!" : "🎯 THROW"; promptAction = () => cvTossTap(); } /* BALL TOSS in the play phase: first tap starts the aim sweep, second tap releases the ball where the sweep stands */
   else if (me.scene === "plaza" && cvSeatGame) { promptBtn.style.display = "flex"; promptBtn.textContent = "🚪 Stand up"; promptAction = () => cvStand(); } /* seated at a carnival booth chair: the casino seat prompt's own words. In the bet phase a standing stake comes back in person; past the bell it forfeits (cvStand runs the game's own release) */
