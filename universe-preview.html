@@ -2587,6 +2587,19 @@ window.addEventListener("keydown", e => {
   if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
   if (promptBtn.style.display === "flex" && promptAction && typeof promptBtn.onclick === "function") promptBtn.onclick();
 }, true);
+/* ============ C key = the chat log, O key = the Online Now list (Jonathan 2026-11-06 — "C should bring up chat log, and O should bring up online menu. Pressing again closes"): each key is a second route to the very panel controls a tap uses — never a parallel path of its own. C opens through openChatLog (the 💬 button's own handler, the waiting-PM flush included) and closes through the log's own close button (logclose); O opens through openOnlineList (the 👥 button's own opener) and closes through the list's own close button (onlineclose) — the same close routes Escape uses. Open/closed is read off each panel's REAL display on every press (escShown) — never a shadow flag — so a key, the buttons and Escape all share one state and cannot desync on any entry path. Each key drives ONLY its own panel, through that panel's own routines, so the panels keep their own established interplay (2026-11-01: the chat log and the menus are mutually exclusive — openChatLog puts the list away as it opens, and openOnlineList will not open over an open chat box, exactly as the 💬 and 👥 buttons behave today; the keys change none of that). Only in the game (entered). Never while typing: with any input, textarea or contenteditable focused (the chat box, the name field, the PM compose field, the token/balance amount fields) C and O are just the letters c and o. Capture phase like Escape/F above, because the chat box stops keydown propagation; a held key's auto-repeat is ignored, so one press is at most one toggle; Ctrl/Cmd/Alt+C/O stay the browser's own shortcuts. */
+function keyPanelToggle(id, openFn, closeBtnId) {
+  if (escShown(id)) { const b = $(closeBtnId); if (b && typeof b.onclick === "function") b.onclick(); }
+  else openFn();
+}
+window.addEventListener("keydown", e => {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !entered) return;
+  if (e.key !== "c" && e.key !== "C" && e.key !== "o" && e.key !== "O") return;
+  const tg = e.target;
+  if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
+  if (e.key === "c" || e.key === "C") keyPanelToggle("chatlog", openChatLog, "logclose");
+  else keyPanelToggle("onlinelist", openOnlineList, "onlineclose");
+}, true);
 /* ============ input ============ */
 const cv = $("game"), ctx = cv.getContext("2d");
 /* ============ GRAPHICS levels (Jonathan 2026-10-30) ============
