@@ -204,7 +204,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .gfxseg:first-child{border-left:none}
 .gfxseg.sel{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800}
 #cancelbtn{margin:-8px 0 26px;background:none;border:1px solid rgba(255,255,255,.3);color:#cfeaff;border-radius:999px;padding:9px 24px;font-size:14px;cursor:pointer;display:none}
-@media (max-width:520px){#topbar{gap:3px;padding:0 5px;overflow:hidden}#topbar .back{font-size:11px;flex:none}#topbar h1{font-size:10.5px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}#status{display:none}.chip{padding:3px 5px;font-size:10.5px}#online,#chipspill,#mutebtn,#changebtn{flex:none}#topbar.bal1 h1{font-size:9.5px}#topbar.bal1 .chip{font-size:10px}#topbar.bal2 h1{font-size:9px}#topbar.bal2 .back{font-size:10px}#topbar.bal2 .chip{font-size:9.5px;padding:2px 5px}#topbar.bal3{gap:2px;padding:0 4px}#topbar.bal3 h1{font-size:8.5px}#topbar.bal3 .back{font-size:9.5px}#topbar.bal3 .chip{font-size:9px;padding:2px 4px} /* the title ALWAYS shows in full — Quantum AND Inuverse (Jonathan 2026-11-05: the bal tiers used to hide "Inuverse" as the balance grew, until he couldn't see it at 11M; his fix: shrink the TITLE, never the buttons, so the tiers now step the h1 down instead of hiding the word) */}
+@media (max-width:520px){#topbar{gap:3px;padding:0 5px;overflow:hidden}#topbar .back{font-size:11px;flex:none}#topbar h1{font-size:10.5px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}#status{display:none}.chip{padding:3px 5px;font-size:10.5px}#online,#chipspill,#mutebtn,#deafbtn,#changebtn{flex:none}#topbar.bal1 h1{font-size:8.6px}#topbar.bal1 .chip{font-size:10px}#topbar.bal2 h1{font-size:7.3px}#topbar.bal2 .back{font-size:10px}#topbar.bal2 .chip{font-size:9.5px;padding:2px 5px}#topbar.bal3{gap:2px;padding:0 4px}#topbar.bal3 h1{font-size:7.2px}#topbar.bal3 .back{font-size:9.5px}#topbar.bal3 .chip{font-size:9px;padding:2px 4px} /* the title ALWAYS shows in full — Quantum AND Inuverse (Jonathan 2026-11-05: the bal tiers used to hide "Inuverse" as the balance grew, until he couldn't see it at 11M; his fix: shrink the TITLE, never the buttons, so the tiers now step the h1 down instead of hiding the word) */}
 #jukebox{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like #chatlog (every song picker — club, VIP, HRC counter, boxing boom box — is this one panel) */
 #jukepanel{background:var(--panel);border:2px solid rgba(255,93,143,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,93,143,.35)}
 #jukepanel h2{margin:0 0 2px;font-size:21px;color:#ff8fb5;text-align:center}
@@ -350,6 +350,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <button type="button" class="chip" id="online" aria-expanded="false" aria-controls="onlinelist">👥 1 online</button>
   <span class="chip" id="chipspill" title="Your chips — saved with your profile, or with your account when signed in">🪙 1,000</span>
   <button class="chip" id="mutebtn" title="Sound on/off">🔊</button>
+  <button class="chip" id="deafbtn" title="Voice chat — hear everyone / mute ALL voice, just for you (your mic still works, nobody else is affected)">🔊</button>
   <button class="chip" id="changebtn">Menu</button>
 </div>
 <div id="stage">
@@ -2842,6 +2843,7 @@ let micStream = null, micDenied = false, pttHeld = false, voiceInitDone = false;
 const LK_ROOM_NAME = "hub-world"; /* ONE voice room for the whole world (Jonathan 2026-11-04) — hearing is gated by scene, see voiceGateApply below */
 const speakingNow = new Set();
 let lkRoom = null, lkScene = null, lkJoining = false, lkRetryAt = 0, lkMicTrack = null, lkMicRetryAt = 0, lkMicBusy = false, lkMicBusyAt = 0, lkMutedSince = 0;
+let lkDeafened = false; /* DEAFEN (Jonathan 2026-11-06): the top-bar button beside #mutebtn — a purely local, session-only hearing switch. While on, every remote voice plays at volume 0 FOR THIS CLIENT ONLY (see lkApplyVolumes). It is never published, never touches presence, the mic, or anyone else, and it is NOT the sound mute: #mutebtn's `muted` gates ALL app sound including music; this gates LiveKit voice alone, so the jukebox and themes keep playing while deafened. Starts off (hearing) on every entry; saved nowhere. */
 function lkFetchToken() {
   return new Promise(resolve => {
     if (!db || !myId || !window.LivekitClient) { resolve(null); return; }
@@ -2912,6 +2914,7 @@ async function lkLeave() {
   const room = lkRoom; lkRoom = null; lkScene = null; lkMicTrack = null;
   speakingNow.clear();
   lkGateWant.clear();
+  lkAudioEls.clear();
   if (room) { try { await room.disconnect(); } catch (e) {} }
 }
 /* ---- the scene gate (Jonathan 2026-11-04) ----
@@ -2946,9 +2949,12 @@ function lkGateParticipant(p) {
   if (!p) return;
   try { p.audioTrackPublications.forEach(pub => lkGatePub(p, pub)); } catch (e) {}
 }
+const lkAudioEls = new Set(); /* every attached remote-voice element this client is currently playing — the deafen switch speaks to exactly these, and to nothing else in the app */
+function lkApplyVolumes() { for (const el of lkAudioEls) { try { el.volume = lkDeafened ? 0 : 1; } catch (e) {} } } /* the ONLY place remote-voice volume is decided: same scene = full volume, deafened = 0 — consulted at attach time and on every gate pass, so a voice that starts after the button was pressed lands at the right volume too */
 function voiceGateApply() {
   if (!lkRoom) return;
   try { lkRoom.remoteParticipants.forEach(p => lkGateParticipant(p)); } catch (e) {}
+  lkApplyVolumes(); /* the deafen flag is re-applied on every gate pass (presence snapshots, scene changes, the 800ms tick) — not just at press time */
   for (const id of [...speakingNow]) if (!lkHeard(id)) speakingNow.delete(id); /* a speaker indicator only ever lights for someone you can actually hear */
 }
 let lkFails = 0, lkSpare = null, lkRefilling = false;
@@ -2995,12 +3001,12 @@ async function lkJoin() {
       if (participant && !lkHeard(participant.identity)) { try { if (pub) pub.setSubscribed(false); } catch (e) {} return; } /* the gate's safety net: a track that lands while its owner is in another scene is dropped, never played */
       try {
         const el = track.attach();
-        el.volume = 1; el.style.display = "none";
+        el.volume = lkDeafened ? 0 : 1; lkAudioEls.add(el); el.style.display = "none"; /* a voice landing while deafened starts silent (lkApplyVolumes keeps it so) */
         document.body.appendChild(el);
         if (el.play) el.play().catch(() => {});
       } catch (e) {}
     });
-    room.on(C.RoomEvent.TrackUnsubscribed, track => { try { track.detach().forEach(el => el.remove()); } catch (e) {} });
+    room.on(C.RoomEvent.TrackUnsubscribed, track => { try { track.detach().forEach(el => { lkAudioEls.delete(el); el.remove(); }); } catch (e) {} });
     room.on(C.RoomEvent.ActiveSpeakersChanged, speakers => {
       speakingNow.clear();
       for (const sp of speakers) if (sp && sp.identity && lkHeard(sp.identity)) speakingNow.add(sp.identity); /* only speakers you can actually hear light up */
@@ -3013,7 +3019,7 @@ async function lkJoin() {
       for (const k of [...lkGateWant.keys()]) if (k.startsWith(p.identity + "|")) lkGateWant.delete(k);
     });
     room.on(C.RoomEvent.Disconnected, () => {
-      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkGateWant.clear(); lkBackoff(); }
+      if (lkRoom === room) { lkRoom = null; lkScene = null; lkMicTrack = null; speakingNow.clear(); lkGateWant.clear(); lkAudioEls.clear(); lkBackoff(); }
     });
     await room.connect(pass.url, pass.token);
     lkRoom = room; lkScene = LK_ROOM_NAME; /* connected to the world room from here */
@@ -3130,6 +3136,13 @@ function wireMic(el) {
   el.addEventListener("contextmenu", e => e.preventDefault());
 }
 wireMic(micBtn);
+const deafBtn = $("deafbtn");
+function syncDeafBtn() { if (deafBtn) deafBtn.textContent = lkDeafened ? "🔇" : "🔊"; }
+function toggleDeafen() { /* deafen (Jonathan 2026-11-06): flips ONLY this client's remote-voice volume — the mic (pttHeld / me.mic), presence, the sound mute and music are all untouched, and other players hear each other exactly as before */
+  lkDeafened = !lkDeafened; syncDeafBtn(); lkApplyVolumes();
+}
+if (deafBtn) deafBtn.addEventListener("click", e => { e.preventDefault(); toggleDeafen(); });
+syncDeafBtn();
 
 /* ============ casino: shared table state (RTDB hub/tables) ============ */
 /* ============ Quantum Sports Complex: shared courts (RTDB hub/tables/sports) ============ */
@@ -14898,7 +14911,7 @@ function drawPlaza(t) {
   ctx.moveTo(WORLD_X0, -30); ctx.lineTo(-260, -30); ctx.lineTo(-260, -470); ctx.lineTo(-100, -470); ctx.lineTo(-100, -30); ctx.lineTo(1520, -30); ctx.lineTo(1520, -350); ctx.lineTo(1680, -350); ctx.lineTo(1680, -30); ctx.lineTo(WORLD.w, -30); ctx.lineTo(WORLD.w, 130); ctx.lineTo(WORLD_X0, 130); ctx.closePath(); /* the WOODCUTTING SPUR (2026-11-05) rides this same union outline: a 160-wide leg (x -260..-100, the standard path width, on the store's own centre line -180) climbs from the road's north edge straight up to the Woodcutting Store's door at the grove (its top edge on the building's bottom line, -470) — traced INTO the outline like the moat leg, so the join is smooth and no line is ever drawn across its mouth, the castle leg's own rule */
   ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
-  for (let lx = -680; lx <= 4280; lx += 240) lamp(lx, -58); /* the band's north-edge lamp row, the bottom walkway's own 240 pitch at the 28px edge offset, running the road's full width */
+  for (let lx = -680; lx <= 4280; lx += 240) { if (lx !== -200) lamp(lx, -58); } /* the band's north-edge lamp row, the bottom walkway's own 240 pitch at the 28px edge offset, running the road's full width. ONE gap (2026-11-06): the lamp at lx −200 stood in the middle of the Woodcutting spur where the spur climbs off the road's north edge (the spur runs −260..−100 on the store's own centre line −180, so −200 sat dead centre of the walkway in front of the store) — removed at Jonathan's word */
   lamp(1492, -290); lamp(1708, -290);
   lamp(-288, -160); lamp(-72, -160); lamp(-288, -380); lamp(-72, -380); /* the Woodcutting spur's lamps (2026-11-05): flanking pairs at the house 28px edge offset off the spur's own edges (-260/-100), spread along the climb — the castle leg's arrangement */ /* flanking the climb to the moat at the leg's own edges ± 28 — the leg's BOTTOM pair (1492/1708 at y −140, the pair further down the leg toward the road junction) came out at Jonathan's word (2026-11-04 21:34); only the top pair, up by the moat, stays */
   ctx.strokeStyle = "rgba(255,215,106,0.35)"; ctx.beginPath(); ctx.arc(CX, 1560, 120, 0, 7); ctx.stroke();
