@@ -20,6 +20,9 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);co
 #spacer{flex:1}
 .chip{background:rgba(56,225,255,.10);border:1px solid rgba(56,225,255,.35);color:var(--ink);border-radius:999px;padding:5px 11px;font-size:13px;white-space:nowrap}
 button.chip{cursor:pointer;font-family:inherit}
+#muteallbtn{position:relative}
+#muteallbtn .maoff{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;font-size:1.3em}
+#muteallbtn.on .maoff{display:flex}
 button.chip:active{transform:scale(.96)}
 @media (min-width:521px){.chip{height:30px;display:inline-flex;align-items:center}}
 #stage{position:absolute;inset:52px 0 0 0}
@@ -204,7 +207,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .gfxseg:first-child{border-left:none}
 .gfxseg.sel{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;font-weight:800}
 #cancelbtn{margin:-8px 0 26px;background:none;border:1px solid rgba(255,255,255,.3);color:#cfeaff;border-radius:999px;padding:9px 24px;font-size:14px;cursor:pointer;display:none}
-@media (max-width:520px){#topbar{gap:3px;padding:0 5px;overflow:hidden}#topbar .back{font-size:11px;flex:none}#topbar h1{font-size:10.5px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}#status{display:none}.chip{padding:3px 5px;font-size:10.5px}#online,#chipspill,#mutebtn,#changebtn{flex:none}#topbar.bal1 h1{font-size:9.5px}#topbar.bal1 .chip{font-size:10px}#topbar.bal2 h1{font-size:9px}#topbar.bal2 .back{font-size:10px}#topbar.bal2 .chip{font-size:9.5px;padding:2px 5px}#topbar.bal3{gap:2px;padding:0 4px}#topbar.bal3 h1{font-size:8.5px}#topbar.bal3 .back{font-size:9.5px}#topbar.bal3 .chip{font-size:9px;padding:2px 4px} /* the title ALWAYS shows in full — Quantum AND Inuverse (Jonathan 2026-11-05: the bal tiers used to hide "Inuverse" as the balance grew, until he couldn't see it at 11M; his fix: shrink the TITLE, never the buttons, so the tiers now step the h1 down instead of hiding the word) */}
+@media (max-width:520px){#topbar{gap:3px;padding:0 5px;overflow:hidden}#topbar .back{font-size:11px;flex:none}#topbar h1{font-size:10.5px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}#status{display:none}.chip{padding:3px 5px;font-size:10.5px}#online,#chipspill,#mutebtn,#muteallbtn,#changebtn{flex:none}#topbar.bal1 h1{font-size:8.6px}#topbar.bal1 .chip{font-size:10px}#topbar.bal2 h1{font-size:7.3px}#topbar.bal2 .back{font-size:10px}#topbar.bal2 .chip{font-size:9.5px;padding:2px 5px}#topbar.bal3{gap:2px;padding:0 4px}#topbar.bal3 h1{font-size:7.2px}#topbar.bal3 .back{font-size:9.5px}#topbar.bal3 .chip{font-size:9px;padding:2px 4px} /* the title ALWAYS shows in full — Quantum AND Inuverse (Jonathan 2026-11-05: the bal tiers used to hide "Inuverse" as the balance grew, until he couldn't see it at 11M; his fix: shrink the TITLE, never the buttons, so the tiers now step the h1 down instead of hiding the word) */}
 #jukebox{position:absolute;inset:52px 0 76px 0;background:transparent;z-index:35;display:none;align-items:flex-start;justify-content:center;padding:16px 10px} /* 76px bottom: clears the chat bar, like #chatlog (every song picker — club, VIP, HRC counter, boxing boom box — is this one panel) */
 #jukepanel{background:var(--panel);border:2px solid rgba(255,93,143,.65);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,93,143,.35)}
 #jukepanel h2{margin:0 0 2px;font-size:21px;color:#ff8fb5;text-align:center}
@@ -350,6 +353,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <button type="button" class="chip" id="online" aria-expanded="false" aria-controls="onlinelist">👥 1 online</button>
   <span class="chip" id="chipspill" title="Your chips — saved with your profile, or with your account when signed in">🪙 1,000</span>
   <button class="chip" id="mutebtn" title="Sound on/off">🔊</button>
+  <button class="chip" id="muteallbtn" title="Mute all voices"><span class="mabase">🎤</span><span class="maoff">🚫</span></button>
   <button class="chip" id="changebtn">Menu</button>
 </div>
 <div id="stage">
@@ -2534,11 +2538,15 @@ $("changebtn").onclick = () => {
   checkEnter(); sfxClick();
 };
 cancelBtn.onclick = () => { gate.style.display = "none"; sfxClick(); };
-/* ============ Escape toggles the Menu (Jonathan 2026-11-06 — "pressing escape opens the menu and pressing it again closes it... If you refresh and see menu, escape does nothing"): there was NO Escape handler anywhere in the hub, so Esc was inert in every session path. Esc is now a second route to the very two buttons above: it opens the Menu by running the Menu button's own handler and closes it by running the panel's own close handler, and it reads open/closed off the panel's REAL display every press — never a shadow flag — so the toggle cannot desync on any entry path, a refresh + re-entry included. It lives in the capture phase on purpose: the chat box stops keydown propagation, and Esc must land the same with ANY field focused; it never touches a field itself — the chat draft is never sent or cleared, the name is never edited. Guards: only in the game (entered) — at the welcome gate Esc stays inert; while a higher overlay owns the screen (a buy/sell confirmation — Esc must never confirm or cancel a transaction — a collection/balances-style panel, a catch popup, the evolution/rod show) Esc is inert too and those close by their own controls first; a held key's auto-repeat never double-toggles. */
+/* ============ Escape: closes popups first, then toggles the Menu (Jonathan 2026-11-06). Esc is a second route to the very controls a tap uses — never a parallel close path of its own. Each press, in order: (1) a buy/sell confirmation (#buyconfirm) is up -> Esc runs its CANCEL button only: the popup dismisses and no transaction can ever happen from the keyboard; (2) any other closable popup is up -> Esc runs the TOPMOST one's own close button (ESC_CLOSABLES, in stacking order: the z-47 catch/log popups, then the z-45 panels later-in-DOM-first, then the z-35 jukebox), so closing has exactly the side effects of tapping close, its sound included; (3) nothing closable is up -> Esc toggles the Menu, running the Menu button's own handler to open and the panel's own close handler to close, reading open/closed off the panel's REAL display every press — never a shadow flag — so the toggle cannot desync on any entry path, a refresh + re-entry included. The one blocker with NO close control, the evolution/rod show (#evooverlay, a timed show with input locked), still owns the screen while it is up: Esc stays inert until it ends. Capture phase on purpose: the chat box stops keydown propagation, and Esc must land the same with ANY field focused; it never touches a field itself — the chat draft is never sent or cleared, the name is never edited. Only in the game (entered) — at the welcome gate Esc stays inert; a held key's auto-repeat never double-fires. */
 const ESC_MENU_BLOCKERS = ["buyconfirm", "moncoll", "monpen", "actpanel", "balpanel", "banpanel", "clogpanel", "fishinv", "fishpanel", "loginv", "woodpanel", "catchpop", "logpop", "evooverlay"];
+const ESC_CLOSABLES = [["logpop", "logok"], ["catchpop", "catchok"], ["monpen", "monpenclose"], ["clogpanel", "clogclose"], ["banpanel", "banclose"], ["balpanel", "balclose"], ["actpanel", "actclose"], ["woodpanel", "woodshopclose"], ["loginv", "loginvclose"], ["fishpanel", "fishshopclose"], ["fishinv", "fishinvclose"], ["moncoll", "moncollclose"], ["jukebox", "jukeclose"]]; /* topmost first */
+function escShown(id) { const el = $(id); return !!el && el.style.display !== "" && el.style.display !== "none"; }
 function escMenuToggle() {
   if (!entered) return;
-  for (const id of ESC_MENU_BLOCKERS) { const el = $(id); if (el && el.style.display !== "" && el.style.display !== "none") return; }
+  if (escShown("buyconfirm")) { const c = $("buyconfcancel"); if (c && typeof c.onclick === "function") c.onclick(); return; } /* CANCEL only — never the confirm path */
+  for (const [pid, bid] of ESC_CLOSABLES) { if (escShown(pid)) { const b = $(bid); if (b && typeof b.onclick === "function") { b.onclick(); return; } } }
+  for (const id of ESC_MENU_BLOCKERS) if (escShown(id)) return; /* a blocker with no close control (the evolution/rod show) still owns the screen */
   if (gate.style.display !== "none") cancelBtn.onclick();
   else $("changebtn").onclick();
 }
@@ -2948,7 +2956,7 @@ function lkPeerScene(identity) {
   const p = peers.get(identity);
   return p ? p.scene : null;
 }
-function lkHeard(identity) { return !!identity && lkPeerScene(identity) === me.scene; }
+function lkHeard(identity) { return !lkMuteAll && !!identity && lkPeerScene(identity) === me.scene; }
 function lkGatePub(p, pub) {
   if (!p || !pub || typeof pub.setSubscribed !== "function") return;
   if (pub.kind && pub.kind !== "audio") return; /* voice only — nothing else is ever published here */
@@ -2967,6 +2975,10 @@ function voiceGateApply() {
   try { lkRoom.remoteParticipants.forEach(p => lkGateParticipant(p)); } catch (e) {}
   for (const id of [...speakingNow]) if (!lkHeard(id)) speakingNow.delete(id); /* a speaker indicator only ever lights for someone you can actually hear */
 }
+/* ---- MUTE ALL VOICES (Jonathan 2026-11-06, the redo — the switch in the top bar, right after the sound mute): NOT a volume control. The first version set remote elements' volume to 0, which iOS Safari ignores outright (a page cannot set an audio element's volume there), so on his phone it did nothing. This one works the way the room gate itself works: lkMuteAll feeds lkHeard() above, so while it is on every remote participant counts as "not in my room" and the gate UNSUBSCRIBES their audio — an unsubscribed track is never streamed, never attached, no element exists to hear. Someone who starts talking while it is on is never subscribed in the first place; changing scene while it is on re-runs the same gate and stays silent; switching it off re-runs the gate and the room you are standing in attaches and plays at once. Session-only: starts off, saved nowhere, never in the presence record or the account. My own mic (publishing, pttHeld, the presence mic field), the sound mute and every music/SFX gain are untouched by it. */
+let lkMuteAll = false;
+function syncMuteAllBtn() { const b = $("muteallbtn"); if (!b) return; b.classList.toggle("on", lkMuteAll); b.setAttribute("aria-pressed", lkMuteAll ? "true" : "false"); b.title = lkMuteAll ? "Voices muted — tap to hear your room again" : "Mute all voices"; }
+$("muteallbtn").onclick = () => { lkMuteAll = !lkMuteAll; syncMuteAllBtn(); voiceGateApply(); sfxClick(); };
 let lkFails = 0, lkSpare = null, lkRefilling = false;
 function lkBackoff() {
   /* heal fast (Jonathan 2026-10-31): the first retry comes after half a second;
@@ -7376,7 +7388,7 @@ function renderMonColl() {
   }
 }
 function openMonColl() { closeChatLog(); closeBalPanel(); closeBanPanel(); closeClogPanel(); renderMonColl(); monCollMsg(""); $("moncoll").style.display = "flex"; sfxClick(); } /* the DJ pattern: the panel opens from its button and stays until it is closed */
-function closeMonColl() { $("moncoll").style.display = "none"; sfxClick(); }
+function closeMonColl() { $("moncoll").style.display = "none"; } /* silent, like closeBalPanel/closeBanPanel/closeClogPanel — the click lives on the close BUTTON and on each opener. This function is also called by every sibling opener (fish/log inventory, activity, balances, ban, chat log) just to clear the way, and its unconditional sfxClick stacked with the opener's own: the doubled select sound on Menu picks (Jonathan 2026-11-06) */
 /* ---- ACTIVITY REPORT (owner-only, 2026-11-03): the droplet watcher (qi-hub-activity.service) turns account presence into login sessions and writes them to the Firestore `activity` collection; the database rules let ONLY the owner's account read that collection, and the button that opens this panel — under Monster Collection in the account menu — is only ever shown to the owner's account (see acctUi). Per-person totals up top, recent sessions below; every time is America/New_York. ---- */
 function actFmtDur(mins) { const m = Math.round(mins || 0); if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? (h + " h " + r + " min") : (h + " h"); }
 function actFmtTime(ms) { return new Date(ms).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }); }
@@ -7417,7 +7429,7 @@ async function actLoad() {
   } catch (e) { status.textContent = "⚠️ Couldn't load the activity report — try again in a bit."; }
 }
 function openActPanel() { if (!isOwnerAcct()) return; closeChatLog(); closeMonColl(); closeBalPanel(); closeBanPanel(); closeClogPanel(); $("actpanel").style.display = "flex"; sfxClick(); actLoad(); }
-function closeActPanel() { $("actpanel").style.display = "none"; sfxClick(); }
+function closeActPanel() { $("actpanel").style.display = "none"; } /* silent for the same reason as closeMonColl — the balances/ban/chat-log openers clear it on their way in and each plays its own click */
 /* ---- PLAYER BALANCES (owner-only, 2026-11-03): a button under Activity Report in the account menu (owner's account ONLY, same isOwnerAcct gate) opens a panel listing EVERY account in hub/users with its live balance and who's online right now — an account counts as online when a live presence record carries its uid (the same peers feed the world runs on), and his own row always counts as online. The RTDB rules carry one extra read grant so the owner's account, and only his, can read the whole hub/users node; every other account still reads only its own record. The Send button sits on every row (his choice: anyone, online or not) and opens an amount box; confirming writes the SAME gift note a normal player send writes under hub/transfers/<their uid> ({amt, from: his name, ts}) and debits NOTHING — the tokens are created, not taken out of his balance. The recipient's own client does everything else exactly like a player send (watchTransfers): the credit, the coin sound, the burst, the "+🪙" text and the chat line — online players get it on the spot, offline players collect it with the same show the next time they sign in. One note can carry at most the transfer rules' amt cap. ---- */
 const BAL_CAP = 10000000000; /* the hub/transfers amt validate cap: a single gift note can carry at most this much — send again for more */
 let balRef = null, balData = null, balTick = null, balSendUid = "", balSendName = "";
@@ -7991,11 +8003,11 @@ $("woodshopclose").onclick = () => closeWoodPanel();
 $("logok").onclick = () => { $("logpop").style.display = "none"; sfxClick(); };
 $("buyconfgo").onclick = () => confirmBuy();
 $("buyconfcancel").onclick = () => cancelBuyConfirm();
-$("moncollclose").onclick = () => closeMonColl();
+$("moncollclose").onclick = () => { closeMonColl(); sfxClick(); };
 $("actbtn").onclick = () => openActPanel();
 $("qkbtn").onclick = () => qkSignIn();
 qkSyncRow(); /* first paint: the one-tap button appears at once on a device that holds a key, before auth has even resolved (persistence is NONE, so this visit starts signed out regardless) */
-$("actclose").onclick = () => closeActPanel();
+$("actclose").onclick = () => { closeActPanel(); sfxClick(); };
 $("balbtn").onclick = () => openBalPanel();
 $("banbtn").onclick = () => openBanPanel();
 $("clogbtn").onclick = () => openClogPanel();
