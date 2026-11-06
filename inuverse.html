@@ -6242,7 +6242,11 @@ $("sendtokamt").addEventListener("input", () => sendTokAmtFormat($("sendtokamt")
    inbox from the moment I step in. A note is NOT consumed when it
    arrives — it waits in the inbox until it is RENDERED into my chat log,
    and only then is it removed, so a refresh before opening the chat
-   loses nothing and no message can ever render twice. Arrival while the
+   loses nothing and no message can ever render twice. Sending drops the
+   sender's OWN copy into the sender's own session log the moment the
+   push lands (his order later the same day): same divider, my name in
+   the usual yellow, my text in the same hot pink — each side's chat
+   holds both halves of the conversation. Arrival while the
    chat is closed starts the chat button flashing hot pink; arrival
    while it is open renders on the spot. Rendering: the messages join
    the session log (the same witness-only stream as room chat — page
@@ -6284,6 +6288,8 @@ async function sendPrivMsg() {
     await db.ref("hub/pm/" + tgt.pid).push().set({ from: String(me.name || "Someone").slice(0, 24), fromPid: myId, text: text, ts: firebase.database.ServerValue.TIMESTAMP });
   } catch (e) { msg.textContent = "Couldn't send — try again."; btn.disabled = false; return; }
   sfxClick();
+  addPmLogMessage({ from: String(me.name || "Someone").slice(0, 24), text: text, ts: Date.now(), key: "own" + Date.now() + ":" + (++pmOwnSeq) }); /* the SENDER'S OWN COPY (Jonathan 2026-11-06, later the same morning: "make sure my private messages show up as well when I message someone, like they show up on my end" / "also in pink for my own text, so I can see what I wrote"): the moment a send lands, the very line the recipient will read joins MY session log through the receiver's own addPmLogMessage — same "Private Message" divider, my name in the usual yellow, my text in the same hot pink — so my half of the conversation sits in my chat too, interleaved with theirs in real order under the one shared PM section. Only on a landed send: a failed push echoes nothing. Local only — nothing extra is written anywhere; the note in the recipient's inbox stays the one and only database write. No flash: the pink flash is for incoming mail, never for my own */
+  if (pmChatOpen()) renderLog(); /* already reading: my line lands on the spot; otherwise it waits in the stream like everything else and shows when the chat opens */
   closePrivMsg();
 }
 $("privmsgsend").onclick = sendPrivMsg;
@@ -6292,6 +6298,7 @@ $("privmsg").addEventListener("click", e => { if (e.target === $("privmsg")) clo
 $("privmsgtext").addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); sendPrivMsg(); } }); /* the field swallows its own keydowns: the game's movement handler only spares the chat box and the name field by name, and it preventDefaults the space bar and the arrows — without this, spaces would never land in the message (and would feed the run key instead). The capture-phase Escape/F handlers run before this and keep their own typing guards, so Esc still closes the box from here */
 /* ---- receiving ---- */
 let pmRef = null;
+let pmOwnSeq = 0; /* the sender-echo key counter: my own sent copies get local row keys ("pm:own…") that can never collide with an inbox push key */
 const pmPending = []; /* notes that have arrived but not yet rendered: {key, from, text, ts} — their inbox notes are still in the database until flushPms renders them */
 const pmPendingKeys = new Set();
 function pmChatOpen() { const el = $("chatlog"); return !!el && el.style.display === "flex"; }
