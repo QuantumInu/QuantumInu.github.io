@@ -109,6 +109,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #swlights .swl.grn{background:#2eff7a;border-color:#a7ffc4;box-shadow:0 0 18px #2eff7a}
 #swcountnum{font-weight:900;font-size:92px;line-height:1;color:#fff;text-shadow:0 4px 0 #b34700,0 0 34px rgba(255,140,40,.65);letter-spacing:2px}
 #swcount.go #swcountnum{color:#2eff7a;text-shadow:0 4px 0 #0d5c2a,0 0 34px rgba(46,255,122,.7)}
+#cvcount{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);z-index:30;display:none;flex-direction:column;align-items:center;gap:10px;padding:22px 46px 26px;background:rgba(24,4,20,.88);border:4px solid #ff69b4;border-radius:22px;box-shadow:0 14px 60px rgba(0,0,0,.7),0 0 44px rgba(255,105,180,.35);pointer-events:none} /* the CARNIVAL COUNTDOWN (Jonathan 2026-11-07): the Speedway race countdown's twin in carnival pink — a giant 3-2-1 dead centre of the SCREEN while a booth round counts in after the bets are all ready, driven purely by the shared countTs on the server clock (syncCvCount), so every seated screen shows the same number at the same instant */
+#cvcountnum{font-weight:900;font-size:92px;line-height:1;color:#fff;text-shadow:0 4px 0 #a1125c,0 0 34px rgba(255,105,180,.65);letter-spacing:2px}
+#cvcount.go #cvcountnum{color:#2eff7a;text-shadow:0 4px 0 #0d5c2a,0 0 34px rgba(46,255,122,.7)}
 #cvhud{position:absolute;top:8px;left:8px;right:8px;z-index:16;display:none;flex-direction:column;gap:4px;background:rgba(24,6,26,.88);border:2px solid rgba(255,105,180,.55);border-radius:12px;padding:6px 10px;box-shadow:0 6px 26px rgba(0,0,0,.5);pointer-events:none;font-size:13.5px} /* the CARNIVAL HUD (PREVIEW, 2026-11-06): the Speedway HUD's shape in carnival pink — shown while seated at a carnival game (a booth chair or a free-drive bumper car). Title + live status on one row; the bet panel rides inside it during the bet phase. cvSyncHud feeds it off the carnival records, so every screen reads the same state */
 #cvhud .swtoprow{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px}
 #cvhudtitle{font-weight:800;color:#ff9fd0;white-space:nowrap}
@@ -436,6 +439,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <div id="cvhudhint"></div>
   </div>
   <div id="swcount"><div id="swlights"><span class="swl"></span><span class="swl"></span><span class="swl"></span></div><div id="swcountnum">3</div></div>
+  <div id="cvcount"><div id="cvcountnum">3</div></div>
   <div id="trwinpop"></div>
 
   <button id="prompt"></button>
@@ -7227,7 +7231,7 @@ function cvFinishRound(g) {
   const st = cvState[g]; if (!st || st.phase !== "play") return;
   const bets = st.bets || {};
   const fresh = cvFreshSeats(st);
-  const players = Object.keys(bets).filter(k => fresh.includes(+k)).map(k => ({ key: k, seat: +k, pc: false })).concat(Object.keys(st.pcs || {}).map(k => ({ key: "pc" + k, seat: +k, pc: true }))); /* only a bettor still IN their chair can win — a mid-round stand forfeited, so their frozen score is not even in the running (their results line below still writes, at 0) */
+  const players = Object.keys(bets).filter(k => fresh.includes(+k)).map(k => ({ key: k, seat: +k, pc: false })).concat(Object.keys(st.pcs || {}).filter(k => st.pcs[k]).map(k => ({ key: "pc" + k, seat: +k, pc: true }))); /* only a bettor still IN their chair can win — a mid-round stand forfeited, so their frozen score is not even in the running (their results line below still writes, at 0) */
   let win = null, best = -1;
   for (const p of players) { const m = cvMetric(g, st, p.key); if (m > best) { best = m; win = p; } } /* highest metric takes it; a tie falls to the earliest seat in the list — deterministic on every screen that reads the same record */
   const results = {}; const claims = [];
@@ -7310,6 +7314,7 @@ function cvSimTick() {
     const now = srvNow(); const upd = {}; let dirty = false;
     for (const pk of Object.keys(st.pcs || {})) {
       const key = "pc" + pk; const pc = st.pcs[pk]; const tk = g + key;
+      if (!pc) continue; /* PHANTOM PC FIX (Jonathan 2026-11-07: "one opponent in each of the carnival game is always score 0 and misses everything"): the bell writes pcs under bare seat numbers, and the database hands pure-numeric-keyed records back as an ARRAY with nulls filling the gaps (the bccars record reads [null, {...}, null, ...] the same way) — so Object.keys includes the HUMAN's own seat index, whose entry is null: a phantom "pc<seat>" that stood in the standings at 0 forever and threw on pc.s every time its clock fired, eating that tick's whole update. Real PCs are objects; a null entry is nobody and is skipped, here and in every pcs/bets key list below (standings, finish, the everyone-spent checks) */
       if (g === "wg") { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; const usedPc = (st.balls && st.balls[key]) || 0; const cur = (st.prog && st.prog[key]) || 0; if (cvPcTimers[tk] >= 1.5 + cvHash(st.roundId + key + "iv" + usedPc) * 0.9 && usedPc < 10 && cur < 100) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const v = cvPcRelease(g, key, pc, n); const fill = +(2 + 28 * Math.pow(1 - Math.abs(v), 1.7)).toFixed(1); upd["prog/" + key] = Math.min(100, +(cur + fill).toFixed(1)); upd["spray/" + key] = now; upd["balls/" + key] = usedPc + 1; dirty = true; } } /* PC sprays are RELEASES on the same slider: a centre-heavy simulated release per pull, its fill from the very centredness formula the humans get — ten pulls each, counted on the balls leaf */
       else if (g === "bb") { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; const usedPc = (st.balls && st.balls[key]) || 0; const iv = 1.9 + cvHash(st.roundId + key + "iv" + usedPc) * 0.9; if (cvPcTimers[tk] >= iv && usedPc < 10) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const v = cvPcRelease(g, key, pc, n); const acc = 1 - Math.abs(v); const mk = cvHash(st.roundId + key + "s" + n) < cvAccP(acc); const pts = mk ? (acc >= 0.8 ? 3 : 2) : 0; upd["scores/" + key] = ((st.scores && st.scores[key]) || 0) + pts; upd["balls/" + key] = usedPc + 1; upd["shots/" + key] = { ts: now, pts, mk: mk ? 1 : 0, v: +v.toFixed(2) }; dirty = true; /* this PC's OWN slot (batch 3): the host's one batched update per tick used to collapse two PCs firing in the same tick into the single shots object — the other ball never painted at all */ } } /* PC shots are releases too: the same slider maths off a simulated release, so a PC's makes cluster near the centre exactly like a player's — ten shots each, counted on the same leaf */
       else { cvPcTimers[tk] = (cvPcTimers[tk] || 0) + 0.2; const iv = 2.6 + cvHash(st.roundId + key + "iv" + ((st.balls && st.balls[key]) || 0)) * 1.6; if (cvPcTimers[tk] >= iv && ((st.balls && st.balls[key]) || 0) < 6) { cvPcTimers[tk] = 0; const n = (cvPcTimers[tk + "n"] = (cvPcTimers[tk + "n"] || 0) + 1); const a = (cvHash(st.roundId + key + "a" + n) - 0.5) * (1.5 - 0.5 * (pc.s || 0.9)); const pts = cvTossPts(a); upd["scores/" + key] = ((st.scores && st.scores[key]) || 0) + pts; upd["balls/" + key] = ((st.balls && st.balls[key]) || 0) + 1; upd["throws/" + key] = { ts: now, pts, a: +a.toFixed(2) }; dirty = true; /* this PC's OWN slot (batch 3): two PCs releasing inside one host tick both land now — the old single throws object kept only the last one and the other ball never existed on any screen */ } } /* PC RELEASE CLOCKS, ALL THREE BOOTHS (fix, Jonathan 2026-11-06: "not all PCs are throwing in the ball toss" / "pc takes place of missing players in all 3 games"): every PC's next interval is RE-ROLLED PER SHOT — the hash rides the PC's own spent count ("iv"+usedPc) inside each booth's family pace (wg 1.5–2.4s, bb 1.9–2.8s, bt 2.6–4.2s). Ball toss originally shared ONE flat 3.4s: all three clocks started together, struck together every round, and landed in ONE host update whose single throws leaf can carry only one ball — the same last PC's throw was the only one ever seen flying while the others counted silently. A fixed per-round period (the other booths' first shape) has the same disease in milder form: the host's 200ms tick quantizes the periods, and two PCs whose periods share a tick bucket fire together forever after. Re-rolling per shot makes lock-step impossible, so every PC's spray/shot/throw gets its own moment on its booth's event leaf */
@@ -7318,8 +7323,8 @@ function cvSimTick() {
     /* the finish lines: the water race ends the moment a tank fills (or the clock dies); basketball ends on its clock; ball toss ends when every ball is thrown (or the clock dies) */
     let over = now >= (st.endTs || Infinity);
     if (g === "wg") { for (const k in (st.prog || {})) if ((st.prog[k] || 0) >= 100 || (upd["prog/" + k] || 0) >= 100) over = true; }
-    if (g === "bt") { const keys = Object.keys(st.bets || {}).concat(Object.keys(st.pcs || {}).map(k => "pc" + k)); if (keys.length && keys.every(k => (((st.balls || {})[k] || 0) + (upd["balls/" + k] ? 1 : 0)) >= 6)) over = true; }
-    if (g === "wg" || g === "bb") { const keys = Object.keys(st.bets || {}).concat(Object.keys(st.pcs || {}).map(k => "pc" + k)); if (keys.length && keys.every(k => (((st.balls || {})[k] || 0) + (upd["balls/" + k] ? 1 : 0)) >= 10)) over = true; } /* TEN EACH (Jonathan 2026-11-06): when every participant has spent their ten shots / ten sprays the round is over, clock or no clock — a participant who never fires holds it to its clock, never past it */
+    if (g === "bt") { const keys = Object.keys(st.bets || {}).filter(k => st.bets[k]).concat(Object.keys(st.pcs || {}).filter(k => st.pcs[k]).map(k => "pc" + k)); if (keys.length && keys.every(k => (((st.balls || {})[k] || 0) + (upd["balls/" + k] ? 1 : 0)) >= 6)) over = true; }
+    if (g === "wg" || g === "bb") { const keys = Object.keys(st.bets || {}).filter(k => st.bets[k]).concat(Object.keys(st.pcs || {}).filter(k => st.pcs[k]).map(k => "pc" + k)); if (keys.length && keys.every(k => (((st.balls || {})[k] || 0) + (upd["balls/" + k] ? 1 : 0)) >= 10)) over = true; } /* TEN EACH (Jonathan 2026-11-06): when every participant has spent their ten shots / ten sprays the round is over, clock or no clock — a participant who never fires holds it to its clock, never past it */
     if (over) cvFinishRound(g);
   }
 }
@@ -7480,7 +7485,7 @@ function cvEnsure() {
   setInterval(cvBcResetTick, 900); /* the bumper cars' referee clock rides the same 900ms beat: the arena's referee returns driverless cars to their bays after 3 seconds (the Speedway referee system, Jonathan 2026-11-06) */
   setInterval(cvSeatBeatAll, 4000);
   setInterval(cvSimTick, 200);
-  setInterval(cvSyncHud, 250);
+  setInterval(() => { cvSyncHud(); syncCvCount(); }, 250);
 }
 function cvSeatBeatAll() {
   if (!entered) return;
@@ -7508,10 +7513,30 @@ function cvTick(now) {
 }
 /* ---- the carnival HUD: fed entirely off the records by cvSyncHud, so my screen and every
    other screen agree. It shows while I sit at a booth or drive a bumper car ---- */
+let cvCountShown = "";
+function syncCvCount() { /* the carnival 3-2-1 (Jonathan 2026-11-07): dead centre of the screen for everyone seated at a booth whose round is counting in — driven PURELY by the booth record's countTs on the server clock (the speedway countdown's own way), so the digit is a function of srvNow and every screen shows the same number at the same instant; GO! flashes for the first beat of play off startTs. While it runs, the booths' aim bars stay parked (drawCarnival) — the sweep only starts moving when the game starts */
+  const el = document.getElementById("cvcount"); if (!el) return;
+  const g = cvSeatGame; const st = g ? cvState[g] : null;
+  let face = "";
+  if (entered && me.scene === "plaza" && st) {
+    if (st.phase === "count") { const remain = (st.countTs || 0) - srvNow(); if (remain > 0) face = String(Math.max(1, Math.ceil(remain / 1000))); }
+    else if (st.phase === "play" && srvNow() - (st.startTs || 0) < 750) face = "GO";
+  }
+  if (!face) { if (cvCountShown) { el.style.display = "none"; cvCountShown = ""; el.className = ""; } return; }
+  el.style.display = "flex";
+  el.className = face === "GO" ? "go" : "";
+  if (cvCountShown !== face) {
+    cvCountShown = face;
+    const num = document.getElementById("cvcountnum");
+    num.textContent = face === "GO" ? "GO!" : face;
+    num.style.transition = "none"; num.style.transform = "scale(1.18)";
+    requestAnimationFrame(() => { num.style.transition = "transform .45s ease-out"; num.style.transform = "scale(1)"; });
+  }
+}
 function cvStandings(g, st) {
   const parts = [];
   const name = k => String(k).indexOf("pc") === 0 ? "🤖 PC" : ((st.seats && st.seats[k] && st.seats[k].name) || "Player");
-  const keys = Object.keys(st.bets || {}).concat(Object.keys(st.pcs || {}).map(k => "pc" + k));
+  const keys = Object.keys(st.bets || {}).filter(k => st.bets[k]).concat(Object.keys(st.pcs || {}).filter(k => st.pcs[k]).map(k => "pc" + k));
   for (const k of keys) { const m = cvMetric(g, st, k); parts.push(name(k) + " " + (g === "wg" ? Math.floor(m) + "%" : m)); }
   return parts.join(" · ");
 }
@@ -7677,7 +7702,7 @@ function drawCarnival(t) {
         ctx.strokeStyle = "#e33b3b"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, 322, 29, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, 322, 17, 0, 7); ctx.stroke();
         ctx.fillStyle = "#e33b3b"; ctx.beginPath(); ctx.arc(cx, 322, 6, 0, 7); ctx.fill();
         ctx.fillStyle = "#12395e"; ctx.font = "bold 14px 'Segoe UI',sans-serif"; ctx.fillText(key ? Math.floor(prog) + "%" : "—", cx, 412);
-        if (key) { const v = cvGunVal(i); ctx.fillStyle = "#2b2140"; rr(cx - 56, 267, 112, 10, 5); ctx.fill(); const grd = ctx.createLinearGradient(cx - 56, 0, cx + 56, 0); grd.addColorStop(0, "#e33b3b"); grd.addColorStop(0.42, "#f2c531"); grd.addColorStop(0.5, "#37b6ff"); grd.addColorStop(0.58, "#f2c531"); grd.addColorStop(1, "#e33b3b"); ctx.fillStyle = grd; rr(cx - 56, 267, 112, 10, 5); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + v * 52 - 2, 264, 4, 16); } /* the water gun's SWEEP (Jonathan 2026-11-06): every live chair's marker rides cvGunVal on the shared clock — the exact value a SPRAY tap reads on that chair — with the blue heart at the centre where a release fills the most */
+        if (key) { const v = st.phase === "play" ? cvGunVal(i) : 0; ctx.fillStyle = "#2b2140"; rr(cx - 56, 267, 112, 10, 5); ctx.fill(); const grd = ctx.createLinearGradient(cx - 56, 0, cx + 56, 0); grd.addColorStop(0, "#e33b3b"); grd.addColorStop(0.42, "#f2c531"); grd.addColorStop(0.5, "#37b6ff"); grd.addColorStop(0.58, "#f2c531"); grd.addColorStop(1, "#e33b3b"); ctx.fillStyle = grd; rr(cx - 56, 267, 112, 10, 5); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + v * 52 - 2, 264, 4, 16); } /* the water gun's SWEEP (Jonathan 2026-11-06): every live chair's marker rides cvGunVal on the shared clock — the exact value a SPRAY tap reads on that chair — with the blue heart at the centre where a release fills the most */
         if (key && st.spray && srvNow() - (st.spray[key] || 0) < 700) { ctx.strokeStyle = "rgba(140,220,255,.85)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(cx, 436); ctx.quadraticCurveTo(cx + Math.sin(t / 60 + i) * 7, 385, cx, 330); ctx.stroke(); ctx.fillStyle = "rgba(190,235,255,.9)"; for (let d = 0; d < 3; d++) { ctx.beginPath(); ctx.arc(cx + Math.sin(t / 50 + d * 2 + i) * 12, 330 + (d * 13), 3.5, 0, 7); ctx.fill(); } }
         ctx.fillStyle = G.col2; rr(cx - 12, 436, 24, 16, 4); ctx.fill(); ctx.fillStyle = "#12395e"; ctx.fillRect(cx - 3, 424, 6, 14);
       } else if (g === "bb") {
@@ -7687,7 +7712,7 @@ function drawCarnival(t) {
         ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(cx - 15, 347); ctx.lineTo(cx - 7, 376); ctx.moveTo(cx + 15, 347); ctx.lineTo(cx + 7, 376); ctx.moveTo(cx - 7, 376); ctx.lineTo(cx + 7, 376); ctx.moveTo(cx - 15, 347); ctx.lineTo(cx + 7, 376); ctx.moveTo(cx + 15, 347); ctx.lineTo(cx - 7, 376); ctx.moveTo(cx, 347); ctx.lineTo(cx, 376); ctx.moveTo(cx - 11, 362); ctx.lineTo(cx + 11, 362); ctx.stroke(); /* the NET is WHITE (Jonathan 2026-11-06, from his tight crop of the trapezoid net under the rim): clearly, solidly white — #ffffff at 2.4 weight with the cross and centre strands filled in — so it reads against the dark board. The RIM above it stays orange (#f2762e) at his word, and the backboard is untouched */
         const sc = key ? ((st.scores && st.scores[key]) || 0) : 0;
         ctx.fillStyle = "#7a2d00"; ctx.font = "bold 17px 'Segoe UI',sans-serif"; ctx.fillText(key ? String(sc) : "—", cx, 328);
-        if (key) { const v = cvMeterVal(i); ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#e33b3b"); grd.addColorStop(0.42, "#f2c531"); grd.addColorStop(0.5, "#35c24a"); grd.addColorStop(0.58, "#f2c531"); grd.addColorStop(1, "#e33b3b"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + v * 48 - 2, 381, 4, 18); } /* every chair's meter paints — all from the shared clock, so a spectator reads the same sweep the shooter times */
+        if (key) { const v = st.phase === "play" ? cvMeterVal(i) : 0; ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#e33b3b"); grd.addColorStop(0.42, "#f2c531"); grd.addColorStop(0.5, "#35c24a"); grd.addColorStop(0.58, "#f2c531"); grd.addColorStop(1, "#e33b3b"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + v * 48 - 2, 381, 4, 18); } /* every chair's meter paints — all from the shared clock, so a spectator reads the same sweep the shooter times. THE PARKED BAR (Jonathan 2026-11-07: "don't start moving the little bar that you aim with until it starts — for everyone, for all 3 games"): the value above only reads the sweep while the phase is play — during the countdown (and after the round) every chair's marker, the water gun's and the ball toss's aim bar included, parks at the centre, so nobody can pre-time a release before the game starts */
         for (const an of cvAnims.bb) { if (an.i !== i) continue; const age = srvNow() - an.ts; const mk0 = an.mk != null ? (an.mk ? 1 : 0) : ((an.pts || 0) > 0 ? 1 : 0), rv0 = an.v || 0; const bbHit = !mk0 && Math.abs(rv0) >= 0.55; if (age >= 0 && age < (bbHit ? 1240 : 880)) { /* batch 3: the ball paints off the LOCAL animation list (cvAnimWatch), never the shared leaf directly — every shot ever fired flies its full arc here, however many events landed after it */ /* THE THROWN BALL (Jonathan 2026-11-06): a real flight, not a pop — the ball leaves the shooter's hands below the counter, arcs to the rim on a curve the RELEASE value bends (the same v the slider scored), then drops through the net on a make or bounces off the rim on a miss. The bounce side rides the event's own timestamp, so every screen flies the same ball. THE BACKBOARD CASE (fix, Jonathan 2026-11-06: "sometimes ball hits the backboard but doesnt fall just dissapears"): a WILD miss (|v| >= 0.55) never reaches the rim — it clangs the BACKBOARD high (y300, offset to its release side) and then FALLS, gravity easing, down the board's face past the rim to the ground in front of the booth (y508) over an extended window; makes and ordinary rim misses keep their exact original endings */
           const mk = mk0, rv = rv0; /* mk rides the event; a pre-slider event falls back to its points */
           const x0 = cx, y0 = 516, xc = cx + rv * 40, yc = 170, x1 = bbHit ? cx + rv * 54 : cx, y1 = bbHit ? 300 : 346;
@@ -7712,7 +7737,7 @@ function drawCarnival(t) {
           else if (scored) { const f = (age - 540) / 410; bx3 = tx2; by3 = ty2 + f * 5; br2 = 7 - f * 3; ctx.strokeStyle = G.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx2, ty2, 11 + Math.sin(age / 60) * 1.5, 0, 7); ctx.stroke(); }
           else { const f = (age - 540) / 410; bx3 = tx2 + a * 26 * f; by3 = ty2 + f * f * (505 - ty2); } /* a MISS falls ALL the way (fix, Jonathan 2026-11-06: "sometimes the ball shows but doesn't make it anywhere… it should show it falling and it doesn't"): off the board's face it drops with gravity easing to the ground in front of the board (y505, below the counter's line) and only then is done — the old 96px slide died halfway down the board and the ball just vanished there */
           ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(bx3, by3, br2, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(20,8,31,.55)"; ctx.lineWidth = 1.4; ctx.stroke(); } }
-        if (key === String(cvSeatIdx) && cvSeatGame === "bt" && cvTossAimOn) { const a = cvTossAim(); ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#666"); grd.addColorStop(0.46, "#f2c531"); grd.addColorStop(0.5, "#ffd76a"); grd.addColorStop(0.54, "#f2c531"); grd.addColorStop(1, "#666"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + a * 48 - 2, 381, 4, 18); }
+        if (key === String(cvSeatIdx) && cvSeatGame === "bt" && cvTossAimOn) { const a = st.phase === "play" ? cvTossAim() : 0; ctx.fillStyle = "#2b2140"; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); const grd = ctx.createLinearGradient(cx - 52, 0, cx + 52, 0); grd.addColorStop(0, "#666"); grd.addColorStop(0.46, "#f2c531"); grd.addColorStop(0.5, "#ffd76a"); grd.addColorStop(0.54, "#f2c531"); grd.addColorStop(1, "#666"); ctx.fillStyle = grd; rr(cx - 52, 384, 104, 12, 6); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillRect(cx + a * 48 - 2, 381, 4, 18); }
       }
     }
     ctx.fillStyle = G.col2; ctx.fillRect(bx - 8, 430, 856, 60); ctx.fillStyle = G.col; ctx.fillRect(bx - 8, 430, 856, 8);
