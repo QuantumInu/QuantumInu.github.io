@@ -1702,11 +1702,11 @@ function fitJukeNow() {
   now.style.fontSize = sz + "px";
   while (now.scrollWidth > now.clientWidth && sz > 8) { sz -= 0.5; now.style.fontSize = sz + "px"; }
 }
-let jukeTab = "All"; /* the jukebox artist filter (Jonathan 2026-11-07): "All" = every song in release order, newest first, exactly as the list always was; an artist tab shows only that artist's songs. Every song button is built once below and the tabs only show/hide them, so pickSong indices and the now-playing highlight never shift */
+let jukeTab = "Phat Boi J"; /* the jukebox artist filter (Jonathan 2026-11-07; revised the same day at his word — "No All tab anymore. Just 3 artist tabs and always defaults to phat boi j"): one tab per artist, NO All tab, and the panel always opens on the Phat Boi J tab (openJuke resets it below). A tab shows only that artist's songs. Every song button is built once below and the tabs only show/hide them, so pickSong indices and the now-playing highlight never shift */
 function setJukeTab(name) {
   jukeTab = name;
   document.querySelectorAll(".juketab").forEach(t => t.classList.toggle("on", t.dataset.tab === name));
-  document.querySelectorAll(".jukesong").forEach(b => { b.style.display = (name === "All" || b.dataset.artist === name) ? "" : "none"; });
+  document.querySelectorAll(".jukesong").forEach(b => { b.style.display = (b.dataset.artist === name) ? "" : "none"; });
 }
 (function buildJukeList() {
   const list = $("jukelist"); if (!list) return;
@@ -1719,21 +1719,22 @@ function setJukeTab(name) {
     b.onclick = () => { pickSong(i); closeJuke(); };
     list.appendChild(b);
   });
-  const tabs = $("juketabs"); /* the tab bar builds itself from the song list: All first, then each artist in the order they first appear — a new artist's tab shows up on its own when their first song lands */
+  const tabs = $("juketabs"); /* the tab bar builds itself from the song list in the house order — Phat Boi J, Vital, DJ Ken, the same order as Quantum Radio — with any future artist's tab appended on its own when their first song lands. There is NO All tab */
   if (tabs) {
     const artists = [];
     SONGS.forEach(s => { if (!artists.includes(s[2])) artists.push(s[2]); });
-    ["All"].concat(artists).forEach(name => {
+    ["Phat Boi J", "Vital", "DJ Ken"].filter(a => artists.includes(a)).concat(artists.filter(a => ["Phat Boi J", "Vital", "DJ Ken"].indexOf(a) === -1)).forEach(name => {
       const t = document.createElement("button");
-      t.className = "juketab" + (name === "All" ? " on" : "");
+      t.className = "juketab" + (name === "Phat Boi J" ? " on" : "");
       t.dataset.tab = name;
       t.textContent = name;
       t.onclick = () => { setJukeTab(name); sfxClick(); };
       tabs.appendChild(t);
     });
   }
+  setJukeTab("Phat Boi J"); /* the list opens filtered to Phat Boi J, matching the tab that wears .on */
 })();
-function openJuke() { closeChatLog(); if (me.scene !== "highrollers" && me.scene !== "boxing" && me.scene !== "rooftop") jukeTarget = "club"; $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); } /* every existing way in (the VIP jukebox, the club DJ booth) works for the club as always; only the service counter's prompt sets the target to "hrc" first, and only while standing in that room — the boom box ("box") and the rooftop booth ("roof") follow the same rule in theirs */
+function openJuke() { closeChatLog(); setJukeTab("Phat Boi J"); /* the panel ALWAYS opens on the Phat Boi J tab (Jonathan 2026-11-07) */ if (me.scene !== "highrollers" && me.scene !== "boxing" && me.scene !== "rooftop") jukeTarget = "club"; $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); } /* every existing way in (the VIP jukebox, the club DJ booth) works for the club as always; only the service counter's prompt sets the target to "hrc" first, and only while standing in that room — the boom box ("box") and the rooftop booth ("roof") follow the same rule in theirs */
 function closeJuke() { $("jukebox").style.display = "none"; sfxClick(); }
 $("jukeclose").onclick = closeJuke;
 $("jukestop").onclick = () => { pickSong(-1); updateJukePanel(); };
