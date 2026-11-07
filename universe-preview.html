@@ -900,7 +900,7 @@ let pickedGender = profile && profile.gender === "f" ? "f" : "m"; /* the \u2642/
 if (pickedGender === "f" && (pickedHero === 38 || pickedHero === 40)) pickedHero = 0; /* female 38/40 were removed by the owner (FEMALE_MISSING below) \u2014 a saved female pick of either clears here, and Enter waits for a fresh tap */
 /* ============ audio ============ */
 let AC = null, muted = profile ? !!profile.muted : false, musicOn = false;
-function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } if (AC && AC.state === "suspended") AC.resume(); return AC; }
+function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } if (AC && AC.state !== "running") { try { const p = AC.resume(); if (p && p.catch) p.catch(() => {}); } catch(e) {} } return AC; } /* resume from ANY non-running state, not just "suspended" (Jonathan 2026-11-07): iOS also parks the context in "interrupted" after a trip away, a call or mic use, and the old suspended-only check never woke it from there — the club song kept "playing" into a dead context until some tap happened to poke a tone */
 let audioHeld = false; /* true while the tab/window is out of focus — all hub sound mutes */
 const liveOscs = new Set(); /* every sounding oscillator, so a room change can cut them instantly */
 function stopAllTones() {
@@ -1550,7 +1550,7 @@ function startSwVideos() {
 function pauseSwVideos() { for (const v of swVids) if (!v.paused) v.pause(); }
 /* ============ club (shared jukebox, synced for everyone in the club) ============ */
 const jukeAudio = new Audio(); jukeAudio.crossOrigin = "anonymous"; jukeAudio.preload = "auto";
-/* iOS Safari ignores .volume on media elements, so the club's 20% (Jonathan 2026-10-30: set to 20% after a brief stop at 25%, up from the 5% set earlier the same day) runs through a WebAudio gain stage on the shared context (the songs are same-origin — "assets/music/…" below — so the media source is not CORS-muted). Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
+/* iOS Safari ignores .volume on media elements, so the club's 20% (Jonathan 2026-10-30: set to 20% after a brief stop at 25%, up from the 5% set earlier the same day) runs through a WebAudio gain stage on the shared context. Since the 2026-11-06 music move the song files stream from Firebase Storage, which answers this site's origin with Access-Control-Allow-Origin (verified live 2026-11-07), so the media source is not CORS-muted. Wired lazily on the first play; if the graph cannot be built, the element keeps playing direct and the plain .volume value applies, exactly as before. */
 let jukeGain = null;
 function jukeWireGain() {
   if (jukeGain) return true;
@@ -1602,6 +1602,17 @@ function hrcMusicOnReturn() { /* the High Rollers room's song revival (Jonathan 
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) hrcMusicOnReturn(); });
 window.addEventListener("focus", hrcMusicOnReturn);
+function jukeWake() { /* the hrcMusicOnReturn revival, generalised to EVERY jukebox room (Jonathan 2026-11-07: "sometimes club songs don't play on mobile… if I press mute and press it again it works"). The club family never got the High Rollers wake-up: after the phone interrupts the shared context (app switch, lock, a call, mic use) the song element still reads as playing, but its sound runs through the sleeping context, so the room is silent and nothing ever pokes it — except a tone inside a real tap, which is exactly why his mute-off tap (its unmute click runs ac()) "fixed" it. So now ANY tap anywhere is that poke, and returns from the background try too: in a jukebox room with a live song, wake the context if it is not running, then let syncJuke restart the element ONLY if it is actually paused. A song genuinely playing into a running context is never touched, restarted or rewound — the healthy path costs two checks. */
+  if (me.scene !== "club" && me.scene !== "vip" && me.scene !== "highrollers" && me.scene !== "boxing" && me.scene !== "rooftop") return;
+  if (!(clubSongActive() || hrcSongActive() || boxSongActive())) return;
+  if (AC && AC.state === "running" && !jukeAudio.paused) return;
+  if (AC && AC.state !== "running") { try { const p = AC.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+  syncJuke();
+}
+document.addEventListener("pointerdown", jukeWake);
+document.addEventListener("touchend", jukeWake);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) jukeWake(); });
+window.addEventListener("focus", jukeWake);
 function pickSong(i) {
   if (!db) return;
   sfxChime();
