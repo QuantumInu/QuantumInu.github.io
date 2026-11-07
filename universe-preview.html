@@ -15396,6 +15396,36 @@ function drawSideDoorAt(roomW, y, side, label) { /* a doorway in a side wall (si
   ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#8ee6ff"; ctx.fillText(label, px, y + 7);
   ctx.restore();
 }
+/* ---- THE LAST INU SCREEN (Jonathan 2026-11-07): the throne display is GONE from the Crystal Castle — in its place, standing on the dais, is a big screen showing his artwork (the cosmic husky over the crystal city, his own upload, byte-identical in Storage at hub-heroes/last-inu-screen.jpg), with a button above it reading "The Last Inu". Standing in front of it, the room's prompt reads "Play Game" and opens the site below in a new tab. The dais itself is untouched — the stage the screen stands on, walkable as ever; the screen is paint, like the throne was, so no solid joins the room ---- */
+const LASTINU_SCREEN = { x: 1090, y: 140, w: 420, h: 230 }; /* the frame: centred on the hall's centre line (1300), its foot at the dais's south edge (the dais runs y 270..370) */
+const LASTINU_URL = "https://quantum-inu.com/";
+const lastInuImg = new Image();
+lastInuImg.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Flast-inu-screen.jpg?alt=media";
+function castleScreenNear() { return Math.abs(me.x - CASTLEROOM.w / 2) <= 260 && me.y >= 240 && me.y <= 640; } /* in front of the screen: on the dais or at the carpet's head, facing it — read only inside the castle branch of the prompt chain */
+function drawCastleScreen() {
+  const S = LASTINU_SCREEN, cx = S.x + S.w / 2;
+  /* the button above the screen, carrying the name */
+  ctx.save();
+  ctx.shadowColor = "rgba(168,85,247,0.65)"; ctx.shadowBlur = 14;
+  ctx.fillStyle = "#6d28d9"; rr(cx - 120, S.y - 34, 240, 32, 16); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2; rr(cx - 120, S.y - 34, 240, 32, 16); ctx.stroke();
+  ctx.font = "800 19px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
+  ctx.fillText("The Last Inu", cx, S.y - 12);
+  ctx.restore();
+  /* the screen itself: a dark framed panel with a cyan glow, the art full-frame inside it (the art is 1200x630 and the picture area is 400x210 — the same ratio, so nothing is cropped or stretched) */
+  ctx.save();
+  ctx.shadowColor = "rgba(56,225,255,0.55)"; ctx.shadowBlur = 22;
+  ctx.fillStyle = "#0a0a16"; rr(S.x, S.y, S.w, S.h, 12); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 3; rr(S.x, S.y, S.w, S.h, 12); ctx.stroke();
+  const ix = S.x + 10, iy = S.y + 10, iw = S.w - 20, ih = S.h - 20;
+  if (lastInuImg.complete && lastInuImg.naturalWidth) ctx.drawImage(lastInuImg, ix, iy, iw, ih);
+  else { ctx.fillStyle = "#160b26"; ctx.fillRect(ix, iy, iw, ih); ctx.font = "800 22px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#8ee6ff"; ctx.fillText("THE LAST INU", cx, iy + ih / 2 + 8); }
+  ctx.strokeStyle = "rgba(56,225,255,0.5)"; ctx.lineWidth = 1.5; ctx.strokeRect(ix, iy, iw, ih);
+  ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.fillRect(ix, iy, iw, 34); /* the glass sheen across the top of the screen */
+  ctx.restore();
+}
 function drawCastle(t) {
   ctx.save(); ctx.scale(SCALE, SCALE); ctx.translate(-camX, -camY);
   ctx.fillStyle = "#150d2e"; ctx.fillRect(0, 0, CASTLEROOM.w, CASTLEROOM.h);
@@ -15423,13 +15453,11 @@ function drawCastle(t) {
   ctx.save(); ctx.fillStyle = "rgba(255,215,106,0.5)";
   for (let dy = 470; dy < CASTLEROOM.h - 90; dy += 150) { ctx.save(); ctx.translate(CASTLEROOM.w / 2, dy); ctx.rotate(Math.PI / 4); ctx.fillRect(-9, -9, 18, 18); ctx.restore(); }
   ctx.restore();
-  /* the throne on its dais */
+  /* the dais, and on it THE LAST INU SCREEN (Jonathan 2026-11-07): the throne display that stood here — the crown, the gold seat back, the purple cushion — is GONE at his word, and the screen stands in its place (drawCastleScreen, defined just above this painting). The dais paint itself is untouched: it is the stage the screen stands on */
   const dais = CASTLE_SOLIDS[0];
   ctx.fillStyle = "#241245"; rr(dais.x, dais.y, dais.w, dais.h, 10); ctx.fill();
   ctx.strokeStyle = "#ffd76a"; ctx.lineWidth = 2.5; rr(dais.x, dais.y, dais.w, dais.h, 10); ctx.stroke();
-  ctx.fillStyle = "#ffd76a"; rr(dais.x + 95, dais.y - 64, 110, 86, 10); ctx.fill();
-  ctx.fillStyle = "#a855f7"; rr(dais.x + 112, dais.y - 48, 76, 58, 8); ctx.fill();
-  ctx.font = "34px sans-serif"; ctx.fillText("👑", CASTLEROOM.w / 2, dais.y - 84);
+  drawCastleScreen();
   /* the four crystal pedestals and the two turning atom motifs are GONE (owner trim, 2026-11-04 19:42 — named from his screenshot: "the diamonds inside boxes, four of them" and "the 2 atoms in the room"): their painting is removed here and their solids left CASTLE_SOLIDS with the dais, so nothing invisible blocks the floor where they stood */
   /* the six ring chandeliers are GONE from this room (owner trim, 2026-11-04 19:42: "remove the RINGS WITH DIAMONDS everywhere in the throne room") — the dining hall and the crystal room keep theirs; only the throne room's rings were named */
   /* crystal sentinels standing either side of the dais steps — the decor kit's cluster at dress size, part of the same mirrored plan */
@@ -18458,6 +18486,7 @@ function frame(now) {
   else if (me.scene === "plaza" && cvNearChair().g) { const nc = cvNearChair(); promptBtn.style.display = "flex"; promptBtn.textContent = "🪑 Sit — " + CV_GAMES[nc.g].name; promptAction = () => cvTrySit(nc.g, nc.i); } /* a carnival booth's free chair while its table is in the bet phase: the casino sit prompt's shape, one per booth */
   else if (me.scene === "plaza" && !cvSeatGame && cvCar < 0 && cvRide < 0 && !cvDunkBusy() && Math.hypot(me.x - CV_DUNK.x, me.y - (CV_DUNK.y + 16)) < 118) { promptBtn.style.display = "flex"; promptBtn.textContent = "Dunk"; promptAction = () => cvDunkPress(); } /* THE DUNK TANK (2026-11-06): standing in front of the tank under the CARNIVAL sign offers the prompt — label kept plain: "Dunk". One tap files a dunk request and the Dunk Referee sinks him FOR EVERYONE off the server clock; while he is down, falling or climbing, cvDunkBusy takes the button away entirely, and it returns the moment he is back on his seat. No bet, no cost — a toy. It sits below the booth seats/cars/wheel in the chain and above the detector, whose sand is far south of here */
   else if (me.scene === "plaza" && !detState.out && detCanEquip()) { promptBtn.style.display = "flex"; promptBtn.textContent = "🔍 Detector"; promptAction = () => detEquip(); } /* METAL DETECTING (2026-11-06): standing ON THE SAND, on foot, the prompt offers the detector — it sits below every carnival interaction in this chain (rides, cars, booth seats and chairs all keep their buttons), and the Fish/Chop offers above it keep the shore and the trees; guests see it too and get the account refusal on the tap, the fishing gate's twin */
+  else if (me.scene === "castle" && castleScreenNear()) { promptBtn.style.display = "flex"; promptBtn.textContent = "Play Game"; promptAction = () => { window.open(LASTINU_URL, "_blank"); sfxClick(); }; } /* THE LAST INU SCREEN (Jonathan 2026-11-07): stand in front of the castle screen and the prompt offers Play Game — one tap opens https://quantum-inu.com/ in a new tab. F fires this same button, as always */
   else if (me.scene === "fishshop" && fishNearCounter()) { promptBtn.style.display = "flex"; promptBtn.textContent = "🛒 Fishing Shop"; promptAction = () => openFishPanel(); } /* the FISHING SHOP (PREVIEW, 2026-11-04): walk up to the counter where Q-Bot stands and the prompt opens the shop — sell fish, upgrade rods */
   else if (me.scene === "woodshop" && woodNearCounter()) { promptBtn.style.display = "flex"; promptBtn.textContent = "🛒 Woodcutting Store"; promptAction = () => openWoodPanel(); }
   else if (me.scene === "treasureshop" && trsNearCounter()) { promptBtn.style.display = "flex"; promptBtn.textContent = "🛒 Quantum Treasure Shop"; promptAction = () => openTrsPanel(); } /* the QUANTUM TREASURE SHOP (2026-11-06): walk up to the counter where Q-Bot stands and the prompt opens the shop — sell treasures, upgrade detectors */ /* the WOODCUTTING STORE (2026-11-05): walk up to the counter where Q-Bot stands and the prompt opens the store — sell logs, upgrade axes */
