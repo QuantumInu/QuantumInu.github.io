@@ -260,6 +260,14 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .jukesong{background:rgba(255,255,255,.05);border:1px solid rgba(56,225,255,.28);color:var(--ink);border-radius:12px;padding:9px 12px;font-size:14.5px;text-align:left;cursor:pointer;font-family:inherit}
 .jukesong:active{transform:scale(.98)}
 .jukesong small{color:#9fd8ea}
+#juketabs{display:flex;gap:6px;overflow-x:auto;flex:none;padding:2px 2px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch} /* the jukebox artist tabs (Jonathan 2026-11-07): one row that swipes sideways as more artists land */
+#juketabs::-webkit-scrollbar{display:none}
+.juketab{flex:none;background:rgba(255,255,255,.06);border:1px solid rgba(255,143,181,.45);color:var(--ink);border-radius:999px;padding:6px 14px;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.juketab.on{background:rgba(255,93,143,.28);border-color:#ff5d8f;color:#fff;font-weight:700}
+#jukepanel.casino .juketab{border-color:rgba(255,215,106,.55)}
+#jukepanel.casino .juketab.on{background:rgba(255,215,106,.22);border-color:var(--gold)}
+#jukepanel.boxing .juketab{border-color:rgba(96,170,255,.55)}
+#jukepanel.boxing .juketab.on{background:rgba(64,140,255,.25);border-color:#60aaff}
 .jukesong.playing{border-color:var(--gold);background:rgba(255,215,106,.10)}
 .covl{position:fixed;inset:0;background:rgba(2,6,18,.72);display:none;align-items:center;justify-content:center;z-index:60}
 .cpanel{background:#0d1730;border:1px solid rgba(255,215,106,.45);border-radius:20px;padding:20px 22px;max-width:520px;width:92vw;max-height:88vh;overflow:auto;color:#eaf6ff;box-shadow:0 0 44px rgba(255,215,106,.25)}
@@ -447,6 +455,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <div id="jukebox"><div id="jukepanel">
     <h2 id="juketitle">🎵 Club Quantum Jukebox</h2>
     <p id="jukenow">Nothing playing — pick a song for the whole club!</p>
+    <div id="juketabs"></div>
     <div id="jukelist"></div>
     <button id="jukestop">⏹ Stop the music</button>
     <button id="jukeclose">Close</button>
@@ -1615,16 +1624,36 @@ function fitJukeNow() {
   now.style.fontSize = sz + "px";
   while (now.scrollWidth > now.clientWidth && sz > 8) { sz -= 0.5; now.style.fontSize = sz + "px"; }
 }
+let jukeTab = "All"; /* the jukebox artist filter (Jonathan 2026-11-07): "All" = every song in release order, newest first, exactly as the list always was; an artist tab shows only that artist's songs. Every song button is built once below and the tabs only show/hide them, so pickSong indices and the now-playing highlight never shift */
+function setJukeTab(name) {
+  jukeTab = name;
+  document.querySelectorAll(".juketab").forEach(t => t.classList.toggle("on", t.dataset.tab === name));
+  document.querySelectorAll(".jukesong").forEach(b => { b.style.display = (name === "All" || b.dataset.artist === name) ? "" : "none"; });
+}
 (function buildJukeList() {
   const list = $("jukelist"); if (!list) return;
   SONGS.forEach((s, i) => {
     const b = document.createElement("button");
     b.className = "jukesong";
+    b.dataset.artist = s[2];
     b.innerHTML = "";
     b.textContent = s[1] + " — " + s[2] + " · " + s[3] + " · " + fmtDur(s[4]);
     b.onclick = () => { pickSong(i); closeJuke(); };
     list.appendChild(b);
   });
+  const tabs = $("juketabs"); /* the tab bar builds itself from the song list: All first, then each artist in the order they first appear — a new artist's tab shows up on its own when their first song lands */
+  if (tabs) {
+    const artists = [];
+    SONGS.forEach(s => { if (!artists.includes(s[2])) artists.push(s[2]); });
+    ["All"].concat(artists).forEach(name => {
+      const t = document.createElement("button");
+      t.className = "juketab" + (name === "All" ? " on" : "");
+      t.dataset.tab = name;
+      t.textContent = name;
+      t.onclick = () => { setJukeTab(name); sfxClick(); };
+      tabs.appendChild(t);
+    });
+  }
 })();
 function openJuke() { closeChatLog(); if (me.scene !== "highrollers" && me.scene !== "boxing" && me.scene !== "rooftop") jukeTarget = "club"; $("jukebox").style.display = "flex"; updateJukePanel(); sfxClick(); } /* every existing way in (the VIP jukebox, the club DJ booth) works for the club as always; only the service counter's prompt sets the target to "hrc" first, and only while standing in that room — the boom box ("box") and the rooftop booth ("roof") follow the same rule in theirs */
 function closeJuke() { $("jukebox").style.display = "none"; sfxClick(); }
