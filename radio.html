@@ -163,6 +163,22 @@
         background: var(--cyan);
         border-color: var(--cyan);
       }
+      /* ---------- artist tabs (Jonathan 2026-11-07): the station's artists, one tab each and NO All tab — the station always opens on the Phat Boi J tab ---------- */
+      .artist-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 2px; }
+      .atab {
+        appearance: none; cursor: pointer;
+        font: inherit; font-size: 14.5px; font-weight: 700;
+        color: var(--muted);
+        background: rgba(13, 28, 54, .8);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 9px 18px;
+      }
+      .atab[aria-pressed="true"] {
+        color: #03222e;
+        background: var(--cyan);
+        border-color: var(--cyan);
+      }
       /* ---------- track table ---------- */
       .table {
         background: var(--panel);
@@ -512,6 +528,8 @@
         </label>
       </div>
 
+      <div class="artist-tabs" id="artistTabs" role="group" aria-label="Filter by artist"></div>
+
       <div class="genre-menu">
         <button class="genre-toggle" id="genreToggle" type="button" aria-expanded="false" aria-controls="genrePanel">
           <span class="g-label">Genre</span>
@@ -693,6 +711,7 @@
         sortDir: 1,
         query: "",
         genre: "All",
+        artist: "Phat Boi J", // the artist tab (Jonathan 2026-11-07): always starts on Phat Boi J — there is no All tab
         currentId: -1,        // track id loaded in the player
         queue: [],            // track ids in displayed order at play time
         order: [],            // play order (queue, or shuffled)
@@ -788,6 +807,28 @@
         });
       }
 
+      /* ---------- artist tabs (Jonathan 2026-11-07): one tab per artist, NO All tab, and the station always opens on Phat Boi J. A tab filters the track list to that artist (the genre + search filters still apply on top). Playback's own rule lives in step() and the ended handler: after any other artist's song, the next song is always a Phat Boi J song. ---------- */
+      var artistTabsEl = document.getElementById("artistTabs");
+      var ARTIST_ORDER = ["Phat Boi J", "Vital", "DJ Ken"];
+      function setArtist(name) {
+        state.artist = name;
+        artistTabsEl.querySelectorAll(".atab").forEach(function (c) {
+          c.setAttribute("aria-pressed", c.dataset.artist === name ? "true" : "false");
+        });
+        render();
+      }
+      ARTIST_ORDER.forEach(function (name) {
+        if (!TRACKS.some(function (t) { return t.artist === name; })) return;
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "atab";
+        b.textContent = name;
+        b.dataset.artist = name;
+        b.setAttribute("aria-pressed", name === state.artist ? "true" : "false");
+        b.addEventListener("click", function () { setArtist(name); });
+        artistTabsEl.appendChild(b);
+      });
+
       /* ---------- genres / chips ---------- */
       var genres = ["All"];
       TRACKS.forEach(function (t) { if (genres.indexOf(t.genre) === -1) genres.push(t.genre); });
@@ -824,6 +865,7 @@
       function displayed() {
         var q = state.query.trim().toLowerCase();
         var list = TRACKS.filter(function (t) {
+          if (t.artist !== state.artist) return false;
           if (state.genre !== "All" && t.genre !== state.genre) return false;
           if (!q) return true;
           return (t.title + " " + t.artist + " " + t.genre).toLowerCase().indexOf(q) !== -1;
@@ -1156,6 +1198,24 @@
         loadTrack(order[pos], true);
       }
 
+      /* ---------- after another artist, the next song is always Phat Boi J (Jonathan 2026-11-07) ----------
+         Consulted on a forward step and at a song's natural end whenever the track that just played
+         is NOT Phat Boi J: the queue becomes the whole Phat Boi J catalog in order, starting at the
+         first Phat Boi J song after the one that just played (wrapping to the top), and the station
+         carries on through his songs from there. Repeat-one is honoured before this is ever reached. */
+      function pbjJump() {
+        var pbj = TRACKS.filter(function (t) { return t.artist === "Phat Boi J"; });
+        if (!pbj.length) return false;
+        var start = pbj[0];
+        for (var i = 0; i < pbj.length; i++) { if (pbj[i].id > state.currentId) { start = pbj[i]; break; } }
+        state.queue = pbj.map(function (t) { return t.id; });
+        state.order = buildOrder(state.queue, start.id);
+        state.orderPos = state.order.indexOf(start.id);
+        loadTrack(start.id, true);
+        return true;
+      }
+      function curIsOtherArtist() { return state.currentId !== -1 && TRACKS[state.currentId].artist !== "Phat Boi J"; }
+
       function step(dir) {
         if (!state.order.length) {
           var list = displayed();
@@ -1163,6 +1223,7 @@
           playFromList(list[0].id);
           return;
         }
+        if (dir > 0 && curIsOtherArtist()) { pbjJump(); return; } /* the next song after another artist is Phat Boi J — even on a manual Next */
         // Back after the first second restarts the current song — on
         // every track. Back inside the first second goes to the
         // previous track. This check runs before the wrap logic below.
@@ -1234,6 +1295,7 @@
       audio.addEventListener("ended", function () {
         msSetPlaybackState("paused");
         if (state.repeat === 2) { audio.currentTime = 0; audio.play().catch(function () {}); return; }
+        if (curIsOtherArtist()) { pbjJump(); return; } /* the next song after another artist is Phat Boi J */
         var pos = state.orderPos + 1;
         if (pos >= state.order.length) {
           if (state.repeat === 1 && state.order.length) pos = 0;
