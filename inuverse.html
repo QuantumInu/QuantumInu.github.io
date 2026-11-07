@@ -153,6 +153,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #onlinecount{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
 #onlinerows{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px;min-height:60px}
 .onlinerow{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.05);border:1px solid rgba(56,225,255,.22);border-radius:12px;padding:9px 11px;font-size:14.5px}
+.onlinerow.onlineself{justify-content:flex-start} /* my own row carries no buttons block (I can't send money or PM myself), so space-between had only the dot, name and room to spread and pushed my name into the middle of the row — the self row packs at the left like every other row (Jonathan 2026-11-07) */
 .onlinerow b{color:#fff;flex:none;white-space:nowrap} /* the name never truncates (Jonathan 2026-11-07): rigid, so the full name always shows */
 .onlinerow span{color:#9fd8ea;white-space:nowrap}
 #onlineclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
@@ -6183,6 +6184,7 @@ function renderOnlineList(force) {
   if (!rows.length) { const d = document.createElement("div"); d.className = "logempty"; d.textContent = "Nobody is online right now."; list.appendChild(d); return; }
   for (const r of rows) {
     const d = document.createElement("div"); d.className = "onlinerow"; d.dataset.pid = r.id;
+    if (r.id === myId) d.classList.add("onlineself"); /* my own row gets no buttons (see the note in the button block below), so it packs at the left instead of spreading — see .onlinerow.onlineself */
     const dot = document.createElement("span"); dot.className = "baldot"; dot.textContent = r.acct ? "🟢" : "⚪"; d.appendChild(dot); /* the status circle (Jonathan 2026-11-07): the Player Balances panel's own dot — same class, same size, same glyphs — green when this player is logged in (their presence carries an account id), greyed out for a guest. It replaces the "logged in" pill, which is removed entirely; the width the pill took is what lets the full name and the full room name show on the one line. */
     const b = document.createElement("b"); b.textContent = r.name;
     const s = document.createElement("span"); s.className = "onlineroom"; s.textContent = onlineRoomName(r.scene);
