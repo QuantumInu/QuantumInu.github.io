@@ -1578,8 +1578,10 @@ function boxSongActive() { return !!(boxMusState && boxMusState.idx >= 0 && SONG
 const vipArt = {}; /* the VIP lounge TV's cover cache (PREVIEW round 7): one Image per song slug, loaded lazily the first time that song is on — the covers live beside the mp3s the jukebox itself plays (assets/music/<slug>.jpg, the site music section's own cover files) */
 function vipArtImg(slug) { let im = vipArt[slug]; if (!im) { im = new Image(); im.src = "assets/music/" + slug + ".jpg"; vipArt[slug] = im; } return im; }
 function syncJuke() {
-  const st = me.scene === "highrollers" ? hrcState : me.scene === "boxing" ? boxMusState : clubState; /* each room family hears its picked song: club + VIP + Rooftop share hub/club, the High Rollers room has hub/tables/hrcmusic, the Boxing Arena has hub/tables/boxmusic */
+  const fam = me.scene === "highrollers" ? "hrc" : me.scene === "boxing" ? "box" : "club";
+  const st = fam === "hrc" ? hrcState : fam === "box" ? boxMusState : clubState; /* each room family hears its picked song: club + VIP + Rooftop share hub/club, the High Rollers room has hub/tables/hrcmusic, the Boxing Arena has hub/tables/boxmusic */
   if (!(st && st.idx >= 0 && SONGS[st.idx])) { if (!jukeAudio.paused) jukeAudio.pause(); return; }
+  if (st.ts && (srvNow() - st.ts) / 1000 > (SONGS[st.idx][4] || 0) + 2) { if (!jukeAudio.paused) jukeAudio.pause(); jukeMaybeAdvance(fam, st); return; } /* AUTOPLAY (Jonathan 2026-11-07): the song's time is up — songs never loop any more; the room moves on to a random Phat Boi J song instead (jukeMaybeAdvance below, transaction-guarded so exactly one client drives the change) */
   const key = st.idx + "@" + st.ts;
   if (jukeAudio.dataset.k !== key) {
     jukeAudio.dataset.k = key;
@@ -1590,7 +1592,7 @@ function syncJuke() {
       if (pos > 0.5 && pos < jukeAudio.duration - 1) { try { jukeAudio.currentTime = pos; } catch (e) {} }
       if (me.scene === "club" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "boxing" || me.scene === "rooftop") { jukeWireGain(); jukeAudio.play().catch(() => {}); } /* the VIP lounge hears the club's song too — same shared state (hub/club), same sync point; the High Rollers room, the Boxing Arena and the Rooftop hear their own the same way */
     };
-  } else if ((me.scene === "club" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "boxing" || me.scene === "rooftop") && jukeAudio.paused) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
+  } else if ((me.scene === "club" || me.scene === "vip" || me.scene === "highrollers" || me.scene === "boxing" || me.scene === "rooftop") && jukeAudio.paused && !jukeAudio.ended) { jukeWireGain(); jukeAudio.play().catch(() => {}); }
 }
 function hrcMusicOnReturn() { /* the High Rollers room's song revival (Jonathan 2026-11-01: "sometimes if I leave the high roller club or move my window and come back, the music doesn't keep play again"). ONLY this room's own picked song is revived here — the club jukebox and every other room keep their own behaviour. Two dead states are woken: (1) the shared context the song's gain stage lives on can be left suspended (or interrupted, on iOS) by a window/tab trip away, while the element itself reads as still playing — sound routed into a stopped context, and nothing else in this room ever resumes it, because the room's theme IS the song (startMusic stays out when hrcSongActive), so no tone ever pokes ac(); (2) holdAudio's pause on the way out leaves the element itself paused, and releaseAudio only clears a flag. The context is woken first, then syncJuke restarts the element ONLY if it is actually paused — a song genuinely still playing is never restarted, doubled, or rewound */
   if (me.scene !== "highrollers" || !hrcSongActive()) return;
@@ -1606,6 +1608,66 @@ function pickSong(i) {
   if (jukeTarget === "hrc") db.ref("hub/tables/hrcmusic").set(rec).catch(() => {}); /* the service counter's pick is the High Rollers room's alone */
   else if (jukeTarget === "box") db.ref("hub/tables/boxmusic").set(rec).catch(() => {}); /* the boom box's pick is the Boxing Arena's alone */
   else db.ref("hub/club").set(rec).catch(() => {}); /* the club booth, the VIP jukebox AND the rooftop DJ booth (jukeTarget "roof") all write this one shared record */
+}
+/* ============ jukebox autoplay + session default (Jonathan 2026-11-07) ============
+   His rules, all three jukebox families alike (club/VIP/rooftop share one, the
+   Casino and the Boxing Arena keep their own): (1) walking into a FRESH game —
+   nobody else online — starts the music on the LATEST Phat Boi J song; a pick
+   or a stop left over from a dead session never greets anyone. (2) Songs never
+   loop: when a song's time is up, the room autoplays the NEXT song, and the
+   next song is always a RANDOM Phat Boi J song — another artist plays only
+   when a person picks it, and only for that one song. (3) A pick made during a
+   live session stands until it ends, is replaced, or is stopped; Stop (idx -1)
+   is never autoplayed over. */
+function pbjIndices() { const a = []; SONGS.forEach((s, i) => { if (s[2] === "Phat Boi J") a.push(i); }); return a; }
+function latestPbjIdx() { const a = pbjIndices(); return a.length ? a[0] : 0; } /* SONGS runs newest first, so the first Phat Boi J entry IS the latest */
+function randomPbjIdx(except) { const a = pbjIndices().filter(i => i !== except); return a.length ? a[Math.floor(Math.random() * a.length)] : latestPbjIdx(); }
+function writeJukeState(path, idx) { if (!db) return; db.ref(path).set({ idx: idx, title: SONGS[idx][1], by: "", ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
+function jukeStateRef(fam) { return fam === "hrc" ? db.ref("hub/tables/hrcmusic") : fam === "box" ? db.ref("hub/tables/boxmusic") : db.ref("hub/club"); }
+function jukeAdvance(fam, fromTs) {
+  if (!db) return;
+  try {
+    jukeStateRef(fam).transaction(cur => {
+      if (!cur || !(cur.idx >= 0) || cur.ts !== fromTs) return cur; /* the record already moved — someone picked, stopped, advanced or reset it first; stand down */
+      const ni = randomPbjIdx(cur.idx);
+      return { idx: ni, title: SONGS[ni][1], by: "", ts: firebase.database.ServerValue.TIMESTAMP };
+    }).catch(() => {});
+  } catch (e) {}
+}
+const jukeAdvTried = {}; /* fam -> {ts, at}: one advance attempt per finished song per few seconds per client — the transaction itself settles who actually drives it */
+function jukeMaybeAdvance(fam, st) {
+  if (!st || !st.ts) return;
+  const t = jukeAdvTried[fam];
+  if (t && t.ts === st.ts && Date.now() - t.at < 4000) return;
+  jukeAdvTried[fam] = { ts: st.ts, at: Date.now() };
+  jukeAdvance(fam, st.ts);
+}
+jukeAudio.addEventListener("ended", () => { /* the natural end of the song I am hearing: hand my room its next one. A tab that slept through the end is covered by syncJuke's own stale check when it wakes */
+  if (!entered || !db) return;
+  const fam = me.scene === "highrollers" ? "hrc" : me.scene === "boxing" ? "box" : (me.scene === "club" || me.scene === "vip" || me.scene === "rooftop") ? "club" : "";
+  if (!fam) return;
+  const st = fam === "hrc" ? hrcState : fam === "box" ? boxMusState : clubState;
+  if (!st || !(st.idx >= 0)) return;
+  if (jukeAudio.dataset.k !== st.idx + "@" + st.ts) return; /* the element was playing another room family's song — not mine to advance */
+  jukeAdvance(fam, st.ts);
+});
+let jukeSessionChecked = false;
+function jukeSessionStart() { /* the entry default + the reset, decided by ONE read at the door: if no other real player is freshly online, every earlier session is dead — all three jukebox states start over on the latest Phat Boi J song, whatever was saved (a leftover pick, another artist, even a stop). If a live session is running, its music is left exactly as its players have it */
+  if (jukeSessionChecked || !db) return;
+  jukeSessionChecked = true;
+  try {
+    db.ref("hub/presence").once("value").then(snap => {
+      if (!entered) return;
+      const all = snap.val() || {};
+      let others = 0;
+      for (const id in all) { if (id === myId || NPC_PIDS.has(id)) continue; const r = all[id]; if (r && r.ts && srvNow() - r.ts < 90000) others++; }
+      if (others > 0) return;
+      const li = latestPbjIdx();
+      writeJukeState("hub/club", li);
+      writeJukeState("hub/tables/hrcmusic", li);
+      writeJukeState("hub/tables/boxmusic", li);
+    }).catch(() => {});
+  } catch (e) {}
 }
 function fmtDur(s) { return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
 function updateJukePanel() {
@@ -2310,6 +2372,7 @@ function enterHubInner() {
   woodNetInit(); treesNetInit(); /* WOODCUTTING (2026-11-05): follow hub/woodcutting (peer axes) and hub/tables/trees (felled trees) from the moment I step in, the same way */
   followRoomChat(me.scene); /* CHAT (2026-11-05): follow this room's chat log from the moment I step in — strict witness: only what arrives live while I stand here joins my log, under the room's divider */
   pmInit(); /* PRIVATE MESSAGES (2026-11-06): follow my own pid inbox (hub/pm/<myId>) from the moment I step in — pid-keyed, so guests send and receive too */
+  jukeSessionStart(); /* JUKEBOX SESSION (2026-11-07): the entry default + reset read — if nobody else is online, every jukebox starts on the latest Phat Boi J song (see jukeSessionStart) */
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
