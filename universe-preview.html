@@ -1628,7 +1628,8 @@ function pickSong(i) {
 /* ============ jukebox autoplay + session default (Jonathan 2026-11-07) ============
    His rules, all three jukebox families alike (club/VIP/rooftop share one, the
    Casino and the Boxing Arena keep their own): (1) walking into a FRESH game —
-   nobody else online — starts the music on the LATEST Phat Boi J song; a pick
+   nobody else online — starts the music on a RANDOM Phat Boi J song (his
+   revision the same day: random, not the latest); a pick
    or a stop left over from a dead session never greets anyone. (2) Songs never
    loop: when a song's time is up, the room autoplays the NEXT song, and the
    next song is always a RANDOM Phat Boi J song — another artist plays only
@@ -1668,7 +1669,7 @@ jukeAudio.addEventListener("ended", () => { /* the natural end of the song I am 
   jukeAdvance(fam, st.ts);
 });
 let jukeSessionChecked = false;
-function jukeSessionStart() { /* the entry default + the reset, decided by ONE read at the door: if no other real player is freshly online, every earlier session is dead — all three jukebox states start over on the latest Phat Boi J song, whatever was saved (a leftover pick, another artist, even a stop). If a live session is running, its music is left exactly as its players have it */
+function jukeSessionStart() { /* the entry default + the reset, decided by ONE read at the door: if no other real player is freshly online, every earlier session is dead — all three jukebox states start over on a RANDOM Phat Boi J song (his revision 2026-11-07 — random, not the latest), whatever was saved (a leftover pick, another artist, even a stop). If a live session is running, its music is left exactly as its players have it */
   if (jukeSessionChecked || !db) return;
   jukeSessionChecked = true;
   try {
@@ -1678,7 +1679,7 @@ function jukeSessionStart() { /* the entry default + the reset, decided by ONE r
       let others = 0;
       for (const id in all) { if (id === myId || NPC_PIDS.has(id)) continue; const r = all[id]; if (r && r.ts && srvNow() - r.ts < 90000) others++; }
       if (others > 0) return;
-      const li = latestPbjIdx();
+      const li = randomPbjIdx(-1); /* a RANDOM Phat Boi J song greets the first player in (his revision 2026-11-07 — not the latest) */
       writeJukeState("hub/club", li);
       writeJukeState("hub/tables/hrcmusic", li);
       writeJukeState("hub/tables/boxmusic", li);
@@ -2367,7 +2368,7 @@ function enterHubInner() {
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
   if (nameBlocked(raw) && !isOwnerAcct()) return;
-  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === PATCH_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return;
   if (!claimTabLock()) { $("nameerr").textContent = "⚠️ You're already signed in in another tab of this browser. Close that tab, or use it instead."; sfxBad(); return; }
   let startChips = 1000, lastDay = "";
   if (profile && typeof profile.chips === "number") {
@@ -2390,7 +2391,7 @@ function enterHubInner() {
   woodNetInit(); treesNetInit(); /* WOODCUTTING (2026-11-05): follow hub/woodcutting (peer axes) and hub/tables/trees (felled trees) from the moment I step in, the same way */
   followRoomChat(me.scene); /* CHAT (2026-11-05): follow this room's chat log from the moment I step in — strict witness: only what arrives live while I stand here joins my log, under the room's divider */
   pmInit(); /* PRIVATE MESSAGES (2026-11-06): follow my own pid inbox (hub/pm/<myId>) from the moment I step in — pid-keyed, so guests send and receive too */
-  jukeSessionStart(); /* JUKEBOX SESSION (2026-11-07): the entry default + reset read — if nobody else is online, every jukebox starts on the latest Phat Boi J song (see jukeSessionStart) */
+  jukeSessionStart(); /* JUKEBOX SESSION (2026-11-07): the entry default + reset read — if nobody else is online, every jukebox starts on a random Phat Boi J song (see jukeSessionStart) */
 }
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
@@ -2716,7 +2717,7 @@ function initAuth() {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
           acctChipsOnServer = typeof d.chips === "number"; /* the heal flag judges from this same read: a numeric server chips means the field exists on the record */
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === ROBO_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === NEON_HERO) || ((u.uid === BBE_UID) && d.hero === BBE_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === ROBO_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === NEON_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === PATCH_HERO) || ((u.uid === BBE_UID) && d.hero === BBE_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
           syncOwnerCell(); syncHeroSel();
