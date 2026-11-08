@@ -11760,6 +11760,7 @@ function bowlCpuAim(t, st, cpuI) { /* where the CPU tries to cross the pin deck 
   const pow = 0.5 + Math.random() * 0.35;
   if (!standing.length || standing.length === 10) {
     const r = Math.random(), side = Math.random() < 0.5 ? -1 : 1;
+    if (t < 2) { if (r < 0.97) return { entry: 14 + bowlCpuGauss() * 5.5, pow }; if (r < 0.99) return { entry: side * (56 + Math.abs(bowlCpuGauss()) * 10), pow }; return { entry: side * (118 + Math.abs(bowlCpuGauss()) * 14), pow }; } /* the RED lanes' CPU (Jonathan 2026-11-07): a house pro on the high-roller lanes — the pocket ball comes 97 balls in 100 with half the honest spread, so it strikes far more often; the outside and lost lines survive at 2-in-100 and 1-in-100 */
     if (r < 0.90) return { entry: 14 + bowlCpuGauss() * 11, pow }; /* its pocket ball: aimed at the 1-3 pocket, spread wide enough to miss it both ways — strikes sometimes, splits and washes others */
     if (r < 0.96) return { entry: side * (56 + Math.abs(bowlCpuGauss()) * 10), pow }; /* its outside line: across the rack's thick edge for a handful — the corner-clip line the old cascade flattered is worth only a pin or two under real physics */
     return { entry: side * (118 + Math.abs(bowlCpuGauss()) * 14), pow }; /* the lost one: pushed wide off its hand a few times a game — most of these find the gutter, the odd one clips the corner pin on the way past */
@@ -12032,9 +12033,9 @@ function drawBowlLane(tt, t) {
   BOWLSEATS[tt].forEach((s, i) => {
     const rec = st && st.seats ? st.seats[i] : null, occ = bowlFresh(rec), sat = occ && !rec.cpu; /* yellow means a PERSON is sitting in this exact chair (Jonathan 2026-11-01): the paint reads this chair's own fresh record and nothing else. The CPU's chair is the one that broke it: the CPU holds a real seat record (the host heartbeats it fresh), so its chair painted occupied-yellow with nobody sitting in it — a record is not a sitter, so the CPU's chair now keeps the empty colour. The record still BLOCKS the chair: occ, not sat, gates the sit zone below */
     if (!occ && bowlSeatT < 0 && me.scene === "bowling" && bowlNearLane() === tt) uiZones.push({ x: s.x - 34, y: s.y - 34, w: 68, h: 68, fn: () => bowlSitAt(tt, i) });
-    ctx.fillStyle = sat ? "#ffd76a" : "#2a1052";
+    ctx.fillStyle = sat ? "#ffd76a" : (tt < 2 ? "#6e0a1a" : "#2a1052"); /* the RED lanes' chairs wear the pool hall's HR red (Jonathan 2026-11-07): the empty chair takes drawHRFelt's dark red #6e0a1a and a red trim, the pool red tables' own treatment; gold still means a person is sitting, on every lane */
     ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 7); ctx.fill();
-    ctx.strokeStyle = sat ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = sat ? "#fff2c4" : (tt < 2 ? "rgba(255,90,90,0.5)" : "rgba(192,132,252,0.5)"); ctx.lineWidth = 2.5; ctx.stroke();
     ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🪑", s.x, s.y + 7);
     if (sat && st.seats[i].chips !== undefined) {
       const txt = "🪙 " + Number(st.seats[i].chips || 0).toLocaleString("en-US");
