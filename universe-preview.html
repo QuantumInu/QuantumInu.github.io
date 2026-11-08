@@ -154,7 +154,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #onlinepanel{background:var(--panel);border:2px solid rgba(56,225,255,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(56,225,255,.25)}
 #onlinepanel h2{margin:0 0 2px;font-size:21px;color:var(--cyan);text-align:center}
 #onlinecount{margin:0 0 10px;color:var(--gold);font-size:14px;text-align:center;min-height:19px}
-#onlinerows{overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px;min-height:60px}
+#onlinerows{overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:6px;padding:2px;min-height:60px} /* no sideways scroll in the Online menu, ever (Jonathan 2026-11-07, from his screenshot: the Teleport pill ran off the row and a scrollbar appeared) — the room name gives first, then the buttons shrink (below); the name never does */
 .onlinerow{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.05);border:1px solid rgba(56,225,255,.22);border-radius:12px;padding:9px 11px;font-size:14.5px}
 .onlinerow.onlineself{justify-content:flex-start} /* my own row carries no buttons block (I can't send money or PM myself), so space-between had only the dot, name and room to spread and pushed my name into the middle of the row — the self row packs at the left like every other row (Jonathan 2026-11-07) */
 .onlinerow b{color:#fff;flex:none;white-space:nowrap} /* the name never truncates (Jonathan 2026-11-07): rigid, so the full name always shows */
@@ -163,8 +163,8 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 .sendtokbtn{background:linear-gradient(135deg,var(--gold),#e8a33d);border:none;color:#23180a;font-weight:800;border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .pmbtn{background:linear-gradient(135deg,#ff69b4,#ff2e93);border:none;color:#fff;font-weight:800;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .tpbtn{background:linear-gradient(135deg,#a855f7,#6d28d9);border:none;color:#fff;font-weight:800;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap} /* OWNER TELEPORT (2026-11-07): the purple pill on HIS Online rows only */
-.onlinebtns{display:flex;gap:6px;align-items:center;flex:0 0 auto;margin-left:auto}
-.onlinerow .onlineroom{flex:none;white-space:nowrap} /* the full room name shows on wide screens (Jonathan 2026-11-07); at phone widths the room becomes the one that gives — see the 600px block below */
+.onlinebtns{display:flex;gap:6px;align-items:center;flex:0 1 auto;min-width:0;margin-left:auto} .onlinebtns button{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis} /* and if the room has given all it can, the BUTTONS shrink (Jonathan 2026-11-07: "always shrink buttons if you have to so you dont have to scroll") — a pill compresses and its label ellipsizes before any scrollbar ever shows */
+.onlinerow .onlineroom{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} /* the room gives at EVERY width now, not just phone widths — it is the row's first shock absorber */ /* the full room name shows on wide screens (Jonathan 2026-11-07); at phone widths the room becomes the one that gives — see the 600px block below */
 @media (max-width:600px){.onlinerow{padding:8px 9px;gap:8px;font-size:13.5px}.sendtokbtn,.pmbtn,.tpbtn{font-size:12px;padding:6px 10px}.onlinerow .onlineroom{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis} /* the ROOM name gives at phone widths (Jonathan 2026-11-07): the name, the status dot and both buttons stay whole — the room shrinks and ends in an ellipsis instead of pushing the row past the panel edge */}
 @media (max-width:460px){.onlinerow{padding:7px 8px;gap:6px;font-size:12.5px}.onlinerow .onlineroom{font-size:11px}.sendtokbtn,.pmbtn,.tpbtn{font-size:11px;padding:5px 8px}.onlinebtns{gap:5px}}
 @media (max-width:400px){.onlinerow{padding:7px 6px;gap:5px;font-size:12px}.onlinerow .onlineroom{font-size:10px}.sendtokbtn,.pmbtn,.tpbtn{font-size:10.5px;padding:5px 7px}}
@@ -492,7 +492,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
     <button id="logclose">Close</button>
   </div></div>
   <div id="onlinelist" aria-hidden="true"><div id="onlinepanel">
-    <h2>👥 Online Now</h2>
+    <h2>👥 Online Now <button id="plazabtn" type="button" class="tpbtn" style="display:none;vertical-align:2px;margin-left:6px">🏠 Plaza</button></h2>
     <p id="onlinecount">0 online</p>
     <div id="onlinerows"></div>
     <button id="onlineclose" type="button">Close</button>
@@ -1780,7 +1780,7 @@ if (db) db.ref("hub/tables/boxmusic").on("value", s => { boxMusState = s.val(); 
 /* ============ player / world ============ */
 const WORLD = { w: 4340, h: 2533 }; /* plaza grew 400px downward (2026-10-29) for the HQ portal's new circle below spawn and the Speedway grounds — nothing existing moved, the ground just extends south. PREVIEW (2026-10-30): the plaza grows RIGHT by 1140 for the Quantum Horse Track building east of the Sports Complex and the swimming pool east of the casino — again, nothing existing moved, the ground just extends east. PREVIEW (2026-11-03): the plaza grows WEST by 800 for Quantum Trenches (Jonathan: "build MORE SPACE to the west... expand the plaza to the left of the speedway") — the first westward growth, taken the other way from the eastern one: the origin stays exactly where it has always been and the west edge moves out to WORLD_X0, so again NOT ONE existing coordinate in the plaza moved; the ground simply extends west */
 const WORLD_X0 = -6100; /* the plaza's WEST edge (2026-11-03, −800; CARNIVAL EXPANSION PREVIEW 2026-11-06: grown west again the same way, to −5640 — the origin and every existing coordinate stay exactly where they have always been, the ground simply extends west past the Trenches for the Carnival row and its bumper arena, whose west wall (−5560) stands the house 80 off the new edge, the Trenches' own measure. ARENA RESIZE, later the same day (Jonathan: "make the arena for bumper cars bigger"): grown west once more to −6100, the same way — the arena's west wall moved out to −5920 and now stands 180 off the new edge, walk-around room on its west side too): every plaza x lives in [WORLD_X0, WORLD.w]. Only two mechanics read this edge — the plaza movement clamp in collide() and the plaza follow camera in frame(); everything else in the plaza is painted and checked off its own constants */
-const WORLD_Y0 = -2010; /* the plaza's NORTH edge (PREVIEW, 2026-11-04): the Crystal Quantum Castle territory — the world grows UP the same way it grew west, the origin unmoved and not one existing coordinate shifted. Only the same two mechanics read this edge — the plaza movement clamp in collide() and the plaza follow camera in frame(); everything else in the new land is painted and checked off its own constants (CASTLE_B, MOAT_OUT, ISLE below). Grew from −1580 to −2010 in the castle rework (owner feedback, 2026-11-04: "the castle has to look a lot bigger, and the moat too") — the bigger moat's north shore needed the room */
+const WORLD_Y0 = -3060; /* grew north once more (2026-11-07) for the MANSION row across the top of the world and its 170 roofs — the same growth as ever, origin unmoved, nothing existing shifted */ /* the plaza's NORTH edge (PREVIEW, 2026-11-04): the Crystal Quantum Castle territory — the world grows UP the same way it grew west, the origin unmoved and not one existing coordinate shifted. Only the same two mechanics read this edge — the plaza movement clamp in collide() and the plaza follow camera in frame(); everything else in the new land is painted and checked off its own constants (CASTLE_B, MOAT_OUT, ISLE below). Grew from −1580 to −2010 in the castle rework (owner feedback, 2026-11-04: "the castle has to look a lot bigger, and the moat too") — the bigger moat's north shore needed the room */
 const spawnOff = (parseInt(myId.slice(-4), 36) % 160) - 80;
 const me = { name: "", hero: 0, g: "m", scene: "plaza", x: 1600 + spawnOff, y: 1560, flip: false, chat: "", chatId: 0, chatAt: 0, moving: false, bob: 0 };
 let entered = false;
@@ -6372,6 +6372,7 @@ function renderOnlineList(force) {
   if (!force && sig === onlineSig) return;
   onlineSig = sig;
   const countEl = $("onlinecount"); if (countEl) countEl.textContent = rows.length + " online";
+  const pzb = $("plazabtn"); if (pzb) pzb.style.display = isOwnerAcct() ? "" : "none"; /* the Plaza button exists for the owner alone — refreshed with the roster (the signature carries his uid, so a sign-in change re-renders it) */
   const list = $("onlinerows"); if (!list) return;
   list.innerHTML = "";
   if (!rows.length) { const d = document.createElement("div"); d.className = "logempty"; d.textContent = "Nobody is online right now."; list.appendChild(d); return; }
@@ -11923,13 +11924,13 @@ function bowlCardStatus(tt, st) { /* the game's status line, as the person LOOKI
 function drawBowlScreen(tt, st) {
   const S = BOWLSCREENS[tt];
   ctx.fillStyle = "rgba(6,8,20,0.95)"; rr(S.x, S.y, S.w, S.h, 14); ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,0.75)"; ctx.lineWidth = 2.5; rr(S.x, S.y, S.w, S.h, 14); ctx.stroke();
+  ctx.strokeStyle = tt < 2 ? "rgba(255,80,80,0.8)" : "rgba(168,85,247,0.75)"; ctx.lineWidth = 2.5; rr(S.x, S.y, S.w, S.h, 14); ctx.stroke();
   ctx.textAlign = "left"; ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("LANE " + (tt + 1), S.x + 16, S.y + 32);
   ctx.textAlign = "right"; ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7ee7ff";
   const status = !st ? "OPEN" : st.phase === "bet" ? "PLACE BETS" : st.phase === "shoot" ? "SHOOT-OFF" : st.phase === "play" ? "FRAME " + (st.frame || 1) + " / 10" : "GAME OVER";
   ctx.fillText(status, S.x + S.w - 16, S.y + 32);
-  ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 14, S.y + 42); ctx.lineTo(S.x + S.w - 14, S.y + 42); ctx.stroke();
+  ctx.strokeStyle = tt < 2 ? "rgba(255,80,80,0.35)" : "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 14, S.y + 42); ctx.lineTo(S.x + S.w - 14, S.y + 42); ctx.stroke();
   const seats = (st && st.seats) || {};
   const rows = !st ? [] : st.phase === "bet" ? [0, 1, 2, 3].filter(i => bowlFresh(seats[i])) : (st.players || []);
   if (!rows.length) {
@@ -11989,9 +11990,9 @@ function drawBowlLane(tt, t) {
   const st = bowlStates[tt], L = BOWLLANES[tt], cx = BOWLCX(tt);
   drawBowlScreen(tt, st);
   /* the pin deck, the lane boards and the gutters */
-  ctx.fillStyle = "#1c0f38"; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,0.4)"; ctx.lineWidth = 2; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.stroke();
-  ctx.fillStyle = "#2a1052"; ctx.fillRect(L.x, L.y, L.w, L.h); /* the gutters */
+  ctx.fillStyle = tt < 2 ? "#2b0a10" : "#1c0f38"; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.fill();
+  ctx.strokeStyle = tt < 2 ? "rgba(255,90,90,0.45)" : "rgba(168,85,247,0.4)"; ctx.lineWidth = 2; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.stroke();
+  ctx.fillStyle = tt < 2 ? "#4a0d16" : "#2a1052"; ctx.fillRect(L.x, L.y, L.w, L.h); /* the gutters — DARK RED on the left two lanes (Jonathan 2026-11-07): the high-roller lanes wear the club's dark red where the right two keep the alley purple */
   const wg = ctx.createLinearGradient(0, L.y, 0, L.y + L.h);
   wg.addColorStop(0, "#7a4d24"); wg.addColorStop(1, "#5b3a1a");
   ctx.fillStyle = wg; ctx.fillRect(cx - 130, L.y, 260, L.h); /* the boards — widened with the lane field (150 -> 260 at Jonathan's word, 2026-11-01); the sim's gutter line and channel widened to match, below */
@@ -12070,18 +12071,19 @@ function drawBowlPanel(t) {
     P.y = camY + (VH - 110) / SCALE - P.h;
   }
   const cx = P.x + P.w / 2; /* the panel's own centre — every line below centres on the panel */
-  ctx.fillStyle = "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.stroke();
+  const hrL = bowlSeatT === 0 || bowlSeatT === 1; /* my lane is a high-roller lane: the panel wears its dark red too */
+  ctx.fillStyle = hrL ? "rgba(26,5,9,0.94)" : "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.fill();
+  ctx.strokeStyle = hrL ? "rgba(255,90,90,0.65)" : "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.stroke();
   ctx.textAlign = "center";
   if (st.phase === "bet") {
     ctx.font = "800 " + Math.round(20 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
     ctx.fillText("LANE " + (bowlSeatT + 1) + " — YOUR BET: " + (mine.bet > 0 ? "🪙 " + Number(mine.bet).toLocaleString("en-US") : "none yet"), cx, P.y + 30 * PS);
-    CH_BETS.forEach((amt, k) => {
+    bowlLadder(bowlSeatT).forEach((amt, k) => {
       const bx = P.x + 13 * PS + (k % 6) * 90 * PS, by = P.y + 44 * PS + Math.floor(k / 6) * 36 * PS, sel = mine.bet === amt;
-      ctx.fillStyle = sel ? "#ffd76a" : "rgba(42,16,82,0.95)"; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.fill();
-      ctx.strokeStyle = sel ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 1.5; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.stroke();
-      ctx.font = "800 " + Math.round(15 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = sel ? "#241a08" : "#e9d5ff";
-      ctx.fillText(amt >= 1000 ? (amt / 1000) + "k" : String(amt), bx + 42 * PS, by + 20 * PS);
+      ctx.fillStyle = sel ? "#ffd76a" : (hrL ? "rgba(84,12,22,0.95)" : "rgba(42,16,82,0.95)"); rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.fill();
+      ctx.strokeStyle = sel ? "#fff2c4" : (hrL ? "rgba(252,165,165,0.55)" : "rgba(192,132,252,0.5)"); ctx.lineWidth = 1.5; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.stroke();
+      ctx.font = "800 " + Math.round(15 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = sel ? "#241a08" : (hrL ? "#ffe3e3" : "#e9d5ff");
+      ctx.fillText(phAmtLabel(amt), bx + 42 * PS, by + 20 * PS); /* the club tables' label format (k/M/B) — the only honest way to write 1B on a button; identical output for every amount on the old ladder */
       uiZones.push({ x: bx, y: by, w: 84 * PS, h: 30 * PS, fn: () => bowlBet(amt) });
     });
     const ry = P.y + 116 * PS;
@@ -13020,6 +13022,7 @@ function hrcFocusRect() {
 const CHTABLES = ["chs1", "chk1", "chk2", "chs2"];
 const CHKINDS = ["chess", "checkers", "checkers", "chess"];
 const CH_BETS = [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
+function bowlLadder(t) { return t === 0 || t === 1 ? HR_BETS : CH_BETS; } /* BOWLING SPLIT (Jonathan 2026-11-07): the LEFT TWO lanes stake the High Rollers tables' ladder exactly (HR_BETS — 5k to 1B, the same twelve the club tables ride); the right two keep the casino ladder (CH_BETS, 1..100k), and chess keeps CH_BETS untouched — the BOX_BETS split's own rule */
 const BOX_BETS = [500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000]; /* boxing's OWN ladder (Jonathan 2026-11-01): the old first row (1-100) is gone — row 1 is the old second row (500-100k), row 2 runs 500k-100M. Split off CH_BETS so the chess room keeps its 1..100k untouched */
 let chStates = [null, null, null, null], chSeatT = -1, chSeatI = -1, chLeft = null, chHooked = false;
 let chAmt = 100, chSel = -1;
@@ -16519,9 +16522,9 @@ function endDetAnim() { if (!detAnim) return; const a = detAnim; detAnim = null;
 /* ============ HOUSING + QUANTUM FURNITURE (PREVIEW, Jonathan 2026-11-07): thirty OPEN-WALL houses on the cleared west-forest land LEFT of the Woodcutting Store — no interior scenes: the walls stand out in the plaza itself and everyone walking past sees the furniture inside, which is the display. Rows from the top: 5 BIG across (3 rooms), 10 MEDIUM across (2 rooms), 15 SMALL across (1 room). Rent a week: small 🪙 1B, medium 🪙 2B, big 🪙 3B, ONE house per account; an unrented house offers Rent at its door through the game's own confirmation popup. ONLY the renter passes the door — a shimmering barrier fills the doorway for everyone else; a guest standing at the door while the renter is inside can be LET IN off the renter's prompt. At the week's end the house unlists and its furniture returns to the renter's inventory (placements live on the house record; ownership lives on the account doc, so unlisting IS the return). Renting unlocks the DECORATE button inside: the furniture panel opens, a picked piece is placed by TAPPING AGAIN, a placed piece is tapped to PICK IT BACK UP, and a FLIP button mirrors the held piece; the same panel carries the BORDER COLOUR switcher (castle purple by default). Furniture is bought at QUANTUM FURNITURE — the huge black store with pink and yellow and a candy-stripe roof, above the purple path above the horse track: inside, pieces stand on wooden pedestals, ONE ROW PER SET starting from the bottom, every piece 🪙 100M flat, owned on the account FOREVER. The OWNER alone gets a Menu reset for his own house + furniture purchases (resetting while inside puts him outside on the ground). Houses ride hub/houses/<id> {uid, name, until, color, furn:[{p:"set:cat", x, y, f}], guest, guestTs} — a fresh top-level node opened in the RTDB rules with this build ============ */
 const FURN_PRICE = 100000000;
 const HOUSE_WEEK = 7 * 24 * 3600 * 1000;
-const HOUSE_RENT = { small: 1000000000, med: 2000000000, big: 3000000000 };
-const HOUSE_RENT_TXT = { small: "1B", med: "2B", big: "3B" };
-const HOUSE_SIZE_NAME = { small: "Small", med: "Medium", big: "Big" };
+const HOUSE_RENT = { small: 1000000000, med: 2000000000, big: 3000000000, mansion: 4000000000 };
+const HOUSE_RENT_TXT = { small: "1B", med: "2B", big: "3B", mansion: "4B" };
+const HOUSE_SIZE_NAME = { small: "Small", med: "Medium", big: "Big", mansion: "Mansion" };
 const FURN_CATS = ["sofa", "bed", "dining", "chair", "coffee", "dresser", "nightstand", "desk", "shelf", "tv"];
 const FURN_CATNAMES = { sofa: "Sofa", bed: "Bed", dining: "Dining Table", chair: "Chair", coffee: "Coffee Table", dresser: "Dresser", nightstand: "Nightstand", desk: "Desk", shelf: "Bookshelf", tv: "TV Stand" };
 const FURN_CATW = { sofa: 200, bed: 220, dining: 240, chair: 100, coffee: 170, dresser: 190, nightstand: 100, desk: 200, shelf: 160, tv: 220 };
@@ -16541,14 +16544,16 @@ const FURN_SETS = [
   { file: "set-15-alien", name: "Alien", rects: [[0,0,412,359,204],[412,0,385,371,225],[797,0,418,352,245],[1215,0,236,354,104],[1486,0,359,309,174],[0,371,337,341,195],[412,371,198,328,104],[797,371,394,335,204],[1215,371,271,375,165],[1486,371,454,331,224]] }
 ];
 const HOUSE_ZONE = { x: -6000, y: -1960, w: 5280, h: 1930 }; /* the housing land: the west-forest FUD fields (7..14) patrol inside it, so this client never draws, offers or files a kill on a FUD standing here — the referee is SHARED with the live page and is not touched */
-function fudInHousing(F) { return F.x > HOUSE_ZONE.x && F.x < HOUSE_ZONE.x + HOUSE_ZONE.w && F.y > HOUSE_ZONE.y && F.y < HOUSE_ZONE.y + HOUSE_ZONE.h; }
+const HOUSE_ZONE2 = { x: -6100, y: -2940, w: 10440, h: 730 }; /* the MANSION strip (2026-11-07): the top row and its street, coast to coast — the housing shadow covers it the same way, so no FUD is ever drawn, offered or filed on there either */
+function fudInHousing(F) { for (const Z of [HOUSE_ZONE, HOUSE_ZONE2]) if (F.x > Z.x && F.x < Z.x + Z.w && F.y > Z.y && F.y < Z.y + Z.h) return true; return false; }
 const HOUSES = [];
 (function buildHouses() {
   /* THE ROW SHIFT (Jonathan 2026-11-07, his detailing made live): every row stands with its bottom edge ON TOP of a purple path — the big row on street A, the medium on street B, and the small row shifted all the way down onto the CASTLE ROAD itself (the horizontal purple path above the three carnival games). The rows above the small moved down with it, leaving room over every row for its brick roof (see drawHouses) */
   const rows = [
     { size: "big", n: 5, y: -1790, h: 440, w: 700, pitch: 1040, x0: -5780, rooms: 3 },
     { size: "med", n: 10, y: -1030, h: 380, w: 420, pitch: 505, x0: -5925, rooms: 2 },
-    { size: "small", n: 15, y: -350, h: 320, w: 300, pitch: 335, x0: -5950, rooms: 1 }
+    { size: "small", n: 15, y: -350, h: 320, w: 300, pitch: 335, x0: -5950, rooms: 1 },
+    { size: "mansion", n: 10, y: -2770, h: 560, w: 880, pitch: 1044, x0: -6020, rooms: 4 } /* MANSIONS (Jonathan 2026-11-07): the fourth row, across the very top of the world — ten of them, evenly spaced from 80 off the west edge to 84 off the east, passing over the moat on their own street (M, below), appended LAST so the thirty standing houses keep their ids and records */
   ];
   for (const r of rows) for (let i = 0; i < r.n; i++) {
     const x = r.x0 + i * r.pitch;
@@ -16721,7 +16726,7 @@ function drawHouses(t) {
     const r = houseRec(H.i);
     const col = r && r.color ? r.color : "#a855f7";
     /* the BRICK ROOF (Jonathan 2026-11-07): a triangle over every house's top wall, painted as courses of bricks with offset joints, trimmed in the house's own border colour with a ridge cap — the room for it is what the row shift bought */
-    const roofH = H.size === "big" ? 140 : H.size === "med" ? 120 : 100, rx0 = H.x - 12, rx1 = H.x + H.w + 12, rBase = H.y + 4, rTop = H.y - roofH;
+    const roofH = H.size === "mansion" ? 170 : H.size === "big" ? 140 : H.size === "med" ? 120 : 100, rx0 = H.x - 12, rx1 = H.x + H.w + 12, rBase = H.y + 4, rTop = H.y - roofH;
     ctx.save(); ctx.beginPath(); ctx.moveTo(rx0, rBase); ctx.lineTo(H.doorX, rTop); ctx.lineTo(rx1, rBase); ctx.closePath(); ctx.clip();
     const rtex = r ? (r.roof || 0) : 0;
     if (rtex === 1) { ctx.fillStyle = "#6b4423"; ctx.fillRect(rx0, rTop, rx1 - rx0, rBase - rTop); ctx.fillStyle = "rgba(255,214,150,0.10)"; ctx.fillRect(rx0, rTop, rx1 - rx0, (rBase - rTop) / 2); ctx.strokeStyle = "rgba(30,16,4,0.6)"; ctx.lineWidth = 2; ctx.beginPath(); let course = 0; for (let by = rBase - 13; by > rTop + 3; by -= 13, course++) { ctx.moveTo(rx0, by); ctx.lineTo(rx1, by); for (let bx = rx0 + 16 + (course % 2) * 24; bx < rx1; bx += 48) { ctx.moveTo(bx, by); ctx.lineTo(bx, by + 13); } } ctx.stroke(); }
@@ -16832,6 +16837,8 @@ if ($("furnpanelclose")) $("furnpanelclose").onclick = () => { closeFurnPanel();
 if ($("furnextendbtn")) $("furnextendbtn").onclick = () => { const mid = myHouseId(); if (mid >= 0) { closeFurnPanel(); houseExtendAsk(mid); } };
 if ($("furnmoveoutbtn")) $("furnmoveoutbtn").onclick = () => { const mid = myHouseId(); if (mid >= 0) { closeFurnPanel(); houseMoveOutAsk(mid); } }; /* HOUSING (PREVIEW, 2026-11-07): Move Out rides the same panel row as Extend \u2014 close the panel, then the game's own confirmation popup asks */
 if ($("housemgmtbtn")) $("housemgmtbtn").onclick = () => { openHousePanel(); };
+function tpHome() { if (!isOwnerAcct()) return; if (tpInGame()) { sfxBad(); houseSay("🌀 You can't teleport mid-game."); return; } closeOnlineList(); const col = burstColFor(me.hero); spawnSmoke(me.x, me.y, me.scene, col); if (me.scene !== "plaza") { const fn = window[TP_EXIT[me.scene]]; if (typeof fn === "function") fn(); else { stopAllTones(); me.scene = "plaza"; voiceReset(); } } me.x = 1600; me.y = 1560; spawnSmoke(me.x, me.y, "plaza", col); sfxChime(); publish(true); } /* the PLAZA button (Jonathan 2026-11-07): the owner's ride home — out of whatever room he is in through its own exit, then down at the plaza centre where he spawns (1600, 1560, the roundabout), in his equipped smoke. Blocked mid-game like every teleport */
+if ($("plazabtn")) $("plazabtn").onclick = () => { tpHome(); };
 if ($("housepanelclose")) $("housepanelclose").onclick = () => { closeHousePanel(); sfxClick(); };
 /* ============ OWNER TELEPORT (PREVIEW, Jonathan 2026-11-07 — "add the teleport feature... for my account"): owner-only, and his account only. His Online rows carry a Teleport button; tapping it pops him to that player — to the closest open ground beside them when they are out in the plaza, and OUTSIDE their game's area when they are in one: a booth sitter is met on the path in front of the booths, a bumper-car driver at the arena's entrance, and anyone indoors is met on the plaza at that building's own exit landing. It is BLOCKED ENTIRELY while he is in a game himself — seated at any table or machine, in a Trenches seat, holding a race seat or a speedway car, in a boxing / bowling / chess / pool seat, a carnival booth seat or a bumper car: no step-out-and-pop, ever. The smoke at both ends wears the colour of whatever smoke he has equipped — his current form's burst colour, off the transform smoke's own table (burstColFor). Presence is field-locked, so nothing about the teleport rides the record: other screens spot the leap themselves (see the presence handler's puff) ============ */
 const OWNER_UID = "NWh4MUfgLXeGlfKQJ8N7HFoOBv23"; /* Jonathan's account uid — how OTHER screens know the leaping presence is his (his own screen gates on isOwnerAcct()) */
@@ -16839,6 +16846,7 @@ function burstColFor(hero) { return hero === KING_MECH_HERO ? true : hero === TO
 function tpInGame() { return !!(mySeat || trFighter || (typeof trSeat === "number" && trSeat >= 0) || swRaceSeat >= 0 || myCar >= 0 || boxSeat >= 0 || bowlSeatT >= 0 || chSeatT >= 0 || phSeatT >= 0 || cvSeatGame || cvCar >= 0); }
 function tpFree(x, y) { if (x < WORLD_X0 + 50 || x > WORLD.w - 50 || y < WORLD_Y0 + 60 || y > WORLD.h - 40) return false; const ha = houseAt(x, y); if (ha >= 0 && ha !== myHouseId()) return false; if (x > CV_ARENA.x && x < CV_ARENA.x + CV_ARENA.w && y > CV_ARENA.y && y < CV_ARENA.y + CV_ARENA.h) return false; for (const o of obstacles()) if (x > o.x - 26 && x < o.x + o.w + 26 && y > o.y - 26 && y < o.y + o.h + 26) return false; return true; } /* open ground: inside the world, outside every solid (with a body's margin), outside the bumper arena, and outside any house that is not mine */
 function tpLandFor(scene) { switch (scene) { case "club": case "vip": case "rooftop": return { x: 350, y: CLUB.y + CLUB.h + 60 }; case "casino": case "highrollers": return { x: 2850, y: SIL_R.y + SIL_R.h + 60 }; case "gym": case "boxing": return { x: 2630, y: GYM_B.y + GYM_B.h + 60 }; case "track": return { x: 3770, y: HR_B.y + HR_B.h + 60 }; case "bowling": return { x: 3720, y: BOWL_B.y + BOWL_B.h + 60 }; case "speedway": return { x: 570, y: SPD_B.y + SPD_B.h + 60 }; case "hq": return { x: PORTAL.x, y: PORTAL.y + 130 }; case "monstershop": return { x: 420, y: MON_B.y + MON_B.h + 60 }; case "comics": return { x: COM_B.x + COM_B.w / 2, y: COM_B.y + COM_B.h + 60 }; case "mechshop": return { x: MECH_B.x + MECH_B.w / 2, y: MECH_B.y + MECH_B.h + 60 }; case "trenches": return { x: TR_B.x + TR_B.w / 2, y: TR_B.y + TR_B.h + 60 }; case "castle": case "dining": case "crystal": return { x: 1600, y: CASTLE_B.y + CASTLE_B.h + 60 }; case "fishshop": return { x: FISH_B.x + FISH_B.w / 2, y: FISH_B.y + FISH_B.h + 60 }; case "woodshop": return { x: WOOD_B.x + WOOD_B.w / 2, y: WOOD_B.y + WOOD_B.h + 60 }; case "treasureshop": return { x: TRS_B.x + TRS_B.w / 2, y: TRS_B.y + TRS_B.h + 60 }; case "furnshop": return { x: FURN_B.x + FURN_B.w / 2, y: FURN_B.y + FURN_B.h + 60 }; default: return { x: BUILDING.x + BUILDING.w / 2, y: BUILDING.y + BUILDING.h + 60 }; } } /* every landing is that building's OWN exit landing — outside the game, on the path in front of its door; the arcade building's front serves the arcade, the theatre, the pool hall and chess */
+const TP_ENTER = { club: "toClub", vip: "toVip", rooftop: "toRooftop", casino: "toCasino", highrollers: "toHighRollers", gym: "toGym", boxing: "toBoxing", track: "toTrack", bowling: "toBowling", speedway: "toSpeedway", hq: "toHQ", monstershop: "toMonsterShop", comics: "toComics", mechshop: "toMechShop", trenches: "toTrenches", castle: "toCastle", dining: "toDining", crystal: "toCrystal", fishshop: "toFishShop", woodshop: "toWoodShop", treasureshop: "toTreasureShop", furnshop: "toFurnShop", arcade: "toArcade", theatre: "toTheatre", poolhall: "toPoolHall", chess: "toChess" }; /* TELEPORT-INTO-THE-ROOM (Jonathan 2026-11-07, later): every room's own entry — teleporting to a player indoors rides it, so the room's whole arrival (listeners, music, landings) runs exactly as if he had walked in, and he lands IN the room with them instead of at the building's entrance outside (tpLandFor's old landings are retired by this) */
 const TP_EXIT = { club: "toPlazaFromClub", vip: "toPlazaFromClub", rooftop: "toPlazaFromClub", casino: "toPlazaFromCasino", highrollers: "toPlazaFromCasino", gym: "toPlazaFromGym", boxing: "toPlazaFromGym", track: "toPlazaFromTrack", bowling: "toPlazaFromBowling", speedway: "toPlazaFromSpeedway", hq: "toPlazaFromHQ", monstershop: "toPlazaFromMonsterShop", comics: "toPlazaFromComics", mechshop: "toPlazaFromMechShop", trenches: "toPlazaFromTrenches", castle: "toPlazaFromCastle", dining: "toPlazaFromCastle", crystal: "toPlazaFromCastle", fishshop: "toPlazaFromFishShop", woodshop: "toPlazaFromWoodShop", treasureshop: "toPlazaFromTreasureShop", furnshop: "toPlazaFromFurnShop", arcade: "toPlazaFromTheatre", theatre: "toPlazaFromTheatre", poolhall: "toPlazaFromTheatre", chess: "toPlazaFromTheatre" }; /* leaving a room rides that room's own exit, so every room-side cleanup (tones, voice, videos) runs exactly as if he had walked out */
 function tpToPeer(r) { if (!isOwnerAcct() || !r || r.id === myId) return; if (tpInGame()) { sfxBad(); houseSay("🌀 You can't teleport mid-game."); return; }
   const p = peers.get(r.id); if (!p) { sfxBad(); return; }
@@ -16846,9 +16854,16 @@ function tpToPeer(r) { if (!isOwnerAcct() || !r || r.id === myId) return; if (tp
   const col = burstColFor(me.hero);
   spawnSmoke(me.x, me.y, me.scene, col); /* the departure puff, in the smoke he has equipped */
   if (me.scene !== "plaza") { const fn = window[TP_EXIT[me.scene]]; if (typeof fn === "function") fn(); else { stopAllTones(); me.scene = "plaza"; voiceReset(); } }
+  if (p.scene !== "plaza") { /* they are indoors: I go INTO their room (Jonathan 2026-11-07) — in through the room's own entry first, then to the closest open floor beside them: a ring search like the plaza's, but a spot only counts if the room's own collision returns it untouched (no resolution, no door or exit trigger riding it); if nothing fits I stay at the room's door landing, in the room with them either way */
+    const efn = window[TP_ENTER[p.scene]]; if (typeof efn === "function") efn(); else { stopAllTones(); me.scene = p.scene; voiceReset(); }
+    let spot = null;
+    for (let ring = 110; ring <= 460 && !spot; ring += 55) { for (let k = 0; k < 16 && !spot; k++) { const a = k / 16 * Math.PI * 2 + ring; const cx2 = Math.round(p.tx + Math.cos(a) * ring), cy2 = Math.round(p.ty + Math.sin(a) * ring); const res = collide(cx2, cy2); if (res && res.x === cx2 && res.y === cy2 && Object.keys(res).length === 2) spot = { x: cx2, y: cy2 }; } }
+    if (spot) { me.x = spot.x; me.y = spot.y; }
+    spawnSmoke(me.x, me.y, me.scene, col); sfxChime(); publish(true);
+    return;
+  }
   let dest = null;
-  if (p.scene !== "plaza") dest = tpLandFor(p.scene); /* they are in a game indoors: I land outside it, at their building's front */
-  else if (p.tx > CV_ARENA.x && p.tx < CV_ARENA.x + CV_ARENA.w && p.ty > CV_ARENA.y && p.ty < CV_ARENA.y + CV_ARENA.h) dest = { x: -4280, y: 750 }; /* they are driving in the bumper arena: I land at its entrance, on the path outside the east wall */
+  if (p.tx > CV_ARENA.x && p.tx < CV_ARENA.x + CV_ARENA.w && p.ty > CV_ARENA.y && p.ty < CV_ARENA.y + CV_ARENA.h) dest = { x: -4280, y: 750 }; /* they are driving in the bumper arena: I land at its entrance, on the path outside the east wall */
   else if (p.tx > -4360 && p.tx < -1440 && p.ty > 430 && p.ty < 700) dest = { x: Math.max(-4280, Math.min(-1520, p.tx)), y: 770 }; /* they are seated at a carnival booth: I land on the branch path in front of the booths */
   else { for (let ring = 110; ring <= 920 && !dest; ring += 55) { for (let k = 0; k < 16 && !dest; k++) { const a = k / 16 * Math.PI * 2 + ring; const cx2 = Math.round(p.tx + Math.cos(a) * ring), cy2 = Math.round(p.ty + Math.sin(a) * ring); if (tpFree(cx2, cy2)) dest = { x: cx2, y: cy2 }; } } if (!dest) { const ha = houseAt(p.tx, p.ty); if (ha >= 0) { const H = HOUSES[ha]; dest = { x: H.doorX, y: H.y + H.h + 70 }; } else dest = { x: 1600, y: 1200 }; } } /* out in the open: the closest open ground to them — and if they stand inside someone else's house, the spiral walks out of it and I land at their door */
   me.x = dest.x; me.y = dest.y; spawnSmoke(me.x, me.y, "plaza", col); sfxChime(); publish(true);
@@ -17090,10 +17105,10 @@ function drawPlaza(t) {
   ctx.beginPath();
   ctx.moveTo(WORLD_X0, -30); ctx.lineTo(-920, -30); ctx.lineTo(-920, -490); ctx.moveTo(-760, -490); ctx.lineTo(-760, -30); ctx.lineTo(-260, -30); ctx.lineTo(-260, -470); ctx.lineTo(-100, -470); ctx.lineTo(-100, -30); ctx.lineTo(1520, -30); ctx.lineTo(1520, -350); ctx.lineTo(1680, -350); ctx.lineTo(1680, -30); ctx.lineTo(3480, -30); ctx.lineTo(3480, -350); ctx.lineTo(3640, -350); ctx.lineTo(3640, -30); ctx.lineTo(WORLD.w, -30); ctx.lineTo(WORLD.w, 130); ctx.lineTo(WORLD_X0, 130);
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
-  /* the HOUSING STREETS (PREVIEW, 2026-11-07): the neighbourhood's streets and their connector, painted as ONE union outline in the path colours — fill closes the shape, the stroke never closes, so no line is drawn across the connector's mouth where it meets street B, the castle road's own treatment. The streets run west to the very edge of the world (WORLD_X0 — Jonathan 2026-11-07): A (y −1350..−1190) below the big houses, B (−650..−490) below the medium — and there is no street C anymore: the SMALL row shifted down off it (2026-11-07, at the owner's word) and stands on the CASTLE ROAD itself, the horizontal purple path above the three carnival games, while the connector (x −920..−760) climbs from that road to street B */
+  /* the HOUSING STREETS (PREVIEW, 2026-11-07): the neighbourhood's streets and their connector, painted as ONE union outline in the path colours — fill closes the shape, the stroke never closes, so no line is drawn across the connector's mouth where it meets street B, the castle road's own treatment. The streets run west to the very edge of the world (WORLD_X0 — Jonathan 2026-11-07): A (y −1350..−1190) below the big houses, B (−650..−490) below the medium — and there is no street C anymore: the SMALL row shifted down off it (2026-11-07, at the owner's word) and stands on the CASTLE ROAD itself, the horizontal purple path above the three carnival games, while the connector (x −920..−760) climbs from that road to street B, through street A, and on up to STREET M (y −2210..−2050) below the mansions */
   ctx.fillStyle = "rgba(88,40,160,0.32)";
   ctx.beginPath();
-  ctx.moveTo(-920, -490); ctx.lineTo(WORLD_X0, -490); ctx.lineTo(WORLD_X0, -650); ctx.lineTo(-920, -650); ctx.lineTo(-920, -1190); ctx.lineTo(WORLD_X0, -1190); ctx.lineTo(WORLD_X0, -1350); ctx.lineTo(-760, -1350); ctx.lineTo(-760, -490);
+  ctx.moveTo(-920, -490); ctx.lineTo(WORLD_X0, -490); ctx.lineTo(WORLD_X0, -650); ctx.lineTo(-920, -650); ctx.lineTo(-920, -1190); ctx.lineTo(WORLD_X0, -1190); ctx.lineTo(WORLD_X0, -1350); ctx.lineTo(-920, -1350); ctx.lineTo(-920, -2050); ctx.lineTo(WORLD_X0, -2050); ctx.lineTo(WORLD_X0, -2210); ctx.lineTo(WORLD.w, -2210); ctx.lineTo(WORLD.w, -2050); ctx.lineTo(-760, -2050); ctx.lineTo(-760, -490); /* STREET M (Jonathan 2026-11-07): the mansions' own path, traced into this same union — the connector climbs on from street A to M's south edge (-2050), M runs the FULL width of the world (WORLD_X0 to WORLD.w) at y -2210..-2050, landing above the moat, and the trace goes around the connector's mouth at M exactly as at A and B, so no line ever crosses it */
   ctx.fill();
   ctx.strokeStyle = "rgba(56,225,255,0.30)"; ctx.lineWidth = 2; ctx.stroke();
   /* the housing streets' lamp rows are GONE (Jonathan 2026-11-07): no lamps stand in the housing area in front of the houses anymore — the castle road's own lamp row below and the furniture spur's pair are the neighbourhood's only lamps now */
