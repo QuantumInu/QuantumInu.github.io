@@ -11850,13 +11850,13 @@ function bowlCardStatus(tt, st) { /* the game's status line, as the person LOOKI
 function drawBowlScreen(tt, st) {
   const S = BOWLSCREENS[tt];
   ctx.fillStyle = "rgba(6,8,20,0.95)"; rr(S.x, S.y, S.w, S.h, 14); ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,0.75)"; ctx.lineWidth = 2.5; rr(S.x, S.y, S.w, S.h, 14); ctx.stroke();
+  ctx.strokeStyle = tt < 2 ? "rgba(255,80,80,0.8)" : "rgba(168,85,247,0.75)"; ctx.lineWidth = 2.5; rr(S.x, S.y, S.w, S.h, 14); ctx.stroke();
   ctx.textAlign = "left"; ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
   ctx.fillText("LANE " + (tt + 1), S.x + 16, S.y + 32);
   ctx.textAlign = "right"; ctx.font = "700 16px 'Segoe UI',sans-serif"; ctx.fillStyle = "#7ee7ff";
   const status = !st ? "OPEN" : st.phase === "bet" ? "PLACE BETS" : st.phase === "shoot" ? "SHOOT-OFF" : st.phase === "play" ? "FRAME " + (st.frame || 1) + " / 10" : "GAME OVER";
   ctx.fillText(status, S.x + S.w - 16, S.y + 32);
-  ctx.strokeStyle = "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 14, S.y + 42); ctx.lineTo(S.x + S.w - 14, S.y + 42); ctx.stroke();
+  ctx.strokeStyle = tt < 2 ? "rgba(255,80,80,0.35)" : "rgba(168,85,247,0.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.x + 14, S.y + 42); ctx.lineTo(S.x + S.w - 14, S.y + 42); ctx.stroke();
   const seats = (st && st.seats) || {};
   const rows = !st ? [] : st.phase === "bet" ? [0, 1, 2, 3].filter(i => bowlFresh(seats[i])) : (st.players || []);
   if (!rows.length) {
@@ -11916,9 +11916,9 @@ function drawBowlLane(tt, t) {
   const st = bowlStates[tt], L = BOWLLANES[tt], cx = BOWLCX(tt);
   drawBowlScreen(tt, st);
   /* the pin deck, the lane boards and the gutters */
-  ctx.fillStyle = "#1c0f38"; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,0.4)"; ctx.lineWidth = 2; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.stroke();
-  ctx.fillStyle = "#2a1052"; ctx.fillRect(L.x, L.y, L.w, L.h); /* the gutters */
+  ctx.fillStyle = tt < 2 ? "#2b0a10" : "#1c0f38"; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.fill();
+  ctx.strokeStyle = tt < 2 ? "rgba(255,90,90,0.45)" : "rgba(168,85,247,0.4)"; ctx.lineWidth = 2; rr(L.x - 14, L.y - 16, L.w + 28, 190, 12); ctx.stroke();
+  ctx.fillStyle = tt < 2 ? "#4a0d16" : "#2a1052"; ctx.fillRect(L.x, L.y, L.w, L.h); /* the gutters — DARK RED on the left two lanes (Jonathan 2026-11-07): the high-roller lanes wear the club's dark red where the right two keep the alley purple */
   const wg = ctx.createLinearGradient(0, L.y, 0, L.y + L.h);
   wg.addColorStop(0, "#7a4d24"); wg.addColorStop(1, "#5b3a1a");
   ctx.fillStyle = wg; ctx.fillRect(cx - 130, L.y, 260, L.h); /* the boards — widened with the lane field (150 -> 260 at Jonathan's word, 2026-11-01); the sim's gutter line and channel widened to match, below */
@@ -11997,18 +11997,19 @@ function drawBowlPanel(t) {
     P.y = camY + (VH - 110) / SCALE - P.h;
   }
   const cx = P.x + P.w / 2; /* the panel's own centre — every line below centres on the panel */
-  ctx.fillStyle = "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.fill();
-  ctx.strokeStyle = "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.stroke();
+  const hrL = bowlSeatT === 0 || bowlSeatT === 1; /* my lane is a high-roller lane: the panel wears its dark red too */
+  ctx.fillStyle = hrL ? "rgba(26,5,9,0.94)" : "rgba(10,6,24,0.94)"; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.fill();
+  ctx.strokeStyle = hrL ? "rgba(255,90,90,0.65)" : "rgba(168,85,247,0.65)"; ctx.lineWidth = 2; rr(P.x, P.y, P.w, P.h, 16 * PS); ctx.stroke();
   ctx.textAlign = "center";
   if (st.phase === "bet") {
     ctx.font = "800 " + Math.round(20 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = "#ffd76a";
     ctx.fillText("LANE " + (bowlSeatT + 1) + " — YOUR BET: " + (mine.bet > 0 ? "🪙 " + Number(mine.bet).toLocaleString("en-US") : "none yet"), cx, P.y + 30 * PS);
-    CH_BETS.forEach((amt, k) => {
+    bowlLadder(bowlSeatT).forEach((amt, k) => {
       const bx = P.x + 13 * PS + (k % 6) * 90 * PS, by = P.y + 44 * PS + Math.floor(k / 6) * 36 * PS, sel = mine.bet === amt;
-      ctx.fillStyle = sel ? "#ffd76a" : "rgba(42,16,82,0.95)"; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.fill();
-      ctx.strokeStyle = sel ? "#fff2c4" : "rgba(192,132,252,0.5)"; ctx.lineWidth = 1.5; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.stroke();
-      ctx.font = "800 " + Math.round(15 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = sel ? "#241a08" : "#e9d5ff";
-      ctx.fillText(amt >= 1000 ? (amt / 1000) + "k" : String(amt), bx + 42 * PS, by + 20 * PS);
+      ctx.fillStyle = sel ? "#ffd76a" : (hrL ? "rgba(84,12,22,0.95)" : "rgba(42,16,82,0.95)"); rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.fill();
+      ctx.strokeStyle = sel ? "#fff2c4" : (hrL ? "rgba(252,165,165,0.55)" : "rgba(192,132,252,0.5)"); ctx.lineWidth = 1.5; rr(bx, by, 84 * PS, 30 * PS, 9 * PS); ctx.stroke();
+      ctx.font = "800 " + Math.round(15 * PS) + "px 'Segoe UI',sans-serif"; ctx.fillStyle = sel ? "#241a08" : (hrL ? "#ffe3e3" : "#e9d5ff");
+      ctx.fillText(phAmtLabel(amt), bx + 42 * PS, by + 20 * PS); /* the club tables' label format (k/M/B) — the only honest way to write 1B on a button; identical output for every amount on the old ladder */
       uiZones.push({ x: bx, y: by, w: 84 * PS, h: 30 * PS, fn: () => bowlBet(amt) });
     });
     const ry = P.y + 116 * PS;
@@ -12947,6 +12948,7 @@ function hrcFocusRect() {
 const CHTABLES = ["chs1", "chk1", "chk2", "chs2"];
 const CHKINDS = ["chess", "checkers", "checkers", "chess"];
 const CH_BETS = [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
+function bowlLadder(t) { return t === 0 || t === 1 ? HR_BETS : CH_BETS; } /* BOWLING SPLIT (Jonathan 2026-11-07): the LEFT TWO lanes stake the High Rollers tables' ladder exactly (HR_BETS — 5k to 1B, the same twelve the club tables ride); the right two keep the casino ladder (CH_BETS, 1..100k), and chess keeps CH_BETS untouched — the BOX_BETS split's own rule */
 const BOX_BETS = [500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 50000000, 100000000]; /* boxing's OWN ladder (Jonathan 2026-11-01): the old first row (1-100) is gone — row 1 is the old second row (500-100k), row 2 runs 500k-100M. Split off CH_BETS so the chess room keeps its 1..100k untouched */
 let chStates = [null, null, null, null], chSeatT = -1, chSeatI = -1, chLeft = null, chHooked = false;
 let chAmt = 100, chSel = -1;
