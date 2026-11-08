@@ -631,6 +631,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
         <div class="acctrow" id="startoolsrow" style="margin-top:8px;display:none">
           <button id="startoolsbtn" type="button">⭐ Star Tools: OFF</button>
         </div>
+        <div class="acctrow" id="updalertrow" style="margin-top:8px;display:none">
+          <button id="updalertbtn" type="button">🔔 Update Alert: OFF</button>
+        </div>
         <div class="acctrow" id="qkctlrow" style="margin-top:8px;display:none">
           <button id="qkctlbtn" type="button">⚡ Enable one-tap sign-in on this device</button>
         </div>
@@ -2735,7 +2738,7 @@ function acctUi() {
     const clr = $("clogrow"); if (clr) clr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Chat Log row directly under Ban: the same owner-only gate */ /* the Player Balances row directly under Activity Report: the same owner-only gate */
     const mr = $("mechresetrow"); if (mr) mr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Mechs row directly under Player Balances (Jonathan 2026-11-04): the same owner-only gate — it clears ONLY his own mech unlocks */
     const sr = $("spdresetrow"); if (sr) sr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Speed row directly under Reset Mechs (Jonathan 2026-11-04): the Reset Mechs pattern exactly — the owner's account ONLY, and it clears ONLY his own Crystal Room speed tier */
-    const hsr = $("houseresetrow"); if (hsr) hsr.style.display = isOwnerAcct() ? "flex" : "none"; const hmr = $("housemgmtrow"); if (hmr) hmr.style.display = isOwnerAcct() ? "flex" : "none"; const strow = $("startoolsrow"); if (strow) strow.style.display = isOwnerAcct() ? "flex" : "none"; const stb = $("startoolsbtn"); if (stb) stb.textContent = starTools ? "⭐ Star Tools: ON" : "⭐ Star Tools: OFF"; /* STAR TOOLS (2026-11-08): the swap row under Housing Management — the same owner-only gate; its label is re-read off the flag every time the menu renders, so it can never drift from the account */ /* HOUSING MANAGEMENT (2026-11-07): the Housing Management row directly under Reset House — the same owner-only gate; it lists every rented house with an Evict button */ /* HOUSING (PREVIEW, 2026-11-07): the Reset House row directly under Reset Speed — the same owner-only gate; it clears ONLY his own house rental and furniture collection */
+    const hsr = $("houseresetrow"); if (hsr) hsr.style.display = isOwnerAcct() ? "flex" : "none"; const hmr = $("housemgmtrow"); if (hmr) hmr.style.display = isOwnerAcct() ? "flex" : "none"; const strow = $("startoolsrow"); if (strow) strow.style.display = isOwnerAcct() ? "flex" : "none"; const uar = $("updalertrow"); if (uar) uar.style.display = isOwnerAcct() ? "flex" : "none"; const uab = $("updalertbtn"); if (uab && (typeof updAlertArmUntil === "undefined" || updAlertArmUntil <= Date.now())) uab.textContent = (typeof updAlertOn !== "undefined" && updAlertOn) ? "🔔 Update Alert: ON" : "🔔 Update Alert: OFF"; /* updAlertArmUntil/updAlertOn are declared with the alert machinery further down — typeof-guarded so an early menu render can never throw */ /* UPDATE ALERT (2026-11-08): the row under Star Tools — owner-only like its neighbours; the label re-reads off the shared signal every menu render (never off local memory), and an armed confirm label is left alone */ const stb = $("startoolsbtn"); if (stb) stb.textContent = starTools ? "⭐ Star Tools: ON" : "⭐ Star Tools: OFF"; /* STAR TOOLS (2026-11-08): the swap row under Housing Management — the same owner-only gate; its label is re-read off the flag every time the menu renders, so it can never drift from the account */ /* HOUSING MANAGEMENT (2026-11-07): the Housing Management row directly under Reset House — the same owner-only gate; it lists every rented house with an Evict button */ /* HOUSING (PREVIEW, 2026-11-07): the Reset House row directly under Reset Speed — the same owner-only gate; it clears ONLY his own house rental and furniture collection */
     const qr = $("qkctlrow"); if (qr) qr.style.display = isOwnerAcct() ? "flex" : "none"; /* the one-tap sign-in controls under the Activity Report row: the same owner-only gate */
     if (isOwnerAcct()) qkRefreshCtl(); /* and their state (off / on, on this device / on, on another device) is read fresh each time this menu renders */
   } else { out.style.display = "block"; inn.style.display = "none"; qkSyncRow(); } /* signed out: the one-tap button on the form shows only on a device that holds a key */
@@ -2921,6 +2924,35 @@ wepBtnBar.style.cssText = "position:fixed;left:10px;top:60px;z-index:26;display:
 wepBtnBar.appendChild(wepToggleBtn); wepBtnBar.appendChild(wepSwapBtn);
 document.body.appendChild(wepBtnBar);
 wepToggleBtn.addEventListener("click", () => { if (wepActive) wepStow(); else wepTakeOut(); });
+/* ============ UPDATE ALERT (owner-triggered, Jonathan 2026-11-08) ============
+   The signal: hub/tables/updal (PREVIEW page's own node — the live page gets its own when this ships there, so
+   testing here can never flash the live game). { on: 1/0, ts }. The owner flips it from his Menu row: turning
+   ON takes the Reset Speed two-tap confirm (arm 4s, second tap fires); turning OFF is one tap. While on, every
+   client in the game — the owner included, so he can see it is live — shows a flashing purple REFRESH FOR UPDATE
+   button at the top right of the gameplay screen; it keeps flashing until he turns it off, or the player taps
+   it (or refreshes any other way) and lands on the fresh build. */
+let updAlertOn = false;
+const updAlertBtn = document.createElement("button");
+updAlertBtn.id = "updalert"; updAlertBtn.type = "button"; updAlertBtn.textContent = "REFRESH FOR UPDATE";
+updAlertBtn.style.cssText = "position:fixed;right:10px;top:60px;z-index:40;display:none;background:#7c3aed;color:#fff;border:2px solid #c4b5fd;border-radius:10px;padding:9px 14px;font:800 14px 'Segoe UI',sans-serif;box-shadow:0 4px 16px rgba(124,58,237,.65);cursor:pointer";
+const updAlertStyle = document.createElement("style");
+updAlertStyle.textContent = "@keyframes updflash{0%,100%{opacity:1}50%{opacity:.25}}";
+document.head.appendChild(updAlertStyle);
+document.body.appendChild(updAlertBtn);
+updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); }); /* the tap IS the refresh — cache-busted so the fresh build actually lands */
+function syncUpdAlertBtn() { const want = entered && updAlertOn ? "block" : "none"; if (updAlertBtn.style.display !== want) updAlertBtn.style.display = want; const fl = entered && updAlertOn ? "updflash .8s steps(1) infinite" : "none"; if (updAlertBtn.style.animation !== fl) updAlertBtn.style.animation = fl; }
+setInterval(syncUpdAlertBtn, 400);
+function updAlertListen() { if (!db) { setTimeout(updAlertListen, 500); return; } db.ref("hub/tables/updal").on("value", sn => { const v = sn.val(); updAlertOn = !!(v && v.on); }); } updAlertListen(); /* the listener every client runs — the signal reaches whoever is in the game, whenever he flips it */
+let updAlertArmUntil = 0;
+function updAlertSet(on) { if (!db) return; db.ref("hub/tables/updal").set({ on: on ? 1 : 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
+$("updalertbtn").onclick = () => { /* the Menu row (owner only): ON is the Reset Speed two-tap confirm, OFF is one tap */
+  if (!isOwnerAcct() || !acctUser) return;
+  const btn = $("updalertbtn");
+  if (updAlertOn) { updAlertArmUntil = 0; updAlertSet(false); btn.textContent = "🔔 Update Alert: OFF"; return; }
+  const nowMs = Date.now();
+  if (nowMs > updAlertArmUntil) { updAlertArmUntil = nowMs + 4000; btn.textContent = "⚠️ Tap again to turn the update alert ON for everyone"; setTimeout(() => { if (Date.now() > updAlertArmUntil) { const b2 = $("updalertbtn"); if (b2) b2.textContent = updAlertOn ? "🔔 Update Alert: ON" : "🔔 Update Alert: OFF"; } }, 4100); return; }
+  updAlertArmUntil = 0; updAlertSet(true); btn.textContent = "🔔 Update Alert: ON";
+};
 function syncWepToggle() { const want = entered ? "flex" : "none"; if (wepBtnBar.style.display !== want) wepBtnBar.style.display = want; const tx = wepActive ? "\u2694\uFE0F Put Away" : "\u2694\uFE0F Take Out"; if (wepToggleBtn.textContent !== tx) wepToggleBtn.textContent = tx; }
 setInterval(syncWepToggle, 400);
 /* ============ input ============ */
