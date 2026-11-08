@@ -894,7 +894,7 @@ function nameBlocked(raw) {
 const LS_KEY = "quantum-hub-profile";
 let profile = null;
 try { profile = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch(e) { profile = null; }
-if (!profile || !profile.name || !(profile.hero >= 1 && profile.hero <= 70)) profile = null;
+if (!profile || !profile.name || !(profile.hero >= 1 && profile.hero <= 100)) profile = null; /* AVATAR DEFAULT FIX (Jonathan 2026-11-07): the local save may hold ANY pick the game itself allows (the presence range is 1-100) — the account specials and the female-track costumes included. Capping this load at 70 threw the whole profile away on every page load, so the last pick never survived to the gate; the account gates strip an unowned special after sign-in instead (syncOwnerCell) */
 if (profile && profile.code !== true && nameBlocked(profile.name)) profile = null;
 if (profile && typeof profile.chips !== "number") profile.chips = 1000;
 let pickedHero = profile ? profile.hero : 0;
@@ -2717,7 +2717,10 @@ function initAuth() {
           const keepChips = profile && typeof profile.chips === "number" ? profile.chips : null;
           const pk = pickChips(keepChips, profile && typeof profile.chipsTs === "number" ? profile.chipsTs : 0, typeof d.chips === "number" ? d.chips : undefined, typeof d.chipsTs === "number" ? d.chipsTs : 0);
           acctChipsOnServer = typeof d.chips === "number"; /* the heal flag judges from this same read: a numeric server chips means the field exists on the record */
-          profile = { name: d.name, hero: ((d.hero >= 1 && d.hero <= 70) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === OWNER_HERO) || (((u.email || "").toLowerCase() === KING_EMAIL) && d.hero === KING_HERO) || ((u.uid === TONIC_UID) && d.hero === TONIC_HERO) || ((u.uid === KEN_UID) && d.hero === KEN_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === ROBO_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === NEON_HERO) || (((u.email || "").toLowerCase() === OWNER_EMAIL) && d.hero === PATCH_HERO) || ((u.uid === BBE_UID) && d.hero === BBE_HERO)) ? d.hero : 1, gender: d.gender === "f" ? "f" : "m", muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
+          const dGender = d.gender === "f" ? "f" : "m";
+          pickedGender = dGender; /* AVATAR DEFAULT FIX (Jonathan 2026-11-07): the saved pick is judged in the track it was picked in, by the picker's OWN gates (heroAllowed — the female-track costumes via FEMALE_EXTRA, each special via its account) — the hand-maintained list that stood here drifted every time a special was added and silently defaulted any unlisted legitimate pick to hero 1; now the next special persists automatically, and only a pick this account truly cannot wear falls back to 1 */
+          const dHero = (typeof d.hero === "number" && heroAllowed(d.hero)) ? d.hero : 1;
+          profile = { name: d.name, hero: dHero, gender: dGender, muted, code: false, chips: pk.chips, chipsTs: pk.ts, day: d.day || "" };
           localStorage.setItem(LS_KEY, JSON.stringify(profile));
           nameIn.value = profile.name; pickedHero = profile.hero; setGender(profile.gender);
           syncOwnerCell(); syncHeroSel();
@@ -8800,7 +8803,7 @@ function banEntryPrecheck() { /* enterHubInner's own early validations, mirrored
   if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return false;
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return false;
   if (nameBlocked(raw) && !isOwnerAcct()) return false;
-  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return false;
+  if ((pickedHero === OWNER_HERO && !isOwnerAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isOwnerAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === PATCH_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return false;
   return true;
 }
 async function enterHub() { /* the entry wrapper (2026-11-05): the ban check runs after enterHubInner's validations and BEFORE its profile rebuild / entered=true / publish(true); the non-banned path is enterHubInner exactly as before */
