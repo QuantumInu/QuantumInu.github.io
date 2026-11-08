@@ -187,7 +187,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
 #tpmenupanel{background:var(--panel);border:2px solid rgba(168,85,247,.55);border-radius:18px;width:min(560px,96vw);max-height:100%;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(168,85,247,.25)}
 #tpmenupanel h2{margin:0 0 8px;font-size:21px;color:#c084fc;text-align:center}
 #tpmenurooms{overflow-y:auto;overflow-x:hidden;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:2px;min-height:60px}
-.tproombtn{background:linear-gradient(135deg,#a855f7,#6d28d9);border:none;color:#fff;font-weight:800;border-radius:999px;padding:9px 8px;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tproombtn{background:linear-gradient(135deg,#a855f7,#6d28d9);border:none;color:#fff;font-weight:800;border-radius:999px;padding:10px 8px;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.15} /* the label is centred both ways on PC and mobile (Jonathan 2026-11-08, from his screenshot of the live popup: the text sat low in the pills) */
 #tpmenuclose{margin-top:10px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff;font-weight:800;border-radius:999px;padding:11px;font-size:15px;cursor:pointer;font-family:inherit}
 #sendtokpanel{background:var(--panel);border:2px solid rgba(255,215,106,.55);border-radius:18px;width:min(420px,96vw);max-height:100%;overflow-y:auto;display:flex;flex-direction:column;padding:14px 16px;box-shadow:0 0 34px rgba(255,215,106,.25)} /* capped at its chat-clear container and scrolls on short screens, so the panel can never spill down into the chat bar's strip */
 #sendtokpanel h2{margin:0 0 2px;font-size:21px;color:var(--gold);text-align:center}
@@ -2851,6 +2851,14 @@ window.addEventListener("keydown", e => {
   if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
   if (e.key === "c" || e.key === "C") keyPanelToggle("chatlog", openChatLog, "logclose");
   else keyPanelToggle("onlinelist", openOnlineList, "onlineclose");
+}, true);
+/* ============ G key = the Teleport popup (Jonathan 2026-11-08 — "g should bring up the teleport menu / and close it also"): the same toggle shape as C/O above — G opens the popup through openTpMenu (the 🌀 Teleport button's own handler) and closes it through closeTpMenu, state read off the popup's REAL display (escShown) on every press so the key, the button and Escape all share one state and cannot desync. Owner only, like the button itself: for everyone else G is just a letter. Only in the game (entered), never while typing in any field, a held key's auto-repeat ignored, Ctrl/Cmd/Alt+G stay the browser's own shortcuts. */
+window.addEventListener("keydown", e => {
+  if ((e.key !== "g" && e.key !== "G") || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !entered) return;
+  const tg = e.target;
+  if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
+  if (!isOwnerAcct()) return;
+  if (escShown("tpmenu")) closeTpMenu(); else openTpMenu();
 }, true);
 /* ============ input ============ */
 const cv = $("game"), ctx = cv.getContext("2d");
