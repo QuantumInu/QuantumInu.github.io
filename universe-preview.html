@@ -16288,7 +16288,7 @@ const ENEMY_DEFS = [
   { key: "rogue", name: "Shadow Rogue", file: "enemy_shadow_rogue.png", hp: 4, coin: 1000, speed: 200, ranged: 0 },
   { key: "treant", name: "Treant Warrior", file: "enemy_treant_warrior.png", hp: 24, coin: 10000, speed: 115, ranged: 0 }
 ];
-const ENEMY_ENGAGE = 370; /* ONE engagement distance for the whole forest (note 8): the ranged kinds open fire inside it, and the melee kinds start homing at it too */
+const ENEMY_ENGAGE = 500; /* raised 370 -> 500 (note 41) */ /* ONE engagement distance for the whole forest (note 8): the ranged kinds open fire inside it, and the melee kinds start homing at it too */
 const ENEMY_H = 108; /* enemy draw height — mech size (216) was tried and REVERTED at his word the same day (note 22) */
 const ENEMY_OFFSETS = [[-470, -300], [450, 330], [520, -360], [-330, 300], [60, 520]]; /* archer, healer, druid, rogue, treant — around each hub */
 const ENEMY_HOMES = [];
@@ -16307,6 +16307,7 @@ function forestNetInit() {
     if (!v) { const seed = {}; ENEMY_HOMES.forEach((h, i) => { seed["e" + i] = { t: h.t, x: h.x, y: h.y, hp: ENEMY_DEFS[h.t].hp, st: "idle", tgt: "", f: 0, ts: srvNow(), deadTs: 0, wx: h.x, wy: h.y, atkTs: 0, clk: 0, clkCd: 0, wnd: 0, hl: 0 }; }); ref.set(seed); v = seed; }
     Object.keys(v).forEach(eid => { const rec = v[eid]; if (!rec || typeof rec !== "object") return;
       const prev = forestEnemies.get(eid), rp = enemyRender.get(eid) || { rx: rec.x, ry: rec.y, flash: 0, lunge: 0, lastHp: rec.hp };
+      if (prev && prev.st === "dead" && rec.st !== "dead") { rp.rx = rec.x; rp.ry = rec.y; } /* a (re)spawn lands AT its place (note 35): the render point snaps to the fresh record — no gliding in from wherever it died */
       if (prev && rec.hp < prev.hp) rp.flash = performance.now();
       if (prev && prev.st !== "dead" && rec.st === "dead") { spawnParts(rec.x, rec.y - 40, "#8a6a45", 16, 260); spawnParts(rec.x, rec.y - 40, "#4ade80", 8, 200); if (me.scene === "plaza" && Math.hypot(rec.x - me.x, rec.y - me.y) < 1100) sfxEnemyDie(); }
       if (rec.atkTs && (!prev || rec.atkTs !== prev.atkTs)) rp.lunge = performance.now();
@@ -16340,6 +16341,7 @@ function enemyStep(eid, er, tx, ty, sp, dt) { /* one eased step toward a point, 
   const vx = dx / d * Math.min(sp * dt, d), vy = dy / d * Math.min(sp * dt, d);
   if (!enemyBlocked(er.x + vx, er.y)) er.x += vx;
   if (!enemyBlocked(er.x, er.y + vy)) er.y += vy;
+  for (const [oid, oe] of forestEnemies) { if (oid === eid || oe.st === "dead") continue; const sx = er.x - oe.x, sy = er.y - oe.y, sd = Math.hypot(sx, sy); if (sd > 0.01 && sd < 46) { const push = Math.min((46 - sd) * 0.5, sp * dt); const nx = er.x + sx / sd * push, ny = er.y + sy / sd * push; if (!enemyBlocked(nx, er.y)) er.x = nx; if (!enemyBlocked(er.x, ny)) er.y = ny; } } /* soft separation (note 41): enemies drift apart instead of piling onto one spot — a nudge, never a wall; they still walk straight through each other */
   return dx < 0 ? 1 : 0;
 }
 let enemyLastTick = 0;
@@ -16421,7 +16423,7 @@ let mySwing = null; /* { t0, kind, tier, ang, tgt } */
 let wepNextAtk = 0, bowDraw = null; /* bowDraw: { t0, tgt } while the string is pulling */
 function wepTick(now) {
   if (me.scene !== "plaza" || !wepActive || wepBusy() || cvCar >= 0 || cvRide >= 0 || cvSeatGame) { bowDraw = null; return; } /* guests fight too (note 28) */
-  const kind = wepActiveKind(), tier = acctUser ? (starOn() ? 5 : wepActiveTier()) : 0, range = kind === "sword" ? 140 : 385; /* a guest's weapon fights as BASIC whatever the spec says (note 28); the star set fights at the TOP tier (5) while its art rides tier 6 */
+  const kind = wepActiveKind(), tier = acctUser ? (starOn() ? 5 : wepActiveTier()) : 0, range = kind === "sword" ? 140 : 480; /* the PLAYER's bow/staff reach, 385 -> 480 (note 42) — the sword keeps its 140 */ /* a guest's weapon fights as BASIC whatever the spec says (note 28); the star set fights at the TOP tier (5) while its art rides tier 6 */
   const vTier = starOn() ? 6 : tier;
   let tgtId = "", tgtD = 1e9, tgtRec = null;
   for (const [eid, er] of forestEnemies) { if (er.st === "dead") continue; if (ENEMY_DEFS[er.t].key === "rogue" && (er.clk || 0) > srvNow()) continue; /* a cloaked assassin cannot be hurt — the weapon picks another target (note 9) */ const d = Math.hypot(er.x - me.x, er.y - me.y); if (d < tgtD) { tgtD = d; tgtId = eid; tgtRec = er; } }
@@ -16446,12 +16448,17 @@ function wepTick(now) {
     wepNextAtk = now + 1200;
     mySwing = { t0: now, kind: kind, tier: vTier, ang: ang, tgt: tgtId }; lastCombatAt = now;
     sfxMagicCast(); wepPublishAtk(tgtId);
-    spawnProj({ x: me.x + (me.flip ? 36 : -36), y: me.y - 96, eid: tgtId, kind: "magic", tier: vTier, t0: now });
+    const sop = staffOrbPoint(me.x, me.y, me.flip, vTier); spawnProj({ x: sop ? sop.x : me.x + (me.flip ? 36 : -36), y: sop ? sop.y : me.y - 96, eid: tgtId, kind: "magic", tier: vTier, t0: now }); /* the orb leaves from the top of my staff (note 40) */
   }
 }
 /* ---- projectiles + particles (all clients render their own; the shooter's client alone writes damage, on arrival) ---- */
 const wepProjs = [], wepParts = [];
 function spawnProj(p) { wepProjs.push(p); }
+const STAFF_ASPECT = [0.42, 0.45, 0.44, 0.41, 0.46, 0.43, 0.30]; /* each staff sprite width/height, measured off his art — the shot geometry must never wait on an image load (a broken or slow src would silently disarm the orb point) */
+function staffOrbPoint(x, y, flip, tier) { /* note 40: a staff shot leaves from the ORB at the top of the staff — the exact point the held draw puts it: hand anchor (x + dir*40, y - 44), sprite (W x 102) drawn at (-W/2, -H + 10), orb at the measured STAFF_ORB fractions of that sprite; W comes from the measured aspect table, matching the draw's own scale */
+  const H = 102, W = H * (STAFF_ASPECT[tier] || 0.43), dir = flip ? 1 : -1, orb = STAFF_ORB[tier] || [0.5, 0.17];
+  return { x: x + dir * 40 + dir * ((orb[0] - 0.5) * W), y: y - 44 - H + 10 + orb[1] * H };
+}
 function spawnParts(x, y, col, n, spread) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = 40 + Math.random() * (spread || 160); wepParts.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, t0: performance.now(), life: 420 + Math.random() * 260, col: col, r: 2 + Math.random() * 3 }); } }
 const peerSwings = new Map(); /* pid -> { t0, spec, tgt, queued } */
 function peerSwingStart(pid, rec) { peerSwings.set(pid, { t0: 0, spec: rec.w, tgt: rec.tgt, queued: true }); }
@@ -16487,7 +16494,7 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
     p.x += dx / d * sp * dt; p.y += dy / d * sp * dt;
     if (p.kind === "magic") { const mc = p.tier === 6 ? STAR_TEAL : WEP_TCOL[p.tier]; /* the star staff SHOOTS its own teal (his word) — orb, trail and glow all carry it */ wepParts.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t0: now, life: 260, col: mc, r: 2.5 });
       ctx.save(); ctx.shadowColor = mc; ctx.shadowBlur = 16; ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, 7); ctx.fill(); ctx.fillStyle = mc; ctx.beginPath(); ctx.arc(p.x, p.y, 10.5, 0, 7); ctx.globalAlpha = 0.5; ctx.fill(); ctx.restore();
-    } else if (p.kind === "arrow") { const im = wepImg("arrow", p.tier); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(dy, dx) + Math.PI / 2); if (im && im.complete && im.naturalWidth) { const sc = 62 / Math.max(im.naturalWidth, im.naturalHeight); ctx.drawImage(im, -im.naturalWidth * sc / 2, -im.naturalHeight * sc / 2, im.naturalWidth * sc, im.naturalHeight * sc); } else { ctx.fillStyle = WEP_TCOL[p.tier]; ctx.fillRect(-16, -2, 32, 4); } ctx.restore(); }
+    } else if (p.kind === "arrow") { const im = wepImg("arrow", p.tier); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(dy, dx) + (p.tier === 6 ? 0 : Math.PI / 2)); /* flight facing (note 37): the six tier arrows stand upright in-frame — the +90deg turns their up-pointing tips onto the flight line; his STAR arrow lies flat in-frame with its tip to the right, so it flies true with NO extra turn. Only the star arrow rotation changes (his word) */ if (im && im.complete && im.naturalWidth) { const sc = 62 / Math.max(im.naturalWidth, im.naturalHeight); ctx.drawImage(im, -im.naturalWidth * sc / 2, -im.naturalHeight * sc / 2, im.naturalWidth * sc, im.naturalHeight * sc); } else { ctx.fillStyle = WEP_TCOL[p.tier]; ctx.fillRect(-16, -2, 32, 4); } ctx.restore(); }
   }
   for (let i = wepParts.length - 1; i >= 0; i--) { const q = wepParts[i];
     if (q.ring) { const p = Math.max(0, (now - q.t0) / 380); /* the stamp can sit a hair ahead of the frame clock (the hit lands from a timer/listener callback) — an unclamped negative p made the ring's radius negative and threw */ if (p >= 1) { wepParts.splice(i, 1); continue; } ctx.save(); ctx.globalAlpha = 0.75 * (1 - p); ctx.strokeStyle = q.col; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(q.x, q.y, 14 + p * 62, 0, 7); ctx.stroke(); ctx.restore(); continue; }
@@ -16499,7 +16506,8 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
 
 /* ---- drawing the held weapon: in front of the body, upright, following the facing — with its swing, draw and cast animations ---- */
 const STAFF_ORB = [[0.530, 0.162], [0.511, 0.158], [0.501, 0.180], [0.491, 0.179], [0.488, 0.191], [0.504, 0.171], [0.501, 0.181]]; /* per tier, the orb centre as fractions of his staff art (Basic..Quantum), measured off the sprites' brightest cluster */
-const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593], [0.756, 0.754]]; /* tier 6 = his stringless cat bow (2026-11-08): anchors re-measured off its tip knobs */
+const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593], [0.756, 0.754]]; /* tier 6 = his stringless cat bow (2026-11-08): anchors re-measured off its tip knobs. Superseded for the STRING by BOW_ANCH below (2D, note 36) — kept for reference */
+const BOW_ANCH = [[[0.9257, 0.131], [0.7495, 0.8835]], [[0.9245, 0.1375], [0.739, 0.8795]], [[0.9245, 0.1375], [0.7385, 0.8755]], [[0.9252, 0.1335], [0.7495, 0.8835]], [[0.9245, 0.139], [0.753, 0.8895]], [[0.9232, 0.141], [0.7495, 0.8625]], [[0.838, 0.089], [0.838, 0.903]]]; /* note 36: the string's two ends, measured off each bow's real tip clusters (x AND y — the old x-only table pinned the ends to the frame's top/bottom edges, so strings poked past the tips: his star-bow screenshot showed the line running out below the bottom knob). Every end is pulled a touch INSIDE its tip (2% of the span toward the string's own centre), so the string runs end to end and never pokes out. Tier 6 (his cat bow) sits at its exact measured knobs — straight up and down in the art, nothing to inset past */
 const BOW_REST = [0.248, 0.386, 0.431, 0.424, 0.374, 0.365, 0]; /* note 33: each bow art is composed diagonally in its frame, so at rest the bow sat slanted; these counter-rotations (radians, measured off each art's inner-edge line: wood 14.2°, ice 22.1°, cosmic 24.7°, golden 24.3°, prism 21.4°, arcane 20.9°) level every bow so it faces PERFECTLY left or right while idle. Tier 6 is 0 — his cat bow is straight as supplied, by his word. Aiming rotation is untouched: the correction applies at rest only */ /* per tier, the string's anchors as fractions of his bow art (top tip x, bottom tip x — measured off the sprites): the string ties to BOTH ends */
 function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   if (!spec) return;
@@ -16527,22 +16535,19 @@ function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
     const s = -dir;
     if (aiming) ctx.translate(Math.cos(swing.ang) * 46 - dir * 40, Math.sin(swing.ang) * 46); /* aiming swings the bow AROUND me (note 23): it rides out to the target's side of my body, still angled at the enemy — at rest it sits in my hand as before */
     if (aiming) ctx.rotate(s < 0 ? swing.ang : swing.ang + Math.PI);
-    else ctx.rotate((BOW_REST[tier] || 0) * s + Math.sin(t / 900) * 0.045); /* at rest: level + the idle wobble (note 34 — the sword's own sway, sin(t/900) * 0.045) */
+    else ctx.rotate(-(BOW_REST[tier] || 0) * s + Math.sin(t / 900) * 0.045); /* at rest: level (note 38: the correction turns the OTHER way — the first pass doubled the slant instead of cancelling it) + the idle wobble (note 34) */
     ctx.scale(s, 1);
-    const tips = BOW_TIPS[tier] || [0.82, 0.61];
-    const tX = (tips[0] - 0.5) * W, tY = -H / 2 - 8 + H * 0.012, bX = (tips[1] - 0.5) * W, bY = -H / 2 - 8 + H * 0.988;
+    const anch = BOW_ANCH[tier] || [[0.82, 0.02], [0.61, 0.98]];
+    const tX = (anch[0][0] - 0.5) * W, tY = -H / 2 - 8 + anch[0][1] * H, bX = (anch[1][0] - 0.5) * W, bY = -H / 2 - 8 + anch[1][1] * H; /* the string ties to the bow's REAL tips (note 36), just inside them */
     const mxp = (tX + bX) / 2 + pull * 20, myp = (tY + bY) / 2;
     ctx.strokeStyle = WEP_TCOL[tier]; ctx.lineWidth = 2.5; ctx.beginPath();
     ctx.moveTo(tX, tY); if (pull > 0.02) ctx.lineTo(mxp, myp); ctx.lineTo(bX, bY); ctx.stroke(); /* the string FIRST (note 32): the bow's own art draws over it */
     ctx.drawImage(im, -W / 2, -H / 2 - 8, W, H);
-    if (pull > 0.05) { const aim = wepImg("arrow", tier); if (aim && aim.complete && aim.naturalWidth) { const as = 58 / Math.max(aim.naturalWidth, aim.naturalHeight); ctx.save(); ctx.translate(mxp, myp); ctx.rotate(-Math.PI / 2); ctx.drawImage(aim, -aim.naturalWidth * as / 2, -aim.naturalHeight * as / 2, aim.naturalWidth * as, aim.naturalHeight * as); ctx.restore(); } }
+    if (pull > 0.05) { const aim = wepImg("arrow", tier); if (aim && aim.complete && aim.naturalWidth) { const as = 58 / Math.max(aim.naturalWidth, aim.naturalHeight); ctx.save(); ctx.translate(mxp, myp); ctx.rotate(tier === 6 ? 0 : -Math.PI / 2); ctx.drawImage(aim, /* the nocked arrow (note 37): the six tier arrows stand upright in-frame and turn -90 to lie along the aim; his star arrow already lies flat in-frame (tip right), so it takes the aim rotation as-is — back end ON the string point (mxp, myp), tip toward the target */ -aim.naturalWidth * as / 2, -aim.naturalHeight * as / 2, aim.naturalWidth * as, aim.naturalHeight * as); ctx.restore(); } }
   } else if (kind === "staff") {
     const cast = sw < 320 ? Math.sin((sw / 320) * Math.PI) * -12 : 0;
     ctx.scale(dir, 1); if (sw >= 320) ctx.rotate(Math.sin(t / 900) * 0.045); ctx.translate(0, cast); /* the idle wobble (note 34): the sword's resting sway, on the staff too — the cast dip keeps its own motion while a shot is fresh */
-    ctx.drawImage(im, -W / 2, -H + 10, W, H);
-    const orb = STAFF_ORB[tier] || [0.5, 0.17]; /* the glow rides the ORB in his art (note 27) — measured centre per staff, not a guessed top-middle */
-    const gcol = tier === 6 ? STAR_TEAL : WEP_TCOL[tier]; /* the star staff's little circle glow is the staff's own teal (his word, 2026-11-08) */
-    ctx.save(); ctx.shadowColor = gcol; ctx.shadowBlur = 12 + Math.sin(t / 240) * 5; ctx.fillStyle = gcol; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(-W / 2 + orb[0] * W, -H + 10 + orb[1] * H, 7, 0, 7); ctx.fill(); ctx.restore();
+    ctx.drawImage(im, -W / 2, -H + 10, W, H); /* no glow circle is drawn on the held staff anymore (note 39 — removed on every tier, his word); STAFF_ORB still measures where each staff's orb sits, and it now only places the SHOT (note 40, staffOrbPoint) */
   } else { ctx.scale(dir, 1); ctx.rotate(Math.sin(t / 900) * 0.045); ctx.drawImage(im, -W / 2, -H + 14, W, H); }
   ctx.restore();
 }
@@ -19741,7 +19746,7 @@ function frame(now) {
     if (!isMe && me.scene === "plaza") { const pw = peerWood.get(a.id); if (pw && pw.scene === "plaza" && pw.st && Date.now() - (pw.ts || 0) < 45000) drawAxe(a.x, a.y, a.flip, now, (pw.star && peerStar(a.id, a.acct)) ? 6 : pw.axe, pw.st); } /* a PEER's axe (2026-11-05): the peer rod's twin — drawn here, immediately before his sprite, so it sits BEHIND him in depth exactly like mine does; his tier and his chopping state ride his hub/woodcutting record, his side off his own facing */
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g, a.tint);
     if (!isMe && me.scene === "plaza") { const pd = peerDetect.get(a.id); if (pd && pd.scene === "plaza" && Date.now() - (pd.ts || 0) < 45000) drawDetector(a.x, a.y, a.flip, now, (pd.star && peerStar(a.id, a.acct)) ? 6 : pd.det); }
-    if (!isMe && me.scene === "plaza") { const pw = peerWep.get(a.id); if (pw && pw.w && Date.now() - (pw.ts || 0) < 45000) { let swg = peerSwings.get(a.id); if (swg && swg.queued) { swg.queued = false; swg.t0 = now; const erT = swg.tgt ? forestEnemies.get(swg.tgt) : null; swg.ang = erT ? Math.atan2(erT.y - 40 - (a.y - 46), erT.x - a.x) : (a.flip ? 0 : Math.PI); if (erT && pw.w.split(":")[0] !== "sword") spawnProj({ x: a.x + (a.flip ? 34 : -34), y: a.y - (pw.w.split(":")[0] === "staff" ? 96 : 62), eid: swg.tgt, kind: pw.w.split(":")[0] === "bow" ? "arrow" : "magic", tier: (pw.star && peerStar(a.id, a.acct)) ? 6 : +pw.w.split(":")[1], t0: now, visual: true }); } drawHeldWeapon(a.x, a.y, a.flip, (pw.star && peerStar(a.id, a.acct)) ? pw.w.split(":")[0] + ":6" : pw.w, now, swg && !swg.queued && (now - swg.t0) < 1000 ? swg : null); } } /* FOREST: a PEER's weapon (2026-11-08): drawn here, after his sprite like his detector — his active weapon off his hub/tables/wep record, swings and shots replayed from his attack stamps; the projectiles are visual only (peerDmg never writes — the shooter's own client lands his damage) */ /* a PEER's detector (2026-11-06): drawn here, immediately AFTER his sprite — the peer rod/axe's deliberate opposite, since the detector rides IN FRONT of its holder in depth; his tier off his hub/detecting record, his side off his own facing */
+    if (!isMe && me.scene === "plaza") { const pw = peerWep.get(a.id); if (pw && pw.w && Date.now() - (pw.ts || 0) < 45000) { let swg = peerSwings.get(a.id); if (swg && swg.queued) { swg.queued = false; swg.t0 = now; const erT = swg.tgt ? forestEnemies.get(swg.tgt) : null; swg.ang = erT ? Math.atan2(erT.y - 40 - (a.y - 46), erT.x - a.x) : (a.flip ? 0 : Math.PI); if (erT && pw.w.split(":")[0] !== "sword") { const pTier = (pw.star && peerStar(a.id, a.acct)) ? 6 : +pw.w.split(":")[1]; const pSop = pw.w.split(":")[0] === "staff" ? staffOrbPoint(a.x, a.y, a.flip, pTier) : null; spawnProj({ x: pSop ? pSop.x : a.x + (a.flip ? 34 : -34), y: pSop ? pSop.y : a.y - (pw.w.split(":")[0] === "staff" ? 96 : 62), eid: swg.tgt, kind: pw.w.split(":")[0] === "bow" ? "arrow" : "magic", tier: pTier, t0: now, visual: true }); } /* a peer staff orb also leaves from the top of their staff (note 40) */ } drawHeldWeapon(a.x, a.y, a.flip, (pw.star && peerStar(a.id, a.acct)) ? pw.w.split(":")[0] + ":6" : pw.w, now, swg && !swg.queued && (now - swg.t0) < 1000 ? swg : null); } } /* FOREST: a PEER's weapon (2026-11-08): drawn here, after his sprite like his detector — his active weapon off his hub/tables/wep record, swings and shots replayed from his attack stamps; the projectiles are visual only (peerDmg never writes — the shooter's own client lands his damage) */ /* a PEER's detector (2026-11-06): drawn here, immediately AFTER his sprite — the peer rod/axe's deliberate opposite, since the detector rides IN FRONT of its holder in depth; his tier off his hub/detecting record, his side off his own facing */
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now));
     if (me.scene === "rooftop" && atRoofDJBooth(a.x, a.y)) drawDJBooth(decorT(now), ROOFDJBOOTH);
     if (me.scene === "rooftop" && atRoofBoom(ROOFBOOM_L, a.x, a.y)) drawRoofBoom(decorT(now), ROOFBOOM_L); /* the boom boxes get the booth's own walk-behind: standing in a box's strip repaints the box over your lower body */
