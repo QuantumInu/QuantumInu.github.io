@@ -2908,10 +2908,17 @@ window.addEventListener("keydown", e => {
 /* the PUT AWAY / TAKE OUT button (note 19): a blue button at the top left of the screen, below the header, in the gameplay view — while any weapon is out it puts it away; while nothing is out, the same button takes out your last equipped weapon */
 const wepToggleBtn = document.createElement("button");
 wepToggleBtn.id = "weptoggle"; wepToggleBtn.type = "button"; wepToggleBtn.textContent = "Put Away";
-wepToggleBtn.style.cssText = "position:fixed;left:10px;top:150px;z-index:26;display:none;align-items:center;justify-content:center;background:#2f7fe0;color:#fff;border:2px solid #9fd0ff;border-radius:12px;padding:9px 16px;font:700 15px 'Segoe UI',sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.45);cursor:pointer";
-document.body.appendChild(wepToggleBtn);
+wepToggleBtn.style.cssText = "align-items:center;justify-content:center;background:#2f7fe0;color:#fff;border:1.5px solid #9fd0ff;border-radius:10px;padding:6px 10px;font:700 13px 'Segoe UI',sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.45);cursor:pointer";
+const wepSwapBtn = document.createElement("button");
+wepSwapBtn.id = "wepswap"; wepSwapBtn.type = "button"; wepSwapBtn.textContent = "Swap";
+wepSwapBtn.style.cssText = wepToggleBtn.style.cssText;
+wepSwapBtn.addEventListener("click", () => wepCycle(1)); /* SWAP (note 26): sword to bow to staff, in that order, same as the E key */
+const wepBtnBar = document.createElement("div");
+wepBtnBar.style.cssText = "position:fixed;left:10px;top:60px;z-index:26;display:none;gap:6px"; /* the TOP LEFT CORNER, just below the header, desktop and mobile alike (note 25) */
+wepBtnBar.appendChild(wepToggleBtn); wepBtnBar.appendChild(wepSwapBtn);
+document.body.appendChild(wepBtnBar);
 wepToggleBtn.addEventListener("click", () => { if (wepActive) wepStow(); else wepTakeOut(); });
-function syncWepToggle() { const want = entered ? "flex" : "none"; if (wepToggleBtn.style.display !== want) wepToggleBtn.style.display = want; const tx = wepActive ? "Put Away" : "Take Out"; if (wepToggleBtn.textContent !== tx) wepToggleBtn.textContent = tx; }
+function syncWepToggle() { const want = entered ? "flex" : "none"; if (wepBtnBar.style.display !== want) wepBtnBar.style.display = want; const tx = wepActive ? "\u2694\uFE0F Put Away" : "\u2694\uFE0F Take Out"; if (wepToggleBtn.textContent !== tx) wepToggleBtn.textContent = tx; }
 setInterval(syncWepToggle, 400);
 /* ============ input ============ */
 const cv = $("game"), ctx = cv.getContext("2d");
@@ -16025,7 +16032,7 @@ function renderEquipPanel() {
     else { b.textContent = "🔒 Locked"; b.disabled = true; }
     row.appendChild(b); list.appendChild(row);
   }
-  $("equipmsg").textContent = acctUser ? "One weapon out at a time — it fights on its own in the forest." : "🔒 Weapons take an account — sign in to fight in the forest.";
+  $("equipmsg").textContent = acctUser ? "One weapon out at a time — it fights on its own in the forest." : "Guests fight with Basic weapons — sign in to upgrade yours.";
 }
 function wepSetActive(kind, tier) {
   if (myWep[kind] < tier) return;
@@ -16258,7 +16265,7 @@ const ENEMY_DEFS = [
   { key: "treant", name: "Treant Warrior", file: "enemy_treant_warrior.png", hp: 24, coin: 10000, speed: 115, ranged: 0 }
 ];
 const ENEMY_ENGAGE = 370; /* ONE engagement distance for the whole forest (note 8): the ranged kinds open fire inside it, and the melee kinds start homing at it too */
-const ENEMY_H = 216; /* the enemies stand the size of the mechs (his word, 2026-11-08) */
+const ENEMY_H = 108; /* enemy draw height — mech size (216) was tried and REVERTED at his word the same day (note 22) */
 const ENEMY_OFFSETS = [[-470, -300], [450, 330], [520, -360], [-330, 300], [60, 520]]; /* archer, healer, druid, rogue, treant — around each hub */
 const ENEMY_HOMES = [];
 ["sword", "bow", "staff"].forEach(k => { const H = WEP_SHOPS[k].hub; ENEMY_DEFS.forEach((d, ti) => ENEMY_HOMES.push({ t: ti, x: H.x + ENEMY_OFFSETS[ti][0], y: H.y + ENEMY_OFFSETS[ti][1] })); });
@@ -16288,11 +16295,12 @@ function enemyRenderPos(eid, er) { const rp = enemyRender.get(eid); return rp ? 
 function enemyWrite(eid, patch) { try { db.ref("hub/tables/forest/" + eid).update(patch); } catch (e) {} }
 function enemyHpHit(eid, dmg) { /* damage lands through a transaction on the shared record — every screen's listener paints the flash, and the death poof, off the same write */
   const er0 = forestEnemies.get(eid);
-  if (er0 && ENEMY_DEFS[er0.t].key === "rogue" && (er0.clk || 0) > srvNow()) { genText(er0.x, er0.y - 252, "cloaked!", "#9db8d9"); return; } /* a cloaked assassin cannot be hurt (note 9) */
+  if (er0 && ENEMY_DEFS[er0.t].key === "rogue" && (er0.clk || 0) > srvNow()) { genText(er0.x, er0.y - 130, "cloaked!", "#9db8d9"); return; } /* a cloaked assassin cannot be hurt (note 9) */
   try { db.ref("hub/tables/forest/" + eid).transaction(cur => { if (!cur || cur.st === "dead" || typeof cur.hp !== "number") return cur; cur.hp = Math.max(0, cur.hp - dmg); if (cur.hp <= 0) { cur.st = "dead"; cur.deadTs = srvNow(); cur.tgt = ""; } return cur; }); } catch (e) {}
-  const er = forestEnemies.get(eid); if (er) genText(er.x, er.y - 252, "-" + dmg, "#ffd76a");
+  const er = forestEnemies.get(eid); if (er) genText(er.x, er.y - 130, "-" + dmg, "#ffd76a");
 }
 function enemyHitMe(def) { /* COINS ARE YOUR HEALTH: the victim's own client pays, the FUD exactly-once pattern — debited here and nowhere else. No death at zero (note 16): the loss is only what you actually had, so a broke player is hit for -0 and fights on */
+  if (!acctUser) { genText(me.x, me.y - 118, "-\uD83E\uDE99 0", "#ff8fa0"); wepParts.push({ ring: true, x: me.x, y: me.y - 40, t0: performance.now(), col: "#ff5e3c" }); sfxHurtCoin(); lastCombatAt = performance.now(); return; } /* a guest has no coins to lose — the hit lands and shows -0 (note 28) */
   pullChips(); const loss = Math.min((profile && profile.chips) || 0, def.coin); addChips(-loss); saveChips();
   genText(me.x, me.y - 118, "-\uD83E\uDE99 " + loss.toLocaleString("en-US"), "#ff8fa0");
   wepParts.push({ ring: true, x: me.x, y: me.y - 40, t0: performance.now(), col: "#ff5e3c" });
@@ -16318,7 +16326,7 @@ function enemyHealTarget(eid, er) { /* the healer's patient (note 7): the most-d
 function enemyHealAlly(allyId) { /* +3 back on the ally's shared record, capped at its full health; the heal mark paints green crosses on every screen */
   const oe = forestEnemies.get(allyId); if (!oe) return; const od = ENEMY_DEFS[oe.t];
   try { db.ref("hub/tables/forest/" + allyId).transaction(cur => { if (!cur || cur.st === "dead" || typeof cur.hp !== "number") return cur; cur.hp = Math.min(od.hp, cur.hp + 3); cur.hl = srvNow(); return cur; }); } catch (e) {}
-  const rp = enemyRenderPos(allyId, oe); genText(rp.x, rp.y - 252, "+3", "#4ade80"); spawnParts(rp.x, rp.y - 120, "#4ade80", 8, 120); tone(700, 990, 0.12, "sine", 0.03);
+  const rp = enemyRenderPos(allyId, oe); genText(rp.x, rp.y - 130, "+3", "#4ade80"); spawnParts(rp.x, rp.y - 64, "#4ade80", 8, 120); tone(700, 990, 0.12, "sine", 0.03);
 }
 function enemyTick(now) { /* render easing for every enemy + the driver simulation. An enemy is driven by its TARGET's client and fights the CLOSEST player (note 12); idle ones are shepherded by whoever is near; claims and resets are guarded so two drivers never fight */
   const dt = Math.min(0.05, enemyLastTick ? (now - enemyLastTick) / 1000 : 0.016); enemyLastTick = now;
@@ -16326,12 +16334,12 @@ function enemyTick(now) { /* render easing for every enemy + the driver simulati
     const rp = enemyRender.get(eid); if (!rp) continue;
     const gap = Math.hypot(er.x - rp.rx, er.y - rp.ry);
     if (gap > 240) { rp.rx = er.x; rp.ry = er.y; } else { const k = Math.min(1, dt * 9); rp.rx += (er.x - rp.rx) * k; rp.ry += (er.y - rp.ry) * k; }
-    if (!db || !acctUser || me.scene !== "plaza") continue;
+    if (!db || me.scene !== "plaza") continue; /* guests drive their own fights too (note 28) */
     const def = ENEMY_DEFS[er.t], home = ENEMY_HOMES[+eid.slice(1)], sn = srvNow();
     if (er.st === "dead") { if (er.deadTs && sn - er.deadTs > 30000) { enemyWind.delete(eid); const deadTs = er.deadTs; try { db.ref("hub/tables/forest/" + eid).transaction(cur => { if (!cur || cur.st !== "dead" || cur.deadTs !== deadTs) return cur; return { t: cur.t, x: home.x, y: home.y, hp: ENEMY_DEFS[cur.t].hp, st: "idle", tgt: "", f: 0, ts: srvNow(), deadTs: 0, wx: home.x, wy: home.y, atkTs: 0, clk: 0, clkCd: 0, wnd: 0, hl: 0 }; }); } catch (e) {} } continue; }
     const stale = sn - (er.ts || 0) > 2600;
     if (er.tgt === myId) { /* I am its target — I drive it */
-      const myOk = me.x > FOREST.x0 + 60 && cvCar < 0 && cvRide < 0 && !cvSeatGame;
+      const myOk = cvCar < 0 && cvRide < 0 && !cvSeatGame; /* the fight runs wherever the target stands (note 21): stepping off the dirt no longer stands an enemy down mid-fight — the 560 leash below is the only release, and the enemy itself still cannot leave the forest (enemyStep clamps it in) */
       const dMe = Math.hypot(me.x - er.x, me.y - er.y);
       if (!myOk || dMe > 560) { if (stale || dMe > 560) { enemyWind.delete(eid); enemyWrite(eid, { tgt: "", st: "idle", ts: sn, wnd: 0 }); } continue; }
       lastCombatAt = now; untransformForActivity(); /* combat pops my mech off (note 17) — a silent no-op with no form up */
@@ -16355,7 +16363,7 @@ function enemyTick(now) { /* render easing for every enemy + the driver simulati
         if (def.key === "healer") { const ally = enemyHealTarget(eid, er); if (ally) { enemyHealAlly(ally); enemyCd.set(eid, now + 1400); if (moved || stale) enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn }); continue; } } /* healing IS the healer's action — it takes the place of hurting you (note 7) */
         enemyCd.set(eid, now + 1100);
         er.atkTs = sn; const rp2 = enemyRender.get(eid); if (rp2) rp2.lunge = now;
-        const sx = er.x, sy = er.y - 150, gx = me.x, gy = me.y - 46, gd = Math.hypot(gx - sx, gy - sy) || 1, spd2 = def.key === "archer" ? 720 : 640;
+        const sx = er.x, sy = er.y - 74, gx = me.x, gy = me.y - 46, gd = Math.hypot(gx - sx, gy - sy) || 1, spd2 = def.key === "archer" ? 720 : 640;
         spawnProj({ x: sx, y: sy, hostile: true, kind: def.key === "archer" ? "earrow" : "ebolt", semi: def.key !== "archer", vx: (gx - sx) / gd * spd2, vy: (gy - sy) / gd * spd2, sp: spd2, col: def.key === "archer" ? "#e8c987" : def.key === "healer" ? "#4ade80" : "#b58cff", coin: def.coin, def: def, t0: now });
         enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn, atkTs: sn });
         continue;
@@ -16368,7 +16376,7 @@ function enemyTick(now) { /* render easing for every enemy + the driver simulati
     } else if (stale) { /* idle: claim for the nearest signed-in player inside the ONE engagement distance (note 8), else wander near home */
       let best = null, bestD = ENEMY_ENGAGE;
       const consider = (pid, px, py, hasAcct) => { if (!hasAcct) return; const d = Math.hypot(px - er.x, py - er.y); if (d < bestD) { bestD = d; best = pid; } };
-      consider(myId, me.x, me.y, !!acctUser);
+      consider(myId, me.x, me.y, true); /* I can be claimed signed-in or not (note 28) */
       for (const p of peers.values()) if (p.scene === "plaza") consider(p.id, p.x, p.y, !!p.acct);
       if (best) { enemyWrite(eid, { tgt: best, st: "aggro", ts: sn }); if (best === myId) sfxAggro(); continue; }
       if (Math.hypot(me.x - er.x, me.y - er.y) < 1100) { /* shepherd the wander */
@@ -16385,19 +16393,19 @@ function enemyTick(now) { /* render easing for every enemy + the driver simulati
 let mySwing = null; /* { t0, kind, tier, ang, tgt } */
 let wepNextAtk = 0, bowDraw = null; /* bowDraw: { t0, tgt } while the string is pulling */
 function wepTick(now) {
-  if (me.scene !== "plaza" || !acctUser || !wepActive || wepBusy() || cvCar >= 0 || cvRide >= 0 || cvSeatGame) { bowDraw = null; return; }
-  const kind = wepActiveKind(), tier = wepActiveTier(), range = kind === "sword" ? 140 : 385;
+  if (me.scene !== "plaza" || !wepActive || wepBusy() || cvCar >= 0 || cvRide >= 0 || cvSeatGame) { bowDraw = null; return; } /* guests fight too (note 28) */
+  const kind = wepActiveKind(), tier = acctUser ? wepActiveTier() : 0, range = kind === "sword" ? 140 : 385; /* a guest's weapon fights as BASIC whatever the spec says (note 28) */
   let tgtId = "", tgtD = 1e9, tgtRec = null;
   for (const [eid, er] of forestEnemies) { if (er.st === "dead") continue; if (ENEMY_DEFS[er.t].key === "rogue" && (er.clk || 0) > srvNow()) continue; /* a cloaked assassin cannot be hurt — the weapon picks another target (note 9) */ const d = Math.hypot(er.x - me.x, er.y - me.y); if (d < tgtD) { tgtD = d; tgtId = eid; tgtRec = er; } }
   if (!tgtRec || tgtD > range) { bowDraw = null; return; }
-  const ang = Math.atan2(tgtRec.y - 100 - (me.y - 46), tgtRec.x - me.x);
+  const ang = Math.atan2(tgtRec.y - 40 - (me.y - 46), tgtRec.x - me.x);
   if (kind === "sword") {
     if (now < wepNextAtk) return;
     wepNextAtk = now + 600;
     mySwing = { t0: now, kind: kind, tier: tier, ang: ang, tgt: tgtId }; lastCombatAt = now;
     sfxSwing();
     wepPublishAtk(tgtId);
-    setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175) { enemyHpHit(tgtId, tier + 1); sfxEnemyHit(); spawnParts(er2.x, er2.y - 110, WEP_TCOL[tier], 6, 160); } }, 130);
+    setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175) { enemyHpHit(tgtId, tier + 1); sfxEnemyHit(); spawnParts(er2.x, er2.y - 50, WEP_TCOL[tier], 6, 160); } }, 130);
   } else if (kind === "bow") {
     if (bowDraw) { if (bowDraw.tgt !== tgtId) bowDraw = { t0: now, tgt: tgtId };
       mySwing = { t0: bowDraw.t0, kind: kind, tier: tier, ang: ang, tgt: tgtId };
@@ -16440,12 +16448,12 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
       continue;
     }
     let tx, ty, alive = true;
-    { const er = p.eid ? forestEnemies.get(p.eid) : null; if (!er || er.st === "dead") alive = false; else { tx = er.x; ty = er.y - 108; } }
+    { const er = p.eid ? forestEnemies.get(p.eid) : null; if (!er || er.st === "dead") alive = false; else { tx = er.x; ty = er.y - 52; } }
     if (!alive) { wepProjs.splice(i, 1); continue; }
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), sp = p.kind === "magic" ? 640 : 980;
     if (d < 30) { /* arrival */
       wepProjs.splice(i, 1);
-      if (p.eid) { const er = forestEnemies.get(p.eid); if (er) { if (!p.visual) enemyHpHit(p.eid, p.tier + 1); /* a peer's replayed shot is visual only — the shooter's own client lands his damage, exactly once */ spawnParts(er.x, er.y - 110, WEP_TCOL[p.tier], p.kind === "magic" ? 12 : 6, 190); if (!p.visual && Math.hypot(er.x - me.x, er.y - me.y) < 1100) { if (p.kind === "magic") sfxMagicHit(); else sfxArrowHit(); } } }
+      if (p.eid) { const er = forestEnemies.get(p.eid); if (er) { if (!p.visual) enemyHpHit(p.eid, p.tier + 1); /* a peer's replayed shot is visual only — the shooter's own client lands his damage, exactly once */ spawnParts(er.x, er.y - 52, WEP_TCOL[p.tier], p.kind === "magic" ? 12 : 6, 190); if (!p.visual && Math.hypot(er.x - me.x, er.y - me.y) < 1100) { if (p.kind === "magic") sfxMagicHit(); else sfxArrowHit(); } } }
       continue;
     }
     p.x += dx / d * sp * dt; p.y += dy / d * sp * dt;
@@ -16462,6 +16470,7 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
 }
 
 /* ---- drawing the held weapon: in front of the body, upright, following the facing — with its swing, draw and cast animations ---- */
+const STAFF_ORB = [[0.530, 0.162], [0.511, 0.158], [0.501, 0.180], [0.491, 0.179], [0.488, 0.191], [0.504, 0.171]]; /* per tier, the orb centre as fractions of his staff art (Basic..Quantum), measured off the sprites' brightest cluster */
 const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593]]; /* per tier, the string's anchors as fractions of his bow art (top tip x, bottom tip x — measured off the sprites): the string ties to BOTH ends */
 function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   if (!spec) return;
@@ -16486,6 +16495,7 @@ function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   } else if (kind === "bow") { /* the bow (note 4): FLIPPED right-way round — its string side belongs to the holder, so it mirrors against the other weapons; the string ties to both limb tips; while a shot draws, the whole bow turns to face the enemy and the nocked arrow lies along that same line (note 5) */
     const pull = (swing && swing.kind === "bow" && sw < 950) ? Math.min(1, sw / 350) : 0;
     const s = -dir;
+    if (swing && swing.kind === "bow" && typeof swing.ang === "number" && sw < 700) ctx.translate(Math.cos(swing.ang) * 46 - dir * 40, Math.sin(swing.ang) * 46); /* aiming swings the bow AROUND me (note 23): it rides out to the target's side of my body, still angled at the enemy — at rest it sits in my hand as before */
     if (swing && swing.kind === "bow" && typeof swing.ang === "number" && sw < 700) ctx.rotate(s < 0 ? swing.ang : swing.ang + Math.PI);
     ctx.scale(s, 1);
     ctx.drawImage(im, -W / 2, -H / 2 - 8, W, H);
@@ -16499,7 +16509,8 @@ function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
     const cast = sw < 320 ? Math.sin((sw / 320) * Math.PI) * -12 : 0;
     ctx.scale(dir, 1); ctx.translate(0, cast);
     ctx.drawImage(im, -W / 2, -H + 10, W, H);
-    ctx.save(); ctx.shadowColor = WEP_TCOL[tier]; ctx.shadowBlur = 12 + Math.sin(t / 240) * 5; ctx.fillStyle = WEP_TCOL[tier]; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(dir * 2, -H + 16, 7, 0, 7); ctx.fill(); ctx.restore();
+    const orb = STAFF_ORB[tier] || [0.5, 0.17]; /* the glow rides the ORB in his art (note 27) — measured centre per staff, not a guessed top-middle */
+    ctx.save(); ctx.shadowColor = WEP_TCOL[tier]; ctx.shadowBlur = 12 + Math.sin(t / 240) * 5; ctx.fillStyle = WEP_TCOL[tier]; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(-W / 2 + orb[0] * W, -H + 10 + orb[1] * H, 7, 0, 7); ctx.fill(); ctx.restore();
   } else { ctx.scale(dir, 1); ctx.rotate(Math.sin(t / 900) * 0.045); ctx.drawImage(im, -W / 2, -H + 14, W, H); }
   ctx.restore();
 }
@@ -16515,7 +16526,7 @@ function drawEnemyActor(a, now) {
   const lx = (er.f ? -1 : 1) * lungeP * 20;
   const sn = srvNow(), cloaked = def.key === "rogue" && (er.clk || 0) > sn;
   ctx.save(); ctx.translate(a.x + lx, a.y);
-  ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(0, 3, 80, 14, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(0, 3, 40, 9, 0, 0, 7); ctx.fill();
   if (im && im.complete && im.naturalWidth) { const H = ENEMY_H, W = im.naturalWidth * (H / im.naturalHeight);
     ctx.save(); ctx.translate(0, -bob); if (er.f) ctx.scale(-1, 1);
     if (cloaked) ctx.globalAlpha = 0.5; /* the assassin's cloak (note 9): half-gone — and untouchable while it lasts */
@@ -16523,19 +16534,15 @@ function drawEnemyActor(a, now) {
     ctx.drawImage(im, -W / 2, -H, W, H);
     ctx.restore();
   }
-  if (er.wnd && sn - er.wnd < 420) { /* the melee wind-up tell (note 15): a red arc gathering on the side it faces — dodge NOW */
-    const dir2 = er.f ? -1 : 1, p = Math.min(1, Math.max(0, (sn - er.wnd) / 300));
-    ctx.save(); ctx.translate(dir2 * 96, -118); ctx.scale(dir2, 1); ctx.globalAlpha = 0.35 + 0.55 * p; ctx.strokeStyle = "#ff3b30"; ctx.lineWidth = 5 + 4 * p; ctx.beginPath(); ctx.arc(0, 0, 52, -0.95, 0.95); ctx.stroke(); ctx.restore();
-  }
   if (er.hl && sn - er.hl < 650) { /* a heal just landed here: green crosses rising */
     const hp2 = (sn - er.hl) / 650;
     ctx.save(); ctx.fillStyle = "#4ade80";
-    for (let i = 0; i < 3; i++) { const cxp = -30 + i * 30, cyp = -150 - hp2 * 46 - (i % 2) * 12; ctx.globalAlpha = 0.9 * (1 - hp2); ctx.fillRect(cxp - 2.5, cyp - 8, 5, 16); ctx.fillRect(cxp - 8, cyp - 2.5, 16, 5); }
+    for (let i = 0; i < 3; i++) { const cxp = -30 + i * 30, cyp = -86 - hp2 * 30 - (i % 2) * 12; ctx.globalAlpha = 0.9 * (1 - hp2); ctx.fillRect(cxp - 2.5, cyp - 8, 5, 16); ctx.fillRect(cxp - 8, cyp - 2.5, 16, 5); }
     ctx.restore();
   }
-  if (er.hp < def.hp) { const w = 88, pct = Math.max(0, er.hp / def.hp);
-    ctx.fillStyle = "rgba(0,0,0,0.55)"; rr(-w / 2, -240, w, 9, 4); ctx.fill();
-    ctx.fillStyle = pct > 0.5 ? "#4ade80" : pct > 0.25 ? "#ffd23e" : "#ff5e3c"; rr(-w / 2 + 1, -239, (w - 2) * pct, 7, 3); ctx.fill();
+  if (er.hp < def.hp) { const w = 56, pct = Math.max(0, er.hp / def.hp);
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; rr(-w / 2, -126, w, 9, 4); ctx.fill();
+    ctx.fillStyle = pct > 0.5 ? "#4ade80" : pct > 0.25 ? "#ffd23e" : "#ff5e3c"; rr(-w / 2 + 1, -125, (w - 2) * pct, 7, 3); ctx.fill();
   }
   ctx.restore();
 }
