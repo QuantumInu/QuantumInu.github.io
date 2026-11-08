@@ -628,6 +628,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
         <div class="acctrow" id="housemgmtrow" style="margin-top:8px;display:none">
           <button id="housemgmtbtn" type="button">🏘️ Housing Management</button>
         </div>
+        <div class="acctrow" id="startoolsrow" style="margin-top:8px;display:none">
+          <button id="startoolsbtn" type="button">⭐ Star Tools: OFF</button>
+        </div>
         <div class="acctrow" id="qkctlrow" style="margin-top:8px;display:none">
           <button id="qkctlbtn" type="button">⚡ Enable one-tap sign-in on this device</button>
         </div>
@@ -2732,7 +2735,7 @@ function acctUi() {
     const clr = $("clogrow"); if (clr) clr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Chat Log row directly under Ban: the same owner-only gate */ /* the Player Balances row directly under Activity Report: the same owner-only gate */
     const mr = $("mechresetrow"); if (mr) mr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Mechs row directly under Player Balances (Jonathan 2026-11-04): the same owner-only gate — it clears ONLY his own mech unlocks */
     const sr = $("spdresetrow"); if (sr) sr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Speed row directly under Reset Mechs (Jonathan 2026-11-04): the Reset Mechs pattern exactly — the owner's account ONLY, and it clears ONLY his own Crystal Room speed tier */
-    const hsr = $("houseresetrow"); if (hsr) hsr.style.display = isOwnerAcct() ? "flex" : "none"; const hmr = $("housemgmtrow"); if (hmr) hmr.style.display = isOwnerAcct() ? "flex" : "none"; /* HOUSING MANAGEMENT (2026-11-07): the Housing Management row directly under Reset House — the same owner-only gate; it lists every rented house with an Evict button */ /* HOUSING (PREVIEW, 2026-11-07): the Reset House row directly under Reset Speed — the same owner-only gate; it clears ONLY his own house rental and furniture collection */
+    const hsr = $("houseresetrow"); if (hsr) hsr.style.display = isOwnerAcct() ? "flex" : "none"; const hmr = $("housemgmtrow"); if (hmr) hmr.style.display = isOwnerAcct() ? "flex" : "none"; const strow = $("startoolsrow"); if (strow) strow.style.display = isOwnerAcct() ? "flex" : "none"; const stb = $("startoolsbtn"); if (stb) stb.textContent = starTools ? "⭐ Star Tools: ON" : "⭐ Star Tools: OFF"; /* STAR TOOLS (2026-11-08): the swap row under Housing Management — the same owner-only gate; its label is re-read off the flag every time the menu renders, so it can never drift from the account */ /* HOUSING MANAGEMENT (2026-11-07): the Housing Management row directly under Reset House — the same owner-only gate; it lists every rented house with an Evict button */ /* HOUSING (PREVIEW, 2026-11-07): the Reset House row directly under Reset Speed — the same owner-only gate; it clears ONLY his own house rental and furniture collection */
     const qr = $("qkctlrow"); if (qr) qr.style.display = isOwnerAcct() ? "flex" : "none"; /* the one-tap sign-in controls under the Activity Report row: the same owner-only gate */
     if (isOwnerAcct()) qkRefreshCtl(); /* and their state (off / on, on this device / on, on another device) is read fresh each time this menu renders */
   } else { out.style.display = "block"; inn.style.display = "none"; qkSyncRow(); } /* signed out: the one-tap button on the form shows only on a device that holds a key */
@@ -2787,7 +2790,7 @@ function initAuth() {
       loadStoreFromAccount(null); /* signed out: the store forgets the account's tier and backgrounds with everything else */
       loadMonstersFromAccount(null); /* signed out: the monster collection is forgotten with the rest of the account */
       loadMechsFromAccount(null); /* signed out: the mech unlocks are forgotten the same way, and the picker M's go with them */
-      loadFishFromAccount(null); loadWoodFromAccount(null); loadTreasureFromAccount(null); loadFurnFromAccount(null); loadWepFromAccount(null); /* FOREST: the weapons slice is forgotten on sign-out the same way */ /* HOUSING (PREVIEW, 2026-11-07): the furniture collection is forgotten on sign-out the same way */ /* signed out: the account's fish and rod tier are forgotten the same way — a guest's own catch lives on this device only (its own localStorage key); the woodcutting slice (logs + axe tier) is forgotten with it, its own key */
+      loadFishFromAccount(null); loadWoodFromAccount(null); loadTreasureFromAccount(null); loadFurnFromAccount(null); loadWepFromAccount(null); loadStarFromAccount(null); /* FOREST: the weapons slice is forgotten on sign-out the same way */ /* HOUSING (PREVIEW, 2026-11-07): the furniture collection is forgotten on sign-out the same way */ /* signed out: the account's fish and rod tier are forgotten the same way — a guest's own catch lives on this device only (its own localStorage key); the woodcutting slice (logs + axe tier) is forgotten with it, its own key */
       loadSpdFromAccount(null); /* and the speed tier is forgotten with them — a guest walks at guest pace */
       resetSessionLog(); /* signed out: the session chat log dies with the session — the next sign-in starts with a blank log (Jonathan 2026-11-01) */
       if (acctWatchRef) { try { acctWatchRef.off(); } catch (e) {} acctWatchRef = null; }
@@ -2826,7 +2829,7 @@ function initAuth() {
           loadStoreFromAccount(d); /* the store's slice of the account doc (autoTier, slotBg, slotBgs) loads with the rest of the profile */
           loadMonstersFromAccount(d); /* the collection's slice of the account doc (mons, monsel) loads the same way */
           loadMechsFromAccount(d); /* the unlocks' slice of the account doc (mechs) loads the same way */
-          loadFishFromAccount(d); loadWoodFromAccount(d); loadTreasureFromAccount(d); loadFurnFromAccount(d); loadWepFromAccount(d); /* FOREST: the weapons slice (owned tiers + the active weapon) loads with the rest */ /* HOUSING (PREVIEW, 2026-11-07): the furniture slice of the account doc (owned piece counts) loads the same way */ /* the fishing slice of the account doc (fish counts + rod tier) loads the same way — and the woodcutting slice (log counts + axe tier) with it */
+          loadFishFromAccount(d); loadWoodFromAccount(d); loadTreasureFromAccount(d); loadFurnFromAccount(d); loadWepFromAccount(d); loadStarFromAccount(d); /* FOREST: the weapons slice (owned tiers + the active weapon) loads with the rest */ /* HOUSING (PREVIEW, 2026-11-07): the furniture slice of the account doc (owned piece counts) loads the same way */ /* the fishing slice of the account doc (fish counts + rod tier) loads the same way — and the woodcutting slice (log counts + axe tier) with it */
           loadSpdFromAccount(d); /* and the speed tier off the same doc (the Crystal Room's upgrades persist with the account) */
           if (pk.local) acctSave(); /* the account had no amount yet (legacy record) — the local figure becomes its starting amount, once */
           claimSession(); watchChips(); watchTransfers();
@@ -9475,6 +9478,15 @@ $("spdresetbtn").onclick = () => { /* RESET SPEED (owner-only, Jonathan 2026-11-
   btn.textContent = "✓ Your speed is reset"; setTimeout(() => { btn.textContent = "⚡ Reset Speed"; }, 2500);
 };
 let houseResetArmUntil = 0;
+$("startoolsbtn").onclick = () => { /* STAR TOOLS (owner only, Jonathan 2026-11-08): one tap swaps EVERY tool he holds for the cosmic star set — weapons, rod, axe, detector — at top level, and one tap puts his own loadout back. The flag saves to his account doc and stands until he flips it off, across sign-outs; the re-publish below lands the swap on every peer's screen the same moment it lands on his */
+  if (!isOwnerAcct()) return;
+  starTools = !starTools; acctStarSave();
+  const stb2 = $("startoolsbtn"); if (stb2) stb2.textContent = starTools ? "⭐ Star Tools: ON" : "⭐ Star Tools: OFF";
+  wepPublish(); fishPublish(); woodPublish(); detPublish();
+  starWepImg("sword"); starWepImg("bow"); starWepImg("staff"); starWepImg("arrow"); rodImg(6); axeImg(6); detectorImg(6); /* warm the set's art so the swap never pops in */
+  if (starTools) sfxEvoReveal(); else sfxClick();
+  genText(me.x, me.y - 104, starTools ? "⭐ Star tools ON — top level everything" : "⭐ Star tools OFF — your own loadout is back", "#7df0ff");
+};
 $("houseresetbtn").onclick = () => { /* RESET HOUSE (owner-only, PREVIEW 2026-11-07): clears the OWNER's own house rental AND his whole furniture collection — the house record goes (its furniture with it) and his account's furn counts go to none, so the store sells to him again and every house stands open. His account only: the row never renders for anyone else, and the handler refuses for anyone else regardless. Two taps, like its neighbours: the first arms the button for four seconds, the second does it. If he resets WHILE INSIDE his house, he lands outside its door on the ground */
   if (!isOwnerAcct() || !acctUser) return;
   const btn = $("houseresetbtn"), nowMs = Date.now();
@@ -10155,13 +10167,13 @@ function drawPlayer(wx, wy, hero, name, flip, phase, chat, chatAge, isMe, t, mov
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath(); ctx.ellipse(wx, wy - 4, W * 0.36, 9, 0, 0, 7); ctx.fill();
   if (isMe && fishState.mode && me.scene === "plaza") drawFishRod(wx, wy, flip, t); /* FISHING (PREVIEW, 2026-11-04): while I fish, my rod is in my hand — drawn BEFORE my sprite on purpose (Jonathan 2026-11-04, 21:15): the rod stays BEHIND me in depth, so my sprite overlaps it, never the other way round. Mine only, off my own client state: the presence record's shape is untouched, so no peer ever grows a field for it (and no peer's rod is drawn — the settled constraint) */
-  if (isMe && chopState.mode && me.scene === "plaza") drawAxe(wx, wy, flip, t, myAxe, chopState.mode); /* WOODCUTTING (2026-11-05): while I chop, my axe is in my hand — drawn BEFORE my sprite on the rod's own rule, so it stays BEHIND me in depth, swinging while the chop runs; mine only, off my own client state (peers get theirs off hub/woodcutting in the actor pass) */
+  if (isMe && chopState.mode && me.scene === "plaza") drawAxe(wx, wy, flip, t, starOn() ? 6 : myAxe, chopState.mode); /* WOODCUTTING (2026-11-05): while I chop, my axe is in my hand — drawn BEFORE my sprite on the rod's own rule, so it stays BEHIND me in depth, swinging while the chop runs; mine only, off my own client state (peers get theirs off hub/woodcutting in the actor pass) */
   ctx.save(); ctx.translate(wx, wy - H / 2 + bob);
   if (flip) ctx.scale(-1, 1);
   ctx.drawImage(img, -W / 2, -H / 2, W, H);
   ctx.restore();
-  if (isMe && detState.out && me.scene === "plaza") drawDetector(wx, wy, flip, t, myDet);
-  if (isMe && wepActive && me.scene === "plaza" && !formHere && !wepBusy()) drawHeldWeapon(wx, wy, flip, wepActive, t, mySwing && (t - mySwing.t0) < 1000 ? mySwing : null); /* FOREST: my active weapon, held in front of me, upright — never over a mech form, and my hands-free activities (cast/chop/detect) rest it */ /* METAL DETECTING (2026-11-06): while I detect, my detector is in my hand — drawn AFTER my sprite on purpose (the rod's opposite, Jonathan's order): the detector stays IN FRONT of me in depth, so it overlaps my sprite, never the other way round. Mine only, off my own client state: the presence record's shape is untouched (peers get theirs off hub/detecting in the actor pass, drawn after their sprites the same way) */
+  if (isMe && detState.out && me.scene === "plaza") drawDetector(wx, wy, flip, t, starOn() ? 6 : myDet);
+  if (isMe && wepActive && me.scene === "plaza" && !formHere && !wepBusy()) drawHeldWeapon(wx, wy, flip, starOn() && wepActive ? wepActive.split(":")[0] + ":6" : wepActive, t, mySwing && (t - mySwing.t0) < 1000 ? mySwing : null); /* FOREST: my active weapon, held in front of me, upright — never over a mech form, and my hands-free activities (cast/chop/detect) rest it */ /* METAL DETECTING (2026-11-06): while I detect, my detector is in my hand — drawn AFTER my sprite on purpose (the rod's opposite, Jonathan's order): the detector stays IN FRONT of me in depth, so it overlaps my sprite, never the other way round. Mine only, off my own client state: the presence record's shape is untouched (peers get theirs off hub/detecting in the actor pass, drawn after their sprites the same way) */
   ctx.font = "700 13px 'Segoe UI',sans-serif"; ctx.textAlign = "center";
   const ny = wy - H - 8 + bob;
   ctx.save(); ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.lineWidth = 3.5; ctx.strokeStyle = "rgba(0,0,0,0.75)";
@@ -15133,7 +15145,7 @@ const ROD_URL = t => "https://firebasestorage.googleapis.com/v0/b/quantum-inu-ga
 /* his own supplied art (the Crypto Sea Creature set + the Quantum Fishing Rod set), trimmed and stored under hub-heroes/ like the FUD art — fish-01 = Satoshi Shrimp … fish-10 = Quantum Whale (already flipped, per his word), rod-01 = Basic … rod-06 = Quantum */
 const fishImgCache = {}, rodImgCache = {};
 function fishImg(i) { let im = fishImgCache[i]; if (!im) { im = new Image(); im.src = FISH_URL(i); fishImgCache[i] = im; } return im; } /* the fudImg pattern: lazy, cached */
-function rodImg(t) { let im = rodImgCache[t]; if (!im) { im = new Image(); im.src = ROD_URL(t); rodImgCache[t] = im; } return im; }
+function rodImg(t) { if (t === 6) { let im = rodImgCache[6]; if (!im) { im = new Image(); im.src = STAR_TOOL_URL.rod; rodImgCache[6] = im; } return im; } let im = rodImgCache[t]; if (!im) { im = new Image(); im.src = ROD_URL(t); rodImgCache[t] = im; } return im; }
 /* the QUANTUM ROD's real bounds inside its own picture (display-only source crop, Jonathan 2026-11-05): rod-06 is his supplied file used exactly as-is — a 1254×1254 square with the rod floating in the middle — while the other five rods are tight tall pictures, so wherever the WHOLE picture was fitted (the shop wall, the in-hand draw, the panel rows, the transform show) the Quantum rod itself came out small. Measured off the live file: the rod, its white outline and its glow span x 232..1156, y 67..1153 (alpha ≥ 8; everything outside that band is ≤7/255 encode noise), padded a few px here so nothing is ever clipped. Every presentation of tier 5 draws from this rect so the ROD gets the same fit the other rods get; the image file itself is never touched */
 const QROD_RECT = { x: 227, y: 62, w: 935, h: 1097 };
 const QROD_VIEWBOX = "inset(4.94% 7.34% 7.58% 18.10%)"; /* QROD_RECT restated as an object-view-box (percentages of the 1254×1254 picture, in top/right/bottom/left order) for the HTML <img> presentations of tier 5 */
@@ -15173,11 +15185,11 @@ function fishPublish() { /* my own record: up while my rod is out, gone when it 
     if (myFishRef) { try { const p = myFishRef.remove(); if (p && p.catch) p.catch(() => {}); } catch (e) {} myFishRef = null; myFishPubKey = ""; }
     return;
   }
-  const key = fishState.mode + "|" + myRod, now = performance.now();
+  const key = fishState.mode + "|" + effRod() + (starOn() ? "|s" : ""), now = performance.now();
   if (!myFishRef) { myFishRef = db.ref("hub/fishing/" + myId); try { myFishRef.onDisconnect().remove(); } catch (e) {} }
   if (key !== myFishPubKey || now - myFishPubAt > 8000) { /* a state change lands at once; a standing cast re-stamps its ts every 8s so the record never ages out mid-fish */
     myFishPubKey = key; myFishPubAt = now;
-    try { const p = myFishRef.set({ scene: "plaza", rod: myRod, st: fishState.mode, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    try { const p = myFishRef.set({ scene: "plaza", rod: effRod(), st: fishState.mode, star: starOn() ? 1 : 0, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   }
 }
 function moatDist(x, y) { let bd = 1e18; for (const r of MOAT_SOLIDS) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } for (const r of BEACH_SHORE) { const dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h)); bd = Math.min(bd, Math.hypot(dx, dy)); } for (const c of MOAT_CORNERS) bd = Math.min(bd, Math.max(0, Math.hypot(x - c.cx, y - c.cy) - MOAT_R)); return bd; } /* distance to the nearest FISHABLE water's edge: the moat's five solids for its straight shores, each rounded corner's arc term (distance to the arc centre minus the radius) so fishing range still measures off the DRAWN shore at the corners (ROUNDED CORNERS, 2026-11-05) — and, since 2026-11-06, the BEACH shoreline's two FISHING spans (BEACH_SHORE, at the carnival constants — the drawn water is one continuous band now, BEACH_WATER, but the fishing reach keeps the spans it always had): the beach joined THIS shore set, so nearMoat(), startFishing(), the Fish prompt and the catch popup's chain all reach it with no second system — same 85px reach, same rod tiers and sixths odds, same accounts-only gate, same hub/fishing record for the peers' rods. A beach cast faces SOUTH by construction: the shoreline is the world's south edge and the angler stands on the sand north of it. The Ferris platform stands on the shoreline between the two fishing spans, keeping the boarding spot (−3820, 2428) 316 from the nearest fishable water — outside this reach — so the wheel's Ride prompt is never shadowed by a Fish offer, even though the drawn water now runs unbroken beneath the platform */
@@ -15185,7 +15197,7 @@ function nearMoat() { return me.scene === "plaza" && moatDist(me.x, me.y) <= 85;
 function fishCancel() { fishState.mode = ""; fishPublish(); /* the rod goes away for the whole lake the moment it goes away for me */ }
 function startFishing() { if (!nearMoat() || fishState.mode) return;
   if (!acctUser) { genText(me.x, me.y - 104, "🔒 Fishing takes an account", "#9db8d9"); sfxBad(); return; } /* GUESTS CANNOT FISH (Jonathan, 2026-11-06): the chop gate's twin, word for word — the refusal floats over the player in the same colour with the same sfxBad(); no cast starts, no rod comes out, no hub/fishing write. The Fish prompt itself still shows at the shore, and signed-in players are untouched */
-  detStow(); fishState.mode = "wait"; fishPublish(); /* peers see the rod from the cast's first frame — and a detector out on the sand goes away first (detStow: starting a cast puts it away, the fish/chop flow's own rule) */ untransformForActivity(); /* the cast drops any mech form at its first moment (Jonathan 2026-11-05) */ fishState.castAt = performance.now(); fishState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, myRod); fishState.biteAt = fishState.castAt + fishState.waitMs; /* the basic bite wait is 4–9s random; every rod tier shrinks it ~15% */
+  detStow(); fishState.mode = "wait"; fishPublish(); /* peers see the rod from the cast's first frame — and a detector out on the sand goes away first (detStow: starting a cast puts it away, the fish/chop flow's own rule) */ untransformForActivity(); /* the cast drops any mech form at its first moment (Jonathan 2026-11-05) */ fishState.castAt = performance.now(); fishState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, effRod()); fishState.biteAt = fishState.castAt + fishState.waitMs; /* the basic bite wait is 4–9s random; every rod tier shrinks it ~15% */
   tone(280, 640, 0.18, "sine", 0.05); noiseBurst(0.12, "bandpass", 900, 480, 0.035); } /* the cast: a rising sweep and the line's soft splash */
 function fishTick(now) { /* the fishing clock, run on plaza frames beside the FUD clock: walking away (or leaving the plaza) puts the rod away; the bite opens a 1.6s reel window, then the fish is gone */
   if (!fishState.mode) return;
@@ -15198,7 +15210,7 @@ function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-
   if (fishState.mode !== "bite") return;
   fishState.mode = ""; fishPublish(); /* reeled in: the record comes down before the catch popup even opens */
   let idx = -1, acc = 0; const roll = Math.random() * 600;
-  for (let i = 0; i < FISH_DEFS.length; i++) { acc += FISH_DEFS[i].odds * (myRod + 1); if (roll < acc) { idx = i; break; } }
+  for (let i = 0; i < FISH_DEFS.length; i++) { acc += FISH_DEFS[i].odds * (effRod() + 1); if (roll < acc) { idx = i; break; } }
   if (idx < 0) { genText(me.x, me.y - 104, "Nothing there…", "#9db8d9"); tone(300, 190, 0.22, "sine", 0.04); return; } /* the empty cast: the roll landed in the leftover field — same floating-text beat as a missed bite */
   myFish[idx] = (myFish[idx] || 0) + 1; fishSave();
   sfxCoin(); genBurst(me.x, me.y - 46, false);
@@ -15207,8 +15219,9 @@ function fishReel() { /* the catch roll — the owner's FINAL mechanic (2026-11-
   $("catchworth").textContent = "Worth 🪙 " + FISH_DEFS[idx].worth.toLocaleString("en-US") + " — it's in your Fish Inventory";
   $("catchpop").style.display = "flex";
 }
+function effRod() { return starOn() ? 5 : myRod; } function effAxe() { return starOn() ? 5 : myAxe; } function effDet() { return starOn() ? 5 : myDet; } /* the STAT tier: the star tools roll at the top of every ladder while the swap stands */
 function drawFishRod(wx, wy, flip, t, tier) { /* a rod in a hand (drawPlayer's hook for mine, the actor loop for a peer's — always BEFORE the owner's sprite so the rod stays BEHIND him in depth — Jonathan 2026-11-04, 21:15). ONLY the rod sprite is drawn (21:14, his word from his fishing screenshot: the cast/line animation and the bobber are GONE — a long line ran up from the rod; the sprite itself is exactly as it was). The sprite FLIPS with the facing (21:15, his explicit order for the rod): facing right is the art's own orientation, angled up to the right; facing left mirrors it horizontally. tier = the rod tier to draw; omitted means MY rod (the original call) — a peer's rod passes the tier off his hub/fishing record */
-  const tv = typeof tier === "number" ? tier : myRod;
+  const tv = typeof tier === "number" ? tier : (starOn() ? 6 : myRod);
   const im = rodImg(tv); if (!im || !im.complete || !im.naturalWidth) return;
   const dir = flip ? 1 : -1, hx = wx + dir * 76, hy = wy - 48; /* the dir signs were INVERTED (fix, Jonathan 2026-11-04 21:56): drawPlayer's rule is flip=true faces RIGHT (the mirrored draw), so facing right takes the art as-is on the right hand (dir 1) and facing left mirrors it onto the left hand (dir −1) — as first written (flip ? −1 : 1) the rod pointed opposite his facing both ways. THE OUTWARD NUDGE (Jonathan 2026-11-05): the hand anchor sits 54 out from the body's centre, not the original 24 — 34 first ("move it a bit more to the right if I am facing right, and a little more to the left if I am facing left"), then 10 more px at his word on the snapshots ("10 px more"), then 10 more again on the next snapshots ("try 10 more"): the same dir that aims the flip carries the anchor further out on the facing side, for my rod and every peer's alike (one draw path). THE DETECTOR'S STEP OUT, APPLIED TO THE ROD (Jonathan 2026-11-07 — "move the fishing rod out by the same amount you moved the metal detector to see how it looks"): when the metal detector's in-hand position was set in the treasure build (2026-11-06), its anchor went in at 46 — 22 out from the original 24 above (the anchor the axe still uses) — so the rod takes the same +22 step out, 54 → 76 */
   const RH = 128, RW = RH * (tv === 5 ? QROD_RECT.w / QROD_RECT.h : im.naturalWidth / im.naturalHeight); /* tier 5 measures off its real bounds (QROD_RECT), so the ROD stands the full 128 tall in hand like every other tier instead of ~113 inside its square picture's margins */
@@ -15916,7 +15929,7 @@ function drawFishCounterFront() { /* the counter's front over Q-Bot's lower body
 const FOREST = { x0: 4340, x1: 7640, y0: -430, y1: 2533 }; /* the old plaza east edge is the forest's west edge; the world grew east the established way (WORLD.w 4340 -> 7640) */
 const WEP_TIER_NAMES = ["Basic", "Blue", "Cosmic", "Golden", "Crystal", "Quantum"];
 const WEP_PRICES = [0, 5000000, 25000000, 100000000, 500000000, 1000000000]; /* the rod ladder's prices, word for word */
-const WEP_TCOL = ["#a9805a", "#4db2ff", "#a678ff", "#ffcf3f", "#6fe7ff", "#c084fc"]; /* each tier's own colour: bow strings, magic, swing arcs */
+const WEP_TCOL = ["#a9805a", "#4db2ff", "#a678ff", "#ffcf3f", "#6fe7ff", "#c084fc", "#c084fc"]; /* each tier's own colour: bow strings, magic, swing arcs */
 const WEP_FILES = {
   sword: ["sword_iron.png", "sword_ice_crystal.png", "sword_cosmic.png", "sword_golden.png", "sword_prism_crystal.png", "sword_arcane_void.png"],
   bow: ["bow_wood_unstrung.png", "bow_ice_crystal_unstrung.png", "bow_cosmic_unstrung.png", "bow_golden_unstrung.png", "bow_prism_crystal_unstrung.png", "bow_arcane_void_unstrung.png"],
@@ -15926,7 +15939,7 @@ const WEP_FILES = {
 const WEP_TYPE_NAME = { sword: "Sword", bow: "Bow", staff: "Staff" };
 function wepUrl(kind, tier) { return "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2F" + WEP_FILES[kind][tier] + "?alt=media"; }
 const wepImgCache = {};
-function wepImg(kind, tier) { const k = kind + tier; let im = wepImgCache[k]; if (!im) { im = new Image(); im.src = wepUrl(kind, tier); wepImgCache[k] = im; } return im; }
+function wepImg(kind, tier) { if (tier === 6) return starWepImg(kind); const k = kind + tier; let im = wepImgCache[k]; if (!im) { im = new Image(); im.src = wepUrl(kind, tier); wepImgCache[k] = im; } return im; }
 /* ---- the three shops: one structure, three themes ---- */
 const WEPROOM = { w: 2400, h: 1500 }; /* every weapon shop interior is the Fishing Shop's own size */
 const WEPCTR = { x: 268, y: 210, w: 1864, h: 74 }; /* the counter across the top — FISHCTR's own rect */
@@ -15973,6 +15986,17 @@ const WEP_LS = "hubwep-v1";
 function wepLocalLoad() { try { const raw = localStorage.getItem(WEP_LS); if (raw) { const d = JSON.parse(raw); if (d && typeof d === "object") { for (const k of ["sword", "bow", "staff"]) myWep[k] = (typeof d[k] === "number" && d[k] >= 0 && d[k] <= 5) ? Math.floor(d[k]) : 0; wepActive = (typeof d.act === "string" && /^(sword|bow|staff):[0-5]$/.test(d.act) && myWep[d.act.split(":")[0]] >= +d.act.split(":")[1]) ? d.act : ""; for (const k of ["sword", "bow", "staff"]) wepSel[k] = (d.sel && typeof d.sel[k] === "number" && d.sel[k] >= 0 && d.sel[k] <= myWep[k]) ? Math.floor(d.sel[k]) : myWep[k]; wepLastOut = (typeof d.last === "string" && /^(sword|bow|staff):[0-5]$/.test(d.last)) ? d.last : (wepActive || "sword:0"); } } } catch (e) {} }
 function acctWepSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ wep: { sword: myWep.sword, bow: myWep.bow, staff: myWep.staff, act: wepActive, sel: wepSel, last: wepLastOut }, ts: Date.now() }); } catch (e) {} }
 function wepSave() { if (acctUser) acctWepSave(); else { try { localStorage.setItem(WEP_LS, JSON.stringify({ sword: myWep.sword, bow: myWep.bow, staff: myWep.staff, act: wepActive, sel: wepSel, last: wepLastOut })); } catch (e) {} } wepPublish(); }
+/* ============ STAR TOOLS (owner only, Jonathan 2026-11-08): a matched cosmic set of SEVEN of his own pieces — sword, bow, staff, the bow's arrow, axe, fishing rod, metal detector (hub-heroes/star_*.png). The Menu's ⭐ Star Tools row flips ONE flag on his account doc (star: 1, saved like every other slice), and while it stands, EVERY tool he holds is the set's piece at TOP level: the forest weapons fight at tier 5's damage with tier 6's art, and the rod, axe and detector roll at tier 5's odds with their star art — no matter what he has equipped underneath (his normal loadout is never touched: stow the set and it is all exactly as it was). Peers see the star pieces too: the flag rides the same four side channels as the tiers (hub/tables/wep, hub/fishing, hub/woodcutting, hub/detecting), and a peer honours it ONLY off the owner's presence (acct === OWNER_UID), so no other account can wear the set by writing a record. The star staff's orb glow AND its shot orb burn the staff's own teal (his word) — every other tier keeps its own colour ============ */
+const STAR_TEAL = "#1bb6d6"; /* the star staff's teal, sampled off his wand art (median teal 27/182/214) */
+const STAR_FILES = { sword: "star_sword.png", bow: "star_bow.png", staff: "star_staff.png", arrow: "star_arrow.png" };
+const starWepCache = {};
+function starWepImg(kind) { let im = starWepCache[kind]; if (!im) { im = new Image(); im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2F" + STAR_FILES[kind] + "?alt=media"; starWepCache[kind] = im; } return im; }
+const STAR_TOOL_URL = { rod: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fstar_rod.png?alt=media", axe: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fstar_axe.png?alt=media", det: "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fstar_det.png?alt=media" };
+let starTools = false; /* MY swap state — only ever true on the owner's own client (the toggle is owner-gated, and starOn re-checks the account) */
+function starOn() { return starTools && isOwnerAcct(); }
+function acctStarSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ star: starTools ? 1 : 0, ts: Date.now() }); } catch (e) {} } /* update, not set — acctWepSave's own rule */
+function loadStarFromAccount(d) { starTools = !!(d && typeof d === "object" && d.star); if (starTools && !isOwnerAcct()) starTools = false; } /* the flag is read off the same account-doc snapshot as every other slice; a non-owner doc never carries it, and the re-check keeps it that way */
+function peerStar(id, acct) { return acct === OWNER_UID || (peers.get(id) || {}).acct === OWNER_UID; } /* peers: the star flag on a tool record counts only when the holder IS the owner */
 function loadWepFromAccount(d) {
   if (d && typeof d === "object" && d.wep && typeof d.wep === "object") { const w = d.wep; for (const k of ["sword", "bow", "staff"]) myWep[k] = (typeof w[k] === "number" && w[k] >= 0 && w[k] <= 5) ? Math.floor(w[k]) : 0; wepActive = (typeof w.act === "string" && /^(sword|bow|staff):[0-5]$/.test(w.act) && myWep[w.act.split(":")[0]] >= +w.act.split(":")[1]) ? w.act : ""; for (const k of ["sword", "bow", "staff"]) wepSel[k] = (w.sel && typeof w.sel[k] === "number" && w.sel[k] >= 0 && w.sel[k] <= myWep[k]) ? Math.floor(w.sel[k]) : myWep[k]; wepLastOut = (typeof w.last === "string" && /^(sword|bow|staff):[0-5]$/.test(w.last)) ? w.last : (wepActive || "sword:0"); }
   else if (d && typeof d === "object") { myWep = { sword: 0, bow: 0, staff: 0 }; wepActive = ""; wepSel = { sword: 0, bow: 0, staff: 0 }; wepLastOut = "sword:0"; }
@@ -16003,8 +16027,8 @@ function wepNetInit() {
   writeMine();
   setInterval(() => { if (entered && myWepRef) writeMine(); }, 9000);
 }
-function wepPublish() { if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow() }); } catch (e) {} } }
-function wepPublishAtk(tgt) { myLastAtkPub = srvNow(); if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: tgt || "", ts: myLastAtkPub }); } catch (e) {} } }
+function wepPublish() { if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow(), star: starOn() ? 1 : 0 }); } catch (e) {} } }
+function wepPublishAtk(tgt) { myLastAtkPub = srvNow(); if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: tgt || "", ts: myLastAtkPub, star: starOn() ? 1 : 0 }); } catch (e) {} } }
 /* ---- equipping: the EQUIPMENT panel (Menu) — three tabs, set one active or put it away ---- */
 let equipTab = "sword", equipOpen = false;
 function openEquipPanel() { equipOpen = true; renderEquipPanel(); $("equippanel").style.display = "flex"; sfxClick(); }
@@ -16301,7 +16325,10 @@ function enemyHpHit(eid, dmg) { /* damage lands through a transaction on the sha
 }
 function enemyHitMe(def) { /* COINS ARE YOUR HEALTH: the victim's own client pays, the FUD exactly-once pattern — debited here and nowhere else. No death at zero (note 16): the loss is only what you actually had, so a broke player is hit for -0 and fights on */
   if (!acctUser) { genText(me.x, me.y - 118, "-\uD83E\uDE99 0", "#ff8fa0"); wepParts.push({ ring: true, x: me.x, y: me.y - 40, t0: performance.now(), col: "#ff5e3c" }); sfxHurtCoin(); lastCombatAt = performance.now(); return; } /* a guest has no coins to lose — the hit lands and shows -0 (note 28) */
-  pullChips(); const loss = Math.min((profile && profile.chips) || 0, def.coin); addChips(-loss); saveChips();
+  const debit = () => { const loss = Math.min((profile && profile.chips) || 0, def.coin); if (loss > 0) addChips(-loss); return loss; }; /* note 30 (2026-11-08): the loss is taken off the FRESHEST balance and only there — pullChips() answers LATER by design (it is a promise read), so the old shape (call pullChips, debit at once off the possibly-stale local figure, save) lost the race twice over: the debit could be figured off a stale balance, and the read's own callback then landed AFTER the save and restored the PRE-hit server amount over the debited one — the counter showed a loss that never stuck and the server never kept it. Verified by reading pullChips: its callback assigns profile.chips = d.chips UNCONDITIONALLY. So: when a server read can be had, debit inside its callback, off the amount it just landed; with no read available, debit the local figure. Either way exactly one debit, off the freshest number there is */
+  let loss;
+  if (db && acctLoaded && profile) { loss = Math.min(profile.chips || 0, def.coin); db.ref("hub/users/" + acctUser.uid).once("value").then(sn2 => { const d = sn2.val(); if (d && typeof d.chips === "number" && profile) { profile.chips = d.chips; if (typeof d.chipsTs === "number") profile.chipsTs = d.chipsTs; acctChipsOnServer = true; } const l2 = debit(); if (l2 !== loss) { loss = l2; genText(me.x, me.y - 118, "-\uD83E\uDE99 " + l2.toLocaleString("en-US"), "#ff8fa0"); } drawChips(); }).catch(() => { debit(); }); }
+  else loss = debit();
   genText(me.x, me.y - 118, "-\uD83E\uDE99 " + loss.toLocaleString("en-US"), "#ff8fa0");
   wepParts.push({ ring: true, x: me.x, y: me.y - 40, t0: performance.now(), col: "#ff5e3c" });
   sfxHurtCoin();
@@ -16360,7 +16387,7 @@ function enemyTick(now) { /* render easing for every enemy + the driver simulati
         if (wndAt) { if (now >= wndAt) { enemyWind.delete(eid); if (dMe <= 135) enemyHitMe(def); enemyCd.set(eid, now + 1100); er.atkTs = sn; const rp2 = enemyRender.get(eid); if (rp2) rp2.lunge = now; enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn, atkTs: sn, wnd: 0 }); continue; } }
         else if (dMe <= 96 && cdReady) { enemyWind.set(eid, now + 280); enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn, wnd: sn }); continue; }
       } else if (dMe <= ENEMY_ENGAGE && cdReady) { /* ranged: fire from far away (note 2) — they hold their distance and shoot */
-        if (def.key === "healer") { const ally = enemyHealTarget(eid, er); if (ally) { enemyHealAlly(ally); enemyCd.set(eid, now + 1400); if (moved || stale) enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn }); continue; } } /* healing IS the healer's action — it takes the place of hurting you (note 7) */
+        if (def.key === "healer") { const ally = enemyHealTarget(eid, er); if (ally) { enemyHealAlly(ally); enemyCd.set(eid, now + 1400); if (moved || stale) enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn }); continue; } if (Math.random() >= 0.25) { enemyCd.set(eid, now + 1400); if (moved || stale) enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn }); continue; } } /* healing is the healer's PRIORITY (note 29): while any nearby ally is hurt, healing is all it does; only with nobody to heal does it turn on you — and then only OCCASIONALLY (one action in four), spending the rest of its turns standing ready */
         enemyCd.set(eid, now + 1100);
         er.atkTs = sn; const rp2 = enemyRender.get(eid); if (rp2) rp2.lunge = now;
         const sx = er.x, sy = er.y - 74, gx = me.x, gy = me.y - 46, gd = Math.hypot(gx - sx, gy - sy) || 1, spd2 = def.key === "archer" ? 720 : 640;
@@ -16394,7 +16421,8 @@ let mySwing = null; /* { t0, kind, tier, ang, tgt } */
 let wepNextAtk = 0, bowDraw = null; /* bowDraw: { t0, tgt } while the string is pulling */
 function wepTick(now) {
   if (me.scene !== "plaza" || !wepActive || wepBusy() || cvCar >= 0 || cvRide >= 0 || cvSeatGame) { bowDraw = null; return; } /* guests fight too (note 28) */
-  const kind = wepActiveKind(), tier = acctUser ? wepActiveTier() : 0, range = kind === "sword" ? 140 : 385; /* a guest's weapon fights as BASIC whatever the spec says (note 28) */
+  const kind = wepActiveKind(), tier = acctUser ? (starOn() ? 5 : wepActiveTier()) : 0, range = kind === "sword" ? 140 : 385; /* a guest's weapon fights as BASIC whatever the spec says (note 28); the star set fights at the TOP tier (5) while its art rides tier 6 */
+  const vTier = starOn() ? 6 : tier;
   let tgtId = "", tgtD = 1e9, tgtRec = null;
   for (const [eid, er] of forestEnemies) { if (er.st === "dead") continue; if (ENEMY_DEFS[er.t].key === "rogue" && (er.clk || 0) > srvNow()) continue; /* a cloaked assassin cannot be hurt — the weapon picks another target (note 9) */ const d = Math.hypot(er.x - me.x, er.y - me.y); if (d < tgtD) { tgtD = d; tgtId = eid; tgtRec = er; } }
   if (!tgtRec || tgtD > range) { bowDraw = null; return; }
@@ -16402,23 +16430,23 @@ function wepTick(now) {
   if (kind === "sword") {
     if (now < wepNextAtk) return;
     wepNextAtk = now + 600;
-    mySwing = { t0: now, kind: kind, tier: tier, ang: ang, tgt: tgtId }; lastCombatAt = now;
+    mySwing = { t0: now, kind: kind, tier: vTier, ang: ang, tgt: tgtId }; lastCombatAt = now;
     sfxSwing();
     wepPublishAtk(tgtId);
     setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175) { enemyHpHit(tgtId, tier + 1); sfxEnemyHit(); spawnParts(er2.x, er2.y - 50, WEP_TCOL[tier], 6, 160); } }, 130);
   } else if (kind === "bow") {
     if (bowDraw) { if (bowDraw.tgt !== tgtId) bowDraw = { t0: now, tgt: tgtId };
-      mySwing = { t0: bowDraw.t0, kind: kind, tier: tier, ang: ang, tgt: tgtId };
-      if (now - bowDraw.t0 >= 350 && now >= wepNextAtk) { bowDraw = null; wepNextAtk = now + 950; lastCombatAt = now; sfxBowShoot(); wepPublishAtk(tgtId); spawnProj({ x: me.x + (me.flip ? 34 : -34), y: me.y - 62, eid: tgtId, kind: "arrow", tier: tier, t0: now }); }
+      mySwing = { t0: bowDraw.t0, kind: kind, tier: vTier, ang: ang, tgt: tgtId };
+      if (now - bowDraw.t0 >= 350 && now >= wepNextAtk) { bowDraw = null; wepNextAtk = now + 950; lastCombatAt = now; sfxBowShoot(); wepPublishAtk(tgtId); spawnProj({ x: me.x + (me.flip ? 34 : -34), y: me.y - 62, eid: tgtId, kind: "arrow", tier: vTier, t0: now }); }
       return; }
     if (now < wepNextAtk) return;
     bowDraw = { t0: now, tgt: tgtId }; sfxBowDrawSnd();
   } else { /* staff */
     if (now < wepNextAtk) return;
     wepNextAtk = now + 1200;
-    mySwing = { t0: now, kind: kind, tier: tier, ang: ang, tgt: tgtId }; lastCombatAt = now;
+    mySwing = { t0: now, kind: kind, tier: vTier, ang: ang, tgt: tgtId }; lastCombatAt = now;
     sfxMagicCast(); wepPublishAtk(tgtId);
-    spawnProj({ x: me.x + (me.flip ? 36 : -36), y: me.y - 96, eid: tgtId, kind: "magic", tier: tier, t0: now });
+    spawnProj({ x: me.x + (me.flip ? 36 : -36), y: me.y - 96, eid: tgtId, kind: "magic", tier: vTier, t0: now });
   }
 }
 /* ---- projectiles + particles (all clients render their own; the shooter's client alone writes damage, on arrival) ---- */
@@ -16457,8 +16485,8 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
       continue;
     }
     p.x += dx / d * sp * dt; p.y += dy / d * sp * dt;
-    if (p.kind === "magic") { wepParts.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t0: now, life: 260, col: WEP_TCOL[p.tier], r: 2.5 });
-      ctx.save(); ctx.shadowColor = WEP_TCOL[p.tier]; ctx.shadowBlur = 16; ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, 7); ctx.fill(); ctx.fillStyle = WEP_TCOL[p.tier]; ctx.beginPath(); ctx.arc(p.x, p.y, 10.5, 0, 7); ctx.globalAlpha = 0.5; ctx.fill(); ctx.restore();
+    if (p.kind === "magic") { const mc = p.tier === 6 ? STAR_TEAL : WEP_TCOL[p.tier]; /* the star staff SHOOTS its own teal (his word) — orb, trail and glow all carry it */ wepParts.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t0: now, life: 260, col: mc, r: 2.5 });
+      ctx.save(); ctx.shadowColor = mc; ctx.shadowBlur = 16; ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, 7); ctx.fill(); ctx.fillStyle = mc; ctx.beginPath(); ctx.arc(p.x, p.y, 10.5, 0, 7); ctx.globalAlpha = 0.5; ctx.fill(); ctx.restore();
     } else if (p.kind === "arrow") { const im = wepImg("arrow", p.tier); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(dy, dx) + Math.PI / 2); if (im && im.complete && im.naturalWidth) { const sc = 62 / Math.max(im.naturalWidth, im.naturalHeight); ctx.drawImage(im, -im.naturalWidth * sc / 2, -im.naturalHeight * sc / 2, im.naturalWidth * sc, im.naturalHeight * sc); } else { ctx.fillStyle = WEP_TCOL[p.tier]; ctx.fillRect(-16, -2, 32, 4); } ctx.restore(); }
   }
   for (let i = wepParts.length - 1; i >= 0; i--) { const q = wepParts[i];
@@ -16470,8 +16498,9 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
 }
 
 /* ---- drawing the held weapon: in front of the body, upright, following the facing — with its swing, draw and cast animations ---- */
-const STAFF_ORB = [[0.530, 0.162], [0.511, 0.158], [0.501, 0.180], [0.491, 0.179], [0.488, 0.191], [0.504, 0.171]]; /* per tier, the orb centre as fractions of his staff art (Basic..Quantum), measured off the sprites' brightest cluster */
-const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593]]; /* per tier, the string's anchors as fractions of his bow art (top tip x, bottom tip x — measured off the sprites): the string ties to BOTH ends */
+const STAFF_ORB = [[0.530, 0.162], [0.511, 0.158], [0.501, 0.180], [0.491, 0.179], [0.488, 0.191], [0.504, 0.171], [0.501, 0.181]]; /* per tier, the orb centre as fractions of his staff art (Basic..Quantum), measured off the sprites' brightest cluster */
+const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593], [0.756, 0.754]]; /* tier 6 = his stringless cat bow (2026-11-08): anchors re-measured off its tip knobs */
+const BOW_REST = [0.248, 0.386, 0.431, 0.424, 0.374, 0.365, 0]; /* note 33: each bow art is composed diagonally in its frame, so at rest the bow sat slanted; these counter-rotations (radians, measured off each art's inner-edge line: wood 14.2°, ice 22.1°, cosmic 24.7°, golden 24.3°, prism 21.4°, arcane 20.9°) level every bow so it faces PERFECTLY left or right while idle. Tier 6 is 0 — his cat bow is straight as supplied, by his word. Aiming rotation is untouched: the correction applies at rest only */ /* per tier, the string's anchors as fractions of his bow art (top tip x, bottom tip x — measured off the sprites): the string ties to BOTH ends */
 function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   if (!spec) return;
   const parts = spec.split(":"), kind = parts[0], tier = +parts[1];
@@ -16492,25 +16521,28 @@ function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
     ctx.save(); ctx.globalAlpha = 0.30 * (1 - p); ctx.fillStyle = WEP_TCOL[tier]; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 118, b1 > b0 ? beta - 0.8 : beta - 0.12, b1 > b0 ? beta + 0.12 : beta + 0.8); ctx.closePath(); ctx.fill(); ctx.restore();
     ctx.rotate(beta + Math.PI / 2);
     ctx.scale(dir, 1); ctx.drawImage(im, -W / 2, -H + 14, W, H);
-  } else if (kind === "bow") { /* the bow (note 4): FLIPPED right-way round — its string side belongs to the holder, so it mirrors against the other weapons; the string ties to both limb tips; while a shot draws, the whole bow turns to face the enemy and the nocked arrow lies along that same line (note 5) */
-    const pull = (swing && swing.kind === "bow" && sw < 950) ? Math.min(1, sw / 350) : 0;
+  } else if (kind === "bow") { /* the bow (note 4): FLIPPED right-way round — its string side belongs to the holder, so it mirrors against the other weapons; the string ties to both limb tips; while a shot draws, the whole bow turns to face the enemy and the nocked arrow lies along that same line (note 5). ROUND 3 (notes 31-34): the string draws BEHIND the bow (before the sprite, after the facing scale — never over the art); on loose the string and the nocked arrow RESET at once (their window is the 350ms draw, not the old 950 — the shot leaves at 350 and nothing drawn lingers past it); at rest the bow is LEVELLED by BOW_REST so it faces perfectly left/right, and it carries the sword's idle wobble; aiming keeps its own rotation and orbit, uncorrected */
+    const aiming = !!(swing && swing.kind === "bow" && typeof swing.ang === "number" && sw < 700);
+    const pull = (swing && swing.kind === "bow" && sw < 350) ? Math.min(1, sw / 350) : 0;
     const s = -dir;
-    if (swing && swing.kind === "bow" && typeof swing.ang === "number" && sw < 700) ctx.translate(Math.cos(swing.ang) * 46 - dir * 40, Math.sin(swing.ang) * 46); /* aiming swings the bow AROUND me (note 23): it rides out to the target's side of my body, still angled at the enemy — at rest it sits in my hand as before */
-    if (swing && swing.kind === "bow" && typeof swing.ang === "number" && sw < 700) ctx.rotate(s < 0 ? swing.ang : swing.ang + Math.PI);
+    if (aiming) ctx.translate(Math.cos(swing.ang) * 46 - dir * 40, Math.sin(swing.ang) * 46); /* aiming swings the bow AROUND me (note 23): it rides out to the target's side of my body, still angled at the enemy — at rest it sits in my hand as before */
+    if (aiming) ctx.rotate(s < 0 ? swing.ang : swing.ang + Math.PI);
+    else ctx.rotate((BOW_REST[tier] || 0) * s + Math.sin(t / 900) * 0.045); /* at rest: level + the idle wobble (note 34 — the sword's own sway, sin(t/900) * 0.045) */
     ctx.scale(s, 1);
-    ctx.drawImage(im, -W / 2, -H / 2 - 8, W, H);
     const tips = BOW_TIPS[tier] || [0.82, 0.61];
     const tX = (tips[0] - 0.5) * W, tY = -H / 2 - 8 + H * 0.012, bX = (tips[1] - 0.5) * W, bY = -H / 2 - 8 + H * 0.988;
     const mxp = (tX + bX) / 2 + pull * 20, myp = (tY + bY) / 2;
     ctx.strokeStyle = WEP_TCOL[tier]; ctx.lineWidth = 2.5; ctx.beginPath();
-    ctx.moveTo(tX, tY); if (pull > 0.02) ctx.lineTo(mxp, myp); ctx.lineTo(bX, bY); ctx.stroke();
+    ctx.moveTo(tX, tY); if (pull > 0.02) ctx.lineTo(mxp, myp); ctx.lineTo(bX, bY); ctx.stroke(); /* the string FIRST (note 32): the bow's own art draws over it */
+    ctx.drawImage(im, -W / 2, -H / 2 - 8, W, H);
     if (pull > 0.05) { const aim = wepImg("arrow", tier); if (aim && aim.complete && aim.naturalWidth) { const as = 58 / Math.max(aim.naturalWidth, aim.naturalHeight); ctx.save(); ctx.translate(mxp, myp); ctx.rotate(-Math.PI / 2); ctx.drawImage(aim, -aim.naturalWidth * as / 2, -aim.naturalHeight * as / 2, aim.naturalWidth * as, aim.naturalHeight * as); ctx.restore(); } }
   } else if (kind === "staff") {
     const cast = sw < 320 ? Math.sin((sw / 320) * Math.PI) * -12 : 0;
-    ctx.scale(dir, 1); ctx.translate(0, cast);
+    ctx.scale(dir, 1); if (sw >= 320) ctx.rotate(Math.sin(t / 900) * 0.045); ctx.translate(0, cast); /* the idle wobble (note 34): the sword's resting sway, on the staff too — the cast dip keeps its own motion while a shot is fresh */
     ctx.drawImage(im, -W / 2, -H + 10, W, H);
     const orb = STAFF_ORB[tier] || [0.5, 0.17]; /* the glow rides the ORB in his art (note 27) — measured centre per staff, not a guessed top-middle */
-    ctx.save(); ctx.shadowColor = WEP_TCOL[tier]; ctx.shadowBlur = 12 + Math.sin(t / 240) * 5; ctx.fillStyle = WEP_TCOL[tier]; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(-W / 2 + orb[0] * W, -H + 10 + orb[1] * H, 7, 0, 7); ctx.fill(); ctx.restore();
+    const gcol = tier === 6 ? STAR_TEAL : WEP_TCOL[tier]; /* the star staff's little circle glow is the staff's own teal (his word, 2026-11-08) */
+    ctx.save(); ctx.shadowColor = gcol; ctx.shadowBlur = 12 + Math.sin(t / 240) * 5; ctx.fillStyle = gcol; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(-W / 2 + orb[0] * W, -H + 10 + orb[1] * H, 7, 0, 7); ctx.fill(); ctx.restore();
   } else { ctx.scale(dir, 1); ctx.rotate(Math.sin(t / 900) * 0.045); ctx.drawImage(im, -W / 2, -H + 14, W, H); }
   ctx.restore();
 }
@@ -16571,7 +16603,7 @@ const AXE_URL = t => "https://firebasestorage.googleapis.com/v0/b/quantum-inu-ga
 /* his own supplied art (the axe set + the log set), sliced whole from his sheets and stored under hub-heroes/ like the fish/rods — axe-01 = Basic … axe-06 = Quantum, log-01 = Pine … log-10 = Quantum Log. Every single is a tight crop of its figure, so each fills its frame the way the rods do and NO content-rect fit is needed anywhere (measured at slice time) */
 const logImgCache = {}, axeImgCache = {};
 function logImg(i) { let im = logImgCache[i]; if (!im) { im = new Image(); im.src = LOG_URL(i); logImgCache[i] = im; } return im; } /* the fishImg pattern: lazy, cached */
-function axeImg(t) { let im = axeImgCache[t]; if (!im) { im = new Image(); im.src = AXE_URL(t); axeImgCache[t] = im; } return im; }
+function axeImg(t) { if (t === 6) { let im = axeImgCache[6]; if (!im) { im = new Image(); im.src = STAR_TOOL_URL.axe; axeImgCache[6] = im; } return im; } let im = axeImgCache[t]; if (!im) { im = new Image(); im.src = AXE_URL(t); axeImgCache[t] = im; } return im; }
 /* ---- THE TREE REGISTRY: every tree the game draws outdoors, enumerated from the three groves the draw code already paints — the plaza's main grove (MAIN_GROVE, 12), the west land's grove (TR_GROVE, 3) and the castle grounds wood (CASTLE_GROVE, 28) — each with a stable id, its position, its scale and the sway phase it has always drawn with (source-index based, so no standing tree's phase moves). ONE tree is out: the castle grove's (-180,-500), where the Woodcutting Store stands. 45 trees stood in the registry until the westward extension (Jonathan 2026-11-06) appended 48 more castle-grid trees — 93 stood then; three more passes the same day appended 18 more (the y −2000 rim row, the castle-right y −100 row, the single (260,−100) tree) — 111 stand now, registered in two passes so no standing tree's phase moved (see buildTreeRegistry). Batch 5 then appended its 13-tree row at y −100 (124 stood), and the y −2000 rim row came OUT at Jonathan's word on 2026-11-07 (half-hidden above the world's top edge), so 111 stand now. drawPlaza paints off this list and nothing else, so the drawn world and the choppable world can never disagree ---- */
 const PLAZA_TREES = [];
 (function buildTreeRegistry() {
@@ -16634,11 +16666,11 @@ function woodPublish() { /* my own record: up while my axe is out, gone when it 
     if (myWoodRef) { try { const p = myWoodRef.remove(); if (p && p.catch) p.catch(() => {}); } catch (e) {} myWoodRef = null; myWoodPubKey = ""; }
     return;
   }
-  const key = chopState.mode + "|" + myAxe, now = performance.now();
+  const key = chopState.mode + "|" + effAxe() + (starOn() ? "|s" : ""), now = performance.now();
   if (!myWoodRef) { myWoodRef = db.ref("hub/woodcutting/" + myId); try { myWoodRef.onDisconnect().remove(); } catch (e) {} }
   if (key !== myWoodPubKey || now - myWoodPubAt > 8000) {
     myWoodPubKey = key; myWoodPubAt = now;
-    try { const p = myWoodRef.set({ scene: "plaza", axe: myAxe, st: chopState.mode, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    try { const p = myWoodRef.set({ scene: "plaza", axe: effAxe(), st: chopState.mode, star: starOn() ? 1 : 0, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   }
 }
 function nearTree() { /* the nearest STANDING registry tree within a step of my feet (fishing's 85px reach, off the tree's own base point), or -1 — a downed tree offers nothing */
@@ -16651,7 +16683,7 @@ function chopCancel() { chopState.mode = ""; chopState.tree = -1; woodPublish();
 function startChopping() { const ti = nearTree(); if (ti < 0 || chopState.mode) return;
   if (!acctUser) { genText(me.x, me.y - 104, "🔒 Chopping takes an account", "#9db8d9"); sfxBad(); return; } /* GUESTS CANNOT CHOP (Jonathan, 2026-11-05): the refusal floats over the player — the speed shop's open-world refusal (spdBuyAsk), fishing's own feedback way; no chop starts, no axe comes out */
   detStow(); chopState.mode = "wait"; chopState.tree = ti; woodPublish(); /* peers see the axe from the first swing — and a detector out goes away first (detStow: starting a chop puts it away, the cast's own rule) */ untransformForActivity(); /* the first swing drops any mech form at its first moment (Jonathan 2026-11-05) */
-  chopState.castAt = performance.now(); chopState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, myAxe); chopState.biteAt = chopState.castAt + chopState.waitMs; /* fishing's wait, word for word: 4–9s random, every axe tier shrinking it ~15% */
+  chopState.castAt = performance.now(); chopState.waitMs = (4000 + Math.random() * 5000) * Math.pow(0.85, effAxe()); chopState.biteAt = chopState.castAt + chopState.waitMs; /* fishing's wait, word for word: 4–9s random, every axe tier shrinking it ~15% */
   tone(150, 80, 0.13, "square", 0.07); noiseBurst(0.09, "lowpass", 760, 220, 0.11); } /* the first thunk: a low knock and a soft wood thud */
 function chopTick(now) { /* the chopping clock, run on plaza frames beside the fishing clock: walking off (or leaving the plaza, or the tree falling to someone else's axe) puts the axe away; the wait opens a 1.6s finish window, then the moment is gone */
   if (!chopState.mode) return;
@@ -16663,7 +16695,7 @@ function chopTick(now) { /* the chopping clock, run on plaza frames beside the f
 }
 function chopRoll() { /* the roll — fishing's SIXTHS, one weighted roll over the 600 field (each log owns odds×(axe+1) points), with the EMPTY-ROLL RULE (Jonathan, 2026-11-05) where fishing's leftover field was an empty cast: here the leftover is a Pine Log, so a finished chop ALWAYS yields a log (effective Pine: Basic ~87.5% … Quantum 25%) */
   let acc = 0; const roll = Math.random() * 600;
-  for (let i = 0; i < LOG_DEFS.length; i++) { acc += LOG_DEFS[i].odds * (myAxe + 1); if (roll < acc) return i; }
+  for (let i = 0; i < LOG_DEFS.length; i++) { acc += LOG_DEFS[i].odds * (effAxe() + 1); if (roll < acc) return i; }
   return 0; /* every roll missed — a Pine Log, never nothing */
 }
 function chopFinish() { /* the finish tap inside the window: the log lands in the Log Inventory and the tree FALLS — for everyone, 30 seconds (fellTree writes the shared record) */
@@ -16686,7 +16718,7 @@ function popMoveTick() { /* MOVE DISMISSES THE CATCH / LOG POPUPS (Jonathan 2026
   if ($("logpop").style.display === "flex") { const ok = $("logok"); if (ok && typeof ok.onclick === "function") ok.onclick(); }
 }
 function drawAxe(wx, wy, flip, t, tier, st) { /* an axe in a hand — drawFishRod's twin (drawn BEFORE the owner's sprite, so the axe stays BEHIND him in depth; the sprite FLIPS with the facing, head UP and leaning into the facing — see the transform note at the draw for the -dir scale the rendered dog's own facing demands) — PLUS THE CHOP SWING (Jonathan, 2026-11-05): while its owner is chopping (st "wait"), the axe works up and down around that held angle in a steady chopping rock. tier = the axe tier to draw; omitted means MY axe — a peer's passes the tier off his hub/woodcutting record, with his st so his swing shows too */
-  const tv = typeof tier === "number" ? tier : myAxe;
+  const tv = typeof tier === "number" ? tier : (starOn() ? 6 : myAxe);
   const im = axeImg(tv); if (!im || !im.complete || !im.naturalWidth) return;
   const dir = flip ? 1 : -1, hx = wx + dir * 24, hy = wy - 48; /* the rod's own hand anchor and dir rule (flip=true faces RIGHT) */
   const RH = 128, RW = RH * (im.naturalWidth / im.naturalHeight); /* the axe stands the rod's full 128 in hand — the singles are tight crops of whole axes, so the plain aspect fit is the whole story */
@@ -16958,7 +16990,7 @@ const TREASURE_URL = i => "hub-heroes/treasure-" + String(i + 1).padStart(2, "0"
 const DETECTOR_URL = t => "hub-heroes/detector-" + String(t + 1).padStart(2, "0") + ".webp";
 const treasureImgCache = {}, detectorImgCache = {};
 function treasureImg(i) { let im = treasureImgCache[i]; if (!im) { im = new Image(); im.src = TREASURE_URL(i); treasureImgCache[i] = im; } return im; } /* the fishImg pattern: lazy, cached */
-function detectorImg(t) { let im = detectorImgCache[t]; if (!im) { im = new Image(); im.src = DETECTOR_URL(t); detectorImgCache[t] = im; } return im; }
+function detectorImg(t) { if (t === 6) { let im = detectorImgCache[6]; if (!im) { im = new Image(); im.src = STAR_TOOL_URL.det; detectorImgCache[6] = im; } return im; } let im = detectorImgCache[t]; if (!im) { im = new Image(); im.src = DETECTOR_URL(t); detectorImgCache[t] = im; } return im; }
 /* ---- the haul + the detector: session state, persisted on the account doc — accounts only, NO device-local copy (guests can't detect, so there is nothing to keep for them) ---- */
 let myTreasures = {}, myDet = 0;
 function acctTreasureSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ treasures: myTreasures, detector: myDet, ts: Date.now() }); } catch (e) {} } /* update, not set — acctFishSave's own rule: the session claim and the chips fields under this record are not this function's to rewrite */
@@ -16991,11 +17023,11 @@ function detPublish() { /* my own record: up while my detector is out, gone when
     if (myDetRef) { try { const p = myDetRef.remove(); if (p && p.catch) p.catch(() => {}); } catch (e) {} myDetRef = null; myDetPubKey = ""; }
     return;
   }
-  const key = "out|" + myDet, now = performance.now();
+  const key = "out|" + effDet() + (starOn() ? "|s" : ""), now = performance.now();
   if (!myDetRef) { myDetRef = db.ref("hub/detecting/" + myId); try { myDetRef.onDisconnect().remove(); } catch (e) {} }
   if (key !== myDetPubKey || now - myDetPubAt > 8000) { /* equipping (or an upgrade landing mid-detect) lands at once; a standing detector re-stamps its ts every 8s so the record never ages out mid-walk */
     myDetPubKey = key; myDetPubAt = now;
-    try { const p = myDetRef.set({ scene: "plaza", det: myDet, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    try { const p = myDetRef.set({ scene: "plaza", det: effDet(), star: starOn() ? 1 : 0, ts: firebase.database.ServerValue.TIMESTAMP }); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   }
 }
 function detOnSand() { /* standing ON THE SAND proper: inside BEACH_SAND but OFF the purple (the wheel spur and the Treasure Shop band are path, not sand — stepping onto either puts the detector away), off the bumper arena's own floor and off the Ferris platform's deck */
@@ -17008,7 +17040,7 @@ function detOnSand() { /* standing ON THE SAND proper: inside BEACH_SAND but OFF
   return true;
 }
 function detCanEquip() { return detOnSand() && !fishState.mode && !chopState.mode && cvCar < 0 && cvRide < 0 && !cvSeatGame; } /* on the sand, ON FOOT: not driving a bumper car, not riding the wheel, not seated at a booth, and not mid cast/chop (those prompts own the button then — starting either puts the detector away first, in their own starts) */
-function detNeedRoll() { return (4000 + Math.random() * 5000) * Math.pow(0.85, myDet); } /* the find cycle's target: fishing's 4–9s wait, shrunk ~15% per detector tier — but accrued from MOVING time only (detTick), where a cast's wait runs standing still */
+function detNeedRoll() { return (4000 + Math.random() * 5000) * Math.pow(0.85, effDet()); } /* the find cycle's target: fishing's 4–9s wait, shrunk ~15% per detector tier — but accrued from MOVING time only (detTick), where a cast's wait runs standing still */
 function detEquip() { if (detState.out || !detCanEquip()) return;
   if (!acctUser) { genText(me.x, me.y - 104, "🔒 Detecting takes an account", "#9db8d9"); sfxBad(); return; } /* GUESTS CANNOT DETECT (Jonathan, 2026-11-06): the fishing gate's twin, word for word — the refusal floats over the player in the same colour with the same sfxBad(); no detector comes out, no hub/detecting write. The Detector prompt itself still shows on the sand, and signed-in players are untouched */
   untransformForActivity(); /* equipping drops any mech form at its first moment (Jonathan 2026-11-06) — the cast/chop rule, carried to the third sibling */
@@ -17031,7 +17063,7 @@ function detDig() { /* the dig — the catch roll's twin (the owner's sixths, fi
   if (!detState.out || !detState.pinging) return;
   detState.pinging = false; detState.pingUntil = 0; detState.moveMs = 0; detState.needMs = detNeedRoll();
   let idx = -1, acc = 0; const roll = Math.random() * 600;
-  for (let i = 0; i < TREASURE_DEFS.length; i++) { acc += TREASURE_DEFS[i].odds * (myDet + 1); if (roll < acc) { idx = i; break; } }
+  for (let i = 0; i < TREASURE_DEFS.length; i++) { acc += TREASURE_DEFS[i].odds * (effDet() + 1); if (roll < acc) { idx = i; break; } }
   if (idx < 0) { genText(me.x, me.y - 104, "Nothing there…", "#9db8d9"); tone(300, 190, 0.22, "sine", 0.04); return; } /* the empty dig: the roll landed in the leftover field — the empty cast's own floating-text beat */
   myTreasures[idx] = (myTreasures[idx] || 0) + 1; acctTreasureSave();
   sfxCoin(); genBurst(me.x, me.y - 46, false);
@@ -17041,7 +17073,7 @@ function detDig() { /* the dig — the catch roll's twin (the owner's sixths, fi
   $("treasurepop").style.display = "flex";
 }
 function drawDetector(wx, wy, flip, t, tier) { /* a detector in a hand (drawPlayer's hook for mine, the actor loop for a peer's — always AFTER the owner's sprite so the detector stays IN FRONT of him in depth — the rod's opposite, Jonathan 2026-11-06). ONLY the detector sprite is drawn. The facing rule is the rod's REVERSED at his explicit order: facing LEFT wears the art exactly as supplied (its coil slung down-forward, handle up at the hand); facing RIGHT wears it horizontally FLIPPED. tier = the detector tier to draw; omitted means MY detector — a peer's passes the tier off his hub/detecting record */
-  const tv = typeof tier === "number" ? tier : myDet;
+  const tv = typeof tier === "number" ? tier : (starOn() ? 6 : myDet);
   const im = detectorImg(tv); if (!im || !im.complete || !im.naturalWidth) return;
   const dir = flip ? 1 : -1, hx = wx + dir * 46, hy = wy - 46; /* the hand anchor on the FACING side (the rod's own 54-out lesson, a touch closer: the detector is carried at the hip, not cast out) — flip=true faces RIGHT (the rod fix's settled rule), so dir carries the anchor to the facing hand both ways */
   const DH = 118, DW = DH * (im.naturalWidth / im.naturalHeight);
@@ -19705,11 +19737,11 @@ function frame(now) {
     }
     const chatAge = a === me ? performance.now() - (a.chatAt || 0) : (a.chatAt ? Date.now() - a.chatAt : (a.chatId ? Date.now() - a.chatId : 999999)); /* Q-Bot's bubble ages from when this screen received his answer (his timestamps come from the server's clock), so it lasts the same 5s as a player's own bubble */
     if (me.scene === "gym") { const ci2 = courtAt(a.x, a.y); if (ci2) { const sd = a.x < ci2.r.x + ci2.r.w / 2 ? "A" : "B"; ctx.beginPath(); ctx.ellipse(a.x, a.y + 26, 30, 10, 0, 0, 7); ctx.strokeStyle = sd === "A" ? "rgba(56,225,255,0.9)" : "rgba(255,93,143,0.9)"; ctx.lineWidth = 3.5; ctx.stroke(); } }
-    if (!isMe && me.scene === "plaza") { const pf = peerFish.get(a.id); if (pf && pf.scene === "plaza" && pf.st && Date.now() - (pf.ts || 0) < 45000) drawFishRod(a.x, a.y, a.flip, now, pf.rod); } /* a PEER's rod (2026-11-04 22:18): drawn here, immediately before his sprite, so it sits BEHIND him in depth exactly like mine does — his tier off his hub/fishing record, his side off his own facing (a.flip, the same value his sprite mirrors on) */
-    if (!isMe && me.scene === "plaza") { const pw = peerWood.get(a.id); if (pw && pw.scene === "plaza" && pw.st && Date.now() - (pw.ts || 0) < 45000) drawAxe(a.x, a.y, a.flip, now, pw.axe, pw.st); } /* a PEER's axe (2026-11-05): the peer rod's twin — drawn here, immediately before his sprite, so it sits BEHIND him in depth exactly like mine does; his tier and his chopping state ride his hub/woodcutting record, his side off his own facing */
+    if (!isMe && me.scene === "plaza") { const pf = peerFish.get(a.id); if (pf && pf.scene === "plaza" && pf.st && Date.now() - (pf.ts || 0) < 45000) drawFishRod(a.x, a.y, a.flip, now, (pf.star && peerStar(a.id, a.acct)) ? 6 : pf.rod); } /* a PEER's rod (2026-11-04 22:18): drawn here, immediately before his sprite, so it sits BEHIND him in depth exactly like mine does — his tier off his hub/fishing record, his side off his own facing (a.flip, the same value his sprite mirrors on) */
+    if (!isMe && me.scene === "plaza") { const pw = peerWood.get(a.id); if (pw && pw.scene === "plaza" && pw.st && Date.now() - (pw.ts || 0) < 45000) drawAxe(a.x, a.y, a.flip, now, (pw.star && peerStar(a.id, a.acct)) ? 6 : pw.axe, pw.st); } /* a PEER's axe (2026-11-05): the peer rod's twin — drawn here, immediately before his sprite, so it sits BEHIND him in depth exactly like mine does; his tier and his chopping state ride his hub/woodcutting record, his side off his own facing */
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g, a.tint);
-    if (!isMe && me.scene === "plaza") { const pd = peerDetect.get(a.id); if (pd && pd.scene === "plaza" && Date.now() - (pd.ts || 0) < 45000) drawDetector(a.x, a.y, a.flip, now, pd.det); }
-    if (!isMe && me.scene === "plaza") { const pw = peerWep.get(a.id); if (pw && pw.w && Date.now() - (pw.ts || 0) < 45000) { let swg = peerSwings.get(a.id); if (swg && swg.queued) { swg.queued = false; swg.t0 = now; const erT = swg.tgt ? forestEnemies.get(swg.tgt) : null; swg.ang = erT ? Math.atan2(erT.y - 40 - (a.y - 46), erT.x - a.x) : (a.flip ? 0 : Math.PI); if (erT && pw.w.split(":")[0] !== "sword") spawnProj({ x: a.x + (a.flip ? 34 : -34), y: a.y - (pw.w.split(":")[0] === "staff" ? 96 : 62), eid: swg.tgt, kind: pw.w.split(":")[0] === "bow" ? "arrow" : "magic", tier: +pw.w.split(":")[1], t0: now, visual: true }); } drawHeldWeapon(a.x, a.y, a.flip, pw.w, now, swg && !swg.queued && (now - swg.t0) < 1000 ? swg : null); } } /* FOREST: a PEER's weapon (2026-11-08): drawn here, after his sprite like his detector — his active weapon off his hub/tables/wep record, swings and shots replayed from his attack stamps; the projectiles are visual only (peerDmg never writes — the shooter's own client lands his damage) */ /* a PEER's detector (2026-11-06): drawn here, immediately AFTER his sprite — the peer rod/axe's deliberate opposite, since the detector rides IN FRONT of its holder in depth; his tier off his hub/detecting record, his side off his own facing */
+    if (!isMe && me.scene === "plaza") { const pd = peerDetect.get(a.id); if (pd && pd.scene === "plaza" && Date.now() - (pd.ts || 0) < 45000) drawDetector(a.x, a.y, a.flip, now, (pd.star && peerStar(a.id, a.acct)) ? 6 : pd.det); }
+    if (!isMe && me.scene === "plaza") { const pw = peerWep.get(a.id); if (pw && pw.w && Date.now() - (pw.ts || 0) < 45000) { let swg = peerSwings.get(a.id); if (swg && swg.queued) { swg.queued = false; swg.t0 = now; const erT = swg.tgt ? forestEnemies.get(swg.tgt) : null; swg.ang = erT ? Math.atan2(erT.y - 40 - (a.y - 46), erT.x - a.x) : (a.flip ? 0 : Math.PI); if (erT && pw.w.split(":")[0] !== "sword") spawnProj({ x: a.x + (a.flip ? 34 : -34), y: a.y - (pw.w.split(":")[0] === "staff" ? 96 : 62), eid: swg.tgt, kind: pw.w.split(":")[0] === "bow" ? "arrow" : "magic", tier: (pw.star && peerStar(a.id, a.acct)) ? 6 : +pw.w.split(":")[1], t0: now, visual: true }); } drawHeldWeapon(a.x, a.y, a.flip, (pw.star && peerStar(a.id, a.acct)) ? pw.w.split(":")[0] + ":6" : pw.w, now, swg && !swg.queued && (now - swg.t0) < 1000 ? swg : null); } } /* FOREST: a PEER's weapon (2026-11-08): drawn here, after his sprite like his detector — his active weapon off his hub/tables/wep record, swings and shots replayed from his attack stamps; the projectiles are visual only (peerDmg never writes — the shooter's own client lands his damage) */ /* a PEER's detector (2026-11-06): drawn here, immediately AFTER his sprite — the peer rod/axe's deliberate opposite, since the detector rides IN FRONT of its holder in depth; his tier off his hub/detecting record, his side off his own facing */
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now));
     if (me.scene === "rooftop" && atRoofDJBooth(a.x, a.y)) drawDJBooth(decorT(now), ROOFDJBOOTH);
     if (me.scene === "rooftop" && atRoofBoom(ROOFBOOM_L, a.x, a.y)) drawRoofBoom(decorT(now), ROOFBOOM_L); /* the boom boxes get the booth's own walk-behind: standing in a box's strip repaints the box over your lower body */
@@ -19824,6 +19856,7 @@ function frame(now) {
 }
 /* PAGE-LOAD PRELOAD — the three tool shops' art AND the in-hand tools (Jonathan 2026-11-06, batch 5): the fish/wood/treasure display sprites and the rod/axe/detector wall art used to start loading only when a shop was ENTERED (the preloads inside toFishShop/toWoodShop/toTreasureShop), so the first look inside a shop popped in late — and the very same lazy caches feed the IN-HAND sprites (the rod, axe and detector a player pulls out to fish, chop or detect, at lines 14864/15644/15999), which popped in late on activation the same way ("sometimes it takes a while to load when you activate it"). All six caches now start loading HERE, at page load, alongside the hero preloads: the 10 fish, 10 logs and 10 treasures, and all 6 tiers each of rods, axes and detectors — entering any of the three shops, or pulling out any of the three tools, shows its sprite immediately. The shops' own entry preloads stay as a backstop; no visual or layout change anywhere */
 for (let t = 0; t < 6; t++) { rodImg(t); axeImg(t); detectorImg(t); }
+{ rodImg(6); axeImg(6); detectorImg(6); starWepImg("sword"); starWepImg("bow"); starWepImg("staff"); starWepImg("arrow"); } /* STAR TOOLS: the owner set warms with the rest, so a swap never waits on art */
 for (let i = 0; i < 10; i++) { fishImg(i); logImg(i); treasureImg(i); }
 requestAnimationFrame(frame);
 if (profile) { gate.scrollTop = 0; }
