@@ -632,7 +632,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
           <button id="startoolsbtn" type="button">⭐ Star Tools: OFF</button>
         </div>
         <div class="acctrow" id="updalertrow" style="margin-top:8px;display:none">
-          <button id="updalertbtn" type="button">🔔 Update Alert: OFF</button>
+          <button id="updalertbtn" type="button">🔔 Update Alert</button>
         </div>
         <div class="acctrow" id="qkctlrow" style="margin-top:8px;display:none">
           <button id="qkctlbtn" type="button">⚡ Enable one-tap sign-in on this device</button>
@@ -718,6 +718,14 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <div class="monlist" id="houselist"></div>
   <p class="monmsg" id="housepanelmsg"></p>
   <button class="monclose" id="housepanelclose" type="button">Close</button>
+</div></div>
+<div id="updpanel" style="position:absolute;inset:52px 0 76px 0;background:transparent;z-index:45;display:none;align-items:flex-start;justify-content:center;padding:16px 10px"><div class="monpanel">
+  <h2>🔔 Update Alert</h2>
+  <p class="monbal">While the alert is ON, everyone in the game sees the flashing REFRESH FOR UPDATE button — until you turn it off here, or they refresh. The list shows the build each online player is running.</p>
+  <div class="acctrow" style="margin:8px 0"><button id="updactbtn" type="button">🔔 Update Alert: OFF</button></div>
+  <div class="monlist" id="updlist"></div>
+  <p class="monmsg" id="updpanelmsg"></p>
+  <button class="monclose" id="updpanelclose" type="button">Close</button>
 </div></div>
 <div id="catchpop"><div class="monpanel">
   <h2>🎣 You caught one!</h2>
@@ -1328,18 +1336,21 @@ try {
 } catch (e) { setStatus("● Offline", "off"); }
 banWatchAttach(); /* BAN (2026-11-05): the live bans listener attaches once after db init (stored ref + db-identity guard in banWatchAttach) */
 let lastPub = 0, lastPubKey = "", onlineTxtAt = 0;
+function recMonKey() { return (typeof monOut !== "undefined" && monOut && myMonSel) ? myMonSel : (typeof HUB_BUILD !== "undefined" ? HUB_BUILD : ""); }
+let lastPubMon = "";
 function publish(force) {
   if (!db || !entered) return;
   const now = performance.now();
   const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : "", (typeof monOut !== "undefined" && monOut && myMonSel) ? myMonSel : ""].join("|");
-  if (!force && key === lastPubKey && now - lastPub < 2000) return;
+  if (!force && key === lastPubKey && now - lastPub < 2000 && (lastPubMon === recMonKey())) return;
   if (!force && now - lastPub < 100) return; /* a real floor under non-forced publishes (fix, Jonathan 2026-11-03 — "the player lag... too laggy when too many people are online"): the old second guard demanded the key be UNCHANGED, so it never bit, and every moving player wrote his presence EVERY FRAME — ~60 writes a second each, every write fanning the full roster snapshot out to every connected client, whose handlers re-processed the whole roster per snapshot. At ten movers that is ~600 writes/s system-wide and megabytes a second of roster snapshots crowd-wide; the flood is what makes remote players lurch and fall behind as the hub fills. 100ms caps a mover at ~10 writes/s; receivers already ease between targets at this cadence (the display ease smooths the CPUs' 240ms node the same way), and forced publishes — room changes, sits, chats — still land instantly */
-  lastPub = now; lastPubKey = key;
+  lastPub = now; lastPubKey = key; lastPubMon = recMonKey();
   if (!myRef) { myRef = db.ref("hub/presence/" + myId); myRef.onDisconnect().remove(); }
   /* the database rules for this record accept ONLY the original fields \u2014 one extra field and the whole write is refused (the gender selector's g field hid every player on 2026-10-30). The female pick rides in the x fraction instead: +0.5 = female; peers floor x back to the exact pixel. NEVER add a field to this record. */
   const rec = { name: me.name, hero: mechForm ? MECH_HERO : kingMechForm ? KING_MECH_HERO : tonicMechForm ? TONIC_MECH_HERO : kenMechForm ? KEN_MECH_HERO : roboMechForm ? ROBO_MECH_HERO : neonMechForm ? NEON_MECH_HERO : bbeMechForm ? BBE_MECH_HERO : patchMechForm ? PATCH_MECH_HERO : shopMechForm ? shopMechForm : me.hero, /* the transform rides the hero field — the database refuses new presence fields, and 74 is a legal hero number; OnlineMoney's king mech rides it the same way as 75, and 7daytonic's galaxy mech as 77, and Dj Ken's gentleman mech as 79, and the owner's dome mech as 81, and his galaxy DJ mech as 83, and Big Boy Eater's piñata mech as 89 */ scene: me.scene, x: Math.round(me.x) + (me.g === "f" ? 0.5 : 0), y: Math.round(me.y), flip: me.flip, run: !!me.run, mic: !!me.mic, chat: me.chat || "", chatId: me.chatId || 0, ts: firebase.database.ServerValue.TIMESTAMP };
   if (acctUser && acctUser.uid) rec.acct = acctUser.uid; /* send tokens: a signed-in player's presence carries their account id, so the Online list can offer to send them tokens — a guest's presence carries no acct */
   if (typeof monOut !== "undefined" && monOut && myMonSel) rec.mon = myMonSel; /* the monster follower (PREVIEW, Jonathan 2026-11-02): the rules now accept this ONE optional field — it is present only while a monster is out, as "<line>-<stage>", and never otherwise; NO other field may ever be added here */
+  else if (typeof HUB_BUILD !== "undefined") rec.mon = HUB_BUILD; /* UPDATE ALERT panel (2026-11-08): while my monster is stowed, my build stamp rides the same mon field — "x-" + the page's build hash, so the owner's panel can show what everyone is running. The monster case above is untouched, and a client whose stamp the rules refuse simply shows as unknown */
   myRef.set(rec).catch(() => {});
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
@@ -2738,7 +2749,7 @@ function acctUi() {
     const clr = $("clogrow"); if (clr) clr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Chat Log row directly under Ban: the same owner-only gate */ /* the Player Balances row directly under Activity Report: the same owner-only gate */
     const mr = $("mechresetrow"); if (mr) mr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Mechs row directly under Player Balances (Jonathan 2026-11-04): the same owner-only gate — it clears ONLY his own mech unlocks */
     const sr = $("spdresetrow"); if (sr) sr.style.display = isOwnerAcct() ? "flex" : "none"; /* the Reset Speed row directly under Reset Mechs (Jonathan 2026-11-04): the Reset Mechs pattern exactly — the owner's account ONLY, and it clears ONLY his own Crystal Room speed tier */
-    const hsr = $("houseresetrow"); if (hsr) hsr.style.display = isOwnerAcct() ? "flex" : "none"; const hmr = $("housemgmtrow"); if (hmr) hmr.style.display = isOwnerAcct() ? "flex" : "none"; const strow = $("startoolsrow"); if (strow) strow.style.display = isOwnerAcct() ? "flex" : "none"; const uar = $("updalertrow"); if (uar) uar.style.display = isOwnerAcct() ? "flex" : "none"; const uab = $("updalertbtn"); if (uab && (typeof updAlertArmUntil === "undefined" || updAlertArmUntil <= Date.now())) uab.textContent = (typeof updAlertOn !== "undefined" && updAlertOn) ? "🔔 Update Alert: ON" : "🔔 Update Alert: OFF"; /* updAlertArmUntil/updAlertOn are declared with the alert machinery further down — typeof-guarded so an early menu render can never throw */ /* UPDATE ALERT (2026-11-08): the row under Star Tools — owner-only like its neighbours; the label re-reads off the shared signal every menu render (never off local memory), and an armed confirm label is left alone */ const stb = $("startoolsbtn"); if (stb) stb.textContent = starTools ? "⭐ Star Tools: ON" : "⭐ Star Tools: OFF"; /* STAR TOOLS (2026-11-08): the swap row under Housing Management — the same owner-only gate; its label is re-read off the flag every time the menu renders, so it can never drift from the account */ /* HOUSING MANAGEMENT (2026-11-07): the Housing Management row directly under Reset House — the same owner-only gate; it lists every rented house with an Evict button */ /* HOUSING (PREVIEW, 2026-11-07): the Reset House row directly under Reset Speed — the same owner-only gate; it clears ONLY his own house rental and furniture collection */
+    const hsr = $("houseresetrow"); if (hsr) hsr.style.display = isOwnerAcct() ? "flex" : "none"; const hmr = $("housemgmtrow"); if (hmr) hmr.style.display = isOwnerAcct() ? "flex" : "none"; const strow = $("startoolsrow"); if (strow) strow.style.display = isOwnerAcct() ? "flex" : "none"; const uar = $("updalertrow"); if (uar) uar.style.display = isOwnerAcct() ? "flex" : "none"; /* UPDATE ALERT (2026-11-08): the row under Star Tools — owner-only like its neighbours; since the panel pass it only OPENS the panel (its label is static now — the activate button inside the panel carries the ON/OFF state) */ const stb = $("startoolsbtn"); if (stb) stb.textContent = starTools ? "⭐ Star Tools: ON" : "⭐ Star Tools: OFF"; /* STAR TOOLS (2026-11-08): the swap row under Housing Management — the same owner-only gate; its label is re-read off the flag every time the menu renders, so it can never drift from the account */ /* HOUSING MANAGEMENT (2026-11-07): the Housing Management row directly under Reset House — the same owner-only gate; it lists every rented house with an Evict button */ /* HOUSING (PREVIEW, 2026-11-07): the Reset House row directly under Reset Speed — the same owner-only gate; it clears ONLY his own house rental and furniture collection */
     const qr = $("qkctlrow"); if (qr) qr.style.display = isOwnerAcct() ? "flex" : "none"; /* the one-tap sign-in controls under the Activity Report row: the same owner-only gate */
     if (isOwnerAcct()) qkRefreshCtl(); /* and their state (off / on, on this device / on, on another device) is read fresh each time this menu renders */
   } else { out.style.display = "block"; inn.style.display = "none"; qkSyncRow(); } /* signed out: the one-tap button on the form shows only on a device that holds a key */
@@ -2857,7 +2868,7 @@ $("changebtn").onclick = () => {
 cancelBtn.onclick = () => { gate.style.display = "none"; sfxClick(); };
 /* ============ Escape: closes popups first, then toggles the Menu (Jonathan 2026-11-06). Esc is a second route to the very controls a tap uses — never a parallel close path of its own. Each press, in order: (1) a buy/sell confirmation (#buyconfirm) is up -> Esc runs its CANCEL button only: the popup dismisses and no transaction can ever happen from the keyboard; (2) any other closable popup is up -> Esc runs the TOPMOST one's own close button (ESC_CLOSABLES, in stacking order: the z-47 catch/log popups, then the z-45 panels later-in-DOM-first, then the z-35 jukebox), so closing has exactly the side effects of tapping close, its sound included; (3) nothing closable is up -> Esc toggles the Menu, running the Menu button's own handler to open and the panel's own close handler to close, reading open/closed off the panel's REAL display every press — never a shadow flag — so the toggle cannot desync on any entry path, a refresh + re-entry included. The one blocker with NO close control, the evolution/rod show (#evooverlay, a timed show with input locked), still owns the screen while it is up: Esc stays inert until it ends. Capture phase on purpose: the chat box stops keydown propagation, and Esc must land the same with ANY field focused; it never touches a field itself — the chat draft is never sent or cleared, the name is never edited. Only in the game (entered) — at the welcome gate Esc stays inert; a held key's auto-repeat never double-fires. */
 const ESC_MENU_BLOCKERS = ["buyconfirm", "moncoll", "monpen", "actpanel", "balpanel", "banpanel", "clogpanel", "fishinv", "fishpanel", "loginv", "woodpanel", "equippanel", "wepshop", "catchpop", "logpop", "evooverlay"];
-const ESC_CLOSABLES = [["logpop", "logok"], ["catchpop", "catchok"], ["treasurepop", "treasureok"], ["monpen", "monpenclose"], ["clogpanel", "clogclose"], ["banpanel", "banclose"], ["housepanel", "housepanelclose"], ["balpanel", "balclose"], ["actpanel", "actclose"], ["woodpanel", "woodshopclose"], ["loginv", "loginvclose"], ["fishpanel", "fishshopclose"], ["fishinv", "fishinvclose"], ["treasurepanel", "trsshopclose"], ["treasureinv", "treasureinvclose"], ["wepshop", "wepshopclose"], ["equippanel", "equipclose"], ["moncoll", "moncollclose"], ["tpmenu", "tpmenuclose"], ["privmsg", "privmsgcancel"], ["onlinelist", "onlineclose"], ["chatlog", "logclose"], ["jukebox", "jukeclose"]]; /* topmost first — privmsg (z-36, opened from an Online row), the Online list and the player's chat log (both z-35, the list later in the DOM so it sits on top when the two are ever up together) ride the same route since 2026-11-06: Esc closes each through its own close control before it ever toggles the Menu. The owner-only #clogpanel above is a different panel from the player's #chatlog — both are listed, neither covers the other */
+const ESC_CLOSABLES = [["logpop", "logok"], ["catchpop", "catchok"], ["treasurepop", "treasureok"], ["monpen", "monpenclose"], ["clogpanel", "clogclose"], ["banpanel", "banclose"], ["housepanel", "housepanelclose"], ["updpanel", "updpanelclose"], ["balpanel", "balclose"], ["actpanel", "actclose"], ["woodpanel", "woodshopclose"], ["loginv", "loginvclose"], ["fishpanel", "fishshopclose"], ["fishinv", "fishinvclose"], ["treasurepanel", "trsshopclose"], ["treasureinv", "treasureinvclose"], ["wepshop", "wepshopclose"], ["equippanel", "equipclose"], ["moncoll", "moncollclose"], ["tpmenu", "tpmenuclose"], ["privmsg", "privmsgcancel"], ["onlinelist", "onlineclose"], ["chatlog", "logclose"], ["jukebox", "jukeclose"]]; /* topmost first — privmsg (z-36, opened from an Online row), the Online list and the player's chat log (both z-35, the list later in the DOM so it sits on top when the two are ever up together) ride the same route since 2026-11-06: Esc closes each through its own close control before it ever toggles the Menu. The owner-only #clogpanel above is a different panel from the player's #chatlog — both are listed, neither covers the other */
 function escShown(id) { const el = $(id); return !!el && el.style.display !== "" && el.style.display !== "none"; }
 function escMenuToggle() {
   if (!entered) return;
@@ -2939,19 +2950,46 @@ const updAlertStyle = document.createElement("style");
 updAlertStyle.textContent = "@keyframes updflash{0%,100%{opacity:1}50%{opacity:.25}}";
 document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
-updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); }); /* the tap IS the refresh — cache-busted so the fresh build actually lands */
+updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
+/* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
+const HUB_BUILD = "x-01fb44c98c";
+/* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
+let updPanelOpen = false;
+function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
+function openUpdPanel() { if (!isOwnerAcct()) return; renderUpdPanel(); updPanelOpen = true; $("updpanel").style.display = "flex"; }
+function updRowFor(name, stamp, mine) { /* one version-list row (built from DOM nodes, never HTML strings — player names are theirs) */
+  const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(168,85,247,0.18)";
+  const nm = document.createElement("span"); nm.style.cssText = "flex:1;color:#f3e8ff;font-weight:700"; nm.textContent = name + (mine ? " (you)" : ""); row.appendChild(nm);
+  const ver = document.createElement("span"); ver.style.cssText = "color:#9db8d9;font-size:13px"; ver.textContent = stamp ? "build " + String(stamp).slice(2) : "build unknown"; row.appendChild(ver);
+  const tag = document.createElement("span");
+  if (!stamp) { tag.textContent = "—"; tag.style.cssText = "color:#8b93a7;font-weight:800"; }
+  else if (String(stamp) === String(HUB_BUILD)) { tag.textContent = "✓ current"; tag.style.cssText = "color:#7ee787;font-weight:800"; }
+  else { tag.textContent = "⚠️ OUTDATED"; tag.style.cssText = "color:#ffb3b3;font-weight:800"; }
+  row.appendChild(tag); return row;
+}
+function renderUpdPanel() { const list = $("updlist"); if (!list) return; list.innerHTML = "";
+  const ab = $("updactbtn"); if (ab && updAlertArmUntil <= Date.now()) ab.textContent = updAlertOn ? "🔔 Update Alert: ON — tap to turn OFF" : "🔔 Update Alert: OFF — tap to turn ON";
+  list.appendChild(updRowFor(me.name || "You", HUB_BUILD, true));
+  const rows = []; peers.forEach(p => { if (p && p.name) rows.push(p); });
+  rows.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  for (const p of rows) { const st = (typeof p.mon === "string" && p.mon.indexOf("x-") === 0) ? p.mon : ""; list.appendChild(updRowFor(p.name, st, false)); }
+  if (!rows.length) { const e = document.createElement("p"); e.style.cssText = "color:#cbb8ea;margin:8px 2px"; e.textContent = "Nobody else is online right now."; list.appendChild(e); }
+}
+setInterval(() => { if (updPanelOpen) renderUpdPanel(); }, 2500); /* the list stays live while the panel is open — versions land as presence updates arrive */
+$("updalertbtn").onclick = () => { if (!isOwnerAcct() || !acctUser) return; openUpdPanel(); }; /* the Menu row opens the panel now (his word 2026-11-08) — the toggle itself lives inside */
+if ($("updpanelclose")) $("updpanelclose").onclick = () => { closeUpdPanel(); }; /* the tap IS the refresh — cache-busted so the fresh build actually lands */
 function syncUpdAlertBtn() { const want = entered && updAlertOn ? "block" : "none"; if (updAlertBtn.style.display !== want) updAlertBtn.style.display = want; const fl = entered && updAlertOn ? "updflash .8s steps(1) infinite" : "none"; if (updAlertBtn.style.animation !== fl) updAlertBtn.style.animation = fl; }
 setInterval(syncUpdAlertBtn, 400);
 function updAlertListen() { if (!db) { setTimeout(updAlertListen, 500); return; } db.ref("hub/tables/updal").on("value", sn => { const v = sn.val(); updAlertOn = !!(v && v.on); }); } updAlertListen(); /* the listener every client runs — the signal reaches whoever is in the game, whenever he flips it */
 let updAlertArmUntil = 0;
 function updAlertSet(on) { if (!db) return; db.ref("hub/tables/updal").set({ on: on ? 1 : 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
-$("updalertbtn").onclick = () => { /* the Menu row (owner only): ON is the Reset Speed two-tap confirm, OFF is one tap */
+$("updactbtn").onclick = () => { /* the panel's activate control (owner only): ON is the Reset Speed two-tap confirm, OFF is one tap */
   if (!isOwnerAcct() || !acctUser) return;
-  const btn = $("updalertbtn");
-  if (updAlertOn) { updAlertArmUntil = 0; updAlertSet(false); btn.textContent = "🔔 Update Alert: OFF"; return; }
+  const btn = $("updactbtn");
+  if (updAlertOn) { updAlertArmUntil = 0; updAlertSet(false); btn.textContent = "🔔 Update Alert: OFF — tap to turn ON"; return; }
   const nowMs = Date.now();
-  if (nowMs > updAlertArmUntil) { updAlertArmUntil = nowMs + 4000; btn.textContent = "⚠️ Tap again to turn the update alert ON for everyone"; setTimeout(() => { if (Date.now() > updAlertArmUntil) { const b2 = $("updalertbtn"); if (b2) b2.textContent = updAlertOn ? "🔔 Update Alert: ON" : "🔔 Update Alert: OFF"; } }, 4100); return; }
-  updAlertArmUntil = 0; updAlertSet(true); btn.textContent = "🔔 Update Alert: ON";
+  if (nowMs > updAlertArmUntil) { updAlertArmUntil = nowMs + 4000; btn.textContent = "⚠️ Tap again to turn the update alert ON for everyone"; setTimeout(() => { if (Date.now() > updAlertArmUntil) { const b2 = $("updactbtn"); if (b2) b2.textContent = updAlertOn ? "🔔 Update Alert: ON — tap to turn OFF" : "🔔 Update Alert: OFF — tap to turn ON"; } }, 4100); return; }
+  updAlertArmUntil = 0; updAlertSet(true); btn.textContent = "🔔 Update Alert: ON — tap to turn OFF";
 };
 function syncWepToggle() { const want = entered ? "flex" : "none"; if (wepBtnBar.style.display !== want) wepBtnBar.style.display = want; const tx = wepActive ? "\u2694\uFE0F Put Away" : "\u2694\uFE0F Take Out"; if (wepToggleBtn.textContent !== tx) wepToggleBtn.textContent = tx; }
 setInterval(syncWepToggle, 400);
@@ -16096,7 +16134,7 @@ function wepSetActive(kind, tier) {
   wepActive = kind + ":" + tier;
   wepSel[kind] = tier; wepLastOut = wepActive; /* the type remembers this tier (note 6) and the blue button remembers this weapon (note 19) */
   wepSave(); renderEquipPanel(); renderWepPanel();
-  sfxEquipWep(); genText(me.x, me.y - 104, WEP_TIER_NAMES[tier] + " " + WEP_TYPE_NAME[kind] + " out!", WEP_TCOL[tier]);
+  sfxEquipWep(); if (starOn()) genText(me.x, me.y - 104, "Star " + WEP_TYPE_NAME[kind] + " out!", STAR_TEAL); else genText(me.x, me.y - 104, WEP_TIER_NAMES[tier] + " " + WEP_TYPE_NAME[kind] + " out!", WEP_TCOL[tier]); /* while the star set is on, the swap text names the star piece and floats in the star teal (his word 2026-11-08) */
 }
 function wepStow() { if (!wepActive) return; wepActive = ""; wepSave(); renderEquipPanel(); renderWepPanel(); sfxClick(); genText(me.x, me.y - 104, "Weapon put away", "#9db8d9"); }
 /* ---- weapon sounds (the house synth: tone + noiseBurst) ---- */
@@ -16471,7 +16509,7 @@ function wepTick(now) {
   } else if (kind === "bow") {
     if (bowDraw) { if (bowDraw.tgt !== tgtId) bowDraw = { t0: now, tgt: tgtId };
       mySwing = { t0: bowDraw.t0, kind: kind, tier: vTier, ang: ang, tgt: tgtId };
-      if (now - bowDraw.t0 >= 350 && now >= wepNextAtk) { bowDraw = null; wepNextAtk = now + 950; lastCombatAt = now; sfxBowShoot(); wepPublishAtk(tgtId); spawnProj({ x: me.x + (me.flip ? 34 : -34), y: me.y - 62, eid: tgtId, kind: "arrow", tier: vTier, t0: now }); }
+      if (now - bowDraw.t0 >= 350 && now >= wepNextAtk) { bowDraw = null; wepNextAtk = now + 950; lastCombatAt = now; sfxBowShoot(); wepPublishAtk(tgtId); const bc = bowCenterPoint(); spawnProj({ x: bc.x, y: bc.y, eid: tgtId, kind: "arrow", tier: vTier, t0: now }); }
       return; }
     if (now < wepNextAtk) return;
     bowDraw = { t0: now, tgt: tgtId }; sfxBowDrawSnd();
@@ -16538,9 +16576,10 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
 
 /* ---- drawing the held weapon: in front of the body, upright, following the facing — with its swing, draw and cast animations ---- */
 const STAFF_ORB = [[0.530, 0.162], [0.511, 0.158], [0.501, 0.180], [0.491, 0.179], [0.488, 0.191], [0.504, 0.171], [0.501, 0.181]]; /* per tier, the orb centre as fractions of his staff art (Basic..Quantum), measured off the sprites' brightest cluster */
-const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593], [0.756, 0.754]]; /* tier 6 = his stringless cat bow (2026-11-08): anchors re-measured off its tip knobs. Superseded for the STRING by BOW_ANCH below (2D, note 36) — kept for reference */
-const BOW_ANCH = [[[0.9257, 0.131], [0.7495, 0.8835]], [[0.9245, 0.1375], [0.739, 0.8795]], [[0.9245, 0.1375], [0.7385, 0.8755]], [[0.9252, 0.1335], [0.7495, 0.8835]], [[0.9245, 0.139], [0.753, 0.8895]], [[0.9232, 0.141], [0.7495, 0.8625]], [[0.838, 0.089], [0.838, 0.903]]]; /* note 36: the string's two ends, measured off each bow's real tip clusters (x AND y — the old x-only table pinned the ends to the frame's top/bottom edges, so strings poked past the tips: his star-bow screenshot showed the line running out below the bottom knob). Every end is pulled a touch INSIDE its tip (2% of the span toward the string's own centre), so the string runs end to end and never pokes out. Tier 6 (his cat bow) sits at its exact measured knobs — straight up and down in the art, nothing to inset past */
-const BOW_REST = [0.107, 0.117, 0.117, 0.112, 0.107, 0.119, 0]; /* round 5: the correction is the TIP-TO-TIP tilt of each bow (the line the string hangs on), measured from BOW_ANCH and each sprite aspect: wood 6.1, ice 6.7, cosmic 6.7, golden 6.4, prism 6.1, arcane 6.8 degrees. The round-3 inner-edge angles (14-25 deg) were ~3x too big — round 3 pushed the bows too far one way and the round-4 sign flip pushed them too far the other (his screenshot: slanted down). Applied negated at rest (round-4 direction kept). Tier 6 stays 0 — his star bow is straight as supplied */ /* note 33: each bow art is composed diagonally in its frame, so at rest the bow sat slanted; these counter-rotations (radians, measured off each art's inner-edge line: wood 14.2°, ice 22.1°, cosmic 24.7°, golden 24.3°, prism 21.4°, arcane 20.9°) level every bow so it faces PERFECTLY left or right while idle. Tier 6 is 0 — his cat bow is straight as supplied, by his word. Aiming rotation is untouched: the correction applies at rest only */ /* per tier, the string's anchors as fractions of his bow art (top tip x, bottom tip x — measured off the sprites): the string ties to BOTH ends */
+const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593], [0.66, 0.937]]; /* tier 6 = his Neon Starcrest bow (2026-11-08, replaced the cat bow): tips re-measured off the new art — silver end caps at x 0.660/0.659, y 0.032/0.969, chord dead vertical so BOW_REST[6] stays 0. Superseded for the STRING by BOW_ANCH below (2D, note 36) — kept for reference */
+const BOW_ANCH = [[[0.9257, 0.131], [0.7495, 0.8835]], [[0.9245, 0.1375], [0.739, 0.8795]], [[0.9245, 0.1375], [0.7385, 0.8755]], [[0.9252, 0.1335], [0.7495, 0.8835]], [[0.9245, 0.139], [0.753, 0.8895]], [[0.9232, 0.141], [0.7495, 0.8625]], [[0.66, 0.032], [0.659, 0.969]]]; /* note 36: the string's two ends, measured off each bow's real tip clusters (x AND y — the old x-only table pinned the ends to the frame's top/bottom edges, so strings poked past the tips: his star-bow screenshot showed the line running out below the bottom knob). Every end is pulled a touch INSIDE its tip (2% of the span toward the string's own centre), so the string runs end to end and never pokes out. Tier 6 (his Neon Starcrest bow) sits at its measured silver end caps — straight up and down in the art, nothing to inset past */
+function bowCenterPoint() { const tier = starOn() ? 6 : wepActiveTier(); /* the drawn bow's tier — the star bow while the star set is on, else the active bow tier */ const im = wepImg("bow", tier); if (!im || !im.naturalWidth) return { x: me.x + (me.flip ? 34 : -34), y: me.y - 62 }; const H = 108, W = im.naturalWidth * (H / im.naturalHeight); const anch = BOW_ANCH[tier] || [[0.82, 0.02], [0.61, 0.98]]; const lx = ((anch[0][0] + anch[1][0]) / 2 - 0.5) * W, ly = -H / 2 - 8 + ((anch[0][1] + anch[1][1]) / 2) * H; const dir = me.flip ? 1 : -1, s2 = -dir; const swing = mySwing; const sw = swing ? performance.now() - swing.t0 : 9999; const aiming = !!(swing && swing.kind === "bow" && typeof swing.ang === "number" && sw < 700); let ox = 0, oy = 0, px, py; if (aiming) { ox = Math.cos(swing.ang) * 46 - dir * 40; oy = Math.sin(swing.ang) * 46; const a = s2 < 0 ? swing.ang : swing.ang + Math.PI; px = lx * Math.cos(a) - ly * Math.sin(a); py = lx * Math.sin(a) + ly * Math.cos(a); px *= s2; } else { const ra = -(BOW_REST[tier] || 0) * s2; px = lx * Math.cos(ra) - ly * Math.sin(ra); py = lx * Math.sin(ra) + ly * Math.cos(ra); px *= s2; } return { x: me.x + dir * 40 + ox + px, y: (me.y - 44) + oy + py }; }
+const BOW_REST = [0.107, 0.117, 0.117, 0.112, 0.107, 0.119, 0]; /* round 5: the correction is the TIP-TO-TIP tilt of each bow (the line the string hangs on), measured from BOW_ANCH and each sprite aspect: wood 6.1, ice 6.7, cosmic 6.7, golden 6.4, prism 6.1, arcane 6.8 degrees. The round-3 inner-edge angles (14-25 deg) were ~3x too big — round 3 pushed the bows too far one way and the round-4 sign flip pushed them too far the other (his screenshot: slanted down). Applied negated at rest (round-4 direction kept). Tier 6 stays 0 — his Neon Starcrest bow is straight as supplied */ /* note 33: each bow art is composed diagonally in its frame, so at rest the bow sat slanted; these counter-rotations (radians, measured off each art's inner-edge line: wood 14.2°, ice 22.1°, cosmic 24.7°, golden 24.3°, prism 21.4°, arcane 20.9°) level every bow so it faces PERFECTLY left or right while idle. Tier 6 is 0 — his cat bow is straight as supplied, by his word. Aiming rotation is untouched: the correction applies at rest only */ /* per tier, the string's anchors as fractions of his bow art (top tip x, bottom tip x — measured off the sprites): the string ties to BOTH ends */
 function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   if (!spec) return;
   const parts = spec.split(":"), kind = parts[0], tier = +parts[1];
@@ -16575,7 +16614,7 @@ function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
     ctx.strokeStyle = WEP_TCOL[tier]; ctx.lineWidth = 2.5; ctx.beginPath();
     ctx.moveTo(tX, tY); if (pull > 0.02) ctx.lineTo(mxp, myp); ctx.lineTo(bX, bY); ctx.stroke(); /* the string FIRST (note 32): the bow's own art draws over it */
     ctx.drawImage(im, -W / 2, -H / 2 - 8, W, H);
-    if (pull > 0.05) { const aim = wepImg("arrow", tier); if (aim && aim.complete && aim.naturalWidth) { const as = 58 / Math.max(aim.naturalWidth, aim.naturalHeight); ctx.save(); ctx.translate(mxp, myp); ctx.rotate(tier === 6 ? 0 : -Math.PI / 2); ctx.drawImage(aim, /* the nocked arrow (note 37): the six tier arrows stand upright in-frame and turn -90 to lie along the aim; his star arrow already lies flat in-frame (tip right), so it takes the aim rotation as-is — back end ON the string point (mxp, myp), tip toward the target */ -aim.naturalWidth * as / 2, -aim.naturalHeight * as / 2, aim.naturalWidth * as, aim.naturalHeight * as); ctx.restore(); } }
+    if (pull > 0.05) { const aim = wepImg("arrow", tier); if (aim && aim.complete && aim.naturalWidth) { const as = 58 / Math.max(aim.naturalWidth, aim.naturalHeight); ctx.save(); ctx.translate(mxp, myp); ctx.rotate(tier === 6 ? 0 : -Math.PI / 2); ctx.drawImage(aim, /* the nocked arrow: drawn exactly as it was before the back-on-the-string instruction (his word 2026-11-08 — the seating change is reverted for EVERY tier, the star arrow included: centred on the string point, the shared sideways lie) */ -aim.naturalWidth * as / 2, -aim.naturalHeight * as / 2, aim.naturalWidth * as, aim.naturalHeight * as); ctx.restore(); } }
   } else if (kind === "staff") {
     const cast = sw < 320 ? Math.sin((sw / 320) * Math.PI) * -12 : 0;
     ctx.scale(dir, 1); if (sw >= 320) ctx.rotate(Math.sin(t / 900) * 0.045); ctx.translate(0, cast); /* the idle wobble (note 34): the sword's resting sway, on the staff too — the cast dip keeps its own motion while a shot is fresh */
