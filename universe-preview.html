@@ -2890,6 +2890,29 @@ window.addEventListener("keydown", e => {
   if (!isOwnerAcct()) return;
   if (escShown("tpmenu")) closeTpMenu(); else openTpMenu();
 }, true);
+/* ============ Q / E / X = the weapon keys (Jonathan 2026-11-08): Q and E cycle the weapon TYPE — sword to bow to staff and back — landing on whatever tier you last had equipped for that type; X puts away whatever you have out. The C/O/G keys' own guards: only in the game, never while typing, a held key's repeat ignored, Ctrl/Cmd/Alt stay the browser's ============ */
+function wepCycle(step) {
+  const kinds = ["sword", "bow", "staff"], cur = wepActiveKind();
+  let idx = cur ? kinds.indexOf(cur) : (step > 0 ? -1 : 0);
+  idx = ((idx + step) % 3 + 3) % 3;
+  wepSetActive(kinds[idx], Math.min(wepSel[kinds[idx]] || 0, myWep[kinds[idx]]));
+}
+function wepTakeOut() { const last = /^(sword|bow|staff):[0-5]$/.test(wepLastOut) ? wepLastOut : "sword:0"; const pp = last.split(":"); wepSetActive(pp[0], Math.min(+pp[1], myWep[pp[0]])); }
+window.addEventListener("keydown", e => {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !entered) return;
+  const k = e.key; if (k !== "q" && k !== "Q" && k !== "e" && k !== "E" && k !== "x" && k !== "X") return;
+  const tg = e.target; if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
+  if (k === "x" || k === "X") { wepStow(); return; }
+  wepCycle((k === "q" || k === "Q") ? -1 : 1);
+}, true);
+/* the PUT AWAY / TAKE OUT button (note 19): a blue button at the top left of the screen, below the header, in the gameplay view — while any weapon is out it puts it away; while nothing is out, the same button takes out your last equipped weapon */
+const wepToggleBtn = document.createElement("button");
+wepToggleBtn.id = "weptoggle"; wepToggleBtn.type = "button"; wepToggleBtn.textContent = "Put Away";
+wepToggleBtn.style.cssText = "position:fixed;left:10px;top:150px;z-index:26;display:none;align-items:center;justify-content:center;background:#2f7fe0;color:#fff;border:2px solid #9fd0ff;border-radius:12px;padding:9px 16px;font:700 15px 'Segoe UI',sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.45);cursor:pointer";
+document.body.appendChild(wepToggleBtn);
+wepToggleBtn.addEventListener("click", () => { if (wepActive) wepStow(); else wepTakeOut(); });
+function syncWepToggle() { const want = entered ? "flex" : "none"; if (wepToggleBtn.style.display !== want) wepToggleBtn.style.display = want; const tx = wepActive ? "Put Away" : "Take Out"; if (wepToggleBtn.textContent !== tx) wepToggleBtn.textContent = tx; }
+setInterval(syncWepToggle, 400);
 /* ============ input ============ */
 const cv = $("game"), ctx = cv.getContext("2d");
 /* ============ GRAPHICS levels (Jonathan 2026-10-30) ============
@@ -3061,6 +3084,7 @@ function toggleBbeMech() { /* Big Boy Eater's swap (Jonathan 2026-11-05): the Dr
 function toggleMech() {
   if (!entered) return;
   if (me.scene === "trenches" && trSeat >= 0) return; /* NO MECHS IN THE GAME (Jonathan 2026-11-03, corrected the same night — "Outside the arena you should be able to do everything normal"): this is the ONE toggle entry — the T key and the phone T button both route here, and every per-account swap (king/tonic/ken/robo/neon and the owner's own) hangs off it — so this single gate locks them all, but ONLY while he is in the match (seated), the boxingBout lock's own arrangement. A spectator anywhere in the room transforms as normal; sitting down in a form pops it off at the chair (trTrySit's clearMechForms), so no form ever fights and none is stranded */
+  if (!(mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm || neonMechForm || bbeMechForm || patchMechForm || shopMechForm) && performance.now() - lastCombatAt < 3000) return; /* IN COMBAT (note 17): no transforming while you fight, nor for 3 seconds after combat stops — and combat itself pops the form off (enemyTick / enemyHitMe keep lastCombatAt hot) */
   if ((fishState.mode || chopState.mode || detState.out) && !(mechForm || kingMechForm || tonicMechForm || kenMechForm || roboMechForm || neonMechForm || bbeMechForm || patchMechForm || shopMechForm)) return; /* NO TRANSFORMING WHILE FISHING OR CHOPPING (Jonathan 2026-11-06 — "you cant transform into mech while fishing or chopping wood"): starting a cast or a chop already drops the form (untransformForActivity); this is the other direction — while an activity is IN PROGRESS (fishState or chopState mode "wait" or "bite") the transform-ON half of this one toggle is a silent no-op: no form change, no burst, no sound, no publish, no cooldown spent. The gate reads "no form up", so a form somehow already worn still toggles OFF through the normal routing below it; and untransformForActivity never routes here at all (it calls clearMechForms directly), so the drop-on-start rule is untouched. Merely standing by a tree or the shore sets no mode — T works there exactly as before. METAL DETECTING (2026-11-06) joins the same gate through detState.out: while the detector is out on the sand, the transform-ON half is the same silent no-op */
   const shopD = shopDesignFor(me.hero, me.g); if (shopD && mechOwned(shopD.id) && !(isTonicAcct() && me.hero === TONIC_HERO)) { toggleShopMech(shopD); return; } /* the MECH SHOP branch (Jonathan 2026-11-04): wearing a costume whose mech this account has unlocked, T drives THAT design's mech. It routes FIRST because the account swaps below it gate on their own hero and would swallow the press whole for their owners wearing anything else (the king's swap no-ops off hero 73, stranding a king who bought the rogue). Exactly ONE carve-out: 7daytonic on his own hero 76 — on the female track 76 is the dragon design's base too, and his T keeps driving his galaxy mech through his own swap below, blue burst and all, exactly as today, whether or not the shop ever sold him the dragon (on the male track 76 carries no design since the dragon re-paired to 57, so there the carve-out simply never fires). Everywhere else the pre-existing pairs are untouched: the king's 73, Ken's 78 and the owner's 80/82 have no shop design, so this branch can never fire on them, and an unowned costume falls through to whatever T meant before — for the owner his DreadMech (only while he wears 71, per the avatar-tied gate at the fall-through), for everyone else nothing */
   if (isKingAcct()) { toggleKingMech(); return; } /* OnlineMoney's T drives his king mech, never the owner's */
@@ -15936,14 +15960,16 @@ const FOREST_GROVE = (function () {
 /* ---- ownership + the active weapon: the fishing slice's shape, on the account doc (guests keep a device slice) ---- */
 let myWep = { sword: 0, bow: 0, staff: 0 }; /* the best tier owned of each kind — everyone starts with the Basic of each, tier 0 */
 let wepActive = ""; /* "" = put away; otherwise "sword:2" style — kind:tier, any owned tier */
+let wepSel = { sword: 0, bow: 0, staff: 0 }; /* the tier I last had equipped of each type — Q/E land on it (note 6) */
+let wepLastOut = ""; /* the last weapon I had out, "kind:tier" — the blue button brings it back (note 19) */
 const WEP_LS = "hubwep-v1";
-function wepLocalLoad() { try { const raw = localStorage.getItem(WEP_LS); if (raw) { const d = JSON.parse(raw); if (d && typeof d === "object") { for (const k of ["sword", "bow", "staff"]) myWep[k] = (typeof d[k] === "number" && d[k] >= 0 && d[k] <= 5) ? Math.floor(d[k]) : 0; wepActive = (typeof d.act === "string" && /^(sword|bow|staff):[0-5]$/.test(d.act) && myWep[d.act.split(":")[0]] >= +d.act.split(":")[1]) ? d.act : ""; } } } catch (e) {} }
-function acctWepSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ wep: { sword: myWep.sword, bow: myWep.bow, staff: myWep.staff, act: wepActive }, ts: Date.now() }); } catch (e) {} }
-function wepSave() { if (acctUser) acctWepSave(); else { try { localStorage.setItem(WEP_LS, JSON.stringify({ sword: myWep.sword, bow: myWep.bow, staff: myWep.staff, act: wepActive })); } catch (e) {} } wepPublish(); }
+function wepLocalLoad() { try { const raw = localStorage.getItem(WEP_LS); if (raw) { const d = JSON.parse(raw); if (d && typeof d === "object") { for (const k of ["sword", "bow", "staff"]) myWep[k] = (typeof d[k] === "number" && d[k] >= 0 && d[k] <= 5) ? Math.floor(d[k]) : 0; wepActive = (typeof d.act === "string" && /^(sword|bow|staff):[0-5]$/.test(d.act) && myWep[d.act.split(":")[0]] >= +d.act.split(":")[1]) ? d.act : ""; for (const k of ["sword", "bow", "staff"]) wepSel[k] = (d.sel && typeof d.sel[k] === "number" && d.sel[k] >= 0 && d.sel[k] <= myWep[k]) ? Math.floor(d.sel[k]) : myWep[k]; wepLastOut = (typeof d.last === "string" && /^(sword|bow|staff):[0-5]$/.test(d.last)) ? d.last : (wepActive || "sword:0"); } } } catch (e) {} }
+function acctWepSave() { if (!acctUser || !db) return; try { db.ref("hub/users/" + acctUser.uid).update({ wep: { sword: myWep.sword, bow: myWep.bow, staff: myWep.staff, act: wepActive, sel: wepSel, last: wepLastOut }, ts: Date.now() }); } catch (e) {} }
+function wepSave() { if (acctUser) acctWepSave(); else { try { localStorage.setItem(WEP_LS, JSON.stringify({ sword: myWep.sword, bow: myWep.bow, staff: myWep.staff, act: wepActive, sel: wepSel, last: wepLastOut })); } catch (e) {} } wepPublish(); }
 function loadWepFromAccount(d) {
-  if (d && typeof d === "object" && d.wep && typeof d.wep === "object") { const w = d.wep; for (const k of ["sword", "bow", "staff"]) myWep[k] = (typeof w[k] === "number" && w[k] >= 0 && w[k] <= 5) ? Math.floor(w[k]) : 0; wepActive = (typeof w.act === "string" && /^(sword|bow|staff):[0-5]$/.test(w.act) && myWep[w.act.split(":")[0]] >= +w.act.split(":")[1]) ? w.act : ""; }
-  else if (d && typeof d === "object") { myWep = { sword: 0, bow: 0, staff: 0 }; wepActive = ""; }
-  else { myWep = { sword: 0, bow: 0, staff: 0 }; wepActive = ""; wepLocalLoad(); }
+  if (d && typeof d === "object" && d.wep && typeof d.wep === "object") { const w = d.wep; for (const k of ["sword", "bow", "staff"]) myWep[k] = (typeof w[k] === "number" && w[k] >= 0 && w[k] <= 5) ? Math.floor(w[k]) : 0; wepActive = (typeof w.act === "string" && /^(sword|bow|staff):[0-5]$/.test(w.act) && myWep[w.act.split(":")[0]] >= +w.act.split(":")[1]) ? w.act : ""; for (const k of ["sword", "bow", "staff"]) wepSel[k] = (w.sel && typeof w.sel[k] === "number" && w.sel[k] >= 0 && w.sel[k] <= myWep[k]) ? Math.floor(w.sel[k]) : myWep[k]; wepLastOut = (typeof w.last === "string" && /^(sword|bow|staff):[0-5]$/.test(w.last)) ? w.last : (wepActive || "sword:0"); }
+  else if (d && typeof d === "object") { myWep = { sword: 0, bow: 0, staff: 0 }; wepActive = ""; wepSel = { sword: 0, bow: 0, staff: 0 }; wepLastOut = "sword:0"; }
+  else { myWep = { sword: 0, bow: 0, staff: 0 }; wepActive = ""; wepSel = { sword: 0, bow: 0, staff: 0 }; wepLastOut = "sword:0"; wepLocalLoad(); }
   wepPublish();
 }
 wepLocalLoad();
@@ -16005,6 +16031,7 @@ function wepSetActive(kind, tier) {
   if (myWep[kind] < tier) return;
   untransformForActivity(); /* a weapon in hand drops the mech, the cast/chop rule */
   wepActive = kind + ":" + tier;
+  wepSel[kind] = tier; wepLastOut = wepActive; /* the type remembers this tier (note 6) and the blue button remembers this weapon (note 19) */
   wepSave(); renderEquipPanel(); renderWepPanel();
   sfxEquipWep(); genText(me.x, me.y - 104, WEP_TIER_NAMES[tier] + " " + WEP_TYPE_NAME[kind] + " out!", WEP_TCOL[tier]);
 }
@@ -16094,7 +16121,7 @@ function wepAnimTick() { /* phase for phase the rod tick: shake 0–2400, morph 
   else if (el < 5600) { if (!a.burst) { a.burst = true; im.style.filter = ""; im.style.transform = "scale(1.18)"; $("evotext").textContent = "🎉 Your " + WEP_TYPE_NAME[a.kind].toLowerCase() + " transformed into the " + WEP_TIER_NAMES[a.to] + "!"; spawnEvoSparkles(); sfxEvoReveal(); } requestAnimationFrame(wepAnimTick); }
   else endWepAnim();
 }
-function endWepAnim() { if (!wepAnim) return; const a = wepAnim; wepAnim = null; $("evooverlay").style.display = "none"; myWep[a.kind] = a.to; wepSave(); }
+function endWepAnim() { if (!wepAnim) return; const a = wepAnim; wepAnim = null; $("evooverlay").style.display = "none"; myWep[a.kind] = a.to; wepSetActive(a.kind, a.to); } /* the upgrade equips itself the moment it lands (note 20) */
 /* ---- the doors ---- */
 function toWepShop(kind) { stopAllTones(); me.scene = WEP_SHOPS[kind].scene; voiceReset(); me.x = WEPROOM.w / 2; me.y = WEPROOM.h - 170; sfxChime(); publish(true); pullChips(); for (let t = 0; t < 6; t++) wepImg(kind, t); for (let t = 0; t < 6; t++) wepImg("arrow", t); }
 function toPlazaFromWepShop(kind) { stopAllTones(); me.scene = "plaza"; voiceReset(); const B = WEP_SHOPS[kind].B; me.x = B.x + B.w / 2; me.y = B.y + B.h + 60; sfxChime(); publish(true); closeWepPanel(); }
@@ -16126,14 +16153,14 @@ function drawWepBuilding(t, kind, paint) {
   ctx.fillStyle = S.wall; rr(B.x, B.y, B.w, B.h, 12); ctx.fill();
   ctx.strokeStyle = S.main; ctx.lineWidth = 3; rr(B.x, B.y, B.w, B.h, 12); ctx.stroke();
   ctx.fillStyle = "rgba(255,255,255,0.14)"; /* the aligned window row: six lit windows, same line on every shop */
-  for (let i = 0; i < 6; i++) { const wx = B.x + 52 + i * 82; rr(wx, B.y + 118, 46, 54, 5); ctx.fill(); ctx.strokeStyle = S.trim; ctx.lineWidth = 2; rr(wx, B.y + 118, 46, 54, 5); ctx.stroke(); }
+  for (let i = 0; i < 6; i++) { const wx = B.x + 52 + i * 82; rr(wx, B.y + 92, 46, 54, 5); ctx.fill(); ctx.strokeStyle = S.trim; ctx.lineWidth = 2; rr(wx, B.y + 92, 46, 54, 5); ctx.stroke(); } /* the window row rides UP a bit (note 10) */
   paint(t, B, S, cx);
-  ctx.fillStyle = S.main; rr(B.x - 10, B.y + B.h - 96, B.w + 20, 44, 8); ctx.fill(); /* the marquee band above the door */
+  ctx.fillStyle = S.main; rr(B.x - 10, B.y + B.h - 128, B.w + 20, 44, 8); ctx.fill(); /* the marquee band, UP a bit (note 10) — clear air between it and the door now */
   ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#0b0b10";
-  ctx.fillText(WEP_SHOPS[kind].panel.toUpperCase(), cx, B.y + B.h - 66);
+  ctx.fillText(WEP_SHOPS[kind].panel.toUpperCase(), cx, B.y + B.h - 98);
   const dk = WEP_SHOPS[kind].door;
-  ctx.fillStyle = "#0a0a0d"; rr(dk.x - 9, dk.y - 40, dk.w + 18, 40, 7); ctx.fill();
-  ctx.strokeStyle = S.soft; ctx.lineWidth = 2.5; rr(dk.x - 9, dk.y - 40, dk.w + 18, 40, 7); ctx.stroke();
+  ctx.fillStyle = "#0a0a0d"; rr(dk.x - 9, dk.y - 28, dk.w + 18, 44, 7); ctx.fill(); /* the door sits BELOW the name bar, grounded at the entrance (note 10) */
+  ctx.strokeStyle = S.soft; ctx.lineWidth = 2.5; rr(dk.x - 9, dk.y - 28, dk.w + 18, 44, 7); ctx.stroke();
   ctx.font = "700 19px 'Segoe UI',sans-serif"; ctx.fillStyle = S.soft;
   ctx.fillText("▼ ENTER ▼", cx, dk.y + 62);
 }
@@ -16222,7 +16249,7 @@ function drawWepCounterFront(kind) { /* the fish shop's trick, per shop: repaint
   ctx.restore();
 }
 
-/* ---- the enemies: five kinds, half a mech tall (108), faces right as drawn — flipped when it walks left ---- */
+/* ---- the enemies: five kinds, the size of the mechs (216), faces right as drawn — flipped when it walks left ---- */
 const ENEMY_DEFS = [
   { key: "archer", name: "Elf Archer", file: "enemy_elf_archer.png", hp: 6, coin: 2500, speed: 150, ranged: 300 },
   { key: "healer", name: "Grove Healer", file: "enemy_grove_healer.png", hp: 10, coin: 2000, speed: 140, ranged: 280 },
@@ -16230,6 +16257,8 @@ const ENEMY_DEFS = [
   { key: "rogue", name: "Shadow Rogue", file: "enemy_shadow_rogue.png", hp: 4, coin: 1000, speed: 200, ranged: 0 },
   { key: "treant", name: "Treant Warrior", file: "enemy_treant_warrior.png", hp: 24, coin: 10000, speed: 115, ranged: 0 }
 ];
+const ENEMY_ENGAGE = 370; /* ONE engagement distance for the whole forest (note 8): the ranged kinds open fire inside it, and the melee kinds start homing at it too */
+const ENEMY_H = 216; /* the enemies stand the size of the mechs (his word, 2026-11-08) */
 const ENEMY_OFFSETS = [[-470, -300], [450, 330], [520, -360], [-330, 300], [60, 520]]; /* archer, healer, druid, rogue, treant — around each hub */
 const ENEMY_HOMES = [];
 ["sword", "bow", "staff"].forEach(k => { const H = WEP_SHOPS[k].hub; ENEMY_DEFS.forEach((d, ti) => ENEMY_HOMES.push({ t: ti, x: H.x + ENEMY_OFFSETS[ti][0], y: H.y + ENEMY_OFFSETS[ti][1] })); });
@@ -16244,7 +16273,7 @@ function forestNetInit() {
   const ref = db.ref("hub/tables/forest");
   ref.on("value", snap => {
     let v = snap.val();
-    if (!v) { const seed = {}; ENEMY_HOMES.forEach((h, i) => { seed["e" + i] = { t: h.t, x: h.x, y: h.y, hp: ENEMY_DEFS[h.t].hp, st: "idle", tgt: "", f: 0, ts: srvNow(), deadTs: 0, wx: h.x, wy: h.y, atkTs: 0 }; }); ref.set(seed); v = seed; }
+    if (!v) { const seed = {}; ENEMY_HOMES.forEach((h, i) => { seed["e" + i] = { t: h.t, x: h.x, y: h.y, hp: ENEMY_DEFS[h.t].hp, st: "idle", tgt: "", f: 0, ts: srvNow(), deadTs: 0, wx: h.x, wy: h.y, atkTs: 0, clk: 0, clkCd: 0, wnd: 0, hl: 0 }; }); ref.set(seed); v = seed; }
     Object.keys(v).forEach(eid => { const rec = v[eid]; if (!rec || typeof rec !== "object") return;
       const prev = forestEnemies.get(eid), rp = enemyRender.get(eid) || { rx: rec.x, ry: rec.y, flash: 0, lunge: 0, lastHp: rec.hp };
       if (prev && rec.hp < prev.hp) rp.flash = performance.now();
@@ -16258,14 +16287,17 @@ function forestNetInit() {
 function enemyRenderPos(eid, er) { const rp = enemyRender.get(eid); return rp ? { x: rp.rx, y: rp.ry } : { x: er.x, y: er.y }; }
 function enemyWrite(eid, patch) { try { db.ref("hub/tables/forest/" + eid).update(patch); } catch (e) {} }
 function enemyHpHit(eid, dmg) { /* damage lands through a transaction on the shared record — every screen's listener paints the flash, and the death poof, off the same write */
+  const er0 = forestEnemies.get(eid);
+  if (er0 && ENEMY_DEFS[er0.t].key === "rogue" && (er0.clk || 0) > srvNow()) { genText(er0.x, er0.y - 252, "cloaked!", "#9db8d9"); return; } /* a cloaked assassin cannot be hurt (note 9) */
   try { db.ref("hub/tables/forest/" + eid).transaction(cur => { if (!cur || cur.st === "dead" || typeof cur.hp !== "number") return cur; cur.hp = Math.max(0, cur.hp - dmg); if (cur.hp <= 0) { cur.st = "dead"; cur.deadTs = srvNow(); cur.tgt = ""; } return cur; }); } catch (e) {}
-  const er = forestEnemies.get(eid); if (er) genText(er.x, er.y - 130, "-" + dmg, "#ffd76a");
+  const er = forestEnemies.get(eid); if (er) genText(er.x, er.y - 252, "-" + dmg, "#ffd76a");
 }
-function enemyHitMe(def) { /* COINS ARE YOUR HEALTH: the victim's own client pays, the FUD exactly-once pattern — debited here and nowhere else */
-  pullChips(); addChips(-def.coin); saveChips();
-  genText(me.x, me.y - 118, "-🪙 " + def.coin.toLocaleString("en-US"), "#ff8fa0");
+function enemyHitMe(def) { /* COINS ARE YOUR HEALTH: the victim's own client pays, the FUD exactly-once pattern — debited here and nowhere else. No death at zero (note 16): the loss is only what you actually had, so a broke player is hit for -0 and fights on */
+  pullChips(); const loss = Math.min((profile && profile.chips) || 0, def.coin); addChips(-loss); saveChips();
+  genText(me.x, me.y - 118, "-\uD83E\uDE99 " + loss.toLocaleString("en-US"), "#ff8fa0");
   wepParts.push({ ring: true, x: me.x, y: me.y - 40, t0: performance.now(), col: "#ff5e3c" });
   sfxHurtCoin();
+  lastCombatAt = performance.now();
 }
 function enemyBlocked(x, y) { for (const k in WEP_SHOPS) { const B = WEP_SHOPS[k].B; if (x > B.x - 26 && x < B.x + B.w + 26 && y > B.y - 26 && y < B.y + B.h + 26) return true; } return false; }
 function enemyStep(eid, er, tx, ty, sp, dt) { /* one eased step toward a point, shop footprints respected per axis; returns the new facing */
@@ -16276,7 +16308,19 @@ function enemyStep(eid, er, tx, ty, sp, dt) { /* one eased step toward a point, 
   return dx < 0 ? 1 : 0;
 }
 let enemyLastTick = 0;
-function enemyTick(now) { /* render easing for every enemy + the driver simulation. An enemy is driven by its TARGET's client; idle ones are shepherded by whoever is near; claims and resets are guarded so two drivers never fight */
+const enemyWind = new Map(); /* eid -> the performance time a wound-up melee strike lands (driver-local) */
+let lastCombatAt = 0; /* my last combat moment — I attacked, I was hit, or an enemy is on me; the mech transform lock reads it (note 17) */
+function enemyHealTarget(eid, er) { /* the healer's patient (note 7): the most-damaged living enemy near it */
+  let best = null, bestFrac = 1;
+  for (const [oid, oe] of forestEnemies) { if (oid === eid || oe.st === "dead") continue; const od = ENEMY_DEFS[oe.t]; if (oe.hp >= od.hp) continue; if (Math.hypot(oe.x - er.x, oe.y - er.y) > 280) continue; const fr = oe.hp / od.hp; if (fr < bestFrac) { bestFrac = fr; best = oid; } }
+  return best;
+}
+function enemyHealAlly(allyId) { /* +3 back on the ally's shared record, capped at its full health; the heal mark paints green crosses on every screen */
+  const oe = forestEnemies.get(allyId); if (!oe) return; const od = ENEMY_DEFS[oe.t];
+  try { db.ref("hub/tables/forest/" + allyId).transaction(cur => { if (!cur || cur.st === "dead" || typeof cur.hp !== "number") return cur; cur.hp = Math.min(od.hp, cur.hp + 3); cur.hl = srvNow(); return cur; }); } catch (e) {}
+  const rp = enemyRenderPos(allyId, oe); genText(rp.x, rp.y - 252, "+3", "#4ade80"); spawnParts(rp.x, rp.y - 120, "#4ade80", 8, 120); tone(700, 990, 0.12, "sine", 0.03);
+}
+function enemyTick(now) { /* render easing for every enemy + the driver simulation. An enemy is driven by its TARGET's client and fights the CLOSEST player (note 12); idle ones are shepherded by whoever is near; claims and resets are guarded so two drivers never fight */
   const dt = Math.min(0.05, enemyLastTick ? (now - enemyLastTick) / 1000 : 0.016); enemyLastTick = now;
   for (const [eid, er] of forestEnemies) {
     const rp = enemyRender.get(eid); if (!rp) continue;
@@ -16284,30 +16328,45 @@ function enemyTick(now) { /* render easing for every enemy + the driver simulati
     if (gap > 240) { rp.rx = er.x; rp.ry = er.y; } else { const k = Math.min(1, dt * 9); rp.rx += (er.x - rp.rx) * k; rp.ry += (er.y - rp.ry) * k; }
     if (!db || !acctUser || me.scene !== "plaza") continue;
     const def = ENEMY_DEFS[er.t], home = ENEMY_HOMES[+eid.slice(1)], sn = srvNow();
-    if (er.st === "dead") { if (er.deadTs && sn - er.deadTs > 30000) { const deadTs = er.deadTs; try { db.ref("hub/tables/forest/" + eid).transaction(cur => { if (!cur || cur.st !== "dead" || cur.deadTs !== deadTs) return cur; return { t: cur.t, x: home.x, y: home.y, hp: ENEMY_DEFS[cur.t].hp, st: "idle", tgt: "", f: 0, ts: srvNow(), deadTs: 0, wx: home.x, wy: home.y, atkTs: 0 }; }); } catch (e) {} } continue; }
+    if (er.st === "dead") { if (er.deadTs && sn - er.deadTs > 30000) { enemyWind.delete(eid); const deadTs = er.deadTs; try { db.ref("hub/tables/forest/" + eid).transaction(cur => { if (!cur || cur.st !== "dead" || cur.deadTs !== deadTs) return cur; return { t: cur.t, x: home.x, y: home.y, hp: ENEMY_DEFS[cur.t].hp, st: "idle", tgt: "", f: 0, ts: srvNow(), deadTs: 0, wx: home.x, wy: home.y, atkTs: 0, clk: 0, clkCd: 0, wnd: 0, hl: 0 }; }); } catch (e) {} } continue; }
     const stale = sn - (er.ts || 0) > 2600;
     if (er.tgt === myId) { /* I am its target — I drive it */
       const myOk = me.x > FOREST.x0 + 60 && cvCar < 0 && cvRide < 0 && !cvSeatGame;
       const dMe = Math.hypot(me.x - er.x, me.y - er.y);
-      if (!myOk || dMe > 470) { if (stale || dMe > 470) enemyWrite(eid, { tgt: "", st: "idle", ts: sn }); continue; }
+      if (!myOk || dMe > 560) { if (stale || dMe > 560) { enemyWind.delete(eid); enemyWrite(eid, { tgt: "", st: "idle", ts: sn, wnd: 0 }); } continue; }
+      lastCombatAt = now; untransformForActivity(); /* combat pops my mech off (note 17) — a silent no-op with no form up */
+      /* note 12: the enemy fights the CLOSEST player — hand the fight over if someone else is clearly closer */
+      let nearId = myId, nearD = dMe;
+      for (const p of peers.values()) { if (p.scene !== "plaza" || !p.acct) continue; const pd = Math.hypot(p.x - er.x, p.y - er.y); if (pd < nearD) { nearD = pd; nearId = p.id; } }
+      if (nearId !== myId && nearD < dMe - 24) { enemyWind.delete(eid); enemyWrite(eid, { tgt: nearId, st: "aggro", ts: sn, wnd: 0 }); continue; }
       let f = er.f || 0, moved = false;
-      const reach = def.ranged ? def.ranged : 84;
-      if (dMe > reach) { f = enemyStep(eid, er, me.x, me.y, def.speed, dt); moved = true; }
-      else if (def.ranged && dMe < reach - 70) { f = enemyStep(eid, er, er.x + (er.x - me.x), er.y + (er.y - me.y), def.speed * 0.6, dt); moved = true; }
-      else f = (me.x < er.x) ? 1 : 0;
-      if (dMe <= (def.ranged ? 370 : 96) && now >= (enemyCd.get(eid) || 0)) { /* its attack lands */
+      const winding = enemyWind.has(eid);
+      if (!winding) { /* a wound-up enemy stands and gathers its strike — that stillness is the tell */
+        if (dMe > (def.ranged ? 340 : 84)) { f = enemyStep(eid, er, me.x, me.y, def.speed, dt); moved = true; }
+        else if (def.ranged && dMe < 240) { f = enemyStep(eid, er, er.x + (er.x - me.x), er.y + (er.y - me.y), def.speed * 0.6, dt); moved = true; }
+        else f = (me.x < er.x) ? 1 : 0;
+      }
+      const cdReady = now >= (enemyCd.get(eid) || 0);
+      if (!def.ranged) { /* melee: the strike is WOUND UP first (note 15) — 280ms of red arc to dodge — then it lands */
+        const wndAt = enemyWind.get(eid) || 0;
+        if (wndAt) { if (now >= wndAt) { enemyWind.delete(eid); if (dMe <= 135) enemyHitMe(def); enemyCd.set(eid, now + 1100); er.atkTs = sn; const rp2 = enemyRender.get(eid); if (rp2) rp2.lunge = now; enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn, atkTs: sn, wnd: 0 }); continue; } }
+        else if (dMe <= 96 && cdReady) { enemyWind.set(eid, now + 280); enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn, wnd: sn }); continue; }
+      } else if (dMe <= ENEMY_ENGAGE && cdReady) { /* ranged: fire from far away (note 2) — they hold their distance and shoot */
+        if (def.key === "healer") { const ally = enemyHealTarget(eid, er); if (ally) { enemyHealAlly(ally); enemyCd.set(eid, now + 1400); if (moved || stale) enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn }); continue; } } /* healing IS the healer's action — it takes the place of hurting you (note 7) */
         enemyCd.set(eid, now + 1100);
         er.atkTs = sn; const rp2 = enemyRender.get(eid); if (rp2) rp2.lunge = now;
-        if (def.ranged) spawnProj({ x: er.x, y: er.y - 74, hostile: true, kind: def.key === "archer" ? "earrow" : "ebolt", col: def.key === "archer" ? "#c9a86a" : def.key === "healer" ? "#4ade80" : "#b58cff", coin: def.coin, def: def, t0: now });
-        else enemyHitMe(def);
+        const sx = er.x, sy = er.y - 150, gx = me.x, gy = me.y - 46, gd = Math.hypot(gx - sx, gy - sy) || 1, spd2 = def.key === "archer" ? 720 : 640;
+        spawnProj({ x: sx, y: sy, hostile: true, kind: def.key === "archer" ? "earrow" : "ebolt", semi: def.key !== "archer", vx: (gx - sx) / gd * spd2, vy: (gy - sy) / gd * spd2, sp: spd2, col: def.key === "archer" ? "#e8c987" : def.key === "healer" ? "#4ade80" : "#b58cff", coin: def.coin, def: def, t0: now });
         enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn, atkTs: sn });
         continue;
       }
+      if (def.key === "rogue" && sn >= (er.clk || 0) && sn >= (er.clkCd || 0) && Math.random() < dt * 0.3) { er.clk = sn + 3000; er.clkCd = sn + 30000; enemyWrite(eid, { clk: er.clk, clkCd: er.clkCd, ts: sn }); } /* the assassin's cloak (note 9): 3 seconds at half-seen and untouchable, 30 seconds to reset, popped at random while it fights */
       if (moved || stale) enemyWrite(eid, { x: er.x, y: er.y, f: f, ts: sn });
-    } else if (er.tgt) { /* someone else's fight — only clear a target whose driver has clearly gone */
-      if (sn - (er.ts || 0) > 6000) enemyWrite(eid, { tgt: "", st: "idle", ts: sn });
-    } else if (stale) { /* idle: claim for the nearest signed-in player in aggro reach, else wander near home */
-      let best = null, bestD = 300;
+    } else if (er.tgt) { /* someone else's fight — clear a target whose driver has clearly gone; or take the fight over if I am the closest player in engagement and its record has gone quiet */
+      if (sn - (er.ts || 0) > 6000) enemyWrite(eid, { tgt: "", st: "idle", ts: sn, wnd: 0 });
+      else if (stale) { const dMe2 = Math.hypot(me.x - er.x, me.y - er.y); if (dMe2 <= ENEMY_ENGAGE) { let imNearest = true; for (const p of peers.values()) { if (p.scene !== "plaza" || !p.acct) continue; if (Math.hypot(p.x - er.x, p.y - er.y) < dMe2 - 4) { imNearest = false; break; } } if (imNearest) { enemyWrite(eid, { tgt: myId, st: "aggro", ts: sn }); sfxAggro(); } } }
+    } else if (stale) { /* idle: claim for the nearest signed-in player inside the ONE engagement distance (note 8), else wander near home */
+      let best = null, bestD = ENEMY_ENGAGE;
       const consider = (pid, px, py, hasAcct) => { if (!hasAcct) return; const d = Math.hypot(px - er.x, py - er.y); if (d < bestD) { bestD = d; best = pid; } };
       consider(myId, me.x, me.y, !!acctUser);
       for (const p of peers.values()) if (p.scene === "plaza") consider(p.id, p.x, p.y, !!p.acct);
@@ -16321,6 +16380,7 @@ function enemyTick(now) { /* render easing for every enemy + the driver simulati
     }
   }
 }
+
 /* ---- my own fighting: the active weapon attacks on its own, in range — sword close, bow and staff far ---- */
 let mySwing = null; /* { t0, kind, tier, ang, tgt } */
 let wepNextAtk = 0, bowDraw = null; /* bowDraw: { t0, tgt } while the string is pulling */
@@ -16328,27 +16388,27 @@ function wepTick(now) {
   if (me.scene !== "plaza" || !acctUser || !wepActive || wepBusy() || cvCar >= 0 || cvRide >= 0 || cvSeatGame) { bowDraw = null; return; }
   const kind = wepActiveKind(), tier = wepActiveTier(), range = kind === "sword" ? 140 : 385;
   let tgtId = "", tgtD = 1e9, tgtRec = null;
-  for (const [eid, er] of forestEnemies) { if (er.st === "dead") continue; const d = Math.hypot(er.x - me.x, er.y - me.y); if (d < tgtD) { tgtD = d; tgtId = eid; tgtRec = er; } }
+  for (const [eid, er] of forestEnemies) { if (er.st === "dead") continue; if (ENEMY_DEFS[er.t].key === "rogue" && (er.clk || 0) > srvNow()) continue; /* a cloaked assassin cannot be hurt — the weapon picks another target (note 9) */ const d = Math.hypot(er.x - me.x, er.y - me.y); if (d < tgtD) { tgtD = d; tgtId = eid; tgtRec = er; } }
   if (!tgtRec || tgtD > range) { bowDraw = null; return; }
-  const ang = Math.atan2(tgtRec.y - 40 - (me.y - 46), tgtRec.x - me.x);
+  const ang = Math.atan2(tgtRec.y - 100 - (me.y - 46), tgtRec.x - me.x);
   if (kind === "sword") {
     if (now < wepNextAtk) return;
     wepNextAtk = now + 600;
-    mySwing = { t0: now, kind: kind, tier: tier, ang: ang, tgt: tgtId };
+    mySwing = { t0: now, kind: kind, tier: tier, ang: ang, tgt: tgtId }; lastCombatAt = now;
     sfxSwing();
     wepPublishAtk(tgtId);
-    setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175) { enemyHpHit(tgtId, tier + 1); sfxEnemyHit(); spawnParts(er2.x, er2.y - 50, WEP_TCOL[tier], 6, 160); } }, 130);
+    setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175) { enemyHpHit(tgtId, tier + 1); sfxEnemyHit(); spawnParts(er2.x, er2.y - 110, WEP_TCOL[tier], 6, 160); } }, 130);
   } else if (kind === "bow") {
     if (bowDraw) { if (bowDraw.tgt !== tgtId) bowDraw = { t0: now, tgt: tgtId };
       mySwing = { t0: bowDraw.t0, kind: kind, tier: tier, ang: ang, tgt: tgtId };
-      if (now - bowDraw.t0 >= 350 && now >= wepNextAtk) { bowDraw = null; wepNextAtk = now + 950; sfxBowShoot(); wepPublishAtk(tgtId); spawnProj({ x: me.x + (me.flip ? 34 : -34), y: me.y - 62, eid: tgtId, kind: "arrow", tier: tier, t0: now }); }
+      if (now - bowDraw.t0 >= 350 && now >= wepNextAtk) { bowDraw = null; wepNextAtk = now + 950; lastCombatAt = now; sfxBowShoot(); wepPublishAtk(tgtId); spawnProj({ x: me.x + (me.flip ? 34 : -34), y: me.y - 62, eid: tgtId, kind: "arrow", tier: tier, t0: now }); }
       return; }
     if (now < wepNextAtk) return;
     bowDraw = { t0: now, tgt: tgtId }; sfxBowDrawSnd();
   } else { /* staff */
     if (now < wepNextAtk) return;
     wepNextAtk = now + 1200;
-    mySwing = { t0: now, kind: kind, tier: tier, ang: ang, tgt: tgtId };
+    mySwing = { t0: now, kind: kind, tier: tier, ang: ang, tgt: tgtId }; lastCombatAt = now;
     sfxMagicCast(); wepPublishAtk(tgtId);
     spawnProj({ x: me.x + (me.flip ? 36 : -36), y: me.y - 96, eid: tgtId, kind: "magic", tier: tier, t0: now });
   }
@@ -16360,26 +16420,38 @@ function spawnParts(x, y, col, n, spread) { for (let i = 0; i < n; i++) { const 
 const peerSwings = new Map(); /* pid -> { t0, spec, tgt, queued } */
 function peerSwingStart(pid, rec) { peerSwings.set(pid, { t0: 0, spec: rec.w, tgt: rec.tgt, queued: true }); }
 let wepFxLast = 0;
-function drawWepFx(now) { /* projectiles fly and land here — this runs every plaza frame inside the camera transform */
+function drawWepFx(now) { /* projectiles fly and land here — this runs every plaza frame inside the camera transform. ENEMY shots (notes 1 + 18): they fly REAL lines — an arrow never bends, a caster's bolt bends only partway (semi-homing — a dodge beats it) — they are drawn BIG (note 15), and any enemy shot still travelling after 3 seconds is gone */
   const dt = Math.min(0.05, wepFxLast ? (now - wepFxLast) / 1000 : 0.016); wepFxLast = now;
   for (let i = wepProjs.length - 1; i >= 0; i--) { const p = wepProjs[i];
+    if (p.hostile) {
+      if (now - p.t0 > 3000) { wepProjs.splice(i, 1); continue; } /* a missed enemy shot dies after 3 seconds of travel */
+      const tx = me.x, ty = me.y - 46, sp = p.sp || 720;
+      if (p.semi) { const want = Math.atan2(ty - p.y, tx - p.x); let cur = Math.atan2(p.vy, p.vx), dA = want - cur; while (dA > Math.PI) dA -= 2 * Math.PI; while (dA < -Math.PI) dA += 2 * Math.PI; cur += Math.max(-1.2 * dt, Math.min(1.2 * dt, dA)); p.vx = Math.cos(cur) * sp; p.vy = Math.sin(cur) * sp; } /* semi-homing: it bends toward you at a capped rate — move and it misses */
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (Math.hypot(tx - p.x, ty - p.y) < 32) { wepProjs.splice(i, 1); enemyHitMe(p.def); spawnParts(me.x, me.y - 46, p.col, 7, 150); continue; }
+      if (p.kind === "earrow") { /* a long bright streak with a white-hot head — an arrow you can SEE coming */
+        ctx.save(); ctx.strokeStyle = p.col; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05); ctx.lineTo(p.x, p.y); ctx.stroke();
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(p.x, p.y, 3.4, 0, 7); ctx.fill(); ctx.restore();
+        if (Math.random() < 0.5) wepParts.push({ x: p.x, y: p.y, vx: 0, vy: 0, t0: now, life: 200, col: p.col, r: 2 });
+      } else { /* a caster's bolt: a fat glowing orb with a white heart and a sparkle trail */
+        if (Math.random() < 0.8) wepParts.push({ x: p.x + (Math.random() - 0.5) * 8, y: p.y + (Math.random() - 0.5) * 8, vx: (Math.random() - 0.5) * 24, vy: (Math.random() - 0.5) * 24, t0: now, life: 240, col: p.col, r: 2.4 });
+        ctx.save(); ctx.shadowColor = p.col; ctx.shadowBlur = 18; ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, 7); ctx.fill(); ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(p.x, p.y, 4.4, 0, 7); ctx.fill(); ctx.restore();
+      }
+      continue;
+    }
     let tx, ty, alive = true;
-    if (p.hostile) { tx = me.x; ty = me.y - 46; }
-    else { const er = p.eid ? forestEnemies.get(p.eid) : null; if (!er || er.st === "dead") alive = false; else { tx = er.x; ty = er.y - 52; } }
+    { const er = p.eid ? forestEnemies.get(p.eid) : null; if (!er || er.st === "dead") alive = false; else { tx = er.x; ty = er.y - 108; } }
     if (!alive) { wepProjs.splice(i, 1); continue; }
-    const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), sp = p.kind === "magic" ? 640 : p.kind === "arrow" ? 980 : 720;
+    const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), sp = p.kind === "magic" ? 640 : 980;
     if (d < 30) { /* arrival */
       wepProjs.splice(i, 1);
-      if (p.hostile) { enemyHitMe(p.def); spawnParts(me.x, me.y - 46, p.col, 6, 140); }
-      else if (p.eid) { const er = forestEnemies.get(p.eid); if (er) { if (!p.visual) enemyHpHit(p.eid, p.tier + 1); /* a peer's replayed shot is visual only — the shooter's own client lands his damage, exactly once */ spawnParts(er.x, er.y - 52, WEP_TCOL[p.tier], p.kind === "magic" ? 12 : 6, 190); if (!p.visual && Math.hypot(er.x - me.x, er.y - me.y) < 1100) { if (p.kind === "magic") sfxMagicHit(); else sfxArrowHit(); } } }
+      if (p.eid) { const er = forestEnemies.get(p.eid); if (er) { if (!p.visual) enemyHpHit(p.eid, p.tier + 1); /* a peer's replayed shot is visual only — the shooter's own client lands his damage, exactly once */ spawnParts(er.x, er.y - 110, WEP_TCOL[p.tier], p.kind === "magic" ? 12 : 6, 190); if (!p.visual && Math.hypot(er.x - me.x, er.y - me.y) < 1100) { if (p.kind === "magic") sfxMagicHit(); else sfxArrowHit(); } } }
       continue;
     }
     p.x += dx / d * sp * dt; p.y += dy / d * sp * dt;
     if (p.kind === "magic") { wepParts.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t0: now, life: 260, col: WEP_TCOL[p.tier], r: 2.5 });
       ctx.save(); ctx.shadowColor = WEP_TCOL[p.tier]; ctx.shadowBlur = 16; ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, 7); ctx.fill(); ctx.fillStyle = WEP_TCOL[p.tier]; ctx.beginPath(); ctx.arc(p.x, p.y, 10.5, 0, 7); ctx.globalAlpha = 0.5; ctx.fill(); ctx.restore();
-    } else if (p.kind === "arrow") { const im = wepImg("arrow", p.tier); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(dy, dx)); if (im && im.complete && im.naturalWidth) { const sc = 62 / Math.max(im.naturalWidth, im.naturalHeight); ctx.drawImage(im, -im.naturalWidth * sc / 2, -im.naturalHeight * sc / 2, im.naturalWidth * sc, im.naturalHeight * sc); } else { ctx.fillStyle = WEP_TCOL[p.tier]; ctx.fillRect(-16, -2, 32, 4); } ctx.restore();
-    } else if (p.kind === "earrow") { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(dy, dx)); ctx.fillStyle = p.col; ctx.fillRect(-15, -2, 30, 4); ctx.fillStyle = "#fff"; ctx.fillRect(9, -4, 7, 8); ctx.restore();
-    } else { ctx.save(); ctx.shadowColor = p.col; ctx.shadowBlur = 12; ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, 6.5, 0, 7); ctx.fill(); ctx.restore(); }
+    } else if (p.kind === "arrow") { const im = wepImg("arrow", p.tier); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(dy, dx) + Math.PI / 2); if (im && im.complete && im.naturalWidth) { const sc = 62 / Math.max(im.naturalWidth, im.naturalHeight); ctx.drawImage(im, -im.naturalWidth * sc / 2, -im.naturalHeight * sc / 2, im.naturalWidth * sc, im.naturalHeight * sc); } else { ctx.fillStyle = WEP_TCOL[p.tier]; ctx.fillRect(-16, -2, 32, 4); } ctx.restore(); }
   }
   for (let i = wepParts.length - 1; i >= 0; i--) { const q = wepParts[i];
     if (q.ring) { const p = (now - q.t0) / 380; if (p >= 1) { wepParts.splice(i, 1); continue; } ctx.save(); ctx.globalAlpha = 0.75 * (1 - p); ctx.strokeStyle = q.col; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(q.x, q.y, 14 + p * 62, 0, 7); ctx.stroke(); ctx.restore(); continue; }
@@ -16388,7 +16460,9 @@ function drawWepFx(now) { /* projectiles fly and land here — this runs every p
     ctx.save(); ctx.globalAlpha = 1 - age / q.life; ctx.fillStyle = q.col; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 7); ctx.fill(); ctx.restore();
   }
 }
+
 /* ---- drawing the held weapon: in front of the body, upright, following the facing — with its swing, draw and cast animations ---- */
+const BOW_TIPS = [[0.827, 0.619], [0.828, 0.621], [0.812, 0.584], [0.827, 0.630], [0.799, 0.623], [0.804, 0.593]]; /* per tier, the string's anchors as fractions of his bow art (top tip x, bottom tip x — measured off the sprites): the string ties to BOTH ends */
 function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   if (!spec) return;
   const parts = spec.split(":"), kind = parts[0], tier = +parts[1];
@@ -16398,20 +16472,29 @@ function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   const sc = H / im.naturalHeight, W = im.naturalWidth * sc;
   const sw = swing && swing.kind === kind ? (t - swing.t0) : 9999;
   ctx.save(); ctx.translate(hx, hy);
-  if (kind === "sword" && sw < 240) { /* the swing: the blade sweeps an arc toward the enemy it aimed at */
-    const p = sw / 240, sweep = -1.9 + p * 2.6;
-    ctx.save(); ctx.globalAlpha = 0.30 * (1 - p); ctx.fillStyle = WEP_TCOL[tier]; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 118, swing.ang - 0.9 + p * 0.6, swing.ang + 0.35 + p * 0.6); ctx.closePath(); ctx.fill(); ctx.restore();
-    ctx.rotate(swing.ang + Math.PI / 2 + (sweep - 0.65));
+  if (kind === "sword" && sw < 240) { /* the swing (note 13): the blade sweeps toward the enemy's side — starting on top when he is north of me, upside down when he is south, mirrored with my facing */
+    const p = Math.min(1, sw / 240), north = swing.ang < 0;
+    let b0, b1;
+    if (flip && north) { b0 = swing.ang - 2.55; b1 = swing.ang + 0.05; } /* facing right, enemy north: as it was */
+    else if (flip) { b0 = swing.ang + 1.9; b1 = swing.ang - 0.05; } /* facing right, enemy south: starts upside down, arcs to the right */
+    else if (north) { b0 = swing.ang + 2.55; b1 = swing.ang - 0.05; } /* facing left, enemy north: starts on top, arcs right to left */
+    else { b0 = swing.ang - 1.9; b1 = swing.ang + 0.05; } /* facing left, enemy south: starts upside down, swings right to left */
+    const beta = b0 + (b1 - b0) * p;
+    ctx.save(); ctx.globalAlpha = 0.30 * (1 - p); ctx.fillStyle = WEP_TCOL[tier]; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 118, b1 > b0 ? beta - 0.8 : beta - 0.12, b1 > b0 ? beta + 0.12 : beta + 0.8); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.rotate(beta + Math.PI / 2);
     ctx.scale(dir, 1); ctx.drawImage(im, -W / 2, -H + 14, W, H);
-  } else if (kind === "bow") {
-    ctx.scale(dir, 1);
-    ctx.drawImage(im, -W / 2, -H / 2 - 8, W, H);
-    /* the string, in this tier's colour: resting as a gentle line, pulled deep while drawing */
+  } else if (kind === "bow") { /* the bow (note 4): FLIPPED right-way round — its string side belongs to the holder, so it mirrors against the other weapons; the string ties to both limb tips; while a shot draws, the whole bow turns to face the enemy and the nocked arrow lies along that same line (note 5) */
     const pull = (swing && swing.kind === "bow" && sw < 950) ? Math.min(1, sw / 350) : 0;
-    const tipY = -H / 2 - 8 + 6, botY = tipY + H - 12, bellyX = W / 2 - 4;
+    const s = -dir;
+    if (swing && swing.kind === "bow" && typeof swing.ang === "number" && sw < 700) ctx.rotate(s < 0 ? swing.ang : swing.ang + Math.PI);
+    ctx.scale(s, 1);
+    ctx.drawImage(im, -W / 2, -H / 2 - 8, W, H);
+    const tips = BOW_TIPS[tier] || [0.82, 0.61];
+    const tX = (tips[0] - 0.5) * W, tY = -H / 2 - 8 + H * 0.012, bX = (tips[1] - 0.5) * W, bY = -H / 2 - 8 + H * 0.988;
+    const mxp = (tX + bX) / 2 + pull * 20, myp = (tY + bY) / 2;
     ctx.strokeStyle = WEP_TCOL[tier]; ctx.lineWidth = 2.5; ctx.beginPath();
-    ctx.moveTo(bellyX, tipY); ctx.lineTo(bellyX - pull * 34, (tipY + botY) / 2); ctx.lineTo(bellyX, botY); ctx.stroke();
-    if (pull > 0.05) { const aim = wepImg("arrow", tier); if (aim && aim.complete && aim.naturalWidth) { const as = 58 / Math.max(aim.naturalWidth, aim.naturalHeight); ctx.save(); ctx.translate(bellyX - pull * 34 + 24, (tipY + botY) / 2); ctx.drawImage(aim, -aim.naturalWidth * as / 2, -aim.naturalHeight * as / 2, aim.naturalWidth * as, aim.naturalHeight * as); ctx.restore(); } }
+    ctx.moveTo(tX, tY); if (pull > 0.02) ctx.lineTo(mxp, myp); ctx.lineTo(bX, bY); ctx.stroke();
+    if (pull > 0.05) { const aim = wepImg("arrow", tier); if (aim && aim.complete && aim.naturalWidth) { const as = 58 / Math.max(aim.naturalWidth, aim.naturalHeight); ctx.save(); ctx.translate(mxp, myp); ctx.rotate(-Math.PI / 2); ctx.drawImage(aim, -aim.naturalWidth * as / 2, -aim.naturalHeight * as / 2, aim.naturalWidth * as, aim.naturalHeight * as); ctx.restore(); } }
   } else if (kind === "staff") {
     const cast = sw < 320 ? Math.sin((sw / 320) * Math.PI) * -12 : 0;
     ctx.scale(dir, 1); ctx.translate(0, cast);
@@ -16420,6 +16503,7 @@ function drawHeldWeapon(wx, wy, flip, spec, t, swing) {
   } else { ctx.scale(dir, 1); ctx.rotate(Math.sin(t / 900) * 0.045); ctx.drawImage(im, -W / 2, -H + 14, W, H); }
   ctx.restore();
 }
+
 /* ---- drawing an enemy (actor pass) ---- */
 function drawEnemyActor(a, now) {
   const er = forestEnemies.get(a.eid); if (!er || er.st === "dead") return;
@@ -16429,17 +16513,29 @@ function drawEnemyActor(a, now) {
   const bob = moving ? Math.abs(Math.sin(now / 105 + a.eid.charCodeAt(1))) * 6 : Math.sin(now / 700 + a.eid.charCodeAt(1) * 2) * 2;
   const lungeP = rp.lunge ? Math.max(0, 1 - (now - rp.lunge) / 220) : 0;
   const lx = (er.f ? -1 : 1) * lungeP * 20;
+  const sn = srvNow(), cloaked = def.key === "rogue" && (er.clk || 0) > sn;
   ctx.save(); ctx.translate(a.x + lx, a.y);
-  ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(0, 3, 40, 9, 0, 0, 7); ctx.fill();
-  if (im && im.complete && im.naturalWidth) { const H = 108, W = im.naturalWidth * (H / im.naturalHeight);
+  ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(0, 3, 80, 14, 0, 0, 7); ctx.fill();
+  if (im && im.complete && im.naturalWidth) { const H = ENEMY_H, W = im.naturalWidth * (H / im.naturalHeight);
     ctx.save(); ctx.translate(0, -bob); if (er.f) ctx.scale(-1, 1);
+    if (cloaked) ctx.globalAlpha = 0.5; /* the assassin's cloak (note 9): half-gone — and untouchable while it lasts */
     if (now - (rp.flash || 0) < 130) ctx.filter = "brightness(2.6) saturate(0.3)";
     ctx.drawImage(im, -W / 2, -H, W, H);
     ctx.restore();
   }
-  if (er.hp < def.hp) { const w = 56, pct = Math.max(0, er.hp / def.hp);
-    ctx.fillStyle = "rgba(0,0,0,0.55)"; rr(-w / 2, -126, w, 8, 4); ctx.fill();
-    ctx.fillStyle = pct > 0.5 ? "#4ade80" : pct > 0.25 ? "#ffd23e" : "#ff5e3c"; rr(-w / 2 + 1, -125, (w - 2) * pct, 6, 3); ctx.fill();
+  if (er.wnd && sn - er.wnd < 420) { /* the melee wind-up tell (note 15): a red arc gathering on the side it faces — dodge NOW */
+    const dir2 = er.f ? -1 : 1, p = Math.min(1, Math.max(0, (sn - er.wnd) / 300));
+    ctx.save(); ctx.translate(dir2 * 96, -118); ctx.scale(dir2, 1); ctx.globalAlpha = 0.35 + 0.55 * p; ctx.strokeStyle = "#ff3b30"; ctx.lineWidth = 5 + 4 * p; ctx.beginPath(); ctx.arc(0, 0, 52, -0.95, 0.95); ctx.stroke(); ctx.restore();
+  }
+  if (er.hl && sn - er.hl < 650) { /* a heal just landed here: green crosses rising */
+    const hp2 = (sn - er.hl) / 650;
+    ctx.save(); ctx.fillStyle = "#4ade80";
+    for (let i = 0; i < 3; i++) { const cxp = -30 + i * 30, cyp = -150 - hp2 * 46 - (i % 2) * 12; ctx.globalAlpha = 0.9 * (1 - hp2); ctx.fillRect(cxp - 2.5, cyp - 8, 5, 16); ctx.fillRect(cxp - 8, cyp - 2.5, 16, 5); }
+    ctx.restore();
+  }
+  if (er.hp < def.hp) { const w = 88, pct = Math.max(0, er.hp / def.hp);
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; rr(-w / 2, -240, w, 9, 4); ctx.fill();
+    ctx.fillStyle = pct > 0.5 ? "#4ade80" : pct > 0.25 ? "#ffd23e" : "#ff5e3c"; rr(-w / 2 + 1, -239, (w - 2) * pct, 7, 3); ctx.fill();
   }
   ctx.restore();
 }
