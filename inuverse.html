@@ -2973,7 +2973,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-2e38b14462";
+const HUB_BUILD = "x-db7aee754f";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -16135,18 +16135,21 @@ function wepNetInit() {
     const v = snap.val() || {}, seen = new Set();
     Object.keys(v).forEach(k => { if (k === myId) return; seen.add(k); const o = v[k]; if (!o || typeof o !== "object") return;
       const prev = peerWep.get(k);
-      const rec = { w: typeof o.w === "string" ? o.w : "", atk: o.atk || 0, tgt: o.tgt || "", ts: o.ts || 0 };
+      const rec = { w: typeof o.w === "string" ? o.w : "", atk: o.atk || 0, tgt: o.tgt || "", ts: o.ts || 0, star: o.star ? 1 : 0, aim: o.aim || 0, aang: typeof o.aang === "number" ? o.aang : 0 }; /* star rides too (the draw already read pw.star, but the listener never parsed it — a peer's star weapon showed as its base tier); aim/aang carry a peer's BOW DRAW (below) */
       if (prev && rec.atk && rec.atk !== prev.atk) peerSwingStart(k, rec);
       peerWep.set(k, rec);
     });
     for (const k of [...peerWep.keys()]) if (!seen.has(k)) { peerWep.delete(k); peerSwings.delete(k); }
   });
-  const writeMine = () => { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow() }); } catch (e) {} };
+  const writeMine = () => { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow(), star: starOn() ? 1 : 0, aim: myAimPub.aim, aang: myAimPub.aang }); } catch (e) {} };
   writeMine();
   setInterval(() => { if (entered && myWepRef) writeMine(); }, 9000);
 }
-function wepPublish() { if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow(), star: starOn() ? 1 : 0 }); } catch (e) {} } }
-function wepPublishAtk(tgt) { myLastAtkPub = srvNow(); if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: tgt || "", ts: myLastAtkPub, star: starOn() ? 1 : 0 }); } catch (e) {} } }
+let myAimPub = { aim: 0, aang: 0, at: 0 }; /* my bow draw as the room sees it: the server stamp the draw began + the angle it is tracking */
+function wepPublish() { myAimPub.aim = 0; if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow(), star: starOn() ? 1 : 0, aim: 0, aang: 0 }); } catch (e) {} } }
+function wepPublishAim(ang, t0srv) { myAimPub = { aim: t0srv, aang: ang, at: performance.now() }; if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow(), star: starOn() ? 1 : 0, aim: t0srv, aang: ang }); } catch (e) {} } } /* the DRAW, broadcast (Jonathan 2026-11-08): while my string pulls, the room's screens replay the same pull on my sprite — the bow turns to the enemy and the string draws over the same 350ms — instead of the shot appearing from a resting bow */
+function wepClearAim() { if (myAimPub.aim) { myAimPub.aim = 0; wepPublish(); } }
+function wepPublishAtk(tgt) { myLastAtkPub = srvNow(); myAimPub.aim = 0; if (myWepRef) { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: tgt || "", ts: myLastAtkPub, star: starOn() ? 1 : 0, aim: 0, aang: 0 }); } catch (e) {} } } /* a loose ends the draw: aim clears in the same write as the attack stamp */
 /* ---- equipping: the EQUIPMENT panel (Menu) — three tabs, set one active or put it away ---- */
 let equipTab = "sword", equipOpen = false;
 function openEquipPanel() { equipOpen = true; renderEquipPanel(); $("equippanel").style.display = "flex"; sfxClick(); }
@@ -16638,12 +16641,12 @@ function enemyTick(now) { /* REFEREED (Jonathan 2026-11-08: "change it to be ref
 let mySwing = null; /* { t0, kind, tier, ang, tgt } */
 let wepNextAtk = 0, bowDraw = null; /* bowDraw: { t0, tgt } while the string is pulling */
 function wepTick(now) {
-  if (me.scene !== "plaza" || !wepActive || wepBusy() || cvCar >= 0 || cvRide >= 0 || cvSeatGame) { bowDraw = null; return; } /* guests fight too (note 28) */
+  if (me.scene !== "plaza" || !wepActive || wepBusy() || cvCar >= 0 || cvRide >= 0 || cvSeatGame) { bowDraw = null; wepClearAim(); return; } /* guests fight too (note 28) */
   const kind = wepActiveKind(), tier = acctUser ? (starOn() ? 5 : wepActiveTier()) : 0, range = kind === "sword" ? 140 : 480; /* the PLAYER's bow/staff reach, 385 -> 480 (note 42) — the sword keeps its 140 */ /* a guest's weapon fights as BASIC whatever the spec says (note 28); the star set fights at the TOP tier (5) while its art rides tier 6 */
   const vTier = starOn() ? 6 : tier;
   let tgtId = "", tgtD = 1e9, tgtRec = null;
   for (const [eid, er] of forestEnemies) { if (er.st === "dead") continue; if (ENEMY_DEFS[er.t].key === "rogue" && (er.clk || 0) > srvNow()) continue; /* a cloaked assassin cannot be hurt — the weapon picks another target (note 9) */ const d = Math.hypot(er.x - me.x, er.y - me.y); if (d < tgtD) { tgtD = d; tgtId = eid; tgtRec = er; } }
-  if (!tgtRec || tgtD > range) { bowDraw = null; return; }
+  if (!tgtRec || tgtD > range) { bowDraw = null; wepClearAim(); return; }
   const ang = Math.atan2(tgtRec.y - 40 - (me.y - 46), tgtRec.x - me.x);
   if (kind === "sword") {
     if (now < wepNextAtk) return;
@@ -16653,12 +16656,12 @@ function wepTick(now) {
     wepPublishAtk(tgtId);
     setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175) { enemyHpHit(tgtId, tier + 1); sfxEnemyHit(); spawnParts(er2.x, er2.y - 50, WEP_TCOL[tier], 6, 160); } }, 130);
   } else if (kind === "bow") {
-    if (bowDraw) { if (bowDraw.tgt !== tgtId) bowDraw = { t0: now, tgt: tgtId };
+    if (bowDraw) { if (bowDraw.tgt !== tgtId) { bowDraw = { t0: now, tgt: tgtId }; wepPublishAim(ang, srvNow()); } else if (Math.abs(ang - myAimPub.aang) > 0.08 || now - myAimPub.at > 200) wepPublishAim(ang, myAimPub.aim || srvNow()); /* the draw tracking a moving enemy: the room's view of my aim follows (throttled — a fresh stamp only on a real angle change or every 200ms) */
       mySwing = { t0: bowDraw.t0, kind: kind, tier: vTier, ang: ang, tgt: tgtId };
       if (now - bowDraw.t0 >= 350 && now >= wepNextAtk) { bowDraw = null; wepNextAtk = now + 950; lastCombatAt = now; sfxBowShoot(); wepPublishAtk(tgtId); const bc = bowCenterPoint(); spawnProj({ x: bc.x, y: bc.y, eid: tgtId, kind: "arrow", tier: vTier, t0: now }); }
       return; }
     if (now < wepNextAtk) return;
-    bowDraw = { t0: now, tgt: tgtId }; sfxBowDrawSnd();
+    bowDraw = { t0: now, tgt: tgtId }; sfxBowDrawSnd(); wepPublishAim(ang, srvNow()); /* the draw begins: the room sees the string start to pull */
   } else { /* staff */
     if (now < wepNextAtk) return;
     wepNextAtk = now + 1200;
@@ -16677,7 +16680,7 @@ function staffOrbPoint(x, y, flip, tier) { /* note 40: a staff shot leaves from 
 }
 function spawnParts(x, y, col, n, spread) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = 40 + Math.random() * (spread || 160); wepParts.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, t0: performance.now(), life: 420 + Math.random() * 260, col: col, r: 2 + Math.random() * 3 }); } }
 const peerSwings = new Map(); /* pid -> { t0, spec, tgt, queued } */
-function peerSwingStart(pid, rec) { peerSwings.set(pid, { t0: 0, spec: rec.w, tgt: rec.tgt, queued: true }); }
+function peerSwingStart(pid, rec) { peerSwings.set(pid, { t0: 0, kind: rec.w.split(":")[0], spec: rec.w, tgt: rec.tgt, queued: true }); } /* kind rides along (bugfix, Jonathan 2026-11-08: other players' attack animations were invisible): drawHeldWeapon keys every animation — the sword's sweep, the bow's aim, the staff's cast dip — off swing.kind, which the local mySwing carries but peer swings never did, so a peer's weapon hung at rest while his arrow flew */
 let wepFxLast = 0;
 function drawWepFx(now) { /* projectiles fly and land here — this runs every plaza frame inside the camera transform. ENEMY shots (notes 1 + 18): they fly REAL lines — an arrow never bends, a caster's bolt bends only partway (semi-homing — a dodge beats it) — they are drawn BIG (note 15), and any enemy shot still travelling after 3 seconds is gone */
   const dt = Math.min(0.05, wepFxLast ? (now - wepFxLast) / 1000 : 0.016); wepFxLast = now;
@@ -20024,7 +20027,7 @@ function frame(now) {
     if (!isMe && me.scene === "plaza") { const pw = peerWood.get(a.id); if (pw && pw.scene === "plaza" && pw.st && Date.now() - (pw.ts || 0) < 45000) drawAxe(a.x, a.y, a.flip, now, (pw.star && peerStar(a.id, a.acct)) ? 6 : pw.axe, pw.st); } /* a PEER's axe (2026-11-05): the peer rod's twin — drawn here, immediately before his sprite, so it sits BEHIND him in depth exactly like mine does; his tier and his chopping state ride his hub/woodcutting record, his side off his own facing */
     drawPlayer(a.x, a.y, a.hero, a.name, a.flip, phase, a.chat, chatAge, isMe, now, moving, a.g, a.tint, isMe ? 1 : (a.paceS || 1));
     if (!isMe && me.scene === "plaza") { const pd = peerDetect.get(a.id); if (pd && pd.scene === "plaza" && Date.now() - (pd.ts || 0) < 45000) drawDetector(a.x, a.y, a.flip, now, (pd.star && peerStar(a.id, a.acct)) ? 6 : pd.det); }
-    if (!isMe && me.scene === "plaza") { const pw = peerWep.get(a.id); if (pw && pw.w && Date.now() - (pw.ts || 0) < 45000) { let swg = peerSwings.get(a.id); if (swg && swg.queued) { swg.queued = false; swg.t0 = now; const erT = swg.tgt ? forestEnemies.get(swg.tgt) : null; swg.ang = erT ? Math.atan2(erT.y - 40 - (a.y - 46), erT.x - a.x) : (a.flip ? 0 : Math.PI); if (erT && pw.w.split(":")[0] !== "sword") { const pTier = (pw.star && peerStar(a.id, a.acct)) ? 6 : +pw.w.split(":")[1]; const pSop = pw.w.split(":")[0] === "staff" ? staffOrbPoint(a.x, a.y, a.flip, pTier) : null; const pBc = pw.w.split(":")[0] === "bow" ? bowCenterPointFor(a.x, a.y, a.flip, pTier, swg.ang) : null; spawnProj({ x: pSop ? pSop.x : pBc ? pBc.x : a.x + (a.flip ? 34 : -34), y: pSop ? pSop.y : pBc ? pBc.y : a.y - (pw.w.split(":")[0] === "staff" ? 96 : 62), eid: swg.tgt, kind: pw.w.split(":")[0] === "bow" ? "arrow" : "magic", tier: pTier, t0: now, visual: true }); } /* peer arrows now leave from the peer's own bow centre (bowCenterPointFor — the CENTRED LEAVE fix); a peer staff orb still leaves from the top of their staff (note 40) */ } drawHeldWeapon(a.x, a.y, a.flip, (pw.star && peerStar(a.id, a.acct)) ? pw.w.split(":")[0] + ":6" : pw.w, now, swg && !swg.queued && (now - swg.t0) < 1000 ? swg : null); } } /* FOREST: a PEER's weapon (2026-11-08): drawn here, after his sprite like his detector — his active weapon off his hub/tables/wep record, swings and shots replayed from his attack stamps; the projectiles are visual only (peerDmg never writes — the shooter's own client lands his damage) */
+    if (!isMe && me.scene === "plaza") { const pw = peerWep.get(a.id); if (pw && pw.w && Date.now() - (pw.ts || 0) < 45000) { let swg = peerSwings.get(a.id); if (swg && swg.queued) { swg.queued = false; swg.t0 = now - (pw.w.split(":")[0] === "bow" ? 350 : 0); /* a peer's BOW replays from the loose (his stamp IS the release): the clock starts 350ms in, so no second nocked arrow hangs on his string — the visual arrow already left on this same stamp — and the aiming pose holds as the follow-through */ const erT = swg.tgt ? forestEnemies.get(swg.tgt) : null; swg.ang = erT ? Math.atan2(erT.y - 40 - (a.y - 46), erT.x - a.x) : (a.flip ? 0 : Math.PI); if (erT && pw.w.split(":")[0] !== "sword") { const pTier = (pw.star && peerStar(a.id, a.acct)) ? 6 : +pw.w.split(":")[1]; const pSop = pw.w.split(":")[0] === "staff" ? staffOrbPoint(a.x, a.y, a.flip, pTier) : null; const pBc = pw.w.split(":")[0] === "bow" ? bowCenterPointFor(a.x, a.y, a.flip, pTier, swg.ang) : null; spawnProj({ x: pSop ? pSop.x : pBc ? pBc.x : a.x + (a.flip ? 34 : -34), y: pSop ? pSop.y : pBc ? pBc.y : a.y - (pw.w.split(":")[0] === "staff" ? 96 : 62), eid: swg.tgt, kind: pw.w.split(":")[0] === "bow" ? "arrow" : "magic", tier: pTier, t0: now, visual: true }); } /* peer arrows now leave from the peer's own bow centre (bowCenterPointFor — the CENTRED LEAVE fix); a peer staff orb still leaves from the top of their staff (note 40) */ } drawHeldWeapon(a.x, a.y, a.flip, (pw.star && peerStar(a.id, a.acct)) ? pw.w.split(":")[0] + ":6" : pw.w, now, (swg && !swg.queued && (now - swg.t0) < 1000) ? swg : ((pw.aim && pw.w.split(":")[0] === "bow" && (srvNow() - pw.aim) < 5000) ? { kind: "bow", ang: pw.aang, t0: now - Math.min(340, Math.max(0, srvNow() - pw.aim)) } : null)) /* a peer mid-DRAW (his aim stamp still fresh, no loose landed yet): his bow wears the aim — turned to his enemy, string pulling over the same 350ms, arrow nocked on the string — capped at 340 so a late loose never snaps his string back early */; } } /* FOREST: a PEER's weapon (2026-11-08): drawn here, after his sprite like his detector — his active weapon off his hub/tables/wep record, swings and shots replayed from his attack stamps; the projectiles are visual only (peerDmg never writes — the shooter's own client lands his damage) */
     if (me.scene === "club" && atDJBooth(a.x, a.y)) drawDJBooth(decorT(now));
     if (me.scene === "rooftop" && atRoofDJBooth(a.x, a.y)) drawDJBooth(decorT(now), ROOFDJBOOTH);
     if (me.scene === "rooftop" && atRoofBoom(ROOFBOOM_L, a.x, a.y)) drawRoofBoom(decorT(now), ROOFBOOM_L); /* the boom boxes get the booth's own walk-behind: standing in a box's strip repaints the box over your lower body */
