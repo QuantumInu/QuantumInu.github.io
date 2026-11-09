@@ -2962,8 +2962,17 @@ setInterval(() => { if (talkBar.style.display !== "none" && (!entered || me.scen
    ON takes the Reset Speed two-tap confirm (arm 4s, second tap fires); turning OFF is one tap. While on, every
    client in the game — the owner included, so he can see it is live — shows a flashing purple REFRESH FOR UPDATE
    button at the top right of the gameplay screen; it keeps flashing until he turns it off, or the player taps
-   it (or refreshes any other way) and lands on the fresh build. */
-let updAlertOn = false;
+   it (or refreshes any other way) and lands on the fresh build.
+   ONLY THE OUTDATED SEE IT (fix, Jonathan 2026-11-08: "the refresh for update trigger is being triggered even
+   for people with an up to date version"): as first built the button showed for EVERYONE while the alert was
+   on — the record carried no target and the client never compared builds, so a player who had already
+   refreshed onto the new build kept getting flashed until the owner turned it off. Now turning the alert ON
+   stamps the record with the owner's own build (b); a client shows the button only while its own HUB_BUILD
+   differs from b — refresh onto the target build and it stops by itself, and a player already current never
+   sees it at all. A legacy record with no b (written before this fix) still shows for everyone until the
+   owner re-toggles — and his own client quietly re-stamps a missing b the moment it sees one, so even that
+   heals itself. */
+let updAlertOn = false, updAlertBuild = ""; /* updAlertBuild: the build the alert points everyone AT (the record's b, stamped by the owner's client when he turns it on) — the button shows only while my own build differs from it */
 const updAlertBtn = document.createElement("button");
 updAlertBtn.id = "updalert"; updAlertBtn.type = "button"; updAlertBtn.textContent = "REFRESH FOR UPDATE";
 updAlertBtn.style.cssText = "position:fixed;right:10px;top:60px;z-index:40;display:none;background:#7c3aed;color:#fff;border:2px solid #c4b5fd;border-radius:10px;padding:9px 14px;font:800 14px 'Segoe UI',sans-serif;box-shadow:0 4px 16px rgba(124,58,237,.65);cursor:pointer";
@@ -2973,7 +2982,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-355e9b5c26";
+const HUB_BUILD = "x-ab9261e8ec";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -2999,11 +3008,11 @@ function renderUpdPanel() { const list = $("updlist"); if (!list) return; list.i
 setInterval(() => { if (updPanelOpen) renderUpdPanel(); }, 2500); /* the list stays live while the panel is open — versions land as presence updates arrive */
 $("updalertbtn").onclick = () => { if (!isOwnerAcct() || !acctUser) return; openUpdPanel(); }; /* the Menu row opens the panel now (his word 2026-11-08) — the toggle itself lives inside */
 if ($("updpanelclose")) $("updpanelclose").onclick = () => { closeUpdPanel(); }; /* the tap IS the refresh — cache-busted so the fresh build actually lands */
-function syncUpdAlertBtn() { const want = entered && updAlertOn ? "block" : "none"; if (updAlertBtn.style.display !== want) updAlertBtn.style.display = want; const fl = entered && updAlertOn ? "updflash .8s steps(1) infinite" : "none"; if (updAlertBtn.style.animation !== fl) updAlertBtn.style.animation = fl; }
+function syncUpdAlertBtn() { const show = entered && updAlertOn && updAlertBuild !== HUB_BUILD; const want = show ? "block" : "none"; if (updAlertBtn.style.display !== want) updAlertBtn.style.display = want; const fl = show ? "updflash .8s steps(1) infinite" : "none"; if (updAlertBtn.style.animation !== fl) updAlertBtn.style.animation = fl; } /* the build comparison is the fix: on the target build (or past it, in the owner's own preview) the button never shows; a legacy record with no b reads as "differs" and keeps the old show-for-everyone behaviour until it is re-stamped */
 setInterval(syncUpdAlertBtn, 400);
-function updAlertListen() { if (!db) { setTimeout(updAlertListen, 500); return; } db.ref("hub/tables/updal").on("value", sn => { const v = sn.val(); updAlertOn = !!(v && v.on); }); } updAlertListen(); /* the listener every client runs — the signal reaches whoever is in the game, whenever he flips it */
+function updAlertListen() { if (!db) { setTimeout(updAlertListen, 500); return; } db.ref("hub/tables/updal").on("value", sn => { const v = sn.val(); updAlertOn = !!(v && v.on); updAlertBuild = (v && typeof v.b === "string") ? v.b : ""; if (updAlertOn && !updAlertBuild && acctUser && isOwnerAcct()) updAlertSet(true); /* the owner heals a legacy record on sight: an alert left on by an older build gets his current build stamped as its target, so current players stop flashing without him re-toggling */ }); } updAlertListen(); /* the listener every client runs — the signal reaches whoever is in the game, whenever he flips it */
 let updAlertArmUntil = 0;
-function updAlertSet(on) { if (!db) return; db.ref("hub/tables/updal").set({ on: on ? 1 : 0, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); }
+function updAlertSet(on) { if (!db) return; db.ref("hub/tables/updal").set({ on: on ? 1 : 0, b: HUB_BUILD, ts: firebase.database.ServerValue.TIMESTAMP }).catch(() => {}); } /* b = MY build: the one everyone should refresh TO. Turning off keeps the last target on the record, unused while off */
 $("updactbtn").onclick = () => { /* the panel's activate control (owner only): ON is the Reset Speed two-tap confirm, OFF is one tap */
   if (!isOwnerAcct() || !acctUser) return;
   const btn = $("updactbtn");
@@ -16657,7 +16666,7 @@ function wepTick(now) {
     mySwing = { t0: now, kind: kind, tier: vTier, ang: ang, tgt: tgtId }; lastCombatAt = now;
     sfxSwing();
     wepPublishAtk(tgtId);
-    setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175) { enemyHpHit(tgtId, tier + 1); sfxEnemyHit(); spawnParts(er2.x, er2.y - 50, WEP_TCOL[tier], 6, 160); } }, 130);
+    setTimeout(() => { const er2 = forestEnemies.get(tgtId); if (er2 && er2.st !== "dead" && Math.hypot(er2.x - me.x, er2.y - me.y) < 175 && !wepLosBlocked(me.x, me.y - 40, er2.x, er2.y - 40)) { enemyHpHit(tgtId, tier + 1); /* the sword's delayed hit re-checks SIGHT as well as distance (Jonathan 2026-11-08: "you should not be able to shoot enemies through the stone divider"): the pick was already sight-gated, but the hit lands 130ms after the swing on distance alone — if the enemy slipped behind the stone in that window (around a gate stone at the opening, say), the blow now fizzles instead of landing through the wall */ sfxEnemyHit(); spawnParts(er2.x, er2.y - 50, WEP_TCOL[tier], 6, 160); } }, 130);
   } else if (kind === "bow") {
     if (bowDraw) { if (bowDraw.tgt !== tgtId) { bowDraw = { t0: now, tgt: tgtId }; wepPublishAim(ang, srvNow()); } else if (Math.abs(ang - myAimPub.aang) > 0.08 || now - myAimPub.at > 200) wepPublishAim(ang, myAimPub.aim || srvNow()); /* the draw tracking a moving enemy: the room's view of my aim follows (throttled — a fresh stamp only on a real angle change or every 200ms) */
       mySwing = { t0: bowDraw.t0, kind: kind, tier: vTier, ang: ang, tgt: tgtId };
