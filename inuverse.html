@@ -2919,6 +2919,8 @@ window.addEventListener("keydown", e => {
   if (escShown("tpmenu")) closeTpMenu(); else openTpMenu();
 }, true);
 /* ============ Q / E / X = the weapon keys (Jonathan 2026-11-08): Q and E cycle the weapon TYPE — sword to bow to staff and back — landing on whatever tier you last had equipped for that type; X puts away whatever you have out. The C/O/G keys' own guards: only in the game, never while typing, a held key's repeat ignored, Ctrl/Cmd/Alt stay the browser's ============ */
+/* WEAPON-FREE BUILDINGS (Jonathan 2026-11-08: "while inside a building that does not let you have your weapon out, the put away and swap buttons should not show up, and the E and Q and X should do nothing"): a weapon may be OUT only where it can be carried — the plaza (the forest) and the Crystal Castle's three rooms, the same set the held-weapon draw allows. Everywhere else (the shops, the arcade, the club, the casino, every other interior) the buttons hide and the keys do nothing; the weapon itself stays as it was and comes back with you when you step out */
+function wepRoomOk() { return me.scene === "plaza" || me.scene === "castle" || me.scene === "crystal" || me.scene === "dining"; }
 function wepCycle(step) {
   const kinds = ["sword", "bow", "staff"], cur = wepActiveKind();
   let idx = cur ? kinds.indexOf(cur) : (step > 0 ? -1 : 0);
@@ -2930,6 +2932,7 @@ window.addEventListener("keydown", e => {
   if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !entered) return;
   const k = e.key; if (k !== "q" && k !== "Q" && k !== "e" && k !== "E" && k !== "x" && k !== "X") return;
   const tg = e.target; if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
+  if (!wepRoomOk()) return; /* a weapon-free building: Q, E and X do nothing here */
   if (k === "x" || k === "X") { wepStow(); return; }
   wepCycle((k === "q" || k === "Q") ? -1 : 1);
 }, true);
@@ -2982,7 +2985,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-79a30d0f37";
+const HUB_BUILD = "x-696368401f";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -3021,7 +3024,7 @@ $("updactbtn").onclick = () => { /* the panel's activate control (owner only): O
   if (nowMs > updAlertArmUntil) { updAlertArmUntil = nowMs + 4000; btn.textContent = "⚠️ Tap again to turn the update alert ON for everyone"; setTimeout(() => { if (Date.now() > updAlertArmUntil) { const b2 = $("updactbtn"); if (b2) b2.textContent = updAlertOn ? "🔔 Update Alert: ON — tap to turn OFF" : "🔔 Update Alert: OFF — tap to turn ON"; } }, 4100); return; }
   updAlertArmUntil = 0; updAlertSet(true); btn.textContent = "🔔 Update Alert: ON — tap to turn OFF";
 };
-function syncWepToggle() { const want = entered ? "flex" : "none"; if (wepBtnBar.style.display !== want) wepBtnBar.style.display = want; const tx = wepActive ? "\u2694\uFE0F Put Away" : "\u2694\uFE0F Take Out"; if (wepToggleBtn.textContent !== tx) wepToggleBtn.textContent = tx; }
+function syncWepToggle() { const want = entered && wepRoomOk() ? "flex" : "none"; /* the Put Away / Swap bar shows only in a room where a weapon may be out (wepRoomOk) */ if (wepBtnBar.style.display !== want) wepBtnBar.style.display = want; const tx = wepActive ? "\u2694\uFE0F Put Away" : "\u2694\uFE0F Take Out"; if (wepToggleBtn.textContent !== tx) wepToggleBtn.textContent = tx; }
 setInterval(syncWepToggle, 400);
 /* ============ input ============ */
 const cv = $("game"), ctx = cv.getContext("2d");
