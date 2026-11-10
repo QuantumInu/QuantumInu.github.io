@@ -3017,7 +3017,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-4f46bfcc47";
+const HUB_BUILD = "x-91fd25c96b";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -16298,13 +16298,13 @@ function wepNetInit() {
     const v = snap.val() || {}, seen = new Set();
     Object.keys(v).forEach(k => { if (k === myId) return; seen.add(k); const o = v[k]; if (!o || typeof o !== "object") return;
       const prev = peerWep.get(k);
-      const rec = { w: typeof o.w === "string" ? o.w : "", atk: o.atk || 0, tgt: o.tgt || "", ts: o.ts || 0, star: o.star ? 1 : 0, aim: o.aim || 0, aang: typeof o.aang === "number" ? o.aang : 0 }; /* star rides too (the draw already read pw.star, but the listener never parsed it — a peer's star weapon showed as its base tier); aim/aang carry a peer's BOW DRAW (below) */
+      const rec = { w: typeof o.w === "string" ? o.w : "", atk: o.atk || 0, tgt: o.tgt || "", ts: o.ts || 0, star: o.star ? 1 : 0, rel: typeof o.rel === "number" ? o.rel : -1, aim: o.aim || 0, aang: typeof o.aang === "number" ? o.aang : 0 }; /* rel rides too (bugfix, Jonathan 2026-11-10 — a player's Arrow Rain was invisible to everyone else): every publish has always WRITTEN rel and peerSwingStart has always READ rec.rel, but this parse never copied it across, so every peer swing landed with rel -1 and watchers only ever replayed one plain arrow — no fan, no burst, no Rain, no Nova, no poison, no blast. The star fix above was this same bug one field over */ /* star rides too (the draw already read pw.star, but the listener never parsed it — a peer's star weapon showed as its base tier); aim/aang carry a peer's BOW DRAW (below) */
       if (prev && rec.atk && rec.atk !== prev.atk) peerSwingStart(k, rec);
       peerWep.set(k, rec);
     });
     for (const k of [...peerWep.keys()]) if (!seen.has(k)) { peerWep.delete(k); peerSwings.delete(k); }
   });
-  const writeMine = () => { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow(), star: starOn() ? 1 : 0, aim: myAimPub.aim, aang: myAimPub.aang }); } catch (e) {} };
+  const writeMine = () => { try { myWepRef.set({ w: wepActive, atk: myLastAtkPub, tgt: "", ts: srvNow(), star: starOn() ? 1 : 0, rel: wepRelIdx(), aim: myAimPub.aim, aang: myAimPub.aang }); } catch (e) {} }; /* the heartbeat carries rel too (2026-11-10): a .set replaces the whole record, so a rel-less heartbeat wiped the relic off my record between attacks */
   writeMine();
   setInterval(() => { if (entered && myWepRef) writeMine(); }, 9000);
 }
@@ -17251,7 +17251,7 @@ function peerSpawnVolley(a, pw, swg, erT, pTier, now) { /* PEER RELIC REPLAY (Jo
   if (kind === "bow") {
     if (rel === 8) { const zx = erT.x, zy = erT.y; wepParts.push({ ring: true, x: zx, y: zy - 26, t0: now, col: WEP_TCOL[pTier], r: 150 }); for (let k = 0; k < 6; k++) { const aa = Math.random() * 6.283, rd = 150 * Math.sqrt(Math.random()), ix = zx + Math.cos(aa) * rd, iy = zy + Math.sin(aa) * rd * 0.8; setTimeout(() => { spawnProj({ x: ix, y: iy - 430, rain: 1, tx: ix, ty: iy, kind: "arrow", tier: pTier, t0: performance.now(), visual: true, explode: flags.explode, poison: flags.poison, quantum: flags.quantum, power: flags.power }); }, k * 105); } return; } /* ARROW RAIN, seen: six arrows fall on fixed ground around his target — the same marked ring */
     const count = rel === 5 ? 3 : rel === 2 ? 2 : 1;
-    const shoot = () => { const er2 = foeGet(swg.tgt); if (!er2 || er2.st === "dead") return; if (count === 1) { spawnProj(Object.assign({ x: ox, y: oy, eid: swg.tgt, kind: "arrow", tier: pTier, t0: performance.now() }, flags)); return; } const ty2 = er2.y - 52, baseA = Math.atan2(ty2 - oy, er2.x - ox), distT = Math.hypot(er2.x - ox, ty2 - oy), rangeF = Math.min(580, distT + 90), stepA = count === 2 ? 0.15 : 0.16; for (let k = 0; k < count; k++) { const aa = baseA + (k - (count - 1) / 2) * stepA; spawnProj(Object.assign({ x: ox, y: oy, fan: 1, vx: Math.cos(aa), vy: Math.sin(aa), traveled: 0, range: rangeF, eid: "", kind: "arrow", tier: pTier, t0: performance.now() }, flags)); } };
+    const shoot = () => { const er2 = foeGet(swg.tgt); if (!er2) return; if (count === 1) /* FOLLOW-THROUGH, seen (2026-11-10): a peer's volley no longer vanishes when his target has just fallen — the foe record keeps its last ground, the fan aims at it and the single arrow homes onto it, exactly like the shooter's own shots */ { spawnProj(Object.assign({ x: ox, y: oy, eid: swg.tgt, kind: "arrow", tier: pTier, t0: performance.now() }, flags)); return; } const ty2 = er2.y - 52, baseA = Math.atan2(ty2 - oy, er2.x - ox), distT = Math.hypot(er2.x - ox, ty2 - oy), rangeF = Math.min(580, distT + 90), stepA = count === 2 ? 0.15 : 0.16; for (let k = 0; k < count; k++) { const aa = baseA + (k - (count - 1) / 2) * stepA; spawnProj(Object.assign({ x: ox, y: oy, fan: 1, vx: Math.cos(aa), vy: Math.sin(aa), traveled: 0, range: rangeF, eid: "", kind: "arrow", tier: pTier, t0: performance.now() }, flags)); } };
     shoot();
     if (rel === 7) { for (let k = 1; k <= 2; k++) setTimeout(shoot, k * 95); } /* RAPID FIRE, seen: the burst comes three times, fast */
     return;
