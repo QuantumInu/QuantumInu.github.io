@@ -1,0 +1,1411 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>QI Quantum Rush</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #04060f;
+        --panel: #0a1024;
+        --ink: #eaf6ff;
+        --dim: #9db8d6;
+        --cyan: #37e0ff;
+        --cyan-deep: #0e9ec4;
+        --gold: #ffd94d;
+        --pink: #ff5d8f;
+        --line: #1d2c52;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: radial-gradient(120% 90% at 50% 0%, #0a1230 0%, var(--bg) 55%) fixed;
+        color: var(--ink);
+        font-family: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+        overflow: hidden;
+      }
+      .wrap {
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        padding: max(52px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+        gap: 8px;
+        max-width: 1080px;
+        margin: 0 auto;
+      }
+      .hud {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .hud .stat {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 4px 12px 5px;
+        min-width: 86px;
+      }
+      .hud .stat .lab {
+        font-size: 10px;
+        letter-spacing: .16em;
+        color: var(--dim);
+        font-weight: 700;
+        text-transform: uppercase;
+        line-height: 1.1;
+      }
+      .hud .stat .val {
+        font-family: "Orbitron", monospace;
+        font-size: 19px;
+        font-weight: 700;
+        color: var(--ink);
+        line-height: 1.15;
+      }
+      .hud .stat .val.gold { color: var(--gold); }
+      .hearts {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        padding: 6px 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        font-size: 19px;
+        line-height: 1;
+      }
+      .hearts .lost { opacity: .22; filter: grayscale(1); }
+      .spacer { flex: 1; }
+      .icon-btn {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        border-radius: 10px;
+        width: 42px;
+        height: 42px;
+        font-size: 19px;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      .icon-btn:active { transform: scale(.94); }
+      .like-btn { width: auto; padding: 0 12px; display: flex; gap: 5px; font-size: 16px; }
+      .like-btn .like-count { color: var(--gold); font-weight: 700; }
+      .stage {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: #05081a;
+        box-shadow: 0 0 0 1px #000 inset, 0 18px 50px rgba(0,0,0,.5);
+      }
+      canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 10px;
+        padding: 18px;
+        background: radial-gradient(90% 90% at 50% 40%, rgba(6,10,30,.55), rgba(3,5,16,.88));
+        z-index: 5;
+      }
+      .overlay.hidden { display: none; }
+      .overlay h1 {
+        font-family: "Orbitron", sans-serif;
+        font-weight: 900;
+        font-size: clamp(26px, 6vw, 46px);
+        margin: 0;
+        letter-spacing: .04em;
+        color: #fff;
+        text-shadow: 0 0 22px rgba(55,224,255,.75), 0 2px 0 #0a2c44;
+      }
+      .overlay h1 .accent { color: var(--cyan); }
+      .overlay p { margin: 0; color: var(--dim); font-size: clamp(14px, 2.6vw, 17px); font-weight: 600; max-width: 520px; }
+      .overlay .final {
+        font-family: "Orbitron", monospace;
+        font-size: clamp(15px, 3vw, 20px);
+        color: var(--gold);
+      }
+      .play-btn {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        margin-top: 6px;
+        font-family: "Orbitron", sans-serif;
+        font-weight: 900;
+        letter-spacing: .08em;
+        font-size: clamp(16px, 3.4vw, 21px);
+        color: #03222e;
+        background: linear-gradient(180deg, #7df1ff, var(--cyan) 55%, var(--cyan-deep));
+        padding: 13px 38px;
+        border-radius: 999px;
+        box-shadow: 0 0 26px rgba(55,224,255,.5), 0 6px 0 #075a75;
+      }
+      .play-btn:active { transform: translateY(3px); box-shadow: 0 0 26px rgba(55,224,255,.5), 0 2px 0 #075a75; }
+      .howto {
+        margin: 2px 2px 0;
+        color: var(--dim);
+        font-size: 14.5px;
+        font-weight: 600;
+        line-height: 1.45;
+      }
+      .howto b { color: var(--ink); }
+      .lb-form { display: flex; gap: 8px; width: min(420px, 100%); }
+      .lb-form input {
+        flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 12px;
+        background: #0d1430; color: var(--ink); font-family: "Rajdhani", sans-serif; font-weight: 700;
+        font-size: 15px; padding: 10px 12px;
+      }
+      .lb-form input::placeholder { color: #5f7799; }
+      .lb-form button {
+        border: none; border-radius: 12px; background: var(--gold); color: #241a00; cursor: pointer;
+        font-family: "Rajdhani", sans-serif; font-weight: 800; font-size: 14px; padding: 10px 14px; white-space: nowrap;
+      }
+      .lb-form button:disabled { opacity: .55; cursor: default; }
+      .lb-msg { min-height: 18px; font-size: 13.5px; font-weight: 700; color: var(--dim); margin-top: -4px; }
+      .lb-msg.err { color: #ff7d9c; }
+      .lb-msg.ok { color: #7dffb0; }
+      #overBoard { width: min(420px, 100%); max-height: 32vh; overflow-y: auto; }
+      table.board { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+      table.board th { text-align: left; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+      table.board th.r, table.board td.r { text-align: right; }
+      table.board td { padding: 6px; border-bottom: 1px solid rgba(29,44,82,.6); font-weight: 700; color: var(--ink); text-align: left; }
+      table.board tr.me td { color: var(--gold); background: rgba(255,217,77,.08); }
+      .board-note { text-align: center; color: var(--dim); font-weight: 700; padding: 10px 0; font-size: 14px; }
+      @media (max-height: 460px) {
+        .howto { display: none; }
+      }
+      @media (max-width: 560px) {
+        /* Phone: the four stat boxes share the first row evenly, so Speed
+           sits right beside Atoms at full original size, and the hearts +
+           buttons keep their original second row. The 22% basis is what
+           makes the hearts wrap to row two instead of squeezing in. */
+        .hud .stat { flex: 1 1 22%; min-width: 0; padding: 4px 8px 5px; }
+        .hud .stat .lab { letter-spacing: .08em; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hud">
+        <div class="stat"><div class="lab">Score</div><div class="val" id="uiScore">0</div></div>
+        <div class="stat"><div class="lab">Distance</div><div class="val" id="uiDist">0m</div></div>
+        <div class="stat"><div class="lab">Atoms</div><div class="val gold" id="uiAtoms">0</div></div>
+        <div class="stat"><div class="lab">Speed</div><div class="val" id="uiSpeed">0</div></div>
+        <div class="hearts" id="uiHearts" aria-label="Hearts"></div>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="muteBtn" type="button" aria-label="Toggle sound">🔊</button>
+        <button class="icon-btn" id="restartBtn" type="button" aria-label="Restart run">↻</button>
+        <button class="icon-btn like-btn" id="likeBtn" type="button" aria-label="Like this game"><span class="heart">🤍</span><span class="like-count" id="likeCount">–</span></button>
+      </div>
+
+      <div class="stage" id="stage">
+        <canvas id="game"></canvas>
+        <div class="overlay" id="menuOverlay">
+          <h1>QUANTUM <span class="accent">RUSH</span></h1>
+          <p>The Q-Bot never stops running. Blast through loop-de-loops, leap the crystal spikes, roll under the hover mines, and grab every atom in the galaxy.</p>
+          <button class="play-btn" id="playBtn" type="button">▶ START RUN</button>
+          <p>Tap / click / Space to jump — hold for a higher jump · ↓ or swipe down to roll</p>
+        </div>
+        <div class="overlay hidden" id="overOverlay">
+          <h1>RUN <span class="accent">OVER</span></h1>
+          <div class="final" id="finalScore">Score 0</div>
+          <p id="finalDetail"></p>
+          <form class="lb-form" id="lbForm">
+            <input id="lbName" type="text" maxlength="16" placeholder="Your name for the board" autocomplete="off" />
+            <button id="lbSubmit" type="submit">Submit Score</button>
+          </form>
+          <div class="lb-msg" id="lbMsg"></div>
+          <div id="overBoard"></div>
+          <button class="play-btn" id="againBtn" type="button">↻ RUN AGAIN</button>
+        </div>
+      </div>
+
+      <p class="howto"><b>Jump:</b> tap, click, Space or ↑ — hold to jump higher, tap for a quick hop; leap gaps and crystal spikes. <b>Roll:</b> ↓, S, or swipe down — tuck into a spin to slip under hover mines. Loops run on rails — you stick the full ride at any speed. Yellow floating mines bob above the track on their own rhythm — stay grounded under them, never jump into one. Every atom is +25, every metre is +1. Three hearts — spend them wisely.</p>
+    </div>
+
+    <script>
+      "use strict";
+      // ============ QI Quantum Rush — Sonic-style endless runner ============
+      var canvas = document.getElementById("game");
+      var ctx = canvas.getContext("2d");
+      var stage = document.getElementById("stage");
+      var uiScore = document.getElementById("uiScore");
+      var uiDist = document.getElementById("uiDist");
+      var uiAtoms = document.getElementById("uiAtoms");
+      var uiSpeed = document.getElementById("uiSpeed");
+      var uiHearts = document.getElementById("uiHearts");
+      var menuOverlay = document.getElementById("menuOverlay");
+      var overOverlay = document.getElementById("overOverlay");
+      var finalScore = document.getElementById("finalScore");
+      var finalDetail = document.getElementById("finalDetail");
+
+      var botImg = new Image();
+      botImg.src = "assets/bot.png";
+
+      var W = 960, H = 540, DPR = 1, SCALE = 1;
+      function resize() {
+        var r = stage.getBoundingClientRect();
+        DPR = Math.min(2, window.devicePixelRatio || 1);
+        var cw = Math.max(280, r.width), ch = Math.max(180, r.height);
+        // The canvas bitmap always matches the stage's real pixel size
+        // exactly, so the browser never has to stretch it. The world is
+        // then drawn at one uniform SCALE on both axes: wide screens run
+        // at scale 1 (unchanged), while a narrow phone zooms the view
+        // OUT evenly until at least ~820 world units fit across —
+        // instead of the track being squeezed into whatever width the
+        // phone happens to give it — with the zoom also capped by
+        // height so portrait screens don't end up all sky.
+        SCALE = Math.min(1, Math.max(cw / 820, ch / 1150));
+        W = cw / SCALE;
+        H = ch / SCALE;
+        canvas.width = Math.round(cw * DPR);
+        canvas.height = Math.round(ch * DPR);
+      }
+      window.addEventListener("resize", resize);
+      window.addEventListener("orientationchange", resize);
+      // Layout shifts that never fire a window resize (the webfont swap,
+      // app-webview chrome settling after load) still resize the stage;
+      // follow those too so the bitmap can never drift out of sync with
+      // the box it is displayed in and get stretched.
+      if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+
+      // ---------------- Audio (tiny synth, no assets) ----------------
+      var AC = null, muted = false, musicTimer = null, musicStep = 0;
+      function ac() {
+        if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
+        if (AC && AC.state === "suspended") AC.resume();
+        return AC;
+      }
+      function beep(freq, dur, type, vol, slide) {
+        if (muted) return;
+        var a = ac(); if (!a) return;
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = type || "square";
+        o.frequency.setValueAtTime(freq, a.currentTime);
+        if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), a.currentTime + dur);
+        g.gain.setValueAtTime(vol || 0.12, a.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+        o.connect(g); g.connect(a.destination);
+        o.start(); o.stop(a.currentTime + dur);
+      }
+      var sfx = {
+        jump:  function () { beep(320, 0.16, "square", 0.10, 340); },
+        atom:  function () { beep(880 + Math.random() * 220, 0.09, "sine", 0.12, 420); },
+        hit:   function () { beep(160, 0.28, "sawtooth", 0.16, -110); },
+        roll:  function () { beep(190, 0.12, "triangle", 0.10, -60); },
+        loop:  function () { beep(240, 0.5, "sine", 0.07, 720); },
+        over:  function () { beep(392, 0.5, "triangle", 0.14, -260); },
+        click: function () { beep(660, 0.06, "square", 0.08, 0); }
+      };
+      // Light synthwave arp loop while running.
+      var ARP = [110, 110, 165, 110, 130.8, 110, 98, 146.8];
+      function startMusic() {
+        stopMusic();
+        musicStep = 0;
+        musicTimer = setInterval(function () {
+          if (muted || state !== "play") return;
+          var a = ac(); if (!a) return;
+          var f = ARP[musicStep % ARP.length];
+          musicStep++;
+          beep(f, 0.22, "triangle", 0.055, 0);
+          if (musicStep % 2 === 0) beep(f * 2, 0.14, "sine", 0.03, 0);
+        }, 168);
+      }
+      function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } }
+
+      // ---------------- Track pieces (parametric) ----------------
+      // Each piece: {kind, len, startX, startY, ...} — local pos(s) -> {x, y, ang}
+      // Screen coords: y grows downward; "up" the hill = negative dy.
+      function piecePos(p, s) {
+        s = Math.max(0, Math.min(p.len, s));
+        if (p.kind === "flat") return { x: s, y: 0, ang: 0 };
+        if (p.kind === "bump") { // smooth hill up then down
+          var t = s / p.len;
+          var y = -p.h * Math.sin(Math.PI * t);
+          var dy = -p.h * (Math.PI / p.len) * Math.cos(Math.PI * t);
+          return { x: s, y: y, ang: Math.atan2(dy, 1) };
+        }
+        if (p.kind === "valley") { // smooth dip down then up
+          var t2 = s / p.len;
+          var y2 = p.h * Math.sin(Math.PI * t2);
+          var dy2 = p.h * (Math.PI / p.len) * Math.cos(Math.PI * t2);
+          return { x: s, y: y2, ang: Math.atan2(dy2, 1) };
+        }
+        if (p.kind === "loop") {
+          var R = p.R;
+          var phi = (s / p.len) * Math.PI * 2; // 0 at bottom, CCW up the right side
+          var x = R * Math.sin(phi);
+          var y = -R + R * Math.cos(phi);
+          // tangent angle of travel
+          var dx = R * Math.cos(phi), dyy = -R * Math.sin(phi);
+          return { x: x, y: y, ang: Math.atan2(dyy, dx) };
+        }
+        return { x: s, y: 0, ang: 0 };
+      }
+      function pieceEnd(p) {
+        var e = piecePos(p, p.len);
+        if (p.kind === "loop") return { x: 0, y: 0 }; // full loop exits where it entered
+        return { x: e.x, y: e.y };
+      }
+
+      var pieces = [], atoms = [], hazards = [], platforms = [];
+      var genX = 0, genY = 0; // world coords where the next piece starts
+      var lastKind = "flat";
+      var trailFlat = 0; // px of plain, featureless floor at the track's tail
+
+      function addPiece(kind, len, extra) {
+        var p = { kind: kind, len: len, startX: genX, startY: genY };
+        if (extra) for (var k in extra) p[k] = extra[k];
+        pieces.push(p);
+        var e = pieceEnd(p);
+        genX += e.x;
+        genY += e.y;
+        return p;
+      }
+      function atomAt(x, y) { atoms.push({ x: x, y: y, taken: false, ph: Math.random() * 6.28 }); }
+      function atomLineOnPiece(p, s0, s1, n, lift) {
+        for (var i = 0; i < n; i++) {
+          var s = s0 + (s1 - s0) * (n === 1 ? 0.5 : i / (n - 1));
+          var pos = piecePos(p, s);
+          atomAt(p.startX + pos.x, p.startY + pos.y - (lift || 34));
+        }
+      }
+      // Atoms along a smooth jump-shaped parabola: level with the ground at
+      // both ends, peaking `apex` px above the line between them — so a jump
+      // timed at the arc's start sweeps through every atom.
+      function atomParabola(x0, y0, x1, y1, apex, n) {
+        for (var i = 0; i < n; i++) {
+          var t = n === 1 ? 0.5 : i / (n - 1);
+          atomAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - Math.sin(Math.PI * t) * apex);
+        }
+      }
+
+      // Hazards never stand closer than this (world px) to the previous
+      // one — the runner always gets a fair run-up to react, jump or roll,
+      // so spikes and mines never cluster back to back.
+      var MIN_HAZARD_GAP = 340;
+      var lastHazardX = -100000;
+      function addHazard(piece, s, type) {
+        var wx = piece.startX + s;
+        if (wx - lastHazardX < MIN_HAZARD_GAP) return false;
+        var hz = { piece: piece, s: s, type: type };
+        if (type === "fmine") {
+          // Yellow floating mine: hovers over the track and bobs on its
+          // own random rhythm — hover height, swing, speed and phase all
+          // differ per mine. The bob never dips low enough to touch a
+          // grounded runner; it threatens jumps, not runs.
+          hz.hover = 92 + Math.random() * 20;
+          hz.amp = 12 + Math.random() * 8;
+          hz.bobSpd = 1.7 + Math.random() * 1.7;
+          hz.bobPh = Math.random() * 6.28;
+        }
+        hazards.push(hz);
+        lastHazardX = wx;
+        return true;
+      }
+      // World position of a floating mine's centre right now (bob included).
+      // Driven by runTime so the drawing and the collision test agree.
+      function fminePos(hz) {
+        var w = hazardWorld(hz);
+        return { x: w.x, y: w.y - hz.hover + Math.sin(runTime * hz.bobSpd + hz.bobPh) * hz.amp };
+      }
+
+      function genChunk() {
+        var roll = Math.random();
+        // Opening stretch is always safe flat — but reset()'s first
+        // piece already covers it, so this only tops up a shorter start.
+        if (genX < 500) {
+          var f0 = addPiece("flat", 420);
+          atomLineOnPiece(f0, 100, 360, 4, 34);
+          lastKind = "flat";
+          trailFlat += f0.len;
+          return;
+        }
+        if (lastKind !== "loop" && roll < 0.16) {
+          // ---- LOOP-DE-LOOP ----
+          var R = 118;
+          var lead = addPiece("flat", 150);
+          atomLineOnPiece(lead, 30, 130, 3, 34);
+          var lp = addPiece("loop", Math.PI * 2 * R, { R: R });
+          // Atoms ringed on the line the runner actually rides — just
+          // inside the track surface, the same hover above the surface the
+          // bot itself flies at — so one full loop sweeps through all 10.
+          for (var i = 0; i < 10; i++) {
+            var phi = (i / 10) * Math.PI * 2 + 0.3;
+            atomAt(lp.startX + (R - 10) * Math.sin(phi), lp.startY - R + (R - 10) * Math.cos(phi));
+          }
+          var tail = addPiece("flat", 180);
+          atomLineOnPiece(tail, 30, 150, 3, 34);
+          lastKind = "loop";
+          trailFlat = tail.len;
+          return;
+        }
+        if (roll < 0.34) {
+          // ---- BUMP with atoms over the crest ----
+          var b = addPiece("bump", 400 + Math.random() * 120, { h: 74 + Math.random() * 42 });
+          atomLineOnPiece(b, 60, b.len - 60, 6, 40);
+          if (Math.random() < 0.3) addHazard(b, Math.round(b.len * 0.52), "fmine");
+          lastKind = "bump";
+          trailFlat = 0;
+          return;
+        }
+        if (roll < 0.48) {
+          // ---- VALLEY ----
+          var v = addPiece("valley", 380 + Math.random() * 120, { h: 60 + Math.random() * 36 });
+          atomLineOnPiece(v, 80, v.len - 80, 5, 36);
+          lastKind = "valley";
+          trailFlat = 0;
+          return;
+        }
+        if (roll < 0.64) {
+          // ---- GAP (sometimes bridged by platforms) ----
+          var pre = addPiece("flat", 170);
+          var gapLen = 148 + Math.random() * 58;
+          var gapStartX = genX;
+          var bridged = Math.random() < 0.45;
+          addPiece("gap", gapLen);
+          var post = addPiece("flat", 230);
+          if (bridged) {
+            var n = Math.max(2, Math.round(gapLen / 120));
+            for (var pi = 0; pi < n; pi++) {
+              var px = gapStartX + 26 + pi * ((gapLen - 60) / Math.max(1, n - 1)) - 34;
+              platforms.push({ x: px, y: genY - 96 - (pi % 2) * 26, w: 74, h: 12 });
+              atomAt(px + 37, genY - 96 - (pi % 2) * 26 - 30);
+            }
+          } else {
+            atomParabola(gapStartX - 14, genY - 30, gapStartX + gapLen + 14, genY - 30, 138, 7);
+          }
+          if (Math.random() < 0.5) addHazard(post, 170, "spike");
+          else if (Math.random() < 0.45) addHazard(post, 120, "fmine");
+          lastKind = "gap";
+          trailFlat = post.len;
+          return;
+        }
+        if (roll < 0.82) {
+          // ---- FLAT with hazards — every hazard stands alone with a
+          // clear run-up (addHazard enforces the spacing), so no part of
+          // the piece is a tight cluster; atoms fill the gaps between ----
+          var f = addPiece("flat", 660 + Math.random() * 130);
+          var hr = Math.random();
+          if (hr < 0.4) {
+            addHazard(f, 210, "spike");
+            atomParabola(f.startX + 140, f.startY - 30, f.startX + 290, f.startY - 30, 118, 6);
+            if (Math.random() < 0.5) addHazard(f, f.len - 110, "fmine"); // bobbing mine near the end
+            else addHazard(f, f.len - 110, "mine"); // roll under, near the end
+            atomLineOnPiece(f, f.len - 220, f.len - 160, 2, 34);
+          } else if (hr < 0.75) {
+            addHazard(f, 230, "mine"); // high mine — roll under
+            atomLineOnPiece(f, 310, 410, 3, 34);
+            addHazard(f, f.len - 100, "spike");
+            atomParabola(f.startX + f.len - 170, f.startY - 30, f.startX + f.len - 30, f.startY - 30, 110, 5);
+          } else {
+            addHazard(f, 220, "fmine"); // yellow floater — stay grounded under it
+            atomLineOnPiece(f, 310, 410, 3, 34);
+            addHazard(f, f.len - 100, "spike");
+            atomParabola(f.startX + f.len - 170, f.startY - 30, f.startX + f.len - 30, f.startY - 30, 110, 5);
+          }
+          atomLineOnPiece(f, 40, 130, 3, 34);
+          lastKind = "flat";
+          trailFlat = 0; // hazards run nearly to the end of the piece
+          return;
+        }
+        // ---- Short breather flat with an atom trail — only when the
+        // track doesn't already end in open floor (a plain flat, a gap's
+        // exit flat, a loop's tail), so empty stretches can't chain
+        // into one long run; otherwise this draw becomes a bump ----
+        if (trailFlat >= 150) {
+          var bb = addPiece("bump", 380 + Math.random() * 120, { h: 64 + Math.random() * 36 });
+          atomLineOnPiece(bb, 60, bb.len - 60, 6, 40);
+          lastKind = "bump";
+          trailFlat = 0;
+          return;
+        }
+        var c = addPiece("flat", 360 + Math.random() * 80);
+        atomLineOnPiece(c, 50, c.len - 50, 6, 34);
+        lastKind = "flat";
+        trailFlat = c.len;
+      }
+      function ensureTrack() {
+        while (genX < cam.x + W + 1400) genChunk();
+        // Prune pieces/objects far behind.
+        var cut = cam.x - 500;
+        while (pieces.length > 2 && pieces[1].startX < cut && pieces[0].kind !== "loop") {
+          // Only drop a piece once the next one has fully started behind camera.
+          if (pieces[1].startX + 10 < cut) pieces.shift(); else break;
+        }
+        atoms = atoms.filter(function (a) { return a.x > cut - 200; });
+        hazards = hazards.filter(function (hz) { return hz.piece.startX + hz.s > cut - 300 || pieces.indexOf(hz.piece) >= 0; });
+        platforms = platforms.filter(function (pf) { return pf.x + pf.w > cut - 200; });
+      }
+
+      // ---------------- Player & game state ----------------
+      var state = "menu"; // menu | play | over
+      var player, cam, particles, floaters;
+      var score, atomCount, hearts, best = 0, runTime;
+
+      function reset() {
+        pieces = []; atoms = []; hazards = []; platforms = [];
+        genX = 0; genY = 0; lastKind = "flat"; trailFlat = 0; lastHazardX = -100000;
+        player = {
+          x: 60, y: 0, vx: 0, vy: 0,
+          mode: "track", piece: null, s: 0,
+          speed: 260, angle: 0, rollT: 0, spin: 0,
+          invuln: 0, r: 25, squash: 0,
+          jumpHeld: false, jumpT: 99, queuedRoll: false, fellInPit: false
+        };
+        var first = addPiece("flat", 500);
+        atomLineOnPiece(first, 150, 430, 4, 34);
+        trailFlat = first.len;
+        player.piece = first; player.s = 60;
+        var fp = piecePos(first, 60);
+        player.x = first.startX + fp.x; player.y = first.startY + fp.y;
+        cam = { x: 0, y: player.y - H * 0.6 };
+        particles = []; floaters = [];
+        score = 0; atomCount = 0; hearts = 3; runTime = 0;
+        uiSpeed.textContent = Math.round(player.speed);
+        ensureTrack();
+        drawHearts();
+      }
+      function drawHearts() {
+        var html = "";
+        for (var i = 0; i < 3; i++) html += '<span class="' + (i < hearts ? "" : "lost") + '">💙</span>';
+        uiHearts.innerHTML = html;
+      }
+      function groundYAt(x) {
+        // For flat/bump/valley pieces only — used when airborne.
+        for (var i = 0; i < pieces.length; i++) {
+          var p = pieces[i];
+          if (p.kind === "loop" || p.kind === "gap") continue;
+          if (x >= p.startX && x <= p.startX + p.len) {
+            var pos = piecePos(p, x - p.startX);
+            return { piece: p, s: x - p.startX, y: p.startY + pos.y };
+          }
+        }
+        return null;
+      }
+      function nextGroundPieceAfter(x) {
+        var bestP = null;
+        for (var i = 0; i < pieces.length; i++) {
+          var p = pieces[i];
+          if (p.kind === "loop" || p.kind === "gap") continue;
+          if (p.startX + p.len > x && (!bestP || p.startX < bestP.startX)) bestP = p;
+        }
+        return bestP;
+      }
+      function hazardWorld(hz) {
+        var pos = piecePos(hz.piece, hz.s);
+        return { x: hz.piece.startX + pos.x, y: hz.piece.startY + pos.y };
+      }
+      function burst(x, y, color, n, spd) {
+        for (var i = 0; i < n; i++) {
+          var a = Math.random() * Math.PI * 2, v = (0.3 + Math.random() * 0.7) * (spd || 160);
+          particles.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 40, life: 0.5 + Math.random() * 0.4, t: 0, color: color, r: 2 + Math.random() * 3 });
+        }
+      }
+      function loseHeart(x, y) {
+        if (player.invuln > 0 || state !== "play") return;
+        hearts--;
+        drawHearts();
+        sfx.hit();
+        burst(x, y, "#ff5d8f", 16, 220);
+        player.invuln = 1.6;
+        // Taking a hit costs a heart only — speed keeps building.
+        if (hearts <= 0) gameOver();
+      }
+      // The one and only way back from a fall: onto the next solid piece,
+      // a short way in, fall speed wiped, brief invulnerability.
+      function respawnAfterFall() {
+        var rp = nextGroundPieceAfter(player.x);
+        if (rp) {
+          player.mode = "track"; player.piece = rp; player.s = Math.min(30, rp.len - 1);
+          var rpPos = piecePos(rp, player.s);
+          player.x = rp.startX + rpPos.x; player.y = rp.startY + rpPos.y;
+          player.vy = 0; player.invuln = Math.max(player.invuln, 1.6);
+        }
+        player.fellInPit = false;
+      }
+      function gameOver() {
+        state = "over";
+        stopMusic();
+        sfx.over();
+        burst(player.x, player.y - 20, "#37e0ff", 30, 260);
+        var sc = Math.floor(score);
+        if (sc > best) best = sc;
+        finalScore.textContent = "Score " + sc + "  ·  Best " + best;
+        finalDetail.textContent = "You covered " + Math.floor(player.x / 50) + "m and banked " + atomCount + " atoms.";
+        finalRunScore = sc;
+        submitted = false;
+        var lbBtn = document.getElementById("lbSubmit");
+        lbBtn.disabled = false; lbBtn.textContent = "Submit Score";
+        var lbM = document.getElementById("lbMsg");
+        lbM.textContent = ""; lbM.className = "lb-msg";
+        document.getElementById("overBoard").innerHTML = "<div class='board-note'>Loading…</div>";
+        overOverlay.classList.remove("hidden");
+        fetchBoard().then(function (rows) {
+          document.getElementById("overBoard").innerHTML = boardHTML(rows, null, null);
+        }).catch(function () {
+          document.getElementById("overBoard").innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>";
+        });
+      }
+      function startRun() {
+        reset();
+        state = "play";
+        menuOverlay.classList.add("hidden");
+        overOverlay.classList.add("hidden");
+        ac();
+        startMusic();
+        sfx.click();
+      }
+
+      // ---------------- Input ----------------
+      var keys = {};
+      function pressJump() {
+        if (state === "menu") { startRun(); return; }
+        if (state === "over") return;
+        if (player.mode === "track" && player.piece.kind !== "loop") {
+          player.mode = "air";
+          player.fellInPit = false;
+          player.vy = -830;
+          player.vx = player.speed;
+          player.jumpHeld = true;
+          player.jumpT = 0;
+          player.queuedRoll = false;
+          player.squash = -0.25;
+          sfx.jump();
+          burst(player.x, player.y, "#7df1ff", 6, 90);
+        } else if (player.mode === "plat") {
+          player.mode = "air";
+          player.fellInPit = false;
+          player.vy = -830;
+          player.vx = player.speed;
+          player.jumpHeld = true;
+          player.jumpT = 0;
+          sfx.jump();
+        }
+      }
+      function releaseJump() {
+        if (!player) return;
+        player.jumpHeld = false;
+        // Letting go early cuts the rise short — a tap hops, a hold soars.
+        if (player.mode === "air" && player.vy < -380) player.vy = -380;
+      }
+      function pressRoll() {
+        if (state !== "play") return;
+        if (player.mode === "air") { player.vy = Math.max(player.vy, 900); return; } // slam down
+        if (player.rollT <= 0) { player.rollT = 0.85; sfx.roll(); }
+      }
+      window.addEventListener("keydown", function (e) {
+        if (e.repeat) return;
+        if (e.target && e.target.id === "lbName") return; // typing a board name is not gameplay input
+        keys[e.code] = true;
+        if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") { e.preventDefault(); pressJump(); }
+        if (e.code === "ArrowDown" || e.code === "KeyS") { e.preventDefault(); pressRoll(); }
+        if (e.code === "Enter" && state !== "play") startRun();
+      });
+      window.addEventListener("keyup", function (e) {
+        keys[e.code] = false;
+        if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") releaseJump();
+      });
+      var touchY = null, touchRolled = false, touchJumped = false;
+      function swipeRoll() {
+        // A swipe-down that began as this touch's jump cancels the jump and
+        // rolls the moment the Q-Bot lands, instead of slamming down.
+        if (state !== "play") return;
+        if (touchJumped && player.mode === "air") player.queuedRoll = true;
+        else pressRoll();
+      }
+      canvas.addEventListener("pointerdown", function (e) {
+        touchY = e.clientY; touchRolled = false;
+        var wasAir = state === "play" && player.mode === "air";
+        pressJump(); // jump starts on press so holding the press = higher jump
+        touchJumped = state === "play" && !wasAir && player.mode === "air";
+      });
+      canvas.addEventListener("pointermove", function (e) {
+        if (touchY !== null && !touchRolled && e.clientY - touchY > 34) {
+          touchRolled = true;
+          releaseJump();
+          swipeRoll();
+        }
+      });
+      canvas.addEventListener("pointerup", function (e) {
+        if (touchY !== null && !touchRolled && e.clientY - touchY > 34) { releaseJump(); swipeRoll(); }
+        else releaseJump();
+        touchY = null; touchJumped = false;
+      });
+      canvas.addEventListener("pointercancel", function () { releaseJump(); touchY = null; touchJumped = false; });
+      canvas.addEventListener("touchstart", function (e) { e.preventDefault(); }, { passive: false });
+
+      document.getElementById("playBtn").addEventListener("click", startRun);
+      document.getElementById("againBtn").addEventListener("click", startRun);
+      document.getElementById("restartBtn").addEventListener("click", function () { if (state === "play" || state === "over") startRun(); });
+      var muteBtn = document.getElementById("muteBtn");
+      muteBtn.addEventListener("click", function () {
+        muted = !muted;
+        muteBtn.textContent = muted ? "🔇" : "🔊";
+        if (!muted) ac();
+      });
+
+      // ---------------- Leaderboard (Firebase, lazy — same as the other QI games) ----------------
+      var FB_CONFIG = {"apiKey":"AIzaSyAWRIgijYLkeNefIhqA_MS8W5YpEfRjQs0","authDomain":"quantum-inu-games.firebaseapp.com","projectId":"quantum-inu-games","storageBucket":"quantum-inu-games.firebasestorage.app","messagingSenderId":"996089422788","appId":"1:996089422788:web:3c0917eeb3d1fdd1acba91"};
+      var fbPromise = null;
+      /* The classic (compat) Firebase builds, pulled in only when the
+         board is first shown or a score is submitted. */
+      function loadScript(src) {
+        return new Promise(function (resolve, reject) {
+          var s = document.createElement("script");
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+      function loadFirebase() {
+        if (!fbPromise) {
+          fbPromise = loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js")
+            .then(function () { return loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"); })
+            .then(function () {
+              var app = firebase.initializeApp(FB_CONFIG);
+              return firebase.firestore(app);
+            });
+        }
+        return fbPromise;
+      }
+      var BLOCKED = ["fuck","shit","bitch","cunt","dick","cock","pussy","porn","sex","nude","naked","boob","tits","cum","anal","whore","slut","fag","nigger","nigga","vagina","penis","dildo","horny","hentai","onlyfans","wank","jizz","boner","rape","pedo","incest","blowjob","asshole","twat"];
+      var LEET = {"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s","!":"i"};
+      function nameBlocked(name) {
+        var n = String(name).toLowerCase().split("").map(function (ch) { return LEET[ch] || ch; }).join("").replace(/[^a-z]/g, "");
+        return BLOCKED.some(function (w) { return n.indexOf(w) !== -1; });
+      }
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, function (ch) {
+          return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];
+        });
+      }
+      function boardHTML(rows, myName, myScore) {
+        if (!rows.length) return "<div class='board-note'>No scores yet — be the first on the board!</div>";
+        var marked = false;
+        var html = "<table class='board'><tr><th>#</th><th>Name</th><th class='r'>Score</th></tr>";
+        rows.forEach(function (r, i) {
+          var me = !marked && myName != null && r.name === myName && r.score === myScore;
+          if (me) marked = true;
+          html += "<tr" + (me ? " class='me'" : "") + "><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td class='r'>" + r.score + "</td></tr>";
+        });
+        return html + "</table>";
+      }
+      function fetchBoard() {
+        return loadFirebase().then(function (db) {
+          return db.collection("scores").where("game", "==", "rush").limit(200).get();
+        }).then(function (snap) {
+          var rows = [];
+          snap.forEach(function (d) {
+            var v = d.data();
+            if (v && v.game === "rush" && typeof v.score === "number" && typeof v.name === "string" && !nameBlocked(v.name)) {
+              rows.push({ name: v.name, score: v.score });
+            }
+          });
+          rows.sort(function (a, b) { return b.score - a.score; });
+          return rows.slice(0, 10);
+        });
+      }
+      var submitted = false, finalRunScore = 0;
+      document.getElementById("lbForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (submitted) return;
+        var name = document.getElementById("lbName").value.trim();
+        var msg = document.getElementById("lbMsg");
+        if (!name) { msg.textContent = "Type a name first"; msg.className = "lb-msg err"; return; }
+        if (nameBlocked(name)) {
+          msg.textContent = "That name isn't allowed — pick another";
+          msg.className = "lb-msg err"; return;
+        }
+        var btn = document.getElementById("lbSubmit");
+        btn.disabled = true; btn.textContent = "Submitting…";
+        loadFirebase().then(function (db) {
+          return db.collection("scores").add({
+            name: name, score: finalRunScore, game: "rush", ts: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }).then(function () {
+          submitted = true;
+          msg.textContent = "Score submitted!"; msg.className = "lb-msg ok";
+          btn.textContent = "Submitted ✓";
+          return fetchBoard().then(function (rows) {
+            document.getElementById("overBoard").innerHTML = boardHTML(rows, name, finalRunScore);
+          }).catch(function () {
+            document.getElementById("overBoard").innerHTML = "<div class='board-note'>Leaderboard unavailable right now</div>";
+          });
+        }).catch(function () {
+          msg.textContent = "Leaderboard unavailable right now"; msg.className = "lb-msg err";
+          btn.disabled = false; btn.textContent = "Submit Score";
+        });
+      });
+
+      // ---------------- Like button (same heart as the site game cards) ----------------
+      var likeBusy = false;
+      function likedBefore() {
+        try { return localStorage.getItem("qi-liked-rush") === "1"; } catch (e) { return false; }
+      }
+      function paintLike(count) {
+        document.querySelector("#likeBtn .heart").textContent = likedBefore() ? "❤️" : "🤍";
+        if (typeof count === "number") document.getElementById("likeCount").textContent = count;
+      }
+      function loadLike() {
+        paintLike();
+        return loadFirebase().then(function (db) {
+          return db.collection("likes").doc("rush").get();
+        }).then(function (snap) {
+          paintLike(snap.exists ? (snap.data().count || 0) : 0);
+        }).catch(function () {
+          document.getElementById("likeCount").textContent = "–";
+        });
+      }
+      document.getElementById("likeBtn").addEventListener("click", function () {
+        if (likeBusy) return;
+        likeBusy = true;
+        var was = likedBefore();
+        var delta = was ? -1 : 1;
+        loadFirebase().then(function (db) {
+          var ref = db.collection("likes").doc("rush");
+          return ref.update({ count: firebase.firestore.FieldValue.increment(delta) })
+            .catch(function () { return ref.set({ game: "rush", count: Math.max(0, delta) }, { merge: true }); })
+            .then(function () { return ref.get(); });
+        }).then(function (snap) {
+          var c = snap.exists ? (snap.data().count || 0) : 0;
+          try {
+            if (was) localStorage.removeItem("qi-liked-rush");
+            else localStorage.setItem("qi-liked-rush", "1");
+          } catch (e) {}
+          paintLike(Math.max(0, c));
+        }).catch(function () { /* leave the heart as it was */ })
+          .then(function () { likeBusy = false; });
+      });
+      loadLike();
+
+      // ---------------- Update ----------------
+      function update(dt) {
+        runTime += dt;
+        // Speed builds gradually the longer you survive.
+        player.speed = Math.min(940, player.speed + dt * 6.5);
+        if (player.invuln > 0) player.invuln -= dt;
+        if (player.rollT > 0) player.rollT -= dt;
+        player.squash *= Math.pow(0.0001, dt); // ease back to 0
+        var rolling = player.rollT > 0 && player.mode !== "air";
+
+        if (player.mode === "track") {
+          var p = player.piece;
+          // Loops: arc length advances by speed; other pieces: x advances by speed.
+          var ds;
+          if (p.kind === "loop") ds = player.speed * dt;
+          else ds = player.speed * dt / Math.max(0.35, Math.cos(p.kind === "flat" ? 0 : piecePos(p, player.s).ang));
+          player.s += ds;
+          if (player.s >= p.len) {
+            var idx = pieces.indexOf(p);
+            var nxt = pieces[idx + 1];
+            if (!nxt) { /* track not ready — hold */ player.s = p.len - 0.01; }
+            else if (nxt.kind === "gap") {
+              // Launch off the edge.
+              var ep = piecePos(p, p.len);
+              player.mode = "air";
+              player.fellInPit = false;
+              player.x = p.startX + ep.x; player.y = p.startY + ep.y;
+              player.vx = player.speed * Math.cos(ep.ang);
+              player.vy = player.speed * Math.sin(ep.ang);
+              player.jumpHeld = false; player.jumpT = 99; // edge launch is not a held jump
+              player.piece = nxt; player.s = 0;
+            } else {
+              var over = player.s - p.len;
+              player.piece = nxt; player.s = over;
+              if (nxt.kind === "loop") sfx.loop();
+            }
+          }
+          if (player.mode === "track") {
+            var pos = piecePos(player.piece, player.s);
+            player.x = player.piece.startX + pos.x;
+            player.y = player.piece.startY + pos.y;
+            player.angle = pos.ang;
+            // Track hazards
+            for (var hi = 0; hi < hazards.length; hi++) {
+              var hz = hazards[hi];
+              if (hz.piece !== player.piece || hz.hit) continue;
+              if (Math.abs(player.s - hz.s) < 24) {
+                if (hz.type === "spike") { hz.hit = true; loseHeart(player.x, player.y - 18); }
+                else if (hz.type === "mine" && !rolling) { hz.hit = true; burst(hazardWorld(hz).x, hazardWorld(hz).y - 40, "#ffb14d", 14, 200); loseHeart(player.x, player.y - 24); }
+              }
+            }
+          }
+        } else if (player.mode === "plat") {
+          player.x += player.speed * dt;
+          var pf = player.plat;
+          player.y = pf.y;
+          player.angle = 0;
+          if (player.x > pf.x + pf.w + 6) {
+            player.mode = "air"; player.fellInPit = false; player.vy = 0; player.vx = player.speed;
+          }
+        } else { // air
+          player.jumpT += dt;
+          // While jump is held (first 0.3s) and still rising, gravity is
+          // gentler — the longer the hold, the higher the jump.
+          var grav = (player.jumpHeld && player.jumpT < 0.3 && player.vy < 0) ? 880 : 2100;
+          player.vy += grav * dt;
+          player.x += player.speed * dt;
+          player.y += player.vy * dt;
+          player.angle = Math.max(-0.5, Math.min(0.9, player.vy / 1400));
+          // Platform landing
+          var landed = false;
+          if (player.vy >= 0) {
+            for (var i = 0; i < platforms.length; i++) {
+              var q = platforms[i];
+              if (player.x > q.x - 8 && player.x < q.x + q.w + 8 && player.y >= q.y && player.y - player.vy * dt <= q.y + 14) {
+                player.mode = "plat"; player.plat = q; player.y = q.y; player.vy = 0; landed = true;
+                player.squash = 0.3;
+                if (player.queuedRoll) { player.queuedRoll = false; player.rollT = 0.85; sfx.roll(); }
+                break;
+              }
+            }
+          }
+          if (!landed) {
+            var g = groundYAt(player.x);
+            if (g && player.vy >= 0 && player.y >= g.y) {
+              if (player.fellInPit) {
+                // Dropped into the gap and came up under the far edge —
+                // that's a fall, not a landing: it hurts like any other
+                // hit, then the usual pit respawn takes over.
+                loseHeart(player.x, player.y - 20);
+                if (state !== "play") return;
+                respawnAfterFall();
+              } else {
+                player.mode = "track"; player.piece = g.piece; player.s = g.s; player.y = g.y;
+                player.squash = 0.32;
+                if (player.queuedRoll) { player.queuedRoll = false; player.rollT = 0.85; sfx.roll(); }
+                burst(player.x, player.y, "#7df1ff", 5, 70);
+              }
+            } else if (!g || player.y > (g ? g.y : player.y) + 10) {
+              // Pit check: fell well below the local track line.
+              var ref = nextGroundPieceAfter(player.x - 40);
+              var refY = ref ? ref.startY : genY;
+              // Below the track line while over a gap = inside the pit.
+              if (!g && player.y > refY + 6) player.fellInPit = true;
+              if (player.y > refY + 330) {
+                loseHeart(player.x, player.y - 20);
+                if (state !== "play") return;
+                // Respawn on the next solid piece.
+                respawnAfterFall();
+              }
+            }
+          }
+          // Air hazards (mines) — spikes only matter on the ground.
+          if (player.mode === "air") {
+            for (var ai = 0; ai < hazards.length; ai++) {
+              var ahz = hazards[ai];
+              if (ahz.hit || ahz.type !== "mine") continue;
+              var hw = hazardWorld(ahz);
+              var ddx = player.x - hw.x, ddy = (player.y - 24) - (hw.y - 44);
+              if (ddx * ddx + ddy * ddy < 34 * 34) {
+                ahz.hit = true;
+                burst(hw.x, hw.y - 44, "#ffb14d", 14, 200);
+                loseHeart(player.x, player.y - 24);
+              }
+            }
+          }
+        }
+
+        // Floating mines: touch one in any mode — grounded, rolling or
+        // mid-jump — and it hurts exactly like a ground mine (one heart,
+        // hurt sound, no speed drop, via the same loseHeart path).
+        for (var fmi = 0; fmi < hazards.length; fmi++) {
+          var fhz = hazards[fmi];
+          if (fhz.hit || fhz.type !== "fmine") continue;
+          var fp2 = fminePos(fhz);
+          var fdx = player.x - fp2.x, fdy = (player.y - 24) - fp2.y;
+          if (fdx * fdx + fdy * fdy < 38 * 38) {
+            fhz.hit = true;
+            burst(fp2.x, fp2.y, "#ffd94d", 14, 200);
+            loseHeart(player.x, player.y - 24);
+            if (state !== "play") return;
+          }
+        }
+
+        // Spin while rolling / in a loop.
+        if (rolling || (player.mode === "track" && player.piece.kind === "loop")) player.spin += dt * 14;
+        else player.spin *= Math.pow(0.001, dt);
+
+        // Atoms
+        for (var ci = 0; ci < atoms.length; ci++) {
+          var at = atoms[ci];
+          if (at.taken) continue;
+          var dx = player.x - at.x, dy = (player.y - 26) - at.y;
+          if (dx * dx + dy * dy < 40 * 40) {
+            at.taken = true;
+            atomCount++;
+            score += 25;
+            sfx.atom();
+            burst(at.x, at.y, "#ffd94d", 7, 120);
+            floaters.push({ x: at.x, y: at.y - 14, t: 0, text: "+25" });
+          }
+        }
+        score += (player.speed * dt) / 50; // 1 pt per metre
+
+        // Speed trail
+        if (state === "play" && Math.random() < 0.7) {
+          particles.push({ x: player.x - 20, y: player.y - 14 + Math.random() * 16, vx: -player.speed * 0.4, vy: 0, life: 0.32, t: 0, color: rolling ? "#ffd94d" : "#37e0ff", r: 2 + Math.random() * 2.5 });
+        }
+        // Particles & floaters
+        for (var pi2 = particles.length - 1; pi2 >= 0; pi2--) {
+          var pt = particles[pi2];
+          pt.t += dt;
+          pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vy += 300 * dt;
+          if (pt.t > pt.life) particles.splice(pi2, 1);
+        }
+        for (var fi = floaters.length - 1; fi >= 0; fi--) {
+          floaters[fi].t += dt; floaters[fi].y -= 44 * dt;
+          if (floaters[fi].t > 0.8) floaters.splice(fi, 1);
+        }
+
+        // Camera — player rides left of centre so more of the track ahead is visible.
+        var tx = player.x - W * 0.16;
+        var ty = player.y - H * 0.62;
+        cam.x += (tx - cam.x) * Math.min(1, dt * 7);
+        cam.y += (ty - cam.y) * Math.min(1, dt * 4.5);
+
+        ensureTrack();
+        // HUD
+        uiScore.textContent = Math.floor(score);
+        uiDist.textContent = Math.floor(player.x / 50) + "m";
+        uiAtoms.textContent = atomCount;
+        uiSpeed.textContent = Math.round(player.speed);
+      }
+
+      // ---------------- Background (pre-rendered nebula) ----------------
+      var nebula = document.createElement("canvas");
+      (function buildNebula() {
+        nebula.width = 1024; nebula.height = 512;
+        var n = nebula.getContext("2d");
+        var blobs = [
+          [180, 130, 260, "rgba(88,40,180,0.50)"], [420, 300, 300, "rgba(30,80,200,0.42)"],
+          [700, 120, 240, "rgba(190,50,140,0.34)"], [880, 340, 280, "rgba(20,140,170,0.36)"],
+          [60, 380, 220, "rgba(40,60,190,0.4)"], [560, 60, 180, "rgba(120,60,220,0.3)"]
+        ];
+        for (var i = 0; i < blobs.length; i++) {
+          var b = blobs[i];
+          var g = n.createRadialGradient(b[0], b[1], 0, b[0], b[1], b[2]);
+          g.addColorStop(0, b[3]); g.addColorStop(1, "rgba(0,0,0,0)");
+          n.fillStyle = g;
+          n.fillRect(b[0] - b[2], b[1] - b[2], b[2] * 2, b[2] * 2);
+        }
+      })();
+      var starLayers = [];
+      (function buildStars() {
+        for (var L = 0; L < 3; L++) {
+          var arr = [];
+          for (var i = 0; i < 130; i++) arr.push({ x: Math.random(), y: Math.random(), r: 0.5 + Math.random() * (L === 2 ? 1.9 : 1.2), tw: Math.random() * 6.28 });
+          starLayers.push(arr);
+        }
+      })();
+      var planets = [
+        { x: 0.12, y: 0.16, r: 44, c1: "#8a5cff", c2: "#2c1470", ring: true },
+        { x: 0.55, y: 0.10, r: 26, c1: "#ffb14d", c2: "#7a3c10", ring: false },
+        { x: 0.83, y: 0.24, r: 58, c1: "#39c2d7", c2: "#0d4456", ring: true }
+      ];
+      function drawBG(t) {
+        var g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, "#070b26"); g.addColorStop(0.6, "#0a1030"); g.addColorStop(1, "#120a2e");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        // Nebula (slow parallax, tiled)
+        var nw = W * 1.2, nh = nw * 0.5;
+        var off = -(cam.x * 0.04) % nw;
+        ctx.globalAlpha = 0.85;
+        for (var nx = off - nw; nx < W + nw; nx += nw) ctx.drawImage(nebula, nx, -cam.y * 0.03 - 30, nw, nh);
+        ctx.globalAlpha = 1;
+        // Planets (very slow parallax)
+        for (var pi = 0; pi < planets.length; pi++) {
+          var pl = planets[pi];
+          var px = ((pl.x * (W + 500) - cam.x * 0.07) % (W + 500) + W + 500) % (W + 500) - 250;
+          var py = pl.y * H - cam.y * 0.02;
+          var pg = ctx.createRadialGradient(px - pl.r * 0.35, py - pl.r * 0.35, pl.r * 0.15, px, py, pl.r);
+          pg.addColorStop(0, pl.c1); pg.addColorStop(1, pl.c2);
+          ctx.fillStyle = pg;
+          ctx.beginPath(); ctx.arc(px, py, pl.r, 0, 6.29); ctx.fill();
+          if (pl.ring) {
+            ctx.strokeStyle = "rgba(160,220,255,0.4)"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.ellipse(px, py, pl.r * 1.65, pl.r * 0.42, -0.32, 0, 6.29); ctx.stroke();
+          }
+        }
+        // Stars
+        for (var L = 0; L < 3; L++) {
+          var par = 0.08 + L * 0.09;
+          var arr = starLayers[L];
+          for (var si = 0; si < arr.length; si++) {
+            var st = arr[si];
+            var sx = ((st.x * W * 1.6 - cam.x * par) % (W + 40) + W + 40) % (W + 40) - 20;
+            var sy = st.y * H - cam.y * par * 0.4;
+            var a = 0.45 + 0.55 * Math.abs(Math.sin(t * 1.4 + st.tw));
+            ctx.fillStyle = "rgba(220,240,255," + (a * (0.35 + L * 0.3)).toFixed(3) + ")";
+            ctx.beginPath(); ctx.arc(sx, sy, st.r, 0, 6.29); ctx.fill();
+          }
+        }
+        // Distant crystal ridge silhouette
+        ctx.fillStyle = "rgba(16,24,64,0.85)";
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        for (var rx = 0; rx <= W; rx += 46) {
+          var wx = rx + cam.x * 0.22;
+          var ry = H * 0.86 - (Math.sin(wx * 0.011) * 26 + Math.sin(wx * 0.031) * 12);
+          ctx.lineTo(rx, ry - cam.y * 0.05);
+        }
+        ctx.lineTo(W, H);
+        ctx.closePath(); ctx.fill();
+      }
+
+      // ---------------- World drawing ----------------
+      function drawTrackPiece(p) {
+        // Sample the piece path and stroke the track.
+        var steps = Math.max(8, Math.floor(p.len / 14));
+        ctx.beginPath();
+        for (var i = 0; i <= steps; i++) {
+          var pos = piecePos(p, (i / steps) * p.len);
+          var x = p.startX + pos.x - cam.x, y = p.startY + pos.y - cam.y;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = "#0b2b4a"; ctx.lineWidth = 13; ctx.lineCap = "round"; ctx.stroke();
+        ctx.strokeStyle = "#37e0ff"; ctx.lineWidth = 3.4; ctx.stroke();
+        // Glow edge
+        ctx.strokeStyle = "rgba(55,224,255,0.22)"; ctx.lineWidth = 9; ctx.stroke();
+        // Support glow dots under flat-ish pieces
+      }
+      function drawHazard(hz, t) {
+        var w = hazardWorld(hz);
+        var x = w.x - cam.x, y = w.y - cam.y;
+        if (x < -70 || x > W + 70) return;
+        if (hz.hit) return;
+        if (hz.type === "spike") {
+          ctx.save();
+          ctx.translate(x, y);
+          var grd = ctx.createLinearGradient(0, 0, 0, -34);
+          grd.addColorStop(0, "#5b2a86"); grd.addColorStop(1, "#c77dff");
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.moveTo(-11, 0); ctx.lineTo(0, -36); ctx.lineTo(11, 0); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "rgba(230,190,255,0.85)";
+          ctx.beginPath();
+          ctx.moveTo(-4, -12); ctx.lineTo(0, -30); ctx.lineTo(4, -12); ctx.closePath(); ctx.fill();
+          ctx.restore();
+        } else if (hz.type === "fmine") { // yellow floating mine — bobs over the track
+          var fp3 = fminePos(hz);
+          var fx = fp3.x - cam.x, fy = fp3.y - cam.y;
+          ctx.save();
+          ctx.translate(fx, fy);
+          ctx.shadowColor = "#ffd21f"; ctx.shadowBlur = 16;
+          ctx.fillStyle = "#f7b500";
+          ctx.beginPath(); ctx.arc(0, 0, 14, 0, 6.29); ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "#ffd94d"; ctx.lineWidth = 4;
+          for (var k2 = 0; k2 < 8; k2++) {
+            var a2 = (k2 / 8) * Math.PI * 2 + t * 1.2;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a2) * 12, Math.sin(a2) * 12);
+            ctx.lineTo(Math.cos(a2) * 20, Math.sin(a2) * 20);
+            ctx.stroke();
+          }
+          ctx.fillStyle = "#fff6d8";
+          ctx.beginPath(); ctx.arc(-4, -4, 4.5, 0, 6.29); ctx.fill();
+          // blinking warning light
+          if (Math.sin(t * 5 + hz.bobPh) > 0.2) {
+            ctx.fillStyle = "#ff4040";
+            ctx.beginPath(); ctx.arc(3, 3, 3, 0, 6.29); ctx.fill();
+          }
+          ctx.restore();
+          // faint tether down to the track surface
+          ctx.save();
+          ctx.strokeStyle = "rgba(255,217,77,0.30)"; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.moveTo(fx, fy + 15); ctx.lineTo(fx, y - 2); ctx.stroke();
+          ctx.restore();
+        } else { // mine — floats at head height, roll under it
+          var my = y - 46 + Math.sin(t * 2.4 + hz.s) * 4;
+          ctx.save();
+          ctx.translate(x, my);
+          ctx.shadowColor = "#ff5d5d"; ctx.shadowBlur = 16;
+          ctx.fillStyle = "#d93636";
+          ctx.beginPath(); ctx.arc(0, 0, 15, 0, 6.29); ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#ff8a5c";
+          for (var k = 0; k < 8; k++) {
+            var a = (k / 8) * Math.PI * 2 + t * 1.2;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * 13, Math.sin(a) * 13);
+            ctx.lineTo(Math.cos(a) * 21, Math.sin(a) * 21);
+            ctx.lineWidth = 4; ctx.strokeStyle = "#ff8a5c"; ctx.stroke();
+          }
+          ctx.fillStyle = "#ffe9c9";
+          ctx.beginPath(); ctx.arc(-4, -4, 4.5, 0, 6.29); ctx.fill();
+          // warning tether line to ground
+          ctx.strokeStyle = "rgba(255,93,93,0.35)"; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.moveTo(0, 16); ctx.lineTo(0, y - my - 2); ctx.stroke();
+          ctx.restore();
+        }
+      }
+      function drawAtom(a, t) {
+        if (a.taken) return;
+        var x = a.x - cam.x, y = a.y - cam.y + Math.sin(t * 3 + a.ph) * 3;
+        if (x < -30 || x > W + 30) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.shadowColor = "#ffd94d"; ctx.shadowBlur = 13;
+        ctx.fillStyle = "#ffd94d";
+        ctx.beginPath(); ctx.arc(0, 0, 5.4, 0, 6.29); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(255,217,77,0.85)"; ctx.lineWidth = 1.7;
+        for (var k = 0; k < 3; k++) {
+          ctx.save();
+          ctx.rotate(t * 2.2 + a.ph + k * 1.047);
+          ctx.beginPath(); ctx.ellipse(0, 0, 12.5, 4.6, 0, 0, 6.29); ctx.stroke();
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+      function drawPlayer(t) {
+        var x = player.x - cam.x, y = player.y - cam.y;
+        var r = player.r;
+        var rolling = player.rollT > 0 && player.mode !== "air";
+        var inLoop = player.mode === "track" && player.piece.kind === "loop";
+        ctx.save();
+        // (x, y) is the feet point on the track surface. The body centre sits
+        // one radius up along the surface normal — straight up on flat ground,
+        // but inside a loop the normal points at the loop's centre, so the bot
+        // rides the INSIDE of the ring and follows the floor all the way
+        // around (hanging from the ceiling at the top) instead of outside it.
+        var upx = 0, upy = -1;
+        if (player.mode === "track") { upx = Math.sin(player.angle); upy = -Math.cos(player.angle); }
+        var cox = upx * (r - 2), coy = upy * (r - 2);
+        ctx.translate(x + cox, y + coy);
+        // shadow glow on the track (back at the feet point)
+        ctx.fillStyle = "rgba(55,224,255,0.25)";
+        ctx.beginPath(); ctx.ellipse(-cox, -coy + 1, r * 0.9, 5, 0, 0, 6.29); ctx.fill();
+        // In a loop the frame stays upright and the sprite itself does the
+        // rolling: a clockwise spin, like a ball rolling the inside wall.
+        ctx.rotate(inLoop ? 0 : player.angle * 0.85);
+        var sq = 1 + player.squash * 0.5;
+        ctx.scale(2 - sq > 0 ? 1 / Math.sqrt(sq) : 1, sq);
+        if (player.invuln > 0 && Math.floor(t * 14) % 2 === 0) ctx.globalAlpha = 0.35;
+        // aura
+        var ag = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 1.75);
+        ag.addColorStop(0, "rgba(55,224,255,0.30)"); ag.addColorStop(1, "rgba(55,224,255,0)");
+        ctx.fillStyle = ag;
+        ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, 6.29); ctx.fill();
+        // sprite in a circular clip
+        ctx.save();
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.29); ctx.clip();
+        if (botImg.complete && botImg.naturalWidth > 0) {
+          ctx.save();
+          if (rolling || inLoop) ctx.rotate(player.spin);
+          var bob = (player.mode === "track" && !rolling && !inLoop) ? Math.sin(t * 16) * 1.6 : 0;
+          ctx.drawImage(botImg, -r * 1.22, -r * 1.3 + bob, r * 2.44, r * 2.44);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = "#37e0ff";
+          ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, 6.29); ctx.fill();
+        }
+        ctx.restore();
+        // ring
+        ctx.strokeStyle = rolling ? "#ffd94d" : "#37e0ff";
+        ctx.lineWidth = 2.6;
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.29); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+      function draw(t) {
+        drawBG(t);
+        // platforms
+        for (var i = 0; i < platforms.length; i++) {
+          var pf = platforms[i];
+          var px = pf.x - cam.x, py = pf.y - cam.y;
+          if (px + pf.w < -20 || px > W + 20) continue;
+          ctx.fillStyle = "#12295c";
+          ctx.fillRect(px, py, pf.w, pf.h);
+          ctx.fillStyle = "#37e0ff";
+          ctx.fillRect(px, py, pf.w, 3);
+          ctx.fillStyle = "rgba(55,224,255,0.5)";
+          ctx.fillRect(px + 6, py + pf.h, 3, 12); ctx.fillRect(px + pf.w - 9, py + pf.h, 3, 12);
+        }
+        for (var j = 0; j < pieces.length; j++) {
+          var p = pieces[j];
+          if (p.kind === "gap") continue;
+          var minX = p.startX - (p.kind === "loop" ? p.R + 30 : 10);
+          var maxX = p.startX + (p.kind === "loop" ? p.R + 30 : p.len + 10);
+          if (maxX < cam.x - 40 || minX > cam.x + W + 40) continue;
+          drawTrackPiece(p);
+        }
+        for (var a2 = 0; a2 < atoms.length; a2++) drawAtom(atoms[a2], t);
+        for (var h2 = 0; h2 < hazards.length; h2++) drawHazard(hazards[h2], t);
+        // particles
+        for (var q = 0; q < particles.length; q++) {
+          var pt = particles[q];
+          ctx.globalAlpha = Math.max(0, 1 - pt.t / pt.life);
+          ctx.fillStyle = pt.color;
+          ctx.beginPath(); ctx.arc(pt.x - cam.x, pt.y - cam.y, pt.r, 0, 6.29); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        drawPlayer(t);
+        // floaters
+        ctx.font = "700 15px Orbitron, monospace";
+        ctx.textAlign = "center";
+        for (var f2 = 0; f2 < floaters.length; f2++) {
+          var fl = floaters[f2];
+          ctx.globalAlpha = Math.max(0, 1 - fl.t / 0.8);
+          ctx.fillStyle = "#ffd94d";
+          ctx.fillText(fl.text, fl.x - cam.x, fl.y - cam.y);
+        }
+        ctx.globalAlpha = 1;
+        // speed lines at high velocity
+        if (state === "play" && player.speed > 640) {
+          ctx.strokeStyle = "rgba(160,230,255,0.13)";
+          ctx.lineWidth = 2;
+          var n = Math.floor((player.speed - 640) / 60);
+          for (var s2 = 0; s2 < n; s2++) {
+            var ly = ((s2 * 97 + t * 900) % H);
+            ctx.beginPath(); ctx.moveTo(W, ly); ctx.lineTo(W - 60 - Math.random() * 60, ly); ctx.stroke();
+          }
+        }
+        // roll hint arrow over first mine handled by how-to text; vignette:
+        var vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.78);
+        vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(2,4,14,0.42)");
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // ---------------- Main loop ----------------
+      var lastTs = 0;
+      function frame(ts) {
+        requestAnimationFrame(frame);
+        var t = ts / 1000;
+        var dt = Math.min(0.033, lastTs ? t - lastTs : 0.016);
+        lastTs = t;
+        ctx.setTransform(DPR * SCALE, 0, 0, DPR * SCALE, 0, 0);
+        if (state === "play") update(dt);
+        else if (state === "menu") {
+          // Menu: hold the camera on the Q-Bot at the start line, gentle bob.
+          cam.x = player.x - W * 0.16;
+          cam.y = player.y - H * 0.62 + Math.sin(t * 0.6) * 6;
+          ensureTrack();
+        }
+        draw(t);
+      }
+      resize();
+      reset();
+      drawHearts();
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>
