@@ -3044,7 +3044,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-743eb61790";
+const HUB_BUILD = "x-a12cd246e2";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -16782,16 +16782,34 @@ const CAVE_HOMES = [{ t: 2, x: 500, y: 510, a: 0 }, { t: 0, x: 930, y: 470, a: 0
 const CAVE_BOSS_ID = "c" + CAVE_HOMES.findIndex(h => h.boss);
 const CAVE_CHESTS = [{ x: 4120, y: 330, a: 2, big: 1 }];
 const CAVE_BOSS_AREA = 2, CAVE_ENT_AREA = 32; /* named once: the boss's chamber and the entrance chamber in the v4 grid */
-/* THE FOUR SMALL CHESTS (Jonathan 2026-11-10): four plain chests scattered through the dungeon, each in the MIDDLE of a room that is not the boss's. Opening one pays 10,000,000 coins — and the chest then jumps to another random room that holds no small chest. Their rooms are SHARED (hub/tables/cavesmall): every screen sees the same four, and the opener's client writes the jump */
+/* THE FOUR SMALL CHESTS (Jonathan 2026-11-10): four plain chests scattered through the dungeon, each in the MIDDLE of a room that is not the boss's. Opening one pays 10,000,000 coins to the opener AND to everyone else standing in that room (Jonathan 2026-11-10) — and the chest then jumps to another random room that holds no small chest. Their rooms are SHARED (hub/tables/cavesmall): every screen sees the same four, and the opener's client writes the jump */
 let caveSmallAreas = []; /* the chamber indices currently holding a small chest */
 function caveSmallChests() { return caveSmallAreas.map(a => { const A = CAVE_AREAS[a]; return { x: A.x + 640, y: A.y + 640, a: a, small: 1 }; }); }
 function caveAllChests() { return CAVE_CHESTS.concat(caveSmallChests()); } /* the epic chest first, then the four small — one list for the channel tick and the draw */
 function caveSmallNetInit() { if (!db) return; const ref = db.ref("hub/tables/cavesmall"); ref.on("value", snap => { const v = snap.val(); if (!v || !Array.isArray(v.slots)) { try { ref.transaction(cur => { if (cur && Array.isArray(cur.slots)) return cur; const pool = []; for (let a = 0; a < CAVE_AREAS.length; a++) if (a !== CAVE_BOSS_AREA) pool.push(a); const slots = []; while (slots.length < 4 && pool.length) slots.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); return { slots: slots, ts: srvNow() }; }); } catch (e) {} return; } caveSmallAreas = v.slots.filter(a => typeof a === "number" && a !== CAVE_BOSS_AREA).slice(0, 4); }); } /* first client in seeds the four rooms through a transaction, so the dungeon never starts with two in one room */
-function awardSmallChest(C) { /* A SMALL CHEST PAYS COINS (Jonathan 2026-11-10, raised the same night): a flat 10,000,000 into the opener's own balance (Jonathan 2026-11-10: the small chests drop from 100M to 10M) (a guest is told to sign in), then the chest jumps — the opener writes the new shared placement and his own screen moves it at once */
+let caveSmallLootSeen = 0, caveSmallLootKey = "", caveSmallLootHooked = false;
+function caveSmallLootNetInit() {
+  if (!db || caveSmallLootHooked) return; caveSmallLootHooked = true;
+  caveSmallLootSeen = srvNow(); /* the baseline is the moment I start watching, the epic chest's own rule: a share older than this is history and never pays me late */
+  db.ref("hub/tables/cavesmallloot").on("value", snap => {
+    const v = snap.val(); if (!v || !v.ts) return;
+    if (v.ts <= caveSmallLootSeen) return;
+    const key = v.ts + ":" + v.a + ":" + v.by;
+    if (key === caveSmallLootKey) return;
+    caveSmallLootKey = key; caveSmallLootSeen = v.ts;
+    if (v.by === myId) return; /* my own opening already paid me */
+    if (me.scene !== "cave" || !acctUser) return;
+    const A = CAVE_AREAS[v.a]; if (!A) return;
+    if (!(me.x >= A.x && me.x <= A.x + A.w && me.y >= A.y && me.y <= A.y + A.h)) return; /* only the room it opened in shares — you had to be standing in it when it opened */
+    sfxCoin(); addChips(10000000); genText(me.x, me.y - 150, "+\uD83E\uDE99 10,000,000", "#ffd76a"); genBurst(me.x, me.y - 46, true);
+  });
+}
+function awardSmallChest(C) { /* A SMALL CHEST PAYS COINS (Jonathan 2026-11-10, raised the same night): a flat 10,000,000 to the opener and to everyone standing in the room with him (Jonathan 2026-11-10: the small chests drop from 100M to 10M) (a guest is told to sign in), then the chest jumps — the opener writes the new shared placement and his own screen moves it at once */
   sfxCoin(); tone(660, 990, 0.16, "sine", 0.05);
   spawnParts(C.x, C.y - 20, "#ffd76a", 18, 240);
   if (acctUser) { addChips(10000000); genText(me.x, me.y - 150, "+\uD83E\uDE99 10,000,000", "#ffd76a"); genBurst(me.x, me.y - 46, true); }
   else genText(me.x, me.y - 150, "Sign in to earn the 10M", "#ffd76a");
+  try { db.ref("hub/tables/cavesmallloot").set({ ts: srvNow(), by: myId, a: C.a }); } catch (e) {} /* THE ROOM SHARES (Jonathan 2026-11-10): the opening is announced on its own shared record, stamped with the room it opened in — the chest's jump rewrites cavesmall at once, so the share cannot ride that record */
   const rest = caveSmallAreas.filter(a => a !== C.a); const pool = []; for (let a = 0; a < CAVE_AREAS.length; a++) if (a !== CAVE_BOSS_AREA && a !== C.a && !rest.includes(a)) pool.push(a);
   const na = pool.length ? pool[Math.floor(Math.random() * pool.length)] : C.a; rest.push(na);
   caveSmallAreas = rest;
@@ -16834,6 +16852,7 @@ function caveFoesNetInit() {
   if (!db || caveFoesHooked) return; caveFoesHooked = true;
   caveLootNetInit();
   caveSmallNetInit();
+  caveSmallLootNetInit();
   const ref = db.ref("hub/tables/cavefoes");
   ref.on("value", snap => {
     let v = snap.val();
