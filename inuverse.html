@@ -3044,7 +3044,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-44b6517992";
+const HUB_BUILD = "x-c5be6f2c77";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -16555,7 +16555,7 @@ function drawWepBuilding(t, kind, paint) {
   ctx.fillStyle = S.main; rr(B.x - 10, B.y + B.h - 128, B.w + 20, 44, 8); ctx.fill(); /* the marquee band, UP a bit (note 10) — clear air between it and the door now */
   ctx.font = "800 25px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#0b0b10";
   ctx.fillText(WEP_SHOPS[kind].panel.toUpperCase(), cx, B.y + B.h - 98);
-  ctx.font = "800 25px 'Segoe UI',sans-serif"; const nameHalf = ctx.measureText(S.name).width / 2, gapL = (cx - nameHalf) - B.x, gapR = (B.x + B.w) - (cx + nameHalf); for (const bx of [B.x + gapL / 2 - 13, cx + nameHalf + gapR / 2 - 13]) { /* the banners hang HALFWAY between the building's edge and the shop's name (his word 2026-11-09, twice over: first they sat ON the name, then the very ends were too far — halfway is the spot, measured off the name itself so every shop lands true) */ ctx.fillStyle = S.dark; ctx.fillRect(bx, B.y + B.h - 122, 26, 66); ctx.strokeStyle = S.main; ctx.lineWidth = 2; ctx.strokeRect(bx, B.y + B.h - 122, 26, 66); ctx.save(); ctx.translate(bx + 13, B.y + B.h - 92); ctx.rotate(Math.PI / 4); ctx.fillStyle = S.soft; ctx.fillRect(-5, -5, 10, 10); ctx.restore(); ctx.fillStyle = S.dark; ctx.beginPath(); ctx.moveTo(bx, B.y + B.h - 56); ctx.lineTo(bx + 13, B.y + B.h - 44); ctx.lineTo(bx + 26, B.y + B.h - 56); ctx.closePath(); ctx.fill(); } /* banners in the shop's colours flank the door */
+  ctx.font = "800 25px 'Segoe UI',sans-serif"; const nameHalf = ctx.measureText(WEP_SHOPS[kind].panel.toUpperCase()).width / 2 /* THE SIGN FIX (2026-11-10): this measured S.name, a field the shop records do not have, so it measured the word "undefined" and the banner straps landed at one fixed wrong offset — on phones, whose fonts paint the real name wider, a strap slid over the letters (QUANTUM [S]WORDS). Now it measures the exact string the marquee paints, on the device doing the painting */, gapL = (cx - nameHalf) - B.x, gapR = (B.x + B.w) - (cx + nameHalf); for (const bx of [B.x + gapL / 2 - 13, cx + nameHalf + gapR / 2 - 13]) { /* the banners hang HALFWAY between the building's edge and the shop's name (his word 2026-11-09, twice over: first they sat ON the name, then the very ends were too far — halfway is the spot, measured off the name itself so every shop lands true) */ ctx.fillStyle = S.dark; ctx.fillRect(bx, B.y + B.h - 122, 26, 66); ctx.strokeStyle = S.main; ctx.lineWidth = 2; ctx.strokeRect(bx, B.y + B.h - 122, 26, 66); ctx.save(); ctx.translate(bx + 13, B.y + B.h - 92); ctx.rotate(Math.PI / 4); ctx.fillStyle = S.soft; ctx.fillRect(-5, -5, 10, 10); ctx.restore(); ctx.fillStyle = S.dark; ctx.beginPath(); ctx.moveTo(bx, B.y + B.h - 56); ctx.lineTo(bx + 13, B.y + B.h - 44); ctx.lineTo(bx + 26, B.y + B.h - 56); ctx.closePath(); ctx.fill(); } /* banners in the shop's colours flank the door */
   const dk = WEP_SHOPS[kind].door;
   ctx.fillStyle = S.trim; rr(dk.x - 26, dk.y + 8, dk.w + 52, 10, 4); ctx.fill(); /* the doorstep */
   ctx.fillStyle = "#0a0a0d"; rr(dk.x - 9, dk.y - 28, dk.w + 18, 44, 7); ctx.fill(); /* the door sits BELOW the name bar, grounded at the entrance (note 10) */
@@ -16860,7 +16860,7 @@ let caveRenderLast = 0;
 function caveRenderTick(now) { /* enemyTick's twin: ease the dungeon foes onto their records, and keep my combat clock hot while one is on me */
   const dt = Math.min(0.05, caveRenderLast ? (now - caveRenderLast) / 1000 : 0.016); caveRenderLast = now;
   const bdNow = caveBossDown(); if (bdNow && !bossDownPrev) bossDeathGen++; bossDownPrev = bdNow; /* a fresh death of the boss is a new chest generation */
-  if (bdNow && Math.hypot(me.x - CAVE_PORTAL.x, me.y - CAVE_PORTAL.y) < 58) { toPlazaFromCave(); return; } /* THE EXIT PORTAL: while the boss is gone it stands open in the middle of his room — step in and you're out, back at the boulder */
+  if (bdNow && Math.hypot(me.x - CAVE_PORTAL.x, me.y - CAVE_PORTAL.y) < 58) { portalProg += dt; if (portalProg >= 3) { portalProg = 0; toPlazaFromCave(); return; } } else portalProg = 0; /* THE EXIT PORTAL (his word 2026-11-10): while the boss is gone it stands open in the middle of his room — but it no longer fires the moment you touch it: STAND on it for THREE SECONDS and then you're out, back at the boulder; step off the stone (or he stands again) and the count starts over */
   let onMe = false;
   for (const [eid, er] of caveEnemies) {
     const rp = enemyRender.get(eid); if (!rp) continue;
@@ -16874,7 +16874,7 @@ function caveRenderTick(now) { /* enemyTick's twin: ease the dungeon foes onto t
   if (caveAoeState && !caveAoeState.fired && srvNow() >= caveAoeState.boom) { caveAoeState.fired = true; const b = foeGet(CAVE_BOSS_ID); if (b && b.st !== "dead") { for (const c of caveAoeState.cs) { wepParts.push({ ring: true, x: c[0], y: c[1], t0: now, col: "#7ee83c", r: AOE_R }); spawnParts(c[0], c[1], "#7ee83c", 20, 300); spawnParts(c[0], c[1], "#ffb347", 10, 220); if (Math.hypot(me.x - c[0], me.y - c[1]) <= AOE_R) enemyHitMe({ ...ENEMY_DEFS[b.t], coin: 50000 }); } if (caveAoeState.cs.some(c => Math.hypot(me.x - c[0], me.y - c[1]) < 700)) sfxExplosion(false); } } /* THE BOOM: the Archdruid's slam lands — green nature-fire rings on every marked circle, and anyone still standing in one takes the boss's own 50,000-coin hit through the one funnel (flash, sound, debit). If he fell during the warning, the slam dies with him */
   if (caveAoeState && caveAoeState.fired && srvNow() > caveAoeState.boom + 600) caveAoeState = null;
 }
-let chestProg = 0, chestLast = 0, chestNearI = -1; const chestLootedAt = {};
+let chestProg = 0, chestLast = 0, chestNearI = -1, portalProg = 0; const chestLootedAt = {}; /* portalProg: the exit portal's three-second stand, counted in caveRenderTick */
 const chestLootGen = {}; let bossDownPrev = false, bossDeathGen = 0, bossPaidTs = 0; /* THE CHEST'S RESET IS THE BOSS (his word 2026-11-09): every fresh death of the boss bumps the generation; looting the epic chest spends it for the generation it died in — his respawn (1 minute, already the referee's rule) and a new kill are what re-arm it */
 function caveAreaCleared(ai) { for (const [cid, er] of caveEnemies) { const h = CAVE_HOMES[+cid.slice(1)]; if (h && h.a === ai && er.st !== "dead") return false; } return true; }
 function caveBossDown() { const b = foeGet(CAVE_BOSS_ID); return !!b && b.st === "dead"; } /* the epic chest's only key: the boss himself, down */
@@ -16956,6 +16956,7 @@ function drawCaveRoom(t) {
     ctx.fillStyle = "#eaf6ff"; ctx.beginPath(); ctx.arc(P.x, P.y, 7, 0, 7); ctx.fill();
     if (Math.random() < 0.3) wepParts.push({ x: P.x + (Math.random() - 0.5) * 70, y: P.y + 30, vx: 0, vy: -46, t0: t, life: 700, col: "#7dd7ff", r: 2.6 });
     ctx.font = "800 15px 'Segoe UI',sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(234,246,255,0.85)"; ctx.fillText("EXIT", P.x, P.y - 64);
+    if (portalProg > 0) { ctx.strokeStyle = "#7dd7ff"; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(P.x, P.y, 64, -Math.PI / 2, -Math.PI / 2 + (portalProg / 3) * Math.PI * 2); ctx.stroke(); ctx.font = "800 24px 'Segoe UI',sans-serif"; ctx.fillStyle = "#eaf6ff"; ctx.fillText(String(Math.ceil(3 - portalProg)), P.x, P.y - 92); } /* THE THREE-SECOND STAND, shown (his word 2026-11-10): the chest channels' own language — a ring that fills around the portal in its own light blue and the seconds left standing over it, so the wait reads at a glance */
     ctx.restore();
   }
   const allCh = caveAllChests(); for (let ci = 0; ci < allCh.length; ci++) { const C = allCh[ci]; const looted = C.big ? (chestLootGen[ci] != null && chestLootGen[ci] === bossDeathGen) : false, cleared = C.big ? caveBossDown() : true; /* a small chest is never spent and never gated — it stands ready in its room until someone opens it, then it is somewhere else */
