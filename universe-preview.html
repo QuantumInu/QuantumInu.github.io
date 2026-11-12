@@ -1549,9 +1549,18 @@ function makeHqVid(idx) {
   return v;
 }
 for (let i = 0; i < 4; i++) { hqVids.push(makeHqVid(i)); hqNext.push(makeHqVid(i)); }
+/* the Watchtower plays superhero Daily Life videos ONLY (Jonathan 2026-11-11). The shared dlCatalog fetch reads just the first page of the collection and every superhero entry sorts past it, so the HQ screens make their own full pass — every page — and keep superhero entries only. There is no fallback: if no superhero entries load, the screens idle. */
+let hqHeroes = [];
+(function loadHqHeroes(pageToken) {
+  const u = "https://firestore.googleapis.com/v1/projects/quantum-inu-games/databases/(default)/documents/dailylife?pageSize=300" + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+  fetch(u).then(r => r.json()).then(j => {
+    const heroes = (j.documents || []).map(d => ({ label: ((d.fields.label || {}).stringValue || ""), url: ((d.fields.url || {}).stringValue || "") })).filter(v => v.url && v.label.indexOf("Superhero") === 0);
+    hqHeroes = hqHeroes.concat(heroes);
+    if (j.nextPageToken) loadHqHeroes(j.nextPageToken);
+  }).catch(() => {});
+})();
 function hqCatalog() {
-  const heroes = dlCatalog.filter(d => (d.label || "").indexOf("Superhero") === 0 && d.url);
-  return heroes.length >= 4 ? heroes : dlCatalog.filter(d => d.url);
+  return hqHeroes.filter(d => d.url);
 }
 function chooseHq(i) {
   const cat = hqCatalog(); if (!cat.length) return -1;
@@ -3108,7 +3117,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-20efea9fbf";
+const HUB_BUILD = "x-bef209fa7c";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
