@@ -1310,6 +1310,7 @@ const gate = $("gate"), grid = $("grid"), nameIn = $("namein"), enterBtn = $("en
       cancelBtn = $("cancelbtn"), loadLine = $("loadline"), statusEl = $("status"),
       onlineEl = $("online"), promptBtn = $("prompt"), chatIn = $("chatin");
 let heroImgs = {}, loadedCount = 0;
+let gateLoadGrace = false; /* after 3s the gate stops waiting on the sticker preload (Jonathan 2026-11-12): a hung image request on a flaky connection must never lock a player out — hero art loads on demand in-game */
 let heroImgsF = {}, femaleLoadedCount = 0; /* the female sticker cache and its OWN load counter \u2014 the male HERO_TOTAL gate below is untouched */
 const FEMALE_MISSING = { 38: 1, 40: 1 }; /* owner removal (2026-10-30): female 038 and 040 do not exist \u2014 the female roster grid has 68 cells and the numbers NEVER shift (female N is always male hero N's counterpart) */
 const FEMALE_EXTRA = [71, 72, 73, 74, 75, 76, 78, 79, 80, 81, 82, 83, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97]; /* the Cosmic Husky FEMALE SHEET costumes (Jonathan 2026-11-04 \u2014 "add the ones from the sheet i sent you too as female sprites because they are not in the game"): his sheet's numbers 071-097 are the female track's OWN sequence, past the roster's 70. These 22 had no costume file in the game \u2014 cut from his sheet and uploaded as hub-heroes/female-NNN.webp, and they ride at the end of the female grid in sheet order. The sheet's other five numbers already HAD files and were never overwritten or given picker cells: 77 the dragon mech's female form, 84-87 the four shop mechs' female forms \u2014 form art, not costumes. The mech designs' female bases (71/72/74/75/76) are all costumes from this same sheet, 75 included. 75's costume joined a day later at his ruling (2026-11-05: "for females, 75 is the female version of the samurai mech"): female-075 was re-pointed to the sheet's Samurai, replacing the file the game had treated as the king mech's female form (in fact a byte-copy of the samurai form's own female art, still live at female-087); the king form draws its male art for every wearer now (mechDrawGender) */
@@ -1366,6 +1367,7 @@ function syncOwnerCell() {
 }
 function syncHeroSel() { document.querySelectorAll(".cell").forEach(c => c.classList.toggle("sel", Number(c.dataset.hero) === pickedHero)); }
 buildGrid();
+setTimeout(() => { gateLoadGrace = true; checkEnter(); }, 3000); /* one-shot: 3 seconds after the gate paints, the sticker count stops blocking Enter */
 const HERO_TOTAL = 79;
 function heroLoaded() { loadedCount++; syncLoadLine(); checkEnter(); }
 function heroLoadedF() { femaleLoadedCount++; syncLoadLine(); checkEnter(); }
@@ -1380,7 +1382,7 @@ function syncLoadLine() { /* the load line reports the counter of the mode you a
   im.src = "https://firebasestorage.googleapis.com/v0/b/quantum-inu-games.firebasestorage.app/o/hub-heroes%2Fhero-" + String(n).padStart(3, "0") + ".webp?alt=media";
 });
 if (profile) nameIn.value = profile.name;
-function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && nameGateBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = heroAllowed(pickedHero) && !(pickedGender === "f" && FEMALE_MISSING[pickedHero]); const ok = raw.length > 0 && heroOk && !blocked && loadedCount >= HERO_TOTAL && (pickedGender !== "f" || femaleLoadedCount >= FEMALE_TOTAL); enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
+function checkEnter() { const raw = nameIn.value.trim(); const blocked = raw.length > 0 && nameGateBlocked(raw); $("nameerr").style.display = blocked ? "block" : "none"; const heroOk = heroAllowed(pickedHero) && !(pickedGender === "f" && FEMALE_MISSING[pickedHero]); const ok = raw.length > 0 && heroOk && !blocked && (loadedCount >= HERO_TOTAL || gateLoadGrace) && (pickedGender !== "f" || femaleLoadedCount >= FEMALE_TOTAL || gateLoadGrace); enterBtn.disabled = !ok; $("enterbtn-top").disabled = !ok; }
 nameIn.addEventListener("input", checkEnter); checkEnter();
 function syncGenBar() { $("gensegm").classList.toggle("sel", pickedGender !== "f"); $("gensegf").classList.toggle("sel", pickedGender === "f"); }
 function setGender(g) { /* flipping the split bar: the pick survives the flip (female N is male hero N's counterpart) EXCEPT the two removed numbers \u2014 a pick of 38/40 clears in female mode and Enter waits for a fresh tap, exactly like having no pick */
@@ -2598,7 +2600,7 @@ function releaseTabLock() {
 window.addEventListener("beforeunload", releaseTabLock);
 window.addEventListener("pagehide", e => { if (!e.persisted) releaseTabLock(); });
 function enterHubInner() {
-  const raw = nameIn.value.trim(); if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return;
+  const raw = nameIn.value.trim(); if (!raw || !pickedHero || (loadedCount < HERO_TOTAL && !gateLoadGrace)) return;
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return;
   let nm = raw;
   if (nameGateBlocked(raw)) return;
@@ -3117,7 +3119,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-da535f3955";
+const HUB_BUILD = "x-a6d6540aef";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -9253,7 +9255,7 @@ function banEject() {
 }
 function banEntryPrecheck() { /* enterHubInner's own early validations, mirrored: entry only reaches the ban check when it would otherwise proceed to the claim/profile stage */
   const raw = nameIn.value.trim();
-  if (!raw || !pickedHero || loadedCount < HERO_TOTAL) return false;
+  if (!raw || !pickedHero || (loadedCount < HERO_TOTAL && !gateLoadGrace)) return false;
   if (pickedGender === "f" && (FEMALE_MISSING[pickedHero] || femaleLoadedCount < FEMALE_TOTAL)) return false;
   if (nameGateBlocked(raw)) return false;
   if ((pickedHero === OWNER_HERO && !isIcloudAcct()) || (pickedHero === KING_HERO && !isKingAcct()) || (pickedHero === TONIC_HERO && !isTonicAcct()) || (pickedHero === KEN_HERO && !isKenAcct()) || (pickedHero === ROBO_HERO && !isDreadAcct()) || (pickedHero === NEON_HERO && !isOwnerAcct()) || (pickedHero === PATCH_HERO && !isOwnerAcct()) || (pickedHero === BBE_HERO && !isBbeAcct())) return false;
