@@ -1269,6 +1269,26 @@ function caveCombatThemeTick(tick) {
   if (step === 5) tone(ch[3] * 4, 0, 0.9, "sine", 0.005); /* the forest's music box, hurried — one quick note in the dark */
   if (bar === 3 && step === 6) tone(ch[0] * 2 * 1.0595, 0, 1.1, "sine", 0.0042); /* the ghost note, closer now — the forest's semitone mystery, once a cycle */
 }
+/* plaza: D major I–V–vi–IV — THE NEW PLAZA THEME (Jonathan 2026-11-13: "a more epic RPG theme for the main plaza instead of the one now, using in game sounds same way — should be like discovery sounding"): an original piece in the room themes' own kit — NOT a song file — replacing the old eight-note sine arpeggio that used to be the plaza's whole music. Built like the cave combat track was: the game's own voices (padChord / tone) given a new progression and parts. The shape is a journey out and home: a warm pad swell and a deep herald root per chord (the castle's own opening move), a soft pulse twice a bar, and over it a SINGING LEAD — a real composed melody in D major, twenty-nine triangle notes across the four chords, rising from the fifth through the summit F# in the third chord (the discovery moment: the line climbs a stair A–B–C#–D–E to get there) and coming home to a long D over the last chord, so the 64-tick loop (four chords of 16 ticks on the shared 460ms interval, ~29 seconds) resolves straight into its own top. One high sparkle late in each chord, and a second shimmer joins from the third chord on so the loop builds a little as it turns. Levels sit in family with the forest and castle themes (pad 0.010, lead 0.0125) — phone-safe, no clipping, no harsh highs: the brightest voice is the sine sparkle at 0.0035. The other fall-through scenes keep the old default arpeggio below exactly as it was; this theme is the plaza's alone, and the forest / tropical zone tests above still take the plaza's wild edges before this branch is reached */
+const PLAZA_CHORDS = [
+  [146.8, 185.0, 220.0, 293.7], [110.0, 138.6, 164.8, 220.0],
+  [123.5, 146.8, 185.0, 246.9], [98.0, 123.5, 146.8, 196.0]
+];
+const PLAZA_LEAD = { /* step-in-cycle: [freq, seconds] — the melody described above; rests are simply absent */
+  0: [440.0, 1.7], 2: [493.9, 0.9], 4: [587.3, 1.7], 6: [740.0, 2.6], 10: [659.3, 1.4], 12: [587.3, 1.4], 14: [493.9, 1.2],
+  16: [440.0, 1.7], 18: [554.4, 0.9], 20: [659.3, 1.7], 22: [554.4, 1.2], 24: [493.9, 1.2], 26: [440.0, 1.7], 28: [370.0, 1.4], 30: [440.0, 1.2],
+  32: [440.0, 0.9], 34: [493.9, 0.9], 36: [554.4, 0.9], 38: [587.3, 1.7], 40: [659.3, 1.7], 42: [740.0, 2.6], 46: [659.3, 1.4],
+  48: [587.3, 1.7], 50: [493.9, 1.2], 52: [440.0, 1.4], 54: [392.0, 1.7], 56: [440.0, 1.2], 58: [493.9, 1.2], 60: [587.3, 2.8]
+};
+function plazaThemeTick(tick) {
+  const ci = Math.floor(tick / 16) % 4, ch = PLAZA_CHORDS[ci], step = tick % 16;
+  if (step === 0) { padChord(ch, 8.8, 0.010); tone(ch[0] / 2, 0, 3.6, "triangle", 0.016); } /* the warm pad and its herald root, one per chord — the castle's opening move */
+  if (step === 0 || step === 8) tone(120, 45, 0.13, "sine", 0.030); /* the soft pulse: the gym's kick, gentled to a heartbeat twice a bar */
+  if (step === 8) tone(ch[0], 0, 1.2, "triangle", 0.013); /* the root breathes again mid-chord */
+  const L = PLAZA_LEAD[tick % 64]; if (L) tone(L[0], 0, L[1], "triangle", 0.0125); /* the singing lead */
+  if (step === 12) tone(ch[3] * 4, 0, 1.6, "sine", 0.0035); /* one high sparkle late in each chord, the monster shop's light-through-leaves */
+  if (ci >= 2 && step === 4) tone(ch[2] * 4, 0, 1.2, "sine", 0.0030); /* a second shimmer joins for the journey's second half — the loop builds as it turns */
+}
 function startMusic() {
   if (musicOn) return; musicOn = true;
   const seq = [261.6, 329.6, 392, 523.3, 392, 329.6, 293.7, 392];
@@ -1306,6 +1326,7 @@ function startMusic() {
     if (sc === "seacave") { if (seacaveInCombat()) seacaveCombatThemeTick(tick); else seacaveThemeTick(tick); tick++; return; } /* SEA CAVE (Jonathan 2026-11-12): the drowned dungeon has its OWN dark ocean theme — deep swells and far sonar pings while it is quiet, and the moment a foe is on you the same interval hands the tick to its combat variant, read fresh every 460ms exactly like the Cave's switch */
     if (sc === "cave") { if (caveInCombat()) caveCombatThemeTick(tick); else forestThemeTick(tick); tick++; return; } /* THE CAVE AT WAR (Jonathan 2026-11-11): the dungeon breathes the forest theme while it is quiet — but the moment a guardian is on you, the same interval hands the tick to the combat theme instead. The switch is read fresh every 460ms from caveInCombat(), so the war music starts with the fight and dies out of it on its own decays, straight back into the forest pad — see the theme's own note above caveCombatThemeTick */
     if ((sc === "plaza" && me.x >= FOREST.x0 && me.x <= MAZE.x1 && me.y >= FOREST.y0 && me.y <= FOREST.y1) || sc === "swordshop" || sc === "archshop" || sc === "magicshop") { forestThemeTick(tick); tick++; return; } /* THE FOREST SHOPS (Jonathan 2026-11-08: "the music in the shops should be the same mysterious theme, in the 3 forest shops"): Quantum Swords, Quantum Archery and Quantum Magic are rooms OF the forest — the same dark drone, breathing bass, music box and phrygian ghost note play inside them, unbroken as you step through the door. MAZE MERGE (Jonathan 2026-11-11: "the forest music must continue into the maze"): the plaza test above runs FOREST.x0..MAZE.x1 — the maze (x 7640..10940, the forest's own y-span) is the SAME musical zone as the forest, so the theme continues across the boundary with no restart and no cut. Verified state before this change: the maze had NO music test of its own anywhere and was NOT a separate zone key selecting the same theme — it simply fell through to the plaza default melody; this merge is what covers it */ /* THE FOREST (PREVIEW, 2026-11-08): inside the forest's bounds the plaza's default melody yields to the forest's own dark theme (see forestThemeTick above) — walking in starts it, walking out hands the default melody back, and the shops' interiors (their own scenes) are untouched */
+    if (sc === "plaza") { plazaThemeTick(tick); tick++; return; } /* THE PLAZA THEME (see plazaThemeTick above): the plaza scene's own ground — the forest and tropical zone branches above have already taken the parts of the plaza that are theirs, so whatever plaza ground remains is the main plaza itself, and it gets the new discovery theme. Every OTHER scene that used to fall through to the old default arpeggio still does — the line below is untouched and remains the generic fallback */
     tone(seq[tick % seq.length], 0, 0.5, "sine", 0.022);
     if (tick % 4 === 0) tone(seq[tick % seq.length] / 2, 0, 1.6, "triangle", 0.016);
     tick++;
@@ -3130,7 +3151,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-4e298d59bc";
+const HUB_BUILD = "x-93226e1d94";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
