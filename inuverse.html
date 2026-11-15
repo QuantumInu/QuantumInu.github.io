@@ -1496,12 +1496,16 @@ function publish(force) {
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
 
-/* ============ IDLE LOGOUT (Jonathan 2026-11-15 — "open tab is not awake world"): an untouched client is NOT an awake player. (1) After IDLE_PUB_STOP_MS with no input and no movement, publish() goes quiet (the gate at its head): the presence record's ts stops refreshing, the standing 45s staleness rule retires the player from every roster, and the server referees' presence gates close — the world sleeps instead of simulating (and billing downloads) all night for a tab nobody is touching. Any input, or simply moving through the world, republishes on the next heartbeat at once. (2) At IDLE_LIMIT_MS untouched, the player is logged out properly: presence removed, page reloaded back to the enter gate — auth persistence is NONE by his standing choice, so the reload IS the whole logout, the same state a manual refresh leaves. (3) The topbar carries the standing readout he asked for: "Idle Logout: M:SS", sitting at 5:00 while active, ticking down while idle. Movement counts as activity on purpose: a held joystick fires no fresh input events, but the position it publishes changes every step — the ticker samples it. The presence record's shape is untouched: no field added, removed or renamed anywhere in this block ============ */
+/* ============ IDLE LOGOUT (Jonathan 2026-11-15 — "open tab is not awake world"): an untouched client is NOT an awake player. (1) After IDLE_PUB_STOP_MS with no input and no movement, publish() goes quiet (the gate at its head): the presence record's ts stops refreshing, the standing 45s staleness rule retires the player from every roster, and the server referees' presence gates close — the world sleeps instead of simulating (and billing downloads) all night for a tab nobody is touching. Any input, or simply moving through the world, republishes on the next heartbeat at once. (2) At IDLE_LIMIT_MS untouched, the player is logged out properly: presence removed, page reloaded back to the enter gate — auth persistence is NONE by his standing choice, so the reload IS the whole logout, the same state a manual refresh leaves. (3) The topbar carries the standing readout he asked for: "Idle Logout: M:SS", sitting at 5:00 while active, ticking down while idle. Movement counts as activity on purpose: a held joystick fires no fresh input events, but the position it publishes changes every step — the ticker samples it. (4) RETURN RULE (added later the same day at his report — a swiped-away iOS tab came back with a fresh 5:00): the wall clock (Date.now) is kept next to the monotonic one, and any return or first input after the full limit away logs out instead of resetting — see idleTouch. The presence record's shape is untouched: no field added, removed or renamed anywhere in this block ============ */
 const IDLE_LIMIT_MS = 300000, IDLE_PUB_STOP_MS = 20000; /* his five minutes; the 20s publish stop is the mechanism under his "within about a minute" (20s quiet + the standing 45s staleness rule) */
-let lastActT = performance.now(), lastActX = null, lastActY = null, lastActScene = "", idleGone = false;
+let lastActT = performance.now(), lastActWallT = Date.now(), lastActX = null, lastActY = null, lastActScene = "", idleGone = false;
 const idleEl = document.getElementById("idlelogout");
 function idleMs() { return performance.now() - lastActT; }
-function idleTouch() { lastActT = performance.now(); }
+function idleTouch() {
+  /* RETURN RULE (Jonathan 2026-11-15, the frozen-tab fix): check the gap BEFORE resetting the clock. iOS freezes performance.now() together with a swiped-away page, so the monotonic clock cannot see the time he was gone — the wall clock can. A return (or any first input) after IDLE_LIMIT_MS away logs him out HERE instead of handing back a fresh 5:00; a shorter absence still just resets, as before */
+  if (entered && !idleGone && Date.now() - lastActWallT >= IDLE_LIMIT_MS) { idleLogout(); return; }
+  lastActT = performance.now(); lastActWallT = Date.now();
+}
 ["keydown", "pointerdown", "pointermove", "touchstart", "wheel"].forEach(ev => window.addEventListener(ev, idleTouch, { passive: true }));
 document.addEventListener("visibilitychange", () => { if (!document.hidden) idleTouch(); }); /* looking at the game again is being present */
 function idleFmt(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
@@ -1517,7 +1521,7 @@ function idleTick() {
   lastActX = me.x; lastActY = me.y; lastActScene = me.scene;
   const left = IDLE_LIMIT_MS - idleMs();
   if (idleEl) { idleEl.style.display = ""; idleEl.textContent = "Idle Logout: " + idleFmt(left); }
-  if (left <= 0) idleLogout();
+  if (left <= 0 || Date.now() - lastActWallT >= IDLE_LIMIT_MS) idleLogout(); /* the wall-clock half catches a page that was frozen (iOS swipe-away / sleep) and resumes after the limit — its monotonic clock never saw the gap */
 }
 setInterval(idleTick, 500);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) { publish(true); followRoomChat(me.scene, true); } }); /* CHAT (2026-11-05): a return from the background re-follows the room's chat log live — iOS kills the socket while the app sleeps; strict witness: the re-follow replays nothing said meanwhile, it only hears the room from the return on */
@@ -3190,7 +3194,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-2fab723da3";
+const HUB_BUILD = "x-bd80e8af10";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
