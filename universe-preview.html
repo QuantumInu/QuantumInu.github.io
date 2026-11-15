@@ -19,6 +19,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);co
 #status.on{color:#7dffb0}#status.off{color:#ff9d9d}
 #spacer{flex:1}
 .chip{background:rgba(56,225,255,.10);border:1px solid rgba(56,225,255,.35);color:var(--ink);border-radius:999px;padding:5px 11px;font-size:13px;white-space:nowrap}
+#idlelogout{color:#ffd76a;border-color:rgba(255,215,106,.45);background:rgba(255,215,106,.08)}
 button.chip{cursor:pointer;font-family:inherit}
 #muteallbtn{position:relative}
 #muteallbtn .maoff{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;font-size:1.3em}
@@ -427,6 +428,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:calc(100% - 64px);d
   <button class="chip" id="mutebtn" title="Sound on/off">🔊</button>
   <button class="chip" id="muteallbtn" title="Mute all voices"><span class="mabase">🎤</span><span class="maoff">🚫</span></button>
   <button class="chip" id="changebtn">Menu</button>
+  <span class="chip" id="idlelogout" style="display:none" title="You are logged out after 5 minutes idle — any input resets the timer">Idle Logout: 5:00</span>
 </div>
 <div id="stage">
   <canvas id="game"></canvas>
@@ -1477,6 +1479,7 @@ function recMonKey() { return (typeof monOut !== "undefined" && monOut && myMonS
 let lastPubMon = "";
 function publish(force) {
   if (!db || !entered) return;
+  try { if (idleMs() >= IDLE_PUB_STOP_MS) return; } catch (e) {} /* IDLE LOGOUT (Jonathan 2026-11-15): an untouched client stops refreshing its presence here — every publish path (frame loop, heartbeat, forced) funnels through this one gate. See the idle block under the heartbeat below */
   const now = performance.now();
   const key = [me.scene, me.chatId, Math.round(me.x), Math.round(me.y), me.flip, me.run ? 1 : 0, me.mic ? 1 : 0, acctUser ? acctUser.uid : "", (typeof monOut !== "undefined" && monOut && myMonSel) ? myMonSel : ""].join("|");
   if (!force && key === lastPubKey && now - lastPub < 2000 && (lastPubMon === recMonKey())) return;
@@ -1492,6 +1495,31 @@ function publish(force) {
 }
 /* heartbeat independent of the render loop, so a throttled/backgrounded tab stays visible to others */
 setInterval(() => { if (entered) publish(false); }, 2500);
+
+/* ============ IDLE LOGOUT (Jonathan 2026-11-15 — "open tab is not awake world"): an untouched client is NOT an awake player. (1) After IDLE_PUB_STOP_MS with no input and no movement, publish() goes quiet (the gate at its head): the presence record's ts stops refreshing, the standing 45s staleness rule retires the player from every roster, and the server referees' presence gates close — the world sleeps instead of simulating (and billing downloads) all night for a tab nobody is touching. Any input, or simply moving through the world, republishes on the next heartbeat at once. (2) At IDLE_LIMIT_MS untouched, the player is logged out properly: presence removed, page reloaded back to the enter gate — auth persistence is NONE by his standing choice, so the reload IS the whole logout, the same state a manual refresh leaves. (3) The topbar carries the standing readout he asked for: "Idle Logout: M:SS", sitting at 5:00 while active, ticking down while idle. Movement counts as activity on purpose: a held joystick fires no fresh input events, but the position it publishes changes every step — the ticker samples it. The presence record's shape is untouched: no field added, removed or renamed anywhere in this block ============ */
+const IDLE_LIMIT_MS = 300000, IDLE_PUB_STOP_MS = 20000; /* his five minutes; the 20s publish stop is the mechanism under his "within about a minute" (20s quiet + the standing 45s staleness rule) */
+let lastActT = performance.now(), lastActX = null, lastActY = null, lastActScene = "", idleGone = false;
+const idleEl = document.getElementById("idlelogout");
+function idleMs() { return performance.now() - lastActT; }
+function idleTouch() { lastActT = performance.now(); }
+["keydown", "pointerdown", "pointermove", "touchstart", "wheel"].forEach(ev => window.addEventListener(ev, idleTouch, { passive: true }));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) idleTouch(); }); /* looking at the game again is being present */
+function idleFmt(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function idleLogout() {
+  if (idleGone) return; idleGone = true;
+  try { if (myRef) { const p = myRef.remove(); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+  setTimeout(() => { try { window.location.reload(); } catch (e) {} }, 200);
+}
+function idleTick() {
+  if (idleGone) return;
+  if (!entered) { if (idleEl) idleEl.style.display = "none"; return; }
+  if (lastActX !== null && (me.x !== lastActX || me.y !== lastActY || me.scene !== lastActScene)) idleTouch(); /* moving IS activity (see the header) */
+  lastActX = me.x; lastActY = me.y; lastActScene = me.scene;
+  const left = IDLE_LIMIT_MS - idleMs();
+  if (idleEl) { idleEl.style.display = ""; idleEl.textContent = "Idle Logout: " + idleFmt(left); }
+  if (left <= 0) idleLogout();
+}
+setInterval(idleTick, 500);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && entered) { publish(true); followRoomChat(me.scene, true); } }); /* CHAT (2026-11-05): a return from the background re-follows the room's chat log live — iOS kills the socket while the app sleeps; strict witness: the re-follow replays nothing said meanwhile, it only hears the room from the return on */
 /* all hub sound mutes while the tab/window is out of focus, and returns when it is focused again */
 function holdAudio() { audioHeld = true; try { if (!jukeAudio.paused) jukeAudio.pause(); } catch (e) {} try { engineStop(); } catch (e) {} }
@@ -3151,7 +3179,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-93226e1d94";
+const HUB_BUILD = "x-b3bc862251";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
