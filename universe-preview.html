@@ -2692,7 +2692,18 @@ function enterHubInner() {
 /* ============ optional accounts (Firebase Auth) ============ */
 let auth = null; /* acctUser is declared up top, next to OWNER_EMAIL */
 /* the topbar shrink tiers (Jonathan 2026-10-31): on phones the header must never overflow — as the balance text grows, drawChips stamps bal1/bal2/bal3 on #topbar and the mobile CSS shrinks the title and pills to fit (the chips amount itself is never truncated). Desktop has no tier rules, so it is untouched. */
-function drawChips() { const el = $("chipspill"); if (!el) return; el.style.display = acctUser ? "" : "none"; const s = (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); el.textContent = "🪙 " + s; const tb = $("topbar"); if (tb) { const L = s.length; tb.classList.toggle("bal1", L >= 9 && L <= 13); tb.classList.toggle("bal2", L >= 14 && L <= 16); tb.classList.toggle("bal3", L >= 17); } }
+/* compact chips for the TOPBAR PILL ONLY (Jonathan 2026-11-15 — "make money display K, M, B etc. so 1.5K, 2.3M... just in this menu display... don't touch money display anywhere else"): 1,500 -> "1.5K", 2,300,000 -> "2.3M", 3,045,972,054 -> "3.0B". Used ONLY by drawChips below for #chipspill; every other money display in the game keeps the full number. The freed width is what lets the Idle Logout chip fit inside the topbar on a phone */
+function fmtChipsShort(n) {
+  n = Math.floor(Math.abs(n));
+  if (n < 1000) return String(n);
+  const units = [[1e3, "K"], [1e6, "M"], [1e9, "B"], [1e12, "T"]];
+  let i = 0;
+  while (i < units.length - 1 && n >= units[i + 1][0]) i++;
+  let out = (n / units[i][0]).toFixed(1);
+  if (parseFloat(out) >= 1000 && i < units.length - 1) { i++; out = (n / units[i][0]).toFixed(1); }
+  return out + units[i][1];
+}
+function drawChips() { const el = $("chipspill"); if (!el) return; el.style.display = acctUser ? "" : "none"; const s = (profile && typeof profile.chips === "number" ? profile.chips : 1000).toLocaleString(); el.textContent = "🪙 " + fmtChipsShort(profile && typeof profile.chips === "number" ? profile.chips : 1000); const tb = $("topbar"); if (tb) { const L = s.length; tb.classList.toggle("bal1", L >= 9 && L <= 13); tb.classList.toggle("bal2", L >= 14 && L <= 16); tb.classList.toggle("bal3", L >= 17); } }
 function acctMsg(t) { const m = $("acctmsg"); if (m) m.textContent = t || ""; }
 /* self-heal state (2026-11-05): whether the account's server record already holds a chips field, and whether the first-write create below is in flight. The database rules validate a FIRST chips write to exactly 1000 and every later write to a raise of at most 10B — so an account whose record has no chips yet (a session claim but no profile save ever landed) rejects acctSave's bundled update atomically, forever: the name/email never save, transfer credits never land, purchase debits never persist. acctChipsOnServer is set at sign-in reconcile from the same read pickChips judges, and kept current by pullChips/watchChips whenever they see a numeric server chips. */
 let acctChipsOnServer = false;
@@ -3179,7 +3190,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-b3bc862251";
+const HUB_BUILD = "x-2fab723da3";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
