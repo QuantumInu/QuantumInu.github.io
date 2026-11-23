@@ -3270,7 +3270,7 @@ document.head.appendChild(updAlertStyle);
 document.body.appendChild(updAlertBtn);
 updAlertBtn.addEventListener("click", () => { const u = new URL(location.href); u.searchParams.set("cb", Date.now() + ""); location.replace(u.toString()); });
 /* the build stamp: "x-" + the md5 of this page file, stamped in by the publisher at publish time; blank before the first stamp means "unstamped" */
-const HUB_BUILD = "x-f98d8b9886";
+const HUB_BUILD = "x-5d51bcde84";
 /* the panel (Jonathan 2026-11-08): the Menu row opens it; the activate control and the online version list live inside */
 let updPanelOpen = false;
 function closeUpdPanel() { updPanelOpen = false; const el = $("updpanel"); if (el) el.style.display = "none"; }
@@ -18677,7 +18677,7 @@ function drawEnemyActor(a, now) {
   const def = ENEMY_DEFS[er.t], rp = enemyRender.get(a.eid) || { rx: er.x, ry: er.y, flash: 0, lunge: 0 };
   const im = er.boss ? (a.sk ? krakenBossImg() : bossImg()) : enemyImg(er.t); /* SEA CAVE: the Kraken wears his OWN art, never the Archdruid's */ /* the BOSS wears the Archdruid — his own art, never the treant's */
   const moving = Math.hypot(er.x - rp.rx, er.y - rp.ry) > 6;
-  const bob = a.sea ? 0 : (a.sk && er.boss) ? 0 : a.sk ? ((rp.stepD || 0) > 0.35 ? Math.abs(Math.sin(rp.stepPh || 0)) * 6 : Math.sin(now / 700 + a.eid.charCodeAt(1) * 2) * 2) : moving ? Math.abs(Math.sin(now / 105 + a.eid.charCodeAt(1))) * 6 : Math.sin(now / 700 + a.eid.charCodeAt(1) * 2) * 2; /* FIX ROUND 6 (item A): the SEA CAVE LAND GUARD's bob is DISTANCE-DRIVEN — |sin(rp.stepPh)|, the phase skRenderTick accrues from the drawn point's own travel (one cycle per def.step units), so its stepping quickens with its pace instead of the wall-clock sin(now/105) every land foe used to share (~3 steps a second at 235 and at 385 alike — the skating Jonathan called out). Standing still, a guard keeps the common idle sway; the KRAKEN bobs 0 — he glides, a swimmer like the sea family below */ /* SEA MONSTERS NEVER BOB (SEA FIX 3, Jonathan 2026-11-11 - "when they move they should not bop up and down like they are walking"): a swimmer GLIDES at a constant ride height - the step bob and the idle sway are land gaits, and the foam collar and the wake carry a sea monster's motion instead */
+  const bob = (a.sea || a.space) ? 0 : (a.sk && er.boss) ? 0 : a.sk ? ((rp.stepD || 0) > 0.35 ? Math.abs(Math.sin(rp.stepPh || 0)) * 6 : Math.sin(now / 700 + a.eid.charCodeAt(1) * 2) * 2) : moving ? Math.abs(Math.sin(now / 105 + a.eid.charCodeAt(1))) * 6 : Math.sin(now / 700 + a.eid.charCodeAt(1) * 2) * 2; /* UFOs GLIDE (Jonathan 2026-11-23: "Aliens in space should smoothly move, not bounce like they are walking"): a.space takes the sea family's 0 — no step bob, no idle sway; a flying hull holds a constant ride height, and the only motion left at rest is the breathing swell below */ /* FIX ROUND 6 (item A): the SEA CAVE LAND GUARD's bob is DISTANCE-DRIVEN — |sin(rp.stepPh)|, the phase skRenderTick accrues from the drawn point's own travel (one cycle per def.step units), so its stepping quickens with its pace instead of the wall-clock sin(now/105) every land foe used to share (~3 steps a second at 235 and at 385 alike — the skating Jonathan called out). Standing still, a guard keeps the common idle sway; the KRAKEN bobs 0 — he glides, a swimmer like the sea family below */ /* SEA MONSTERS NEVER BOB (SEA FIX 3, Jonathan 2026-11-11 - "when they move they should not bop up and down like they are walking"): a swimmer GLIDES at a constant ride height - the step bob and the idle sway are land gaits, and the foam collar and the wake carry a sea monster's motion instead */
   const lungeP = rp.lunge ? Math.max(0, 1 - (now - rp.lunge) / 220) : 0;
   const lx = (er.f ? -1 : 1) * lungeP * 20;
   const sn = srvNow(), cloaked = def.key === "rogue" && (er.clk || 0) > sn;
@@ -20004,11 +20004,16 @@ function spaceRenderTick(now) { const dt = Math.min(0.05, spaceRenderLast ? (now
 
 /* ---------- drawing the two new rooms ---------- */
 function hazardBand(x, y, w, h, inset) { ctx.save(); ctx.beginPath(); rr(x, y, w, h, 18); ctx.clip(); ctx.fillStyle = "#14120c"; ctx.fillRect(x, y, w, h); ctx.strokeStyle = "rgba(255,196,64,.7)"; ctx.lineWidth = 9; ctx.beginPath(); for (let hx = x - h - 12; hx < x + w; hx += 30) { ctx.moveTo(hx, y + h + 6); ctx.lineTo(hx + h + 12, y - 6); } ctx.stroke(); ctx.restore(); ctx.fillStyle = "#171a29"; ctx.fillRect(x + inset, y + inset, w - inset * 2, h - inset * 2); } /* the hazard striping around a docking pad: diagonal caution stripes on a dark band, the pad's own rect left clear for the pad paint */
-function drawDockCounter(t) { /* the console counter across the TOP of the bay — the FISHING SHOP's counter structure (POLISH ROUND, his word) in the console's own cyan: a pale top surface over a gradient front body, Q-Bot behind it (his actor rides the pass; drawDockCounterFront repaints the front over his lower body and carries the label). The guidance line rides a lit wall plaque above the counter */
+function drawDockCounter(t) { /* the console counter across the TOP of the bay — the FISHING SHOP's counter structure (POLISH ROUND, his word) in the console's own cyan: a pale top surface over a gradient front body, Q-Bot behind it (his actor rides the pass; drawDockCounterFront repaints the front over his lower body and carries the label). The SHIP WALL rides the wall above the counter (below) */
   const c = DOCKCTR;
-  ctx.fillStyle = "#101b29"; rr(c.x - 128, c.y - 118, c.w + 256, 100, 14); ctx.fill(); ctx.strokeStyle = "rgba(87,230,255,.35)"; ctx.lineWidth = 2; rr(c.x - 128, c.y - 118, c.w + 256, 100, 14); ctx.stroke();
-  ctx.fillStyle = (Math.floor(t / 620) % 2) ? "#57e6ff" : "#2b7ea6"; for (let bx = c.x - 96; bx <= c.x + c.w + 96; bx += 96) { ctx.beginPath(); ctx.arc(bx, c.y - 92, 4, 0, 7); ctx.fill(); } /* the plaque's running lights */
-  ctx.fillStyle = "rgba(190,230,255,.62)"; ctx.font = "700 19px 'Trebuchet MS',sans-serif"; ctx.textAlign = "center"; ctx.fillText("step into a docking slot to park your ship — the prompt launches you", DOCKROOM.w / 2, c.y - 52);
+  /* THE SHIP WALL (Jonathan 2026-11-23 — "add the spaceship upgrades behind the counter just like other shops, so you can see the different ships with the name of the one you have in green"): the six starships on display along the back wall, the FISHING SHOP's rod wall carried to the bay — a black panel per tier in the console's cyan, the ship's whole art fit inside it, its name lettered under the art inside the panel, and the name of the ship you have (your selected tier, myShipSel) in the shops' own green (#1d9e57, the rod wall's owned colour) where every other name rides the muted blue. The wall stands in the band the guidance plaque hung in (panels y 94..190, the counter's top at 210 — clear daylight under them, the rod wall's own law); the plaque's guidance line itself moved to the deck under the counter in drawDockBay, same words and style, so nothing was lost */
+  for (let ti = 0; ti < 6; ti++) { const im = shipImg(ti); const rx = 320 + ti * 352, ry = 102;
+    ctx.fillStyle = "#000000"; rr(rx - 160, ry - 8, 320, 96, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(87,230,255,0.4)"; ctx.lineWidth = 1.5; rr(rx - 160, ry - 8, 320, 96, 8); ctx.stroke();
+    if (im && im.complete && im.naturalWidth) { const sc = Math.min(260 / im.naturalWidth, 54 / im.naturalHeight), rw = im.naturalWidth * sc, rh = im.naturalHeight * sc; ctx.drawImage(im, rx - rw / 2, ry + 28 - rh / 2, rw, rh); } /* the ship's whole art fit inside the panel's upper box, the rod wall's fit law */
+    ctx.font = "700 15px 'Trebuchet MS',sans-serif"; ctx.fillStyle = myShipSel === ti ? "#1d9e57" : "#5a84ad"; ctx.textAlign = "center";
+    ctx.fillText(SHIP_DEFS[ti].name, rx, ry + 82);
+  }
   ctx.fillStyle = "#eafcff"; rr(c.x, c.y, c.w, c.h, 8); ctx.fill();
   const cg = ctx.createLinearGradient(0, c.y + 16, 0, c.y + c.h); cg.addColorStop(0, "#2e7ea6"); cg.addColorStop(1, "#0f2a3a"); ctx.fillStyle = cg; ctx.fillRect(c.x, c.y + 16, c.w, c.h - 16);
   ctx.strokeStyle = "#57e6ff"; ctx.lineWidth = 2.5; rr(c.x, c.y, c.w, c.h, 8); ctx.stroke();
@@ -20035,6 +20040,7 @@ function drawDockBay(t) {
   ctx.fillStyle = "rgba(140,200,255,.07)"; ctx.font = "900 92px 'Trebuchet MS',sans-serif"; ctx.textAlign = "center"; ctx.fillText("⚛ QUANTUM DOCKING BAY", DOCKROOM.w / 2, 1420); /* the floor lettering */
   /* the console counter along the top, surf-counter style */
   drawDockCounter(t); /* the console counter along the top — the fishing shop's structure now (drawDockCounter / drawDockCounterFront), in the console's own cyan */
+  ctx.fillStyle = "rgba(190,230,255,.62)"; ctx.font = "700 19px 'Trebuchet MS',sans-serif"; ctx.textAlign = "center"; ctx.fillText("step into a docking slot to park your ship — the prompt launches you", DOCKROOM.w / 2, 336); /* the old wall plaque's guidance line, moved to the deck under the counter when the SHIP WALL took the plaque's band (2026-11-23) — same words, same style, read where you stand to work the console */
   /* player slots */
   DOCKSLOTS.forEach((s, i) => { const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
     hazardBand(s.x - 14, s.y - 14, s.w + 28, s.h + 28, 14);
